@@ -1558,6 +1558,21 @@ addstate() {
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
     || { echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
 
+  # never reformat an existing p3. re-running this used to luksFormat whatever
+  # third partition was already there and destroy everything on it, with no
+  # prompt. if a p3 exists, stop and make the operator remove it deliberately.
+  local ep3="${dev}3"; [ -b "$ep3" ] || ep3="${dev}p3"
+  if [ -b "$ep3" ]; then
+    if cryptsetup isLuks "$ep3" 2>/dev/null; then
+      echo "FAIL: $ep3 already holds an encrypted state volume -- refusing to reformat it." >&2
+      echo "  unlock it at boot as usual; to REPLACE it, wipe $ep3 deliberately first." >&2
+    else
+      echo "FAIL: $ep3 already exists and is not xos state -- refusing to touch it." >&2
+      echo "  remove that partition deliberately if you mean to add state here." >&2
+    fi
+    return 1
+  fi
+
   # p2 must already be there; p3 goes in the free space after it.
   local p2end
   p2end=$(partx -g -o END -n 2:2 "$dev" 2>/dev/null | tr -d ' ') \
@@ -1565,7 +1580,7 @@ addstate() {
   [ -n "$p2end" ] || { echo "FAIL: no second partition on $dev" >&2; return 1; }
 
   echo "  adding p3 to $dev in the free space after sector $p2end"
-  sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK
+  sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
 start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
   partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
