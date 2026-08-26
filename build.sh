@@ -834,7 +834,7 @@ usb() {
   [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] || {
     echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
-  if lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null | grep -q .; then
+  if lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null | has .; then
     echo "FAIL: $dev (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
   [ -f stick.img ] || stick || return 1
 
@@ -847,7 +847,7 @@ usb() {
   fi
   model=$(cat "/sys/block/$n/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//')
   echo "  target: $dev  size: $((dev_bytes / 1024 / 1024)) MiB  model: ${model:-unknown}"
-  if wipefs -n "$dev" 2>/dev/null | grep -q .; then
+  if wipefs -n "$dev" 2>/dev/null | has .; then
     echo "  WARNING: $dev already contains a filesystem/partition signature -- it will be DESTROYED."
   fi
   # confirmation the user cannot bypass by hammering 'y': type the model back.
@@ -864,11 +864,11 @@ usb() {
   say "verifying written bytes"
   local want_stick have_stick want_root have_root root_off
   want_stick=$(sha256sum < stick.img | awk '{print $1}')
-  have_stick=$(dd if="$dev" bs=1M iflag=direct count=$(( (img_bytes + 1048575) / 1048576 )) status=none | head -c "$img_bytes" | sha256sum | awk '{print $1}')
+  have_stick=$(dd if="$dev" bs=1M iflag=direct,count_bytes count="$img_bytes" status=none | sha256sum | awk '{print $1}')
   [ "$want_stick" = "$have_stick" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
   root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
   want_root=$(awk '$1=="image"{print $2}' image.sha256)
-  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s xos.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s xos.img)" | sha256sum | awk '{print $1}')
+  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$(stat -c%s xos.img)" status=none | sha256sum | awk '{print $1}')
   if [ -n "$want_root" ] && [ "$want_root" != "$have_root" ]; then
     echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; fi
   sync
@@ -1354,7 +1354,7 @@ size() {
   local builtins bi_bad=0 b
   builtins=$(grep -v '^[[:space:]]*#' learn/builtins | tr ' ' '\n' | grep -v '^$' | sort -u)
   for b in $builtins; do
-    printf 'type %s\n' "$b" | ./busybox ash 2>&1 | grep -q 'builtin' \
+    printf 'type %s\n' "$b" | ./busybox ash 2>&1 | has builtin \
       || { bi_bad=$((bi_bad + 1)); printf '    %s is not a builtin of the built ash\n' "$b" >&2; }
   done
   [ "$bi_bad" -eq 0 ] || c_ok=0
