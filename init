@@ -584,35 +584,60 @@ state_open() {
 	# unopened LUKS container exposes no filesystem label, and this works
 	# whatever the host names the stick (sda3, nvme0n1p3, vdb3). the host's
 	# own disks never enumerate (no nvme/sata driver), so every partition
-	# seen here is on the stick or on attached usb.
-	local cands="" dev p
+	# seen here is on the stick or on attached usb. candidates on the disk
+	# the verified root booted from come FIRST: a second encrypted usb -- an
+	# innocent backup, or one planted to feed a malicious wg0.conf into the
+	# trusted boot -- must never shadow the real p3. off-stick candidates are
+	# still tried last (the qemu rig attaches state as a second disk), and
+	# opening one is announced out loud below.
+	local cands="" late="" dev p name disk bootdisk
+	bootdisk=$(printf '%s' "$tslave" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
 	for p in /sys/class/block/*/partition; do
 		[ -f "$p" ] || continue
-		local cand="/dev/$(basename "$(dirname "$p")")"
+		name=$(basename "$(dirname "$p")")
+		local cand="/dev/$name"
 		[ -b "$cand" ] || continue
-		cryptsetup isLuks "$cand" 2>/dev/null && cands="$cands $cand"
+		cryptsetup isLuks "$cand" 2>/dev/null || continue
+		disk=$(printf '%s' "$name" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
+		if [ -n "$bootdisk" ] && [ "$disk" != "$bootdisk" ]; then
+			late="$late $cand"
+		else
+			cands="$cands $cand"
+		fi
 	done
+	cands="$cands$late"
 	[ -n "$cands" ] || return 1
 
-	local pass
-	printf '\n  unlock persistent state? passphrase (empty to skip): ' > /dev/console
-	if ! IFS= read -r -s -t 30 pass < /dev/console; then printf '\n' > /dev/console; return 1; fi
-	printf '\n' > /dev/console
-	[ -n "$pass" ] || return 1
+	# up to three tries: a single typo should not cost persistence for the
+	# whole session, and there is no reboot-to-retry from across a tunnel. an
+	# empty answer at any prompt still means "skip" deliberately.
+	local pass opened="" tries=0
+	while [ "$tries" -lt 3 ]; do
+		tries=$((tries + 1))
+		printf '\n  unlock persistent state? passphrase (empty to skip): ' > /dev/console
+		if ! IFS= read -r -s -t 30 pass < /dev/console; then printf '\n' > /dev/console; return 1; fi
+		printf '\n' > /dev/console
+		[ -n "$pass" ] || return 1
 
-	# try the passphrase against EVERY LUKS partition on the bus, not just the
-	# first one found: an unrelated encrypted drive sharing the hub must not
-	# shadow the real state stick and turn a correct passphrase into "wrong".
-	local opened=""
-	for dev in $cands; do
-		if printf '%s' "$pass" | cryptsetup open --key-file - "$dev" xosstate >/dev/null 2>&1; then
-			opened="$dev"; break
-		fi
+		# try the passphrase against every candidate (boot stick first): an
+		# unrelated encrypted drive sharing the hub must not shadow the real
+		# state stick and turn a correct passphrase into "wrong".
+		for dev in $cands; do
+			if printf '%s' "$pass" | cryptsetup open --key-file - "$dev" xosstate >/dev/null 2>&1; then
+				opened="$dev"; break
+			fi
+		done
+		[ -n "$opened" ] && break
+		[ "$tries" -lt 3 ] && printf '  wrong passphrase -- %d attempt(s) left\n' "$((3 - tries))" > /dev/console
 	done
 	if [ -z "$opened" ]; then
 		printf '  wrong passphrase -- continuing without persistence\n' > /dev/console
 		return 1
 	fi
+	# a candidate that is not on the boot stick opened: legitimate in the qemu
+	# rig, worth a loud note on real hardware -- state is DESIGNED to live on p3.
+	[ -n "$bootdisk" ] && [ "$(printf '%s' "${opened#/dev/}" | sed 's/p\{0,1\}[0-9]\{1,\}$//')" != "$bootdisk" ] \
+		&& printf '  note: state opened on %s, not the boot stick\n' "$opened" > /dev/console
 	mkdir -p "$STATE_DIR"
 	# mount p3 over /tmp/home -- the tmpfs home created earlier is shadowed by
 	# the persistent one. explicit -t ext4 because busybox mount does not probe

@@ -754,10 +754,24 @@ else
 			-nic user,model=virtio-net-pci -nographic -no-reboot < "$fifo" > "$4" 2>&1 &
 		qp19=$!
 		exec 9> "$fifo"
-		while [ "$t" -lt 90 ] && ! grep -aq 'unlock persistent state?' "$4"; do sleep 1; t=$((t+1)); done
-		printf '%s\n' "$3" >&9
+		# answer every prompt that appears -- init allows three tries, so a
+		# wrong passphrase re-prompts. type once per prompt seen, stop the
+		# moment a terminal verdict lands.
+		local sent=0 seen
+		while [ "$sent" -lt 3 ]; do
+			t=0
+			while [ "$t" -lt 90 ]; do
+				grep -aqE 'state unlocked|continuing without persistence|would not mount' "$4" && break 2
+				seen=$(grep -ac 'unlock persistent state?' "$4" || true)
+				[ "${seen:-0}" -gt "$sent" ] && break
+				sleep 1; t=$((t+1))
+			done
+			[ "$t" -ge 90 ] && break
+			printf '%s\n' "$3" >&9
+			sent=$((sent+1))
+		done
 		t=0
-		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|wrong passphrase|would not mount' "$4"; do sleep 1; t=$((t+1)); done
+		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|continuing without persistence|would not mount' "$4"; do sleep 1; t=$((t+1)); done
 		sleep 5   # let the wg/ssh lines land before the kill
 		exec 9>&-
 		kill "$qp19" 2>/dev/null; wait "$qp19" 2>/dev/null
@@ -778,10 +792,16 @@ else
 	grep -aq 'ssh listening on the tunnel only (10.9.0.2:22)' "$a19log" \
 		&& ok "dropbear bound to the tunnel address, nothing else" \
 		|| bad "ssh did not come up on the tunnel"
+	grep -aq 'note: state opened on /dev/vdb1, not the boot stick' "$a19log" \
+		&& ok "off-stick state is announced (boot-disk-first ordering held)" \
+		|| bad "state opened off the boot stick without saying so"
 
 	boot_typed /tmp/xos-a19p.img "$a19e" wrongpass "$a19log"
+	grep -aq 'wrong passphrase -- 2 attempt(s) left' "$a19log" \
+		&& ok "a typo gets a retry instead of costing the whole session" \
+		|| bad "no retry after a wrong passphrase"
 	grep -aq 'wrong passphrase -- continuing without persistence' "$a19log" \
-		&& ok "a wrong passphrase is refused out loud, and the boot goes on" \
+		&& ok "three wrong passphrases are refused out loud, and the boot goes on" \
 		|| bad "wrong passphrase was not refused loudly"
 
 	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks" "$a19log"
