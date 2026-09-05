@@ -381,7 +381,11 @@ dropbear_() {
 cryptsetup_() {
   say "building cryptsetup $CSVER + its four libraries (musl static-pie)"
   local specs="$PWD/musl-static-pie.specs" root="$PWD"
-  local cc="gcc -specs=$specs" cf="-fPIE -Os -isystem $root/sysroot/include"
+  # -ffile-prefix-map: json-c bakes __FILE__ into assert strings, which put the
+  # absolute build path inside the shipped cryptsetup -- two clean clones built
+  # different bytes and the reproducibility claim quietly broke. map the tree
+  # root to a fixed name so the binary is the same from any directory.
+  local cc="gcc -specs=$specs" cf="-fPIE -Os -isystem $root/sysroot/include -ffile-prefix-map=$root=xos"
   local dep="$root/src/cs-dep"
   rm -rf "$dep"; mkdir -p "$dep/lib" "$dep/include/json-c" "$dep/include/uuid"
 
@@ -550,7 +554,24 @@ rootfs() {
   # sourced by every interactive ash (via $ENV). vi editing on by default --
   # the shell has emacs keys too and there is no busybox option to remove them,
   # but nothing here ever leaves vi, so it is vi-only in practice.
-  printf 'set -o vi\n' > root/etc/shrc
+  #
+  # scrub: flash rots in a drawer, and verity only checks blocks it READS -- a
+  # stick can be half-dead and boot fine until the mission needs the bad half.
+  # reading every covered byte forces the check now: a rotten block panics the
+  # machine on the spot (that is the alarm working), a clean pass means every
+  # byte still matches the signed hash tree. a function, not a binary: the
+  # command surface (and the learn corpus that must cover it) stays fixed.
+  cat > root/etc/shrc <<'SHRC'
+set -o vi
+scrub() {
+	echo "reading every verity-covered byte -- a rotten block panics the machine, and that is the alarm working"
+	if dd if=/dev/dm-0 of=/dev/null bs=1M 2>/dev/null; then
+		echo "scrub clean: every byte on this stick still matches the signed hash tree"
+	else
+		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
+	fi
+}
+SHRC
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
@@ -1657,6 +1678,47 @@ lint() {
 
 # build_all -- the whole pipeline, front to back. a real function (not just a
 # case arm) so other commands (stick_install on a clean tree) can call it too.
+# repro -- the claim, actually tested. G13 compares THIS tree's artifacts to
+# the committed pin, which proves the pin was taken from this tree and nothing
+# more. this clones committed HEAD into a scratch dir, builds it from scratch
+# with its own hands (pinned sources re-verified on extraction, same pinned
+# clock), and compares the result against the SAME committed pin. no signing:
+# the pin covers xos.img and rootfs.squashfs, both born before any key is
+# touched, so a clean clone needs no passphrase and mints no keys. tarballs
+# are pre-copied from src/ to stay off the network; get() re-checks their
+# digests, so a poisoned copy still fails loudly. only meaningful on the
+# toolchain the pin was taken with -- same rule G13 already enforces.
+repro() {
+  say "independent rebuild -- clone committed HEAD, build, compare to the pin"
+  local d want_img have_img want_sq have_sq
+  d=$(mktemp -d /tmp/xos-repro.XXXXXX) || return 1
+  git clone -q --depth 1 "file://$PWD" "$d/tree" || { rm -rf "$d"; return 1; }
+  mkdir -p "$d/tree/src"
+  cp src/*.tar.* "$d/tree/src/" 2>/dev/null
+  if ! ( cd "$d/tree" && ./build.sh deps && ./build.sh fetch && ./build.sh kernel \
+      && ./build.sh headers && ./build.sh busybox && ./build.sh tls && ./build.sh ii_ \
+      && ./build.sh abduco && ./build.sh cryptsetup_ && ./build.sh wg_ \
+      && ./build.sh dropbear_ && ./build.sh rootfs && ./build.sh verity ) > "$d/build.log" 2>&1
+  then
+    echo "FAIL: the clean-clone build itself failed -- tail of the log:" >&2
+    tail -5 "$d/build.log" >&2
+    rm -rf "$d"; return 1
+  fi
+  want_img=$(awk '$1=="image"{print $2}'   image.sha256)
+  want_sq=$(awk '$1=="squashfs"{print $2}' image.sha256)
+  have_img=$(sha256sum < "$d/tree/xos.img" | awk '{print $1}')
+  have_sq=$(sha256sum < "$d/tree/rootfs.squashfs" | awk '{print $1}')
+  rm -rf "$d"
+  if [ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ]; then
+    printf '  \033[1;32mreproduced\033[0m -- a stranger cloning this repo builds these exact bytes\n'
+  else
+    printf '  \033[1;31mNOT REPRODUCIBLE\033[0m -- clean clone built different bytes than the pin:\n' >&2
+    printf '    image:    pin %s  clone %s\n' "$want_img" "$have_img" >&2
+    printf '    squashfs: pin %s  clone %s\n' "$want_sq" "$have_sq" >&2
+    return 1
+  fi
+}
+
 build_all() {
   deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; wg_; dropbear_; rootfs; verity; keys
   # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
@@ -1667,7 +1729,7 @@ build_all() {
 
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb|lint) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb|lint|repro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|lint|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|lint|repro|all}"; exit 1 ;;
 esac

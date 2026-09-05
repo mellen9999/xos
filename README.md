@@ -259,6 +259,11 @@ number and the previous boot's time at every unlock. remember it like the
 fingerprint words -- a stick that says boot 44 when you left it at 47 was
 rolled back to an older copy of p3, and nothing else on it can tell you that.
 
+flash rots in a drawer, and verity only checks blocks it reads -- a stick can
+be half-dead and still boot. type `scrub` at the shell to read every covered
+byte now: a rotten block panics the machine on the spot (that is the alarm
+working), a clean pass means every byte still matches the signed hash tree.
+
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.
 

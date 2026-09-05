@@ -447,6 +447,11 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'trust-anchors-in-binary: '; _c=$(grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null); echo "${_c:-0}"
 
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
+	# the shipped scrub function, run as shipped: source the rc it lives in and
+	# call it. on a clean image this reads every verity-covered byte and says
+	# so; on a rotten one the machine panics right here -- either way, loud.
+	printf 'scrub-clean: '
+	( . /etc/shrc; scrub 2>/dev/null | grep -q 'scrub clean' ) && echo yes || echo "no (BAD)"
 	# persistence across reboots, driven non-interactively. the harness attaches
 	# a blank second virtio disk (/dev/vdb) and boots twice. boot 1 finds it
 	# blank and provisions it -- LUKS2 + integrity, an ext2 filesystem, a marker.

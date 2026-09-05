@@ -454,6 +454,11 @@ grep -q 'fs-vfat: yes' <<< "$out" && ok "vfat available (usb sticks, esp)" || ba
 grep -q 'fs-exfat: yes' <<< "$out" && ok "exfat available (large sd cards, modern sticks)" || bad "no exfat"
 grep -q 'fs-iso9660: yes' <<< "$out" && ok "iso9660 available (loop-mount an image)" || bad "no iso9660"
 grep -q 'fs-ntfs3: yes' <<< "$out" && ok "ntfs available (read a windows disk)" || bad "no ntfs"
+# the shipped scrub function: a full read of the verity device, as an operator
+# would run it. rot would panic the boot instead (A1/A7 prove that alarm).
+grep -q 'scrub-clean: yes' <<< "$out" \
+	&& ok "scrub read every verity-covered byte and found them all intact" \
+	|| bad "the shipped scrub function did not come back clean"
 grep -q 'entropy-trusted: random.trust_cpu=1' <<< "$out" \
 	&& ok "the entropy source is pinned on the signed cmdline" \
 	|| bad "random.trust_cpu is not pinned -- keys may be generated on a thin pool"
