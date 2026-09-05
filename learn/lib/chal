@@ -15,6 +15,18 @@
 CHAINS="$ROOT/chains"
 CHAL_BEST="$STATE/challenge"
 
+# a rank for a run. the ladder is the reward -- the same reason the
+# curriculum has bosses. terminal-flavoured, no cutesy tiers.
+chal_rank() {
+	if   [ "$1" -ge 20 ]; then echo ROOT
+	elif [ "$1" -ge 15 ]; then echo ghost
+	elif [ "$1" -ge 10 ]; then echo operator
+	elif [ "$1" -ge  6 ]; then echo handler
+	elif [ "$1" -ge  3 ]; then echo initiate
+	else echo "warming up"
+	fi
+}
+
 chal_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$CHAINS"; }
 
 # chal_lvl -- the lvl: field of the block just loaded, de-padded for $(( ))
@@ -81,6 +93,7 @@ challenge() {
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" != 0 ] && { pause_card; break; }
 		score=$((score + 1))
+		[ $((score % 5)) -eq 0 ] && printf '  %s%s* * *  on fire -- %d clean  * * *%s\n' "$Y" "$B" "$score" "$N"
 		pause_card || { MODE=learn; return 2; }
 		i=$((i + 1))
 	done
@@ -93,15 +106,15 @@ challenge() {
 	# chal never touches S_RIGHT/S_WRONG, so that summary would print empty).
 	rule
 	if [ "$score" -ge "$nq" ]; then
-		printf '  %sthe gauntlet falls.%s %s of %s.\n' "$G$B" "$N" "$score" "$nq"
+		printf '  %sthe gauntlet falls.%s %s of %s.  %s%s%s\n' "$G$B" "$N" "$score" "$nq" "$D" "$(chal_rank "$score")" "$N"
 	else
-		printf '  %s of %s -- fell at stage %s.\n' "$score" "$nq" "$i"
+		printf '  %s of %s -- fell at stage %s.  %s%s%s\n' "$score" "$nq" "$i" "$D" "$(chal_rank "$score")" "$N"
 	fi
 	best=$(awk -F'\t' 'NR == 1 { print $1 }' "$CHAL_BEST" 2>/dev/null)
 	if [ -z "$best" ] || [ "$score" -gt "$best" ] 2>/dev/null; then
 		mkdir -p "$STATE" 2>/dev/null || :
 		printf '%s\t%s\n' "$score" "$(now)" > "$CHAL_BEST" 2>/dev/null || :
-		note "new best."
+		note "new best -- rank $(chal_rank "$score")."
 	else
 		note "best: $best of $nq"
 	fi
