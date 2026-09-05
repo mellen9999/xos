@@ -85,6 +85,7 @@ boot_img() {
 boot_state() {
 	local disk="$1"; shift
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-global driver=cfi.pflash01,property=secure,value=on \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
 		-drive file=stick.img,if=virtio,format=raw,readonly=on \
@@ -95,6 +96,7 @@ boot_state() {
 # boot with the hardware clock forced years into the past. proves the floor.
 boot_backclock() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-global driver=cfi.pflash01,property=secure,value=on \
 		-rtc base=2010-01-01T00:00:00 \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \

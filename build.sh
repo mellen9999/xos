@@ -2,6 +2,15 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# self-healing pre-commit wall: the hook lives in githooks/, but core.hooksPath
+# is per-clone local config a fresh `git clone` never receives -- so the wall
+# that blocks committing keys and build artifacts would be silently absent for
+# everyone but the author. arm it on every run; idempotent, and cheap.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  [ "$(git config --get core.hooksPath 2>/dev/null)" = githooks ] \
+    || git config core.hooksPath githooks 2>/dev/null || true
+fi
+
 KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
 IIVER="${IIVER:-2.0}"

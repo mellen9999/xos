@@ -77,7 +77,10 @@ without hardware.
 the repo holds recipes, never artifacts -- the pre-commit hook refuses any
 staged file whose magic says ELF, PE or squashfs, whatever it is named. that
 rule exists because a name-based version of it missed three committed
-binaries, and the build preferred them over building from source.
+binaries, and the build preferred them over building from source. the hook
+lives in `githooks/`, and `build.sh` points `core.hooksPath` at it on every
+run, so a fresh clone is walled from its first build -- not just on the
+author's machine.
 
 `git pull && ./build.sh all` relinks the whole system, which is what makes
 static linking survivable when a dependency gets a CVE.
