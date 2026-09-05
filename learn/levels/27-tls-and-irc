@@ -38,31 +38,31 @@ teach: ii -p
 teach: ii -n
 hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
-q: {start ii with a chosen real name|start ii, setting a real name of your choosing|connect with ii while supplying a real name}
+q: {start ii against @host@ with a chosen real name|start ii on @host@, setting a real name of your choosing|connect ii to @host@ while supplying a real name}
 a: ii -s @host@ -f xos -n xos -i $HOME/irc
 ref: ii
 teach: ii -f
 hint: -f sets the real name shown alongside the nick
 ---
-q: {start ii putting its directory tree somewhere you choose|start ii with its directory tree rooted somewhere you pick|connect with ii, choosing where its directory tree lives}
+q: {start ii against @host@, putting its directory tree somewhere you choose|start ii on @host@ with its directory tree rooted somewhere you pick|connect ii to @host@, choosing where its directory tree lives}
 a: ii -s @host@ -n xos -i /tmp/irc
 ref: ii
 teach: ii -i
 hint: -i points ii at a directory of your choosing instead of the default
 ---
-q: {join the channel #xos by writing to the server's in fifo|write a /j command into the server's in fifo to join #xos|join #xos by echoing the join command into ii's in fifo}
+q: {join the channel #xos on @host@ by writing to the server's in fifo|write a /j command into @host@'s in fifo to join #xos|join #xos on @host@ by echoing the join command into ii's in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in
 ref: ii
 teach: ii
 hint: ii turns each server command into a line written to that server's in fifo
 ---
-q: {read what is happening in a channel, live|follow a channel's out file live|watch a channel's activity as it happens}
+q: {read what is happening in #xos on @host@, live|follow #xos's out file on @host@ live|watch #xos's activity on @host@ as it happens}
 a: tail -f $HOME/irc/@host@/#xos/out
 ref: tail
 teach: tail -f
 hint: -f keeps tail running, printing new lines as they arrive
 ---
-q: {say hello in the channel|echo hello into the channel's in fifo|send the message hello to the channel}
+q: {say hello in #xos on @host@|echo hello into #xos's in fifo on @host@|send the message hello to #xos on @host@}
 a: echo hello > $HOME/irc/@host@/#xos/in
 ref: ii
 teach: ii

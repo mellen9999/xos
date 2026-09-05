@@ -214,7 +214,7 @@ ref: mkfifo
 teach: mkfifo
 hint: a fifo connects a writer to a reader instead of storing data
 ---
-q: %make% a named pipe readable and writable only by you
+q: %make% a named pipe @word@.fifo, readable and writable only by you
 a: mkfifo -m 600 @word@.fifo
 state: exists:@word@.fifo
 ref: mkfifo

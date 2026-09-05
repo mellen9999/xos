@@ -61,14 +61,14 @@ ref: sha512sum
 teach: sha512sum
 hint: sha512 produces a longer, 128 hex character digest
 ---
-q: {verify a sha512 checksum file|use sha512sum -c to check a saved sha512 hash file|confirm a file still matches its recorded sha512 hash}
+q: {verify a sha512 checksum file made from @txt@|use sha512sum -c to check a saved sha512 hash file for @txt@|confirm @txt@ still matches its recorded sha512 hash}
 a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
 out: OK
 ref: sha512sum
 teach: sha512sum -c
 hint: -c checks a saved hash file the same way it does for sha256sum
 ---
-q: {check a sha512 list without printing the successes|use sha512sum -c -s to verify silently|check a sha512 hash file, staying quiet unless something fails}
+q: {check a sha512 list for @txt@ without printing the successes|use sha512sum -c -s to verify @txt@'s hash silently|check @txt@'s sha512 hash file, staying quiet unless something fails}
 a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
 ref: sha512sum
 teach: sha512sum -s
@@ -81,14 +81,14 @@ ref: sha1sum
 teach: sha1sum
 hint: sha1 is 40 hex characters, kept around only for matching old published hashes
 ---
-q: {verify a sha1 checksum file|use sha1sum -c to check a saved sha1 hash file|confirm a file still matches its recorded sha1 hash}
+q: {verify a sha1 checksum file made from @txt@|use sha1sum -c to check a saved sha1 hash file for @txt@|confirm @txt@ still matches its recorded sha1 hash}
 a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
 out: OK
 ref: sha1sum
 teach: sha1sum -c
 hint: -c verifies a sha1 hash file the same way as the other *sum tools
 ---
-q: {check a sha1 list silently|use sha1sum -c -s to verify without the OK noise|check a sha1 hash file, staying quiet unless something fails}
+q: {check a sha1 list for @txt@ silently|use sha1sum -c -s to verify @txt@'s hash without the OK noise|check @txt@'s sha1 hash file, staying quiet unless something fails}
 a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
 ref: sha1sum
 teach: sha1sum -s
@@ -101,14 +101,14 @@ ref: md5sum
 teach: md5sum
 hint: md5 is 32 hex characters, the oldest and weakest of these tools
 ---
-q: {verify an md5 checksum file|use md5sum -c to check a saved md5 hash file|confirm a file still matches its recorded md5 hash}
+q: {verify an md5 checksum file made from @txt@|use md5sum -c to check a saved md5 hash file for @txt@|confirm @txt@ still matches its recorded md5 hash}
 a: md5sum @txt@ > m.txt && md5sum -c m.txt
 out: OK
 ref: md5sum
 teach: md5sum -c
 hint: -c verifies an md5 hash file the same way as the other *sum tools
 ---
-q: {check an md5 list silently|use md5sum -c -s to verify without printing every OK|check an md5 hash file, staying quiet unless something fails}
+q: {check an md5 list for @txt@ silently|use md5sum -c -s to verify @txt@'s hash without printing every OK|check @txt@'s md5 hash file, staying quiet unless something fails}
 a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
 ref: md5sum
 teach: md5sum -s
@@ -133,7 +133,7 @@ ref: cmp
 teach: cmp -s
 hint: -s suppresses all output, leaving only the exit status to check
 ---
-q: %list% every differing byte between two files, not just the first
+q: %list% every differing byte between @txt@ and @txt2@, not just the first
 a: cmp -l @txt@ @txt2@
 ref: cmp
 teach: cmp -l
@@ -151,7 +151,7 @@ ref: diff
 teach: diff
 hint: diff's default output shows changed lines with < and > markers
 ---
-q: %show% the differences in the unified format patches use
+q: %show% the differences between @txt@ and @txt2@ in the unified format patches use
 a: diff -U 3 @txt@ @txt2@
 ref: diff
 teach: diff -U
@@ -188,7 +188,7 @@ ref: base64
 teach: base64
 hint: base64 turns arbitrary bytes into printable text, expanding the size by a third
 ---
-q: {decode a base64 file back to its original bytes|use base64 -d to reverse the encoding on b64.txt|turn b64.txt's base64 text back into its original bytes}
+q: {encode @txt@ as b64.txt, then decode it back to its original bytes|use base64 -d to reverse the encoding on b64.txt, made from @txt@|turn b64.txt, @txt@'s base64 encoding, back into its original bytes}
 a: base64 @txt@ > b64.txt && base64 -d b64.txt
 out: rotate
 ref: base64

@@ -71,7 +71,7 @@ ref: grep
 teach: grep -L
 hint: capital L is the opposite of -l -- files with NO match
 ---
-q: %show% only the matched text from @log@, not the whole line
+q: %show% only the matched @sev@ text from @log@, not the whole line
 a: grep -o @sev@ @log@
 out: ^@sev@$
 ref: grep

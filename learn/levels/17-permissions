@@ -151,14 +151,14 @@ ref: stat
 teach: stat -f
 hint: -f switches from the file's info to the filesystem it lives on
 ---
-q: {stat the target of a symlink rather than the link|use stat -L to report on what a symlink points to, not the link|follow a symlink with stat -L before reading its info}
+q: {stat @txt@'s target rather than the symlink itself|use stat -L on @txt@ to report on what it points to, not the link|follow the symlink @txt@ with stat -L before reading its info}
 a: stat -L @txt@
 out: Size
 ref: stat
 teach: stat -L
 hint: -L follows the link and reports on its target instead of the link itself
 ---
-q: %show% stat's output in terse single-line form
+q: %show% stat's output for @txt@ in terse single-line form
 a: stat -t @txt@
 out: [0-9]
 ref: stat

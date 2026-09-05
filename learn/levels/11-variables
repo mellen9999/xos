@@ -44,7 +44,7 @@ ref: wc
 teach: wc -l
 hint: command substitution feeds wc's count straight into the assignment
 ---
-q: %show% the length of the value in @var@
+q: %show% the length of @word@ after storing it in @var@
 a: @var@=@word@; echo ${#@var@}
 out: [0-9]
 ref: sh
@@ -137,7 +137,7 @@ ref: cut
 teach: cut -d
 hint: the variable holding the separator still needs quoting when it's used
 ---
-q: {run a single command in a child shell using the -c flag|use sh -c to run one command in a fresh child shell|spawn a child shell just to execute one command with -c}
+q: {run "echo @word@" in a child shell using the -c flag|use sh -c to run "echo @word@" in a fresh child shell|spawn a child shell just to echo @word@ with -c}
 a: sh -c 'echo @word@'
 out: ^@word@$
 ref: sh

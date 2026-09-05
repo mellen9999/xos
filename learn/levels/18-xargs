@@ -91,14 +91,14 @@ ref: basename
 teach: basename
 hint: basename strips everything up through the last slash
 ---
-q: {strip the .txt suffix as well as the directory|use basename with a suffix argument to drop .txt too|reduce the path down to its name with .txt also removed}
+q: {strip @txt@'s directory and its .txt suffix|use basename on @txt@ with a suffix argument to drop .txt too|reduce @txt@ down to its name with .txt also removed}
 a: basename @txt@ .txt
 out: .
 ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {strip a suffix using the explicit flag rather than a second argument|use basename -s .txt instead of passing the suffix as a bare argument|strip .txt off using the -s flag form}
+q: {strip @txt@'s .txt suffix using the explicit flag rather than a second argument|use basename -s .txt on @txt@ instead of passing the suffix as a bare argument|strip .txt off @txt@ using the -s flag form}
 a: basename -s .txt @txt@
 out: .
 ref: basename

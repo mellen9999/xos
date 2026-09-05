@@ -27,7 +27,6 @@ q: print every command documented in /usr/share/learn/ref but absent from /tmp/t
 a: ls /usr/share/learn/ref | grep -vxF -f /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxFf /tmp/taught
 ref: grep
-cmp: ref
 hint: -f reads patterns from a file; -x anchors each to a whole line; -v inverts
 ---
 setup: Prove nothing in /usr/share/learn/ref was altered since you built it: one

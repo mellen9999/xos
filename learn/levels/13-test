@@ -99,7 +99,7 @@ ref: [
 teach: [
 hint: = compares strings; use -eq for numbers instead
 ---
-q: {check two strings differ, printing differ when they do|use != to confirm two strings aren't equal, printing differ|test that two strings are different, printing differ}
+q: {check that @word@ and the string other differ, printing differ|use != to confirm @word@ and other aren't equal, printing differ|test that @word@ and other are different strings, printing differ}
 a: [ @word@ != other ] && echo differ
 out: ^differ$
 ref: [

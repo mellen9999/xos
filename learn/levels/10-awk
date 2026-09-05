@@ -147,7 +147,7 @@ ref: awk
 teach: awk
 hint: NF is the field count for the current line
 ---
-q: {give awk its program with the explicit program flag rather than positionally|pass awk its program using -e instead of as the bare first argument|run awk's program through the -e flag rather than positionally}
+q: {print @log@'s first field, giving awk its program with the explicit program flag rather than positionally|pass awk its program using -e instead of as the bare first argument, to print @log@'s first field|run awk's program through the -e flag rather than positionally, printing @log@'s first field}
 a: awk -e '{print $1}' @log@
 out: 2024-03-01
 ref: awk

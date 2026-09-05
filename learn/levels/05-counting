@@ -146,14 +146,14 @@ ref: sort
 teach: sort -V
 hint: V understands version numbers, so 1.9 sorts before 1.10, and 2.0 sorts last of all
 ---
-q: {collapse duplicate lines ignoring case|collapse duplicates, treating case as irrelevant|remove case-insensitive duplicate lines}
+q: {collapse duplicate lines of @txt@ ignoring case|collapse duplicates in @txt@, treating case as irrelevant|remove case-insensitive duplicate lines from @txt@}
 a: sort -f @txt@ | uniq -i
 out: .
 ref: uniq
 teach: uniq -i
 hint: sort -f groups case-insensitively, uniq -i then collapses it
 ---
-q: {collapse duplicates comparing only the first 6 characters of each line|collapse duplicate lines using only their first 6 characters to compare|remove duplicates, comparing just the first 6 characters of each line}
+q: {collapse duplicates in @txt@ comparing only the first 6 characters of each line|collapse duplicate lines of @txt@ using only their first 6 characters to compare|remove duplicates from @txt@, comparing just the first 6 characters of each line}
 a: sort @txt@ | uniq -w 6
 out: .
 ref: uniq

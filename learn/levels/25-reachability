@@ -26,7 +26,7 @@ ref: ping
 teach: ping -i
 hint: -i sets the interval between packets, in seconds
 ---
-q: {ping out of a specific interface|ping @ip@ through a chosen interface|send the pings to @ip@ out of a specific interface}
+q: {ping @ip@ out of @iface@|ping @ip@ through @iface@|send the pings to @ip@ out of @iface@}
 a: ping -I @iface@ -c 3 @ip@
 ref: ping
 teach: ping -I
@@ -104,19 +104,19 @@ ref: traceroute
 teach: traceroute -I
 hint: -I switches the probe type to icmp echo instead of udp
 ---
-q: {trace out of a specific interface|trace to @ip@ through a chosen interface|send the trace to @ip@ out of a specific interface}
+q: {trace to @ip@ out of @iface@|trace to @ip@ through @iface@|send the trace to @ip@ out of @iface@}
 a: traceroute -i @iface@ @ip@
 ref: traceroute
 teach: traceroute -i
 hint: -i picks which interface the probes go out of
 ---
-q: {trace using a chosen source address|trace to @ip@ with a source address you pick|set the source address for a trace to @ip@}
+q: {trace to @ip@ using @ip2@ as a chosen source address|trace to @ip@ with @ip2@ as the source address you pick|set @ip2@ as the source address for a trace to @ip@}
 a: traceroute -s @ip2@ @ip@
 ref: traceroute
 teach: traceroute -s
 hint: -s sets the source address the probes claim to be from
 ---
-q: {trace to a specific destination port|trace to @ip@ targeting a specific port|aim the trace to @ip@ at one destination port}
+q: {trace to @ip@ targeting destination port @port@|trace to @ip@ targeting port @port@|aim the trace to @ip@ at destination port @port@}
 a: traceroute -p @port@ @ip@
 ref: traceroute
 teach: traceroute -p
@@ -170,7 +170,7 @@ ref: nslookup
 teach: nslookup
 hint: nslookup with just a name asks your configured resolver
 ---
-q: {look up a name using a specific dns server|resolve @host@ using a dns server you name|query a specific dns server directly for @host@}
+q: {look up @host@ using the dns server @ip@|resolve @host@ using @ip@ as the dns server you name|query @ip@ directly for @host@}
 a: nslookup @host@ @ip@
 ref: nslookup
 teach: nslookup

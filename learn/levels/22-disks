@@ -89,7 +89,7 @@ ref: du
 teach: du -a
 hint: -a walks down to individual files, not just directories
 ---
-q: %show% sizes in bytes rather than blocks
+q: %show% @dir@'s sizes in bytes rather than blocks
 a: du -b @dir@
 out: [0-9]
 ref: du
@@ -103,21 +103,21 @@ ref: du
 teach: du -d
 hint: -d takes a depth -- 1 stops descending after the first level
 ---
-q: %show% a grand total at the end
+q: %show% @dir@'s sizes with a grand total at the end
 a: du -c @dir@
 out: total
 ref: du
 teach: du -c
 hint: -c appends one extra 'total' line summing everything above it
 ---
-q: %show% sizes in megabytes
+q: %show% @dir@'s sizes in megabytes
 a: du -m @dir@
 out: [0-9]
 ref: du
 teach: du -m
 hint: -m forces megabytes
 ---
-q: %show% sizes in kilobytes explicitly
+q: %show% @dir@'s sizes in kilobytes explicitly
 a: du -k @dir@
 out: [0-9]
 ref: du

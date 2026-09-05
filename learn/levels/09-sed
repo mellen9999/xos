@@ -105,7 +105,7 @@ ref: sed
 teach: sed -E
 hint: -E gives you (groups) without backslashes; \1 is what the group caught
 ---
-q: {same thing, but with the older flag letter for extended regular expressions|repeat the port-number extraction using the older extended-regex flag letter|do the same port-number pull, but with the legacy extended-regex flag}
+q: {pull the port number out of @cfg@ again, but with the older flag letter for extended regular expressions|repeat the port-number extraction from @cfg@ using the older extended-regex flag letter|do the same port-number pull from @cfg@, but with the legacy extended-regex flag}
 a: sed -r 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 ref: sed
@@ -140,14 +140,14 @@ ref: sed
 teach: sed -n
 hint: a pattern address and $ together mean from the first match to the end
 ---
-q: {run a sed script held in a file rather than typed on the command line|run sed using a script file instead of an inline expression|apply a sed script that's stored in a file, not typed inline}
+q: {replace @old@ with @new@ in @cfg@ using a sed script held in a file rather than typed on the command line|run sed on @cfg@ using a script file instead of an inline expression, swapping @old@ for @new@|apply a sed script stored in a file to @cfg@, replacing @old@ with @new@}
 a: printf 's/@old@/@new@/g\n' > s.sed && sed -f s.sed @cfg@
 out: .
 ref: sed
 teach: sed -f
 hint: -f takes a filename holding the script, like -e takes it inline
 ---
-q: {edit a copy in place, keeping the original as edit.ini.bak|edit edit.ini in place, but back up the original as edit.ini.bak first|make the same in-place edit, saving the pre-edit version as edit.ini.bak}
+q: {copy @cfg@ to edit.ini, replace @old@ with @new@ in place, and keep the original as edit.ini.bak|edit a copy of @cfg@ in place changing @old@ to @new@, but back it up as edit.ini.bak first|make the same @old@-to-@new@ in-place edit on a copy of @cfg@, saving the pre-edit version as edit.ini.bak}
 a: cp @cfg@ edit.ini && sed -i.bak 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini.bak
 ref: sed

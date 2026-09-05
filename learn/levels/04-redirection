@@ -91,7 +91,7 @@ ref: printf
 teach: printf
 hint: printf only outputs what's in the format string -- no automatic newline
 ---
-q: %show% two values on one line separated by a tab
+q: %show% @word@ and @term@ on one line separated by a tab
 a: printf '%s\t%s\n' @word@ @term@
 out: @word@
 ref: printf
@@ -110,7 +110,7 @@ a: echo @word@ >&2
 out: @word@
 ref: echo
 teach: echo
-hint: >&2 duplicates fd 1's target onto fd 2 -- short for 1>&2, since 1 is the default
+hint: >&2 points stdout at wherever stderr goes -- short for 1>&2, since 1 is the default
 ---
 q: {run "ls @dir@ @word@-missing", merging stderr into the pipe so grep can see the error text too, searching for "such"|merge stderr into the pipe with 2>&1 so grep also sees the error from "ls @dir@ @word@-missing", searching for "such"|search ALL output -- stdout and stderr both -- of "ls @dir@ @word@-missing" for "such", by merging them before the pipe}
 a: ls @dir@ @word@-missing 2>&1 | grep such

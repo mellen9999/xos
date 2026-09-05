@@ -136,26 +136,26 @@ ref: gzip
 teach: gzip -f
 hint: -f overrides gzip's refusal to clobber an existing .gz
 ---
-q: {read a gzipped file without unpacking it to disk|use zcat to print a gzip file's contents without writing anything|stream a .gz file's decompressed contents straight to your terminal}
+q: {gzip @txt@ to z.gz, then read it without unpacking it to disk|use zcat to print z.gz's contents (gzipped from @txt@) without writing anything|stream z.gz's decompressed contents, built from @txt@, straight to your terminal}
 a: gzip -c @txt@ > z.gz && zcat z.gz
 out: rotate
 ref: zcat
 teach: zcat
 hint: zcat is gzip -dc -- decompress straight to stdout
 ---
-q: {uncompress z.gz back to z|use gunzip to turn z.gz back into z|reverse gzip's compression on z.gz}
+q: {gzip @txt@ to z.gz, then uncompress z.gz back to z|use gunzip to turn z.gz, gzipped from @txt@, back into z|reverse gzip's compression on z.gz, built from @txt@}
 a: gzip -c @txt@ > z.gz && gunzip z.gz
 ref: gunzip
 teach: gunzip
 hint: gunzip is the inverse of gzip, replacing the .gz with the original
 ---
-q: {check that a gzip file is not corrupt, without unpacking it|use gunzip -t to test z.gz for corruption without extracting it|verify z.gz decompresses cleanly, without writing the result}
+q: {gzip @txt@ to z.gz, then check it is not corrupt, without unpacking it|use gunzip -t to test z.gz, gzipped from @txt@, for corruption without extracting it|verify z.gz, built from @txt@, decompresses cleanly, without writing the result}
 a: gzip -c @txt@ > z.gz && gunzip -t z.gz
 ref: gunzip
 teach: gunzip -t
 hint: -t verifies the archive's integrity without writing any output
 ---
-q: {uncompress z.gz to stdout, keeping the file|use gunzip -c so z.gz's contents print without deleting z.gz|stream z.gz's decompressed contents to stdout, file untouched}
+q: {gzip @txt@ to z.gz, then uncompress it to stdout, keeping the file|use gunzip -c so z.gz's contents (gzipped from @txt@) print without deleting z.gz|stream z.gz's decompressed contents, built from @txt@, to stdout, file untouched}
 a: gzip -c @txt@ > z.gz && gunzip -c z.gz
 out: rotate
 ref: gunzip
@@ -182,13 +182,13 @@ ref: bzip2
 teach: bzip2 -c
 hint: -c writes the compressed bytes to stdout instead of replacing the file
 ---
-q: {uncompress a .bz2 file|use bunzip2 to reverse a .bz2 compression|decompress a bzip2 file back to its original}
+q: {bzip2 @txt@ to z.bz2, then uncompress it back|use bunzip2 to reverse the .bz2 compression of @txt@|decompress z.bz2, bzip2'd from @txt@, back to its original}
 a: bzip2 -c @txt@ > z.bz2 && bunzip2 z.bz2
 ref: bunzip2
 teach: bunzip2
 hint: bunzip2 is bzip2's inverse, same relationship gunzip has to gzip
 ---
-q: {test a .bz2 file for corruption without unpacking it|use bunzip2 -t to verify a .bz2 file without extracting it|check a bzip2 file decompresses cleanly, without writing the result}
+q: {bzip2 @txt@ to z.bz2, then test it for corruption without unpacking it|use bunzip2 -t to verify z.bz2, bzip2'd from @txt@, without extracting it|check z.bz2, built from @txt@, decompresses cleanly, without writing the result}
 a: bzip2 -c @txt@ > z.bz2 && bunzip2 -t z.bz2
 ref: bunzip2
 teach: bunzip2 -t
