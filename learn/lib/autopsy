@@ -108,36 +108,36 @@ autopsy() {
 			[ -n "$c" ] && [ -r "$c" ] && [ -s "$c" ] && { file=$c; break; }
 		done
 	fi
-	[ -n "$file" ] || { printf '%s\n' "autopsy: no history yet. run some commands first, or name a file: learn autopsy FILE" >&2; return 2; }
-	[ "$file" = /dev/stdin ] || [ -r "$file" ] || { printf '%s\n' "autopsy: cannot read $file" >&2; return 2; }
+	[ -n "$file" ] || { echo "learn: no history yet. run some commands first, or name a file: learn autopsy FILE" >&2; return 2; }
+	[ "$file" = /dev/stdin ] || [ -r "$file" ] || { echo "learn: cannot read $file" >&2; return 2; }
 
 	local scan total
 	scan=$(ap_scan "$file")
 	total=$(printf '%s\n' "$scan" | awk -F'	' '$1=="TOTAL"{print $3}')
-	[ "${total:-0}" -gt 0 ] 2>/dev/null || { printf '%s\n' "autopsy: nothing to read in that history." >&2; return 1; }
+	[ "${total:-0}" -gt 0 ] 2>/dev/null || { echo "learn: nothing to read in that history." >&2; return 1; }
 
 	hdr "autopsy" "$total commands from your own history"
 	note "patterns and counts only -- no line of your history is printed,"
 	note "and nothing leaves this machine."
 
 	# ---- what you reach for -------------------------------------------------
-	printf '\n  %syou reach for%s\n' "$U" "$N"
+	printf '\n  %syou reach for%s\n' "$B" "$N"
 	local max cmds
 	cmds=$(printf '%s\n' "$scan" | awk -F'	' '$1=="CMD"{print $3"\t"$2}' | sort -rn | head -8)
 	max=$(printf '%s\n' "$cmds" | awk -F'	' 'NR==1{print $1}')
 	[ -n "$max" ] && [ "$max" -gt 0 ] 2>/dev/null || max=1
 	printf '%s\n' "$cmds" | while IFS='	' read -r n name; do
 		[ -n "$name" ] || continue
-		bw=$(( n * 20 / max )); [ "$bw" -ge 1 ] || bw=1
-		bar=$(awk -v b="$bw" 'BEGIN{while(b-->0)printf "#"}')
-		printf '    %s%-12s%s %s%-20s%s %s%d%s\n' "$C" "$name" "$N" "$W" "$bar" "$N" "$D" "$n" "$N"
+		printf '    %s%-12s%s ' "$C" "$name" "$N"
+		bar "$n" "$max" 20
+		printf ' %s%d%s\n' "$D" "$n" "$N"
 	done
 
 	# ---- habits worth dropping ---------------------------------------------
 	local habs
 	habs=$(printf '%s\n' "$scan" | awk -F'	' '$1=="HAB"{print $2"\t"$3}')
 	if [ -n "$habs" ]; then
-		printf '\n  %shabits worth dropping%s\n' "$U" "$N"
+		printf '\n  %shabits worth dropping%s\n' "$B" "$N"
 		# prefix each with its rank, sort, then render
 		printf '%s\n' "$habs" | while IFS='	' read -r key cnt; do
 			[ -n "$key" ] || continue
@@ -154,7 +154,7 @@ autopsy() {
 	local seen_run taught
 	seen_run=$(printf '%s\n' "$scan" | awk -F'	' '$1=="SEEN"{print $2}' | sort -u)
 	taught=$(ap_taught)
-	printf '\n  %sthe curriculum%s\n' "$U" "$N"
+	printf '\n  %sthe curriculum%s\n' "$B" "$N"
 	printf '%s\n' "$taught" | awk -v seen="$seen_run" '
 		BEGIN { n = split(seen, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") S[a[i]] = 1 }
 		{ t++; if ($1 in S) run++; else if (gap == 0 || $2 < gap) { gap = $2; gapcmd = $1 } }

@@ -7,19 +7,30 @@
 #
 # three tab-separated fields: label, an ERE that detects it, a one-line gloss.
 # ROW ORDER IS CONSUMED ORDER: the detector removes each match before testing
-# the rows below, so the long forms ($((, 2>&1, ||, ${#) are ruled on before
-# the short ones they contain ($(, 2>, |, ${). only constructs busybox ash
-# actually runs are listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays.
+# the rows below, so the long forms ($((, 2>&1, ||, ${#, /dev/null) are ruled
+# on before the short ones they contain. a match is replaced with a single
+# space, not deleted outright -- deleting would fuse the tokens on either side
+# of it, and a later boundary-sensitive row (--, a lone -) would then read
+# them as one token and miss. only constructs busybox ash actually runs are
+# listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays. quoting (' " \) is
+# handled in explain(), not here -- see the comment there.
+/dev/null	[0-9]?>>?/dev/null	the bit bucket -- data written there is discarded
 arith	\$\(\(	$((...)) evaluates arithmetic, e.g. $((2 + 3))
 2>&1	2>&1	send errors (fd 2) to wherever stdout is going
 2>	2>	redirect errors (fd 2) to a file
 >>	>>	append stdout to a file, keeping what is there
 >	>	redirect stdout to a file, replacing it
+<<	<<	heredoc: everything up to the end marker becomes stdin
 <	<	read stdin from a file instead of the keyboard
+{}	\{\}	{} stands for each found file
+\;	\\;	\; runs the command once per file; + batches them into one
+[ ]	\[ 	test: evaluate a condition, exit 0 if true -- the same program as `test`
 ||	\|\|	run the next command only if this one FAILED (nonzero exit)
 &&	&&	run the next command only if this one SUCCEEDED (zero exit)
 |	\|	pipe: wire this command stdout into the next command stdin
 ;	;	run one command then the next, no matter what
+--	(^|[[:space:]])--([[:space:]]|$)	end of options -- everything after is a literal argument, even one that starts with -
+name=	^[A-Za-z_][A-Za-z0-9_]*=	name=value sets a variable, no spaces around the =
 $?	\$\?	exit status of the last command -- 0 means success
 $$	\$\$	the process id of this shell
 $!	\$!	the process id of the last command started with &
@@ -35,8 +46,12 @@ ${name}	\$\{	expand a variable; braces let you glue text right after it
 $(cmd)	\$\(	command substitution: run a command and become its output
 `cmd`	`	command substitution, the older form of $(...)
 $name	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value
+!	!	negate: flips success and failure -- runs if the command failed
+( )	\(	runs the commands in a fresh subshell -- variables set inside do not survive it
+{ }	\{ 	runs the commands in the current shell, grouped as one
 &	&	run the command in the background and carry on
 [...]	\[[^] ]*\]	a character class in a filename pattern, e.g. [0-9]
 *	\*	wildcard: any run of characters when matching filenames
 ?	\?	wildcard: any single character when matching filenames
 ~	~	your home directory
+-	(^|[[:space:]])-([[:space:]]|$)	a lone - means read stdin, by convention

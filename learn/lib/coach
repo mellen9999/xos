@@ -2,21 +2,42 @@
 #
 # 'wrong -- <answer>' tells you the answer; it does not tell you where YOUR
 # command died. on the final miss of a question (learn mode only -- the boss
-# stays terse) this shows up to three rows:
+# stays terse) this shows up to six rows, one label column wide:
 #
 #   yours/wanted   what your command actually printed vs what was wanted --
 #                  stderr included, so `grep: invalid option` is the first
 #                  thing you see
+#   not run        the answer was never executed at all -- it tried to write
+#                  outside the sandbox, so it is graded on text alone
 #   stages         for a pipeline, the line count after every stage, so the
 #                  point where it died is visible
+#   wants          the answer never invoked the command the question is
+#                  actually testing
 #   closest        the listed answer nearest to what you typed, with the
 #                  tokens you were missing and the ones you added
+#   state          what the tree was supposed to look like afterwards, in
+#                  plain words
 #
-# and one row on a correct answer: the shorter form, when yours was longer
-# than it had to be -- the process you saved is the lesson.
+# and two rows on a correct answer: the shorter form, when yours was longer
+# than it had to be, and the other accepted spellings -- the point both times
+# is that there was never only one right answer.
 #
 # none of this may ever crash a lesson: every path tolerates hostile input,
 # and selftest feeds it some.
+
+# _c_row LABEL TEXT -- one dim-label row, every row the same width column.
+_c_row() { printf '  %s%-7s%s %s\n' "$D" "$1" "$N" "$2"; }
+
+# _c_state SPEC -- humanize a state: check into a sentence a miss can read.
+_c_state() {
+	case "$1" in
+		exists:*) printf 'afterwards %s should exist' "${1#exists:}" ;;
+		gone:*)   printf 'afterwards %s should be gone' "${1#gone:}" ;;
+		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should contain %s' "$_p" "$_e" ;;
+		*)        printf '%s' "$1" ;;
+	esac
+}
 
 # _c_line OUTPUT -- "first line  (N lines)", or "(nothing)"
 _c_line() {
@@ -56,17 +77,29 @@ coach_miss() {
 	_ci=$1
 	_safe=1; printf '%s\n' "$_ci" | unsafe && _safe=0
 
-	# what yours printed vs what was wanted
-	if [ "$_safe" = 1 ] && { [ -n "${Q_OUT:-}" ] || [ "${Q_CMP:-}" = ref ]; }; then
+	# what yours printed vs what was wanted -- or, if it never ran at all,
+	# why not. an unsafe answer is graded on text alone (grade's tier 1
+	# only), so there is nothing to run and no output to show.
+	if [ "$_safe" = 0 ]; then
+		_c_row "not run" "writes outside the sandbox, graded on text alone"
+	elif [ -n "${Q_OUT:-}" ] || [ "${Q_CMP:-}" = ref ]; then
 		_got=$(run_answer "$_ci"); SANDBOX_DIRTY=1
-		printf '  %syours %s %s\n' "$D" "$N" "$(_c_line "$_got")"
+		_c_row yours "$(_c_line "$_got")"
 		if [ "${Q_CMP:-}" = ref ]; then
 			_want=$(run_answer "$(printf '%s\n' "$Q_ANSWERS" | head -1)"); SANDBOX_DIRTY=1
-			printf '  %swanted%s %s\n' "$D" "$N" "$(_c_line "$_want")"
+			_c_row wanted "$(_c_line "$_want")"
 		else
-			printf '  %swanted%s matching /%s/\n' "$D" "$N" "$Q_OUT"
+			_c_row wanted "matching /$Q_OUT/"
 		fi
 	fi
+
+	# the answer never invoked the command the question is actually testing
+	# (grade's tier 2 requires it) -- a real diagnosis, not a guess.
+	case "${Q_REF:-}" in
+		''|sh|ash) ;;
+		*) printf '%s\n' "$_ci" | answer_cmds | grep -qxF -- "$Q_REF" \
+			|| _c_row wants "to run $Q_REF" ;;
+	esac
 
 	# for a pipeline: the line count after every stage. quoting can hide a
 	# pipe from a naive split, so any quote means no stage row at all rather
@@ -85,7 +118,7 @@ coach_miss() {
 					_row="${_row:+$_row  }$_cmd:$_n"
 				done < "$TMP/coach.st"
 				rm -f "$TMP/coach.st"
-				[ -z "$_row" ] || printf '  %sstages%s %s%s%s\n' "$D" "$N" "$Y" "$_row" "$N"
+				[ -z "$_row" ] || _c_row stages "${Y}${_row}${N}"
 			fi ;;
 		esac ;;
 	esac
@@ -105,23 +138,45 @@ coach_miss() {
 		fi
 	done < "$TMP/coach.ans"
 	rm -f "$TMP/coach.ans" "$TMP/coach.d"
-	if [ -n "$_ba" ] && [ "$_bs" -gt 0 ]; then
-		[ "$_ba" = "$(printf '%s\n' "$Q_ANSWERS" | head -1)" ] \
-			|| printf '  %sclosest%s %s\n' "$D" "$N" "$_ba"
-		[ -z "$_bm" ] || printf '  %smissing%s %s%s%s\n' "$D" "$N" "$R" "$_bm" "$N"
-		[ -z "$_bx" ] || printf '  %sextra  %s %s\n' "$D" "$N" "$_bx"
+	if [ -z "$_ba" ]; then
+		# not one listed answer shares a single token with what you typed --
+		# a different approach entirely, so the first listed answer is the
+		# only "closest" there is.
+		_c_row closest "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+	elif [ "$_bs" -gt 0 ]; then
+		[ "$_ba" = "$(printf '%s\n' "$Q_ANSWERS" | head -1)" ] || _c_row closest "$_ba"
+		[ -z "$_bm" ] || _c_row missing "${R}${_bm}${N}"
+		[ -z "$_bx" ] || _c_row extra "$_bx"
 	fi
+
+	# afterwards: what the tree was supposed to look like, in plain words
+	[ -n "${Q_STATE:-}" ] && _c_row state "$(_c_state "$Q_STATE")"
+
 	return 0
 }
 
-# coach_right INPUT -- you got it; was there a shorter way? triggered by
-# character count, so `cat f | grep x` earns `grep x f`.
+# coach_right INPUT -- you got it. was there a shorter way (triggered by
+# character count, so `cat f | grep x` earns `grep x f`), and were there
+# other accepted spellings worth knowing?
 coach_right() {
 	_short=$(printf '%s\n' "${Q_ANSWERS:-}" | awk 'NF { if (!l || length($0) < l) { l = length($0); s = $0 } } END { print s }')
-	[ -n "$_short" ] || return 0
 	_gn=$(printf '%s\n' "$1" | norm)
-	[ $(( ${#_gn} - ${#_short} )) -gt 3 ] 2>/dev/null || return 0
-	[ "$_gn" = "$_short" ] && return 0
-	note "shorter: $_short"
+
+	if [ -n "$_short" ] && [ "$_gn" != "$_short" ] \
+	   && [ $(( ${#_gn} - ${#_short} )) -gt 3 ] 2>/dev/null; then
+		note "shorter: $_short"
+	fi
+
+	_also=""; _an=0
+	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/coach.also"
+	while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		[ "$(printf '%s\n' "$_a" | norm)" = "$_gn" ] && continue
+		_also="${_also:+$_also  ·  }$_a"
+		_an=$((_an + 1))
+		[ "$_an" -ge 2 ] && break
+	done < "$TMP/coach.also"
+	rm -f "$TMP/coach.also"
+	[ -n "$_also" ] && note "also: $_also"
 	return 0
 }

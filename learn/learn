@@ -14,6 +14,11 @@
 #   no sandbox library involved -- the isolation is the operating system.
 #
 # no arrays, no namerefs, no bashisms: the filesystem is the lookup table.
+#
+# glossary: a CARD is one memorised prompt+answer, tracked and decayed on its
+# own. a QUESTION (also STEP in a mission, STAGE in the gauntlet) is one card
+# rendered and asked, in whichever mode is running it. a BOSS is the gate at
+# the end of a level -- five of that level's own questions, no hints, timed.
 set -u
 
 ROOT="${LEARN_ROOT:-/usr/share/learn}"
@@ -189,10 +194,17 @@ q_load() {
 ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
 	local key tier input tries=0
 	q_load "$1" "$2" || return 1
-	key=$(card_key "$1" "$2" "$Q_TPL")
+	# a scenario passes its own file path (q_load's */* case): key that on
+	# "scn/<basename>", not the raw path, or review() has no level id to
+	# resolve back to a file and stats has no bucket to count it under.
+	case "$1" in
+		"$SCENARIOS"/*) key=$(card_key "scn/$(basename "$1")" "$2" "$Q_TPL") ;;
+		*)              key=$(card_key "$1" "$2" "$Q_TPL") ;;
+	esac
 
 	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+	[ "$MODE" = learn ] && note "? hint · tab reference · skip reveals · quit leaves -- answers really run"
 
 	while :; do
 		if [ "$MODE" = boss ]; then
@@ -221,7 +233,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			'')       continue ;;
 			'?'|hint)
 				if [ "$MODE" != learn ]; then
-					note "not here."
+					note "no hints under the clock."
 				elif [ -n "$Q_HINT" ]; then
 					note "$Q_HINT"
 				else
@@ -230,12 +242,9 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 				continue ;;
 			man|tab)
 				if [ "$MODE" != learn ]; then
-					note "not here."
+					note "no hints under the clock."
 				else
-					[ -n "$Q_REF" ] && ref "$Q_REF" | ${PAGER:-cat}
-					# the shell grammar the first listed answer leans on -- the
-					# operators and expansions that have no manpage of their own
-					explain_syntax "$(printf '%s\n' "$Q_ANSWERS" | head -1)" | ${PAGER:-cat}
+					ref_panel "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				fi
 				continue ;;
 			skip)
@@ -304,7 +313,7 @@ boss_round() {
 	echo
 	printf '%s' "$R$B"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
 	printf '  %sBOSS%s  %s%s%s%s\n' "$R$B" "$N" "$B" "$bname" "$N" \
-		"$(printf '%*s' $(( COLS > 34 ? COLS - 26 - ${#bname} : 1 )) '')${D}${BOSS_LIMIT}s  4 of 5${N}"
+		"$(printf '%*s' $(( COLS > 40 ? COLS - 32 - ${#bname} : 1 )) '')${D}${BOSS_LIMIT}s  pass: 4 of 5${N}"
 	level_field "$id" flavor | say
 	printf '%s' "$R"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
 	note "no hints. no reference. the clock does not stop."
@@ -332,7 +341,7 @@ boss_round() {
 	fi
 	statusbar "BOSS: $bname" "held" "$right" "5" ""
 	printf '\n'
-	no "$bname holds. $right of $asked -- come back when it is $((4 - right)) more."
+	no "$bname holds. $right of 5 -- need 4."
 	return 1
 }
 
@@ -424,7 +433,7 @@ victory() {
 # first within a tier -- the session spends its time where you are actually
 # weak, which is the whole reason the cards exist.
 review() {
-	local n=${1:-20} line key lvl rest idx tpl rc
+	local n=${1:-20} line key lvl rest idx tpl rc path
 	[ -s "$CARDS" ] || { note "no cards yet -- answer some questions first"; return 0; }
 	cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
 	local nc k=0; nc=$(grep -c . "$TMP/rev")
@@ -432,15 +441,22 @@ review() {
 	while IFS= read -r line <&3; do
 		key=$(printf '%s\n' "$line" | cut -f1)
 		lvl=${key%%/*}; rest=${key#*/}; idx=${rest%%#*}; tpl=${rest#*#}
-		[ -f "$(level_path "$lvl")" ] || continue
+		# a mission card keys as "scn/<basename>/<idx>" -- unwrap the basename
+		# back into a scenario path; everything else is a plain level id.
+		if [ "$lvl" = scn ]; then
+			path=$(scn_path "${idx%%/*}"); idx=${idx#*/}
+		else
+			path=$(level_path "$lvl")
+		fi
+		[ -f "$path" ] || continue
 		# a card whose template no longer matches its block is stale -- the
-		# level file was edited since. skip it rather than ask the wrong thing.
-		blk_load "$(level_path "$lvl")" "$idx" >/dev/null 2>&1 || continue
+		# file was edited since. skip it rather than ask the wrong thing.
+		blk_load "$path" "$idx" >/dev/null 2>&1 || continue
 		[ "$Q_TPL" = "$tpl" ] || continue
 		k=$((k + 1))
 		cls
 		statusbar "review" "weakest first" "$k" "$nc" ""
-		ask "$lvl" "$idx"; rc=$?
+		ask "$path" "$idx"; rc=$?
 		[ "$rc" = 2 ] && return 0
 		pause_card || return 0
 	done 3< "$TMP/rev"
@@ -564,13 +580,21 @@ lint() {
 
 stats() {
 	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
-	local id n m
+	local id n m sn sm
 	for id in $(level_ids); do
 		n=$(level_nq "$id")
 		m=$(awk -F'\t' -v p="$id/" '$1 ~ "^" p && $2 == 2' "$CARDS" 2>/dev/null | grep -c . || echo 0)
 		printf '  %s%-28s%s %s%s/%s%s\n' "$W" "$(level_field "$id" name)" "$N" \
 			"$([ "$m" = "$n" ] && echo "$G" || echo "$D")" "$m" "$n" "$N"
 	done
+	# mission cards key on "scn/..." rather than a level id, so they earn
+	# their own row instead of vanishing out of every level's count above.
+	sn=$(awk -F'\t' '$1 ~ /^scn\// { c++ } END { print c + 0 }' "$CARDS" 2>/dev/null)
+	if [ "$sn" -gt 0 ]; then
+		sm=$(awk -F'\t' '$1 ~ /^scn\// && $2 == 2 { c++ } END { print c + 0 }' "$CARDS" 2>/dev/null)
+		printf '  %s%-28s%s %s%s/%s%s\n' "$W" missions "$N" \
+			"$([ "$sm" = "$sn" ] && echo "$G" || echo "$D")" "$sm" "$sn" "$N"
+	fi
 	rule
 	note "tier 2 is mastered. a card unproved for $DECAY_DAYS days drops a tier."
 }
@@ -1033,6 +1057,7 @@ usage() {
 	cat <<-EOF
 	learn                 the main menu (or resumes, when piped)
 	learn <n>             practice level n
+	learn brief <n>       reprint level n's teaching brief
 	learn ref <cmd>       the reference entry for a command
 	learn <cmd>           same, shorthand
 	learn -k <word>       search the corpus
@@ -1041,7 +1066,7 @@ usage() {
 	learn review [n]      re-ask your weakest cards, weakest first
 	learn daily           today's ten -- same ten everywhere, compare scores
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
-	learn scenario [name] a narrative mission, or the list of unlocked ones
+	learn scenario [name] missions -- narrative pipelines, or the list of unlocked ones
 	learn autopsy [file]  your own shell history, held up to the curriculum
 	learn explain <line>  every command's summary plus the shell syntax in it
 	learn stats           what you have mastered
@@ -1093,7 +1118,7 @@ menu() {
 
 		cls
 		hdr "learn" "the shell, one card at a time"
-		printf '  '; bar "$p" "$t" 20; printf ' %s%s/%s bosses down%s\n\n' "$D" "$p" "$t" "$N"
+		printf '  '; bar "$p" "$t" 20; printf ' %s%s/%s levels beaten%s\n\n' "$D" "$p" "$t" "$N"
 
 		_mi c continue  "resume where you left off"
 		_mi p practice  "drill any level by number"
@@ -1107,6 +1132,7 @@ menu() {
 		else _mi_off m missions "locked until a level unlocks one"; fi
 		_mi s stats     "what you have mastered"
 		_mi a autopsy   "your own shell history, held up to the curriculum"
+		_mi_off h help    "usage and every command, printed"
 		_mi q quit      ""
 		rule
 		printf '  %schoose%s ' "$D" "$N"
@@ -1128,6 +1154,7 @@ menu() {
 			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
 			s) cls; stats; pause_card ;;
 			a) cls; autopsy; pause_card ;;
+			h|'?') cls; usage; pause_card ;;
 			q|:q|Q|"$E_EOT") break ;;   # q or Ctrl-D leaves, as in cmdchamp
 		esac
 	done
@@ -1170,7 +1197,8 @@ case "${1:-}" in
 	          	if [ -z "$_sid" ]; then die "no scenario $1"
 	          	elif scn_unlocked "$_sid"; then run_scenario "$_sid"
 	          	else no "locked -- beat $(scn_after "$_sid") first."; fi
-	          fi ;;
+	          fi
+	          session_summary ;;
 	autopsy)  shift; autopsy "$@" ;;
 	explain)  shift; explain "$@" ;;
 	reset)    rm -f "$CARDS" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" 2>/dev/null; ok "progress cleared" ;;

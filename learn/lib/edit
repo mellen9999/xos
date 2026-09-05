@@ -101,9 +101,9 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			# Tab: the reference panel, without abandoning what you typed --
 			# the page scrolls past, the question and your line are reprinted.
 			# learn mode only, same as typing man; the clock modes get nothing.
-			if [ "${MODE:-}" = learn ] && [ -n "${Q_REF:-}" ] && command -v ref >/dev/null; then
+			if [ "${MODE:-}" = learn ] && command -v ref_panel >/dev/null; then
 				printf '\n'
-				ref "$Q_REF" | ${PAGER:-cat}
+				ref_panel "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)"
 				printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
 			fi
 			;;

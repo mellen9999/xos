@@ -25,13 +25,13 @@ scenarios_any_unlocked() { local s; for s in $(scenario_ids); do scn_unlocked "$
 # a mission: every step in the order it was written, one card per screen.
 # no boss, no shuffle -- the sequence itself is the thing being taught.
 run_scenario() {
-	local sid=$1 nq i rc name
+	local sid=$1 nq i rc name right=0
 	nq=$(scn_nq "$sid")
 	[ "${nq:-0}" -gt 0 ] || { note "scenario '$sid' is empty"; return 0; }
 	name=$(scn_field "$sid" name)
 
 	cls
-	hdr "$name" "scenario  ${nq} steps"
+	hdr "$name" "mission  ${nq} steps"
 	scn_field "$sid" intro | say
 	pause_card || return 2
 
@@ -39,23 +39,28 @@ run_scenario() {
 	i=1
 	while [ "$i" -le "$nq" ]; do
 		cls
-		statusbar "$name" "scenario" "$i" "$nq" ""
+		statusbar "$name" "mission" "$i" "$nq" "$right"
 		ask "$(scn_path "$sid")" "$i"; rc=$?
 		[ "$rc" = 2 ] && return 2
+		[ "$rc" = 0 ] && right=$((right + 1))
 		i=$((i + 1))
 		pause_card || return 2
 	done
 
 	cls
 	rule
-	ok "$name -- swept clean."
+	if [ "$right" -eq "$nq" ]; then
+		ok "$name -- swept clean."
+	else
+		no "$name -- $right of $nq. run it again."
+	fi
 	pause_card
 }
 
 scenarios_menu() {
 	local sid n=0 pick name
 	cls
-	hdr "scenarios" "narrative missions, in order"
+	hdr "missions" "narrative pipelines, in order"
 	for sid in $(scenario_ids); do
 		n=$((n + 1))
 		name=$(scn_field "$sid" name)
