@@ -31,6 +31,12 @@ UTLVER="${UTLVER:-2.40.2}"
 # and only ever on the wireguard interface.
 WGTVER="${WGTVER:-1.0.20210914}"
 DBVER="${DBVER:-2024.86}"
+# maintainer key fingerprints for the two upstreams whose signed releases we
+# match (see SOURCES.md for how these were established -- each cross-checked
+# against at least two independent channels). the committed pubkeys in sigs/
+# are convenience copies; a swapped pubkey cannot satisfy these pins.
+DB_FPR=F7347EF2EE2E07A267628CA944931494F29C6773    # Matt Johnston (dropbear)
+LVM_FPR=D501A478440AE2FD130A1BE8B9112431E509039F   # Marian Csontos (lvm2)
 # the binaries that are not busybox applets. this was written out three separate
 # times -- seed(), and twice inside G24 -- so adding one meant editing three
 # places and forgetting any of them failed confusingly. one list, read everywhere.
@@ -127,6 +133,25 @@ get() {
   [ -d "src/$dir" ] || tar -C src -xf "src/$tar"
 }
 
+# verify one tarball against a COMMITTED detached signature and pubkey. the
+# digest pin (G8) already stops later substitution; this anchors what the
+# first sighting WAS to the maintainer's key instead of trust-on-first-use.
+# gpg is host-optional: absence skips loudly, the digest pin still holds.
+sigver() { # $1 tarball  $2 committed .asc  $3 committed pubkey  $4 pinned fingerprint
+  command -v gpg >/dev/null 2>&1 || {
+    printf '  %s: gpg not installed -- signature not checked (digest pin still enforced)\n' "$1"; return 0; }
+  local gh; gh=$(mktemp -d) || return 1
+  gpg -q --homedir "$gh" --import "$3" 2>/dev/null
+  # VALIDSIG + the pinned fingerprint: a swapped pubkey file cannot satisfy this.
+  if gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | grep -q "VALIDSIG $4"; then
+    printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)"
+    rm -rf "$gh"
+  else
+    rm -rf "$gh"
+    echo "FAIL: $1 does not match the committed maintainer signature" >&2; return 1
+  fi
+}
+
 fetch() {
   say "fetching + verifying sources"
   mkdir -p src
@@ -154,6 +179,7 @@ fetch() {
       "cryptsetup-$CSVER.tar.xz" "cryptsetup-$CSVER"
   get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
       "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
+  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR"
   get "http://ftp.rpm.org/popt/releases/popt-1.x/popt-$POPTVER.tar.gz" \
       "popt-$POPTVER.tar.gz" "popt-$POPTVER"
   get "https://github.com/json-c/json-c/archive/refs/tags/json-c-$JSONCVER.tar.gz" \
@@ -161,11 +187,15 @@ fetch() {
   get "https://cdn.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-$UTLVER.tar.xz" \
       "util-linux-$UTLVER.tar.xz" "util-linux-$UTLVER"
   # wireguard-tools: git.zx2c4.com publishes no per-release signature; the
-  # github mirror tag is trust-on-first-use over TLS. dropbear likewise.
+  # github mirror tag is trust-on-first-use over TLS.
   get "https://github.com/WireGuard/wireguard-tools/archive/refs/tags/v$WGTVER.tar.gz" \
       "wireguard-tools-$WGTVER.tar.gz" "wireguard-tools-$WGTVER"
-  get "https://github.com/mkj/dropbear/archive/refs/tags/DROPBEAR_$DBVER.tar.gz" \
-      "dropbear-$DBVER.tar.gz" "dropbear-DROPBEAR_$DBVER"
+  # dropbear: the OFFICIAL release tarball, which is what the maintainer
+  # signs -- the github tag tarball is a different artifact no signature
+  # covers, and dropbear is the one listening service.
+  get "https://matt.ucc.asn.au/dropbear/releases/dropbear-$DBVER.tar.bz2" \
+      "dropbear-$DBVER.tar.bz2" "dropbear-$DBVER"
+  sigver "dropbear-$DBVER.tar.bz2" "sigs/dropbear-$DBVER.tar.bz2.asc" sigs/dropbear-release-key.asc "$DB_FPR"
   # bearssl: also no upstream signature -- see SOURCES.md
   get "https://bearssl.org/bearssl-$BSSLVER.tar.gz" \
       "bearssl-$BSSLVER.tar.gz" "bearssl-$BSSLVER"
@@ -366,7 +396,7 @@ wg_() {
 
 dropbear_() {
   say "building dropbear $DBVER (ssh, pubkey-only, musl static-pie)"
-  local d="src/dropbear-DROPBEAR_$DBVER" specs="$PWD/musl-static-pie.specs"
+  local d="src/dropbear-$DBVER" specs="$PWD/musl-static-pie.specs"
   [ -d "$d" ] || { echo "FAIL: dropbear source missing, run fetch" >&2; return 1; }
   [ -f dropbear.localoptions.h ] || { echo "FAIL: dropbear.localoptions.h missing" >&2; return 1; }
   # our hardening (no password auth, ed25519 only) as a tracked overlay, so the
@@ -1069,7 +1099,8 @@ flagchk() {
 #   G5  no world-writable files
 #   G6  cmdline root hash matches the built tree
 #   G7  kernel has no module loader
-#   G8  every source pinned + verified before extraction   (fetch())
+#   G8  every source pinned + verified before extraction; lvm2 and dropbear
+#       also matched to committed maintainer signatures    (fetch())
 #   G9  no build artifacts/keys committed                  (githooks/pre-commit)
 #   G10 build clock pinned (busybox banner matches SOURCE_DATE_EPOCH)
 #   G11 no plaintext private key on disk

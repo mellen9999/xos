@@ -13,21 +13,30 @@ what that first sighting was anchored to. They are not equal:
 | abduco | none available (brain-dump.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | cryptsetup | sha256sums published by kernel.org, matched | good -- an independent published list |
 | util-linux | sha256sums published by kernel.org, matched | good -- same |
-| lvm2 | none matched (sourceware publishes signatures, not yet checked here) | **weakest -- trust-on-first-use over TLS only** |
+| lvm2 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | popt | none available | **weakest -- trust-on-first-use over TLS only** |
 | json-c | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
 | wireguard-tools | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
-| dropbear | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
+| dropbear | official release tarball, maintainer PGP signature (Matt Johnston), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 
 Those pins protect against a *later* substitution, not against the tarball
 having been wrong when first fetched. That is a real gap and is recorded here
 rather than hidden behind a hash that looks as authoritative as the others.
 
-Note what dropping bash cost this table. bash was the only entry anchored to a
-maintainer's PGP signature -- the strongest link here -- so the "best" tier is
-now empty, and every remaining pin rests on a digest list published over TLS by
-the same project that ships the tarball. The image got smaller and lost a shell
-parser, and the provenance story got weaker. Both are true.
+Note what dropping bash cost this table, and what refilled it. bash was the
+only entry anchored to a maintainer's PGP signature -- the strongest link here
+-- and losing it emptied the "best" tier. lvm2 and dropbear now occupy it: the
+upstream detached signatures and the maintainers' public keys are committed in
+`sigs/`, the full key fingerprints are pinned as constants in `build.sh`
+(`DB_FPR`, `LVM_FPR`), and `sigver()` matches tarball -> signature -> pinned
+fingerprint on every fetch. A swapped pubkey file cannot satisfy the
+fingerprint pin. Hosts without gpg skip the check loudly; the digest pin (G8)
+still holds either way.
+
+How the fingerprints were established (2026-09-05), each via two independent
+channels: the signature fetched from the upstream site over TLS, and Arch
+Linux's packaging `validpgpkeys` for the same projects. dropbear's key also
+matches the one published in its own releases directory.
 
 Adding cryptsetup took this repo from four pinned upstreams to nine in one
 step -- the largest single increase in trust surface it has ever taken, and
@@ -36,15 +45,12 @@ encrypted AND authenticated, which is the only way a key can live on this stick
 at all. Using the kernel's crypto through AF_ALG is what kept it to five rather
 than six; an openssl or gcrypt backend would have been a sixth, and a large one.
 
-lvm2 is the one worth revisiting: sourceware does publish signatures for it, and
-this pin does not yet check them. That is a known gap, written down here rather
-than left for someone to assume was handled.
-
-wireguard-tools and dropbear are the remote-access userland. dropbear is the one
-listening service on the whole system, so its pin matters more than most; it is
-pinned by digest but the digest was taken on first fetch, not matched against a
-maintainer signature. dropbear does publish signed releases upstream -- matching
-that signature is the obvious hardening, and another known gap named here.
+wireguard-tools is the remaining remote-access pin without a signature:
+git.zx2c4.com publishes no per-release signature, so the github tag stays
+trust-on-first-use. dropbear -- the one listening service on the whole system,
+so its pin matters more than most -- was moved off the github tag tarball
+entirely: the maintainer signs the official release tarball, and a signature
+only means something when it covers the artifact you actually build.
 
 `learn` and its corpus are first-party: written in this repo, reviewed in its
 diffs, covered by the hash tree like everything else. The reference entries are
