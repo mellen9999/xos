@@ -30,6 +30,7 @@ pick() {
 	_p="$POOLS/$1"
 	[ -f "$_p" ] || { echo "learn: no pool '$1'" >&2; REPLY=""; return 1; }
 	_n=$(grep -c . "$_p")
+	[ "$_n" -gt 0 ] 2>/dev/null || { echo "learn: empty pool '$1'" >&2; REPLY=""; return 1; }
 	rnd "$_n"
 	REPLY=$(grep . "$_p" | sed -n "$((REPLY + 1))p")
 }
