@@ -196,7 +196,7 @@ ref: date
 teach: date -d
 hint: -d parses the string you give instead of reading the clock
 ---
-q: {parse a date given in an explicit input format|parse a date string whose input format you specify yourself|interpret a date string using a format you name explicitly}
+q: {parse 2024-03-01 using an explicit input format string, printing it as epoch seconds|parse the date 2024-03-01 with an input format you specify, converting it to epoch seconds|interpret 2024-03-01 using a format you name explicitly, and print the result as epoch seconds}
 a: date -D "%Y-%m-%d" -d 2024-03-01 +%s
 ref: date
 teach: date -D

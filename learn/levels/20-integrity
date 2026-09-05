@@ -10,6 +10,8 @@ brief: published those, and you will need to check them -- but neither is safe
 brief: against someone deliberately constructing a collision. For "did this
 brief: file arrive intact" they are fine. For "did an attacker swap it", they
 brief: are not.
+brief:
+brief: -c here means check, not count.
 ---
 q: {compute the sha256 of @txt@|run sha256sum on @txt@|hash @txt@ with sha256}
 a: sha256sum @txt@

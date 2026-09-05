@@ -45,6 +45,11 @@ _fx_log() {
 				line("ERROR", "timeout talking to " ip[1 + int(rand() * 6)])
 			line("DEBUG", "cache hit ratio 0." (70 + int(rand() * 29)))
 			if (rand() < 0.6) line("WARN", "disk usage at " (75 + int(rand() * 24)) "%")
+			# bare severity lines, one per pool value: every real line above
+			# carries a timestamp too, so grep -x @sev@ (a whole-line match)
+			# has nothing to land on without these -- unconditional, so
+			# whichever @sev@ a roll happens to pick, one of these is it.
+			printf "ERROR\n"; printf "WARN\n"; printf "INFO\n"; printf "DEBUG\n"; printf "FATAL\n"
 			line("FATAL", "out of memory, aborting")
 		}'
 }
@@ -165,6 +170,26 @@ sandbox_build() {
 	printf 'staged\n' > src/util.c
 	printf 'old\n'    > backup/notes.txt.bak
 	: > data/empty
+
+	# an already-empty directory, and an already-nested one -- for the rmdir
+	# lessons, which delete something rather than make it. a generated @word@
+	# is not guaranteed to exist, so these are fixed names instead.
+	mkdir -p empty-dir
+	mkdir -p prune/mid/deep
+
+	# fixed content sort -h and sort -V have something real to reorder --
+	# @csv@ and @txt@ carry neither human sizes nor version numbers.
+	printf '1M\n512\n64k\n2K\n1G\n' > sizes.txt
+	printf '1.10\n1.2\n1.9\n1.1\n2.0\n' > versions.txt
+
+	# a format string for hexdump -f -- a fixed name, referenced by name in
+	# the question that reads it, the same file every build.
+	printf '16/1 "%%02x " "\\n"\n' > fmt.txt
+
+	# a setuid file for the -perm -MODE lesson: "at least these bits" needs
+	# a bit actually set to find.
+	printf '#!/bin/sh\ntrue\n' > bin/suid-tool
+	chmod 4755 bin/suid-tool
 
 	# the pools are the manifest. if anything they name did not get built, a
 	# generated question is about to ask after a file that is not there --

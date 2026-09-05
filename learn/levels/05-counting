@@ -118,12 +118,12 @@ ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
 ---
-q: {sort @csv@ by human-readable sizes like 2K and 1M, smallest first|order @csv@ by sizes such as 2K and 1M, smallest to largest|sort @csv@ so human-readable sizes like 2K and 1M compare correctly, ascending}
-a: sort -h @csv@
-out: .
+q: {sort sizes.txt by its human-readable sizes like 2K and 1M, smallest first|order sizes.txt by sizes such as 2K and 1M, smallest to largest|sort sizes.txt so human-readable sizes like 2K and 1M compare correctly, ascending}
+a: sort -h sizes.txt | head -1
+out: ^512$
 ref: sort
 teach: sort -h
-hint: h understands suffixes like K and M when comparing
+hint: h understands suffixes like K and M when comparing, so 512 sorts before 64k
 ---
 q: {sort @txt@ ignoring unprintable characters|sort @txt@ as if the unprintable characters were not there|sort @txt@ skipping any character that does not print}
 a: sort -i @txt@
@@ -132,19 +132,19 @@ ref: sort
 teach: sort -i
 hint: -i drops the bytes with no glyph before comparing -- case-blind sorting is -f's job
 ---
-q: {sort @txt@ writing the result back over the file itself|sort @txt@ and write the sorted result to a named output file|sort @txt@, saving the output rather than printing it}
+q: {sort @txt@ writing the result into sorted.txt|sort @txt@ and write the sorted result into sorted.txt|sort @txt@, saving the output into sorted.txt rather than printing it}
 a: sort -o sorted.txt @txt@
 state: exists:sorted.txt
 ref: sort
 teach: sort -o
 hint: -o names the output file -- it can even be the same file you're sorting
 ---
-q: {sort a list of version numbers so 1.10 comes after 1.9|sort version numbers so 1.10 lands after 1.9, not before it|order a list of version numbers correctly, so 1.10 follows 1.9}
-a: sort -V @txt@
-out: .
+q: {sort versions.txt so 1.10 comes after 1.9, not before it|sort versions.txt's version numbers so 1.10 lands after 1.9|order versions.txt correctly, so 1.10 follows 1.9}
+a: sort -V versions.txt | tail -1
+out: ^2\.0$
 ref: sort
 teach: sort -V
-hint: V understands version numbers, so 1.9 sorts before 1.10
+hint: V understands version numbers, so 1.9 sorts before 1.10, and 2.0 sorts last of all
 ---
 q: {collapse duplicate lines ignoring case|collapse duplicates, treating case as irrelevant|remove case-insensitive duplicate lines}
 a: sort -f @txt@ | uniq -i

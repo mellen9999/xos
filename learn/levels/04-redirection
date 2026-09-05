@@ -1,6 +1,7 @@
 name: redirection
 boss: DevNull
 flavor: Your stderr falls into the void.
+syntax: 2>&1, 2>, >>, >, <, |
 brief: A command has three channels: stdin (0) it reads, stdout (1) it prints,
 brief: and stderr (2) it complains on. Redirection re-points them at files.
 brief:
@@ -10,6 +11,9 @@ brief: no confirmation stands between you and it.
 brief:
 brief: 2> catches errors only. > file 2>&1 catches both, in that order --
 brief: 2>&1 > file does not, because the duplication happens before the move.
+brief:
+brief: | wires one command's stdout into the next's stdin -- tee, later in
+brief: this level, needs it.
 ---
 q: {write the word @word@ into @word@.txt, replacing anything already there|write @word@ into @word@.txt, overwriting whatever was there before|save the word @word@ to @word@.txt, wiping out any previous contents}
 a: echo @word@ > @word@.txt
@@ -100,3 +104,17 @@ out: ^0*[0-9]+$
 ref: printf
 teach: printf
 hint: the 0 before the 5 means zero-pad instead of space-pad
+---
+q: {%show% @word@ on stderr rather than stdout|write @word@ straight to stderr, not stdout|send @word@ to stderr using >&2}
+a: echo @word@ >&2
+out: @word@
+ref: echo
+teach: echo
+hint: >&2 duplicates fd 1's target onto fd 2 -- short for 1>&2, since 1 is the default
+---
+q: {run "ls @dir@ @word@-missing", merging stderr into the pipe so grep can see the error text too, searching for "such"|merge stderr into the pipe with 2>&1 so grep also sees the error from "ls @dir@ @word@-missing", searching for "such"|search ALL output -- stdout and stderr both -- of "ls @dir@ @word@-missing" for "such", by merging them before the pipe}
+a: ls @dir@ @word@-missing 2>&1 | grep such
+out: such
+ref: grep
+teach: grep
+hint: 2>&1 before the pipe merges stderr into the same stream grep reads -- 2>&1 after the pipe would be too late

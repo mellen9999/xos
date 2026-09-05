@@ -1,6 +1,6 @@
 name: moving data
-boss: DevNull
-flavor: Your stderr falls into the void.
+boss: Plaintext
+flavor: Every byte you send bare, I already have.
 brief: wget fetches over http. nc opens a raw tcp connection and hands it to
 brief: you as stdin and stdout, which is how you speak any text protocol by
 brief: hand. The older ftp and tftp clients are here because the machines you

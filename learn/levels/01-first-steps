@@ -1,12 +1,15 @@
 name: first steps
 boss: n00b
 flavor: You don't know where you are yet.
+syntax: $name
 brief: Three commands answer "where am I, and what is here". pwd prints the
 brief: directory you are standing in. ls lists what it contains. cd moves you.
 brief: Everything else in this system is those three plus a filter.
 brief:
 brief: Answers RUN. Type what you would really type -- if it produces the right
 brief: output it is right, whether or not it is the phrasing anyone expected.
+brief:
+brief: $NAME expands to a variable's value -- $HOME is where you live.
 ---
 q: {print|show} the directory you are currently in
 a: pwd

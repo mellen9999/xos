@@ -1,6 +1,7 @@
 name: proving this machine
-boss: Void
-flavor: Nothing you deleted is as gone as you think.
+boss: Verity
+flavor: Trust nothing you haven't checked yourself -- including me.
+syntax: /dev/null
 brief: Everything so far was about using a machine. This is about interrogating
 brief: one -- and the machine you know least about is the one you are standing
 brief: on right now.
@@ -98,9 +99,9 @@ ref: chmod
 teach: chmod
 hint: $HOME is on a tmpfs mounted noexec
 ---
-q: %count% how many trust anchors are compiled into the tls binary
+q: %count% how many times "Internet Security Research Group" appears among the strings in the tls binary
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
-out: ^[0-9]+$
+cmp: ref
 ref: strings
 teach: strings
 hint: strings pulls printable text out of the binary; grep -c counts the matches

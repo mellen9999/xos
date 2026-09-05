@@ -1,6 +1,7 @@
 name: finding files
 boss: Globber
 flavor: Name what you want. I will walk the whole tree.
+syntax: {}, \;, !
 brief: grep searches inside files. find searches FOR them. It walks a tree and
 brief: tests every entry against predicates you chain together.
 brief:
@@ -10,6 +11,10 @@ brief: into one invocation instead of forking per file.
 brief:
 brief: Quote your patterns. find . -name *.log lets the SHELL expand the glob
 brief: before find ever sees it, which does something else entirely.
+brief:
+brief: the reverse reminder: -name '*.log' is a shell GLOB, not the regex you
+brief: just learned in grep -- * here means "any run of characters", not "any
+brief: number of the last thing".
 ---
 q: %list% every file and directory under the current directory
 a: find .
@@ -99,7 +104,14 @@ q: %find% files under here with the exact permission mode 755
 a: find . -perm 755
 ref: find
 teach: find -perm
-hint: takes an exact octal mode, no + or - like -size does
+hint: MODE alone means exactly this mode; -MODE means all these bits are set; +MODE means at least one is
+---
+q: %find% files under here with the setuid bit set, matching "at least these bits" rather than an exact mode
+a: find . -perm -4000
+out: suid-tool
+ref: find
+teach: find -perm
+hint: a dash before the mode means all its bits must be set -- the file can have others too
 ---
 q: %find% files under here owned by user @user@
 a: find . -user @user@

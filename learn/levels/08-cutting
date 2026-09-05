@@ -7,6 +7,8 @@ brief: one, and only ever reads standard input -- it takes no filename.
 brief:
 brief: cut's default delimiter is TAB, not space. That surprises everyone once.
 brief: For anything space-separated, awk is the better tool, and it is next.
+brief:
+brief: -c here picks characters by position, not a count.
 ---
 q: %show% the first comma-separated field of every line in @csv@
 a: cut -d, -f1 @csv@
@@ -44,11 +46,11 @@ ref: cut
 teach: cut -f
 hint: a trailing dash with no end number means to the end of the line
 ---
-q: %show% the first field of @csv@ treating any run of whitespace as the delimiter
-a: cut -D -f1 @csv@
+q: %show% fields 4 and 1 of @csv@, in that exact order -- not resorted to 1 then 4
+a: cut -D -d, -f4,1 @csv@
 ref: cut
 teach: cut -D
-hint: capital D treats consecutive whitespace as one delimiter
+hint: without -D, cut always prints selected fields back in ascending order; -D keeps them (and any duplicates) exactly as you listed them
 ---
 q: %show% the first 10 characters of each line of @log@
 a: cut -c1-10 @log@
@@ -78,8 +80,9 @@ ref: cut
 teach: cut -s
 hint: without -s, a line with no delimiter is printed whole
 ---
-q: %show% field 1 of @csv@ separating the output with a colon instead of a comma
+q: %show% fields 1 and 3 of @csv@, joining them with a colon instead of a comma
 a: cut -d, -f1,3 -O: @csv@
+out: ^gateway:up$
 ref: cut
 teach: cut -O
 hint: -O sets the OUTPUT delimiter, separate from -d which sets the input one

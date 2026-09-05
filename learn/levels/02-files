@@ -118,8 +118,9 @@ ref: mkdir
 teach: mkdir -m
 hint: -m sets permissions at creation time -- 700 is owner-only rwx
 ---
-q: {remove the empty directory @word@ -- create it first if you like|delete the empty directory @word@, making one first if you need to|get rid of the empty directory @word@, creating it beforehand if you like}
-a: rmdir @word@
+q: {remove the already-empty directory empty-dir|delete empty-dir, which is already empty|get rid of empty-dir, sitting there empty}
+a: rmdir empty-dir
+state: gone:empty-dir
 ref: rmdir
 teach: rmdir
 hint: rmdir only works when the directory is empty -- rm -r doesn't care
@@ -199,8 +200,9 @@ ref: rm
 teach: rm -i
 hint: i for interactive -- prompts before removing
 ---
-q: {remove @dir@/@word@/deep and any parent directories left empty behind it|delete @dir@/@word@/deep, then clean up any now-empty parents above it|remove @dir@/@word@/deep along with the empty parent directories it leaves behind}
-a: mkdir -p @dir@/@word@/deep && rmdir -p @dir@/@word@/deep
+q: {remove prune/mid/deep and any parent directories left empty behind it|delete prune/mid/deep, then clean up any now-empty parents above it|remove prune/mid/deep along with the empty parent directories it leaves behind}
+a: rmdir -p prune/mid/deep
+state: gone:prune
 ref: rmdir
 teach: rmdir -p
 hint: p walks back up removing each parent as long as it's now empty

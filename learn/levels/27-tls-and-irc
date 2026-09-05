@@ -1,6 +1,7 @@
 name: tls and irc
 boss: Rebase
 flavor: Your history is mine to rewrite.
+syntax: -
 brief: Everything nc carries is plaintext -- readable and editable by anyone on
 brief: the path. tlstunnel is this system's answer: it wraps a plain connection
 brief: in TLS, checking the server's certificate against trust anchors compiled
@@ -22,9 +23,9 @@ ref: tlstunnel
 teach: tlstunnel
 hint: pipe a raw http request into tlstunnel the same way you would into nc
 ---
-q: %count% the trust anchors compiled into the tunnel binary
+q: %count% how many times the issuer name "Internet Security Research Group" appears in the tunnel binary's strings
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
-out: ^[0-9]+$
+cmp: ref
 ref: strings
 teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit

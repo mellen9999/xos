@@ -9,6 +9,9 @@ brief:
 brief: Patterns are regular expressions unless you say otherwise. -F turns
 brief: that off and matches the text literally, which is what you want the
 brief: moment your pattern contains a dot or a bracket you meant as itself.
+brief:
+brief: regex here, not filename globs: grep's * means "any number of the last
+brief: thing", the shell's means "any run of characters".
 ---
 q: {%show% every line of @log@ containing @sev@|which lines of @log@ mention @sev@?|pull the @sev@ lines out of @log@}
 a: grep @sev@ @log@
@@ -84,6 +87,7 @@ hint: w anchors the match to word boundaries
 ---
 q: %show% lines of @log@ that consist of exactly @sev@ and nothing else
 a: grep -x @sev@ @log@
+out: ^@sev@$
 ref: grep
 teach: grep -x
 hint: x requires the whole line to match, not just part of it
@@ -109,7 +113,7 @@ ref: grep
 teach: grep -C
 hint: C for context -- both before and after
 ---
-q: %show% only the first 2 matching lines of @log@ and stop
+q: %show% only the first 2 lines of @log@ matching @sev@, then stop
 a: grep -m 2 @sev@ @log@
 out: @sev@
 ref: grep
@@ -163,3 +167,10 @@ out: @sev@
 ref: grep
 teach: grep -e
 hint: -e is how you search for something starting with a dash
+---
+q: {%find% lines of @log@ containing a run of whitespace, using the POSIX space character class instead of a literal space|search @log@ for whitespace using the [[:space:]] POSIX class rather than typing a space|match whitespace in @log@ with [[:space:]], a POSIX character class, instead of a literal space}
+a: grep '[[:space:]]' @log@
+out: .
+ref: grep
+teach: grep
+hint: POSIX classes like [[:space:]], [[:digit:]] and [[:alpha:]] work inside brackets, portable across regex flavors

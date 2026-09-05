@@ -126,7 +126,7 @@ ref: awk
 teach: awk
 hint: BEGIN runs before the first line is read
 ---
-q: {pass the shell variable value @word@ into awk as a variable called w and print it|hand awk the value @word@ as a variable named w, then print it|give awk a variable w set to @word@ and print it back}
+q: {pass the literal string @word@ into awk as a variable called w and print it|hand awk the literal @word@ as a variable named w, then print it|give awk a variable w set to the literal string @word@ and print it back}
 a: awk -v w=@word@ 'BEGIN {print w}'
 out: @word@
 ref: awk
@@ -153,6 +153,13 @@ out: 2024-03-01
 ref: awk
 teach: awk -e
 hint: -e names the program explicitly, the role the positional argument usually plays
+---
+q: %show% the lines of @log@ where the third field matches @sev@, using the ~ operator explicitly
+a: awk '$3 ~ /@sev@/' @log@
+out: @sev@
+ref: awk
+teach: awk
+hint: ~ tests a field against a regex; !~ is its negation
 
 ---
 q: %list% each @sev@ level in @log@ by how often it occurs, most frequent first

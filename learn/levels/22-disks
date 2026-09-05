@@ -9,6 +9,9 @@ brief: On this machine the root is a read-only squashfs verified block by block,
 brief: and the host's own drives are deliberately invisible -- there are no
 brief: NVMe or SATA drivers compiled in. What you can see is the stick you
 brief: booted from and anything on USB.
+brief:
+brief: -s here means summarize the whole tree into one line -- not silent, and
+brief: not a delimiter filter.
 ---
 q: {show how much space is free on the mounted filesystems|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
 a: df
@@ -365,7 +368,7 @@ hint: same nosuid,nodev,noexec trio, now applied to the decrypted volume
 setup: A disk someone hands you is untrusted input, and a filesystem driver is
 setup: a parser that runs it in your kernel. The safest read of a disk you do
 setup: not trust is dd at the block level, where no parser runs at all.
-q: {image the whole removable disk /dev/sda to a file, reading raw bytes with no filesystem|make a raw byte-for-byte image of the removable disk /dev/sda, with no filesystem involved|read /dev/sda straight into a file, bypassing any filesystem parser}
+q: {image the disk @txt@ (standing in for /dev/sda) to disk.img, byte for byte|make a byte-for-byte image of @txt@ (standing in for /dev/sda), writing it to disk.img|copy @txt@ (standing in for /dev/sda) to disk.img, byte for byte, with no filesystem involved}
 a: dd if=@txt@ of=disk.img
 state: exists:disk.img
 ref: dd

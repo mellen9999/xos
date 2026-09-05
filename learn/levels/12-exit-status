@@ -1,6 +1,7 @@
 name: exit status and the special variables
 boss: AndOr
 flavor: Exit zero and you pass. Anything else is mine.
+syntax: ||, $?, $$, $!, &
 brief: Every command returns a number. Zero means success; anything else is a
 brief: failure the command chose. $? holds the last one.
 brief:
@@ -11,7 +12,7 @@ brief:
 brief: The other specials: $$ this shell's pid, $! the last background pid,
 brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
 ---
-q: %show% the exit status of the command you just ran
+q: {run true, then print its exit status|run the true command, then show what $? became|execute true, then print its exit status}
 a: true; echo $?
 out: ^0$
 ref: sh
@@ -96,6 +97,13 @@ a: set -u
 ref: set
 teach: set -u
 hint: -u turns a reference to an unset variable into a hard error
+---
+q: {try to cd into @word@-place, and if that fails because it doesn't exist yet, create it instead|attempt to enter @word@-place, falling back to making it if the cd fails|cd into @word@-place or, failing that, make it}
+a: cd @word@-place || mkdir @word@-place
+state: exists:@word@-place
+ref: cd
+teach: cd
+hint: || only runs its right side when the left side's exit status is nonzero -- cd fails cleanly when the target is missing
 ---
 q: %make% the shell print each command before running it
 a: set -x

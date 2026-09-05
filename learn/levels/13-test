@@ -1,6 +1,7 @@
 name: test and logic
 boss: TestCase
 flavor: Every question I ask has exactly two answers.
+syntax: [ ]
 brief: [ is a command, not syntax. That is why it needs spaces around it and a
 brief: closing ] as its last argument -- it is reading arguments like anything
 brief: else. test is the same command without the bracket.
@@ -91,7 +92,7 @@ ref: test
 teach: test -d
 hint: test and [ are the same command; test just skips the closing bracket
 ---
-q: {compare two strings for equality, printing same when they match|use = to test that two strings match, printing same|check whether two copies of @word@ are equal as strings, printing same}
+q: {compare two copies of @word@ for equality as strings, printing same when they match|use = to test that two copies of @word@ match as strings, printing same|check whether two copies of @word@ are equal as strings, printing same}
 a: [ @word@ = @word@ ] && echo same
 out: ^same$
 ref: [

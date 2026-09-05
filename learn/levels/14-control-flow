@@ -1,6 +1,7 @@
 name: control flow
 boss: TheFork
 flavor: Every branch you don't take, I take.
+syntax: arith, *
 brief: Four shapes cover nearly everything you will write: if for while case.
 brief:
 brief: if takes a COMMAND, not an expression -- if [ -f x ] runs the command [
@@ -10,6 +11,10 @@ brief:
 brief: for walks a list of words. while repeats until a command fails. The
 brief: read loop -- while read -r line -- is how you process a file line by
 brief: line without loading it all into memory.
+brief:
+brief: $((expr)) does arithmetic -- i=$((i + 1)) is the closest thing sh has
+brief: to i++. IFS=, read splits a line on commas instead of whitespace, just
+brief: for that one read.
 ---
 q: %show% exists if @txt@ is there, using if
 a: if [ -f @txt@ ]; then echo exists; fi

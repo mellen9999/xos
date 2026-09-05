@@ -1,6 +1,7 @@
 name: variables
 boss: $VARIABLE
 flavor: I hold what you've forgotten.
+syntax: ;, name=, ${#name}, ${name:-x}, ${name}, $(cmd)
 brief: A variable is name=value, with no spaces around the =. You read it back
 brief: with $name. Command substitution $(cmd) runs a command and becomes its
 brief: output, which is how you get a number out of wc and into a comparison.
@@ -8,6 +9,15 @@ brief:
 brief: Quote your expansions. "$x" is one word even when the value has spaces;
 brief: $x is however many words the value happens to split into. Nearly every
 brief: shell script bug that survives review is a missing pair of quotes.
+brief:
+brief: ${name} is the same expansion with braces around it -- they let you glue
+brief: text right after a variable without the shell reading it as part of the
+brief: name. ${#name} gives its length, ${name:-x} substitutes x only when
+brief: name is unset or empty.
+brief:
+brief: ; runs the next command regardless of what the last one did. && only
+brief: runs it if the last one succeeded -- the difference matters the moment
+brief: you chain more than one command together.
 ---
 q: {store the word @word@ in a variable called @var@|put @word@ into a variable named @var@|make a variable called @var@ hold the word @word@}
 a: @var@=@word@
@@ -15,7 +25,7 @@ ref: sh
 teach: sh
 hint: no spaces around the equals sign
 ---
-q: %show% the value of @var@
+q: {set @var@ to @word@, then show its value|assign @word@ to @var@, then print it back|store @word@ in @var@, then show what @var@ holds}
 a: @var@=@word@; echo $@var@
 out: @word@
 ref: echo
@@ -147,7 +157,7 @@ ref: command
 teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
 ---
-q: %find% ls using a safe default PATH rather than whatever yours happens to be
+q: %find% ls using a safe default PATH rather than whatever yours happens to be, and use it to list @txt@
 a: command -p ls @txt@
 out: @txt@
 ref: command

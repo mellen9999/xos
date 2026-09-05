@@ -1,6 +1,6 @@
 name: archives
 boss: Clobber
-flavor: One > and yesterday's file is gone.
+flavor: Unpack me carelessly and I scatter across everything you own.
 brief: tar bundles many files into one. It does not compress by itself -- -z
 brief: pipes the bundle through gzip, -j through bzip2. That is why you see
 brief: czf and xzf so often: create/extract, compress, file.
@@ -8,6 +8,8 @@ brief:
 brief: Always look before you extract. tar tf lists the contents without
 brief: writing anything, and an archive that expands into the current
 brief: directory instead of a subdirectory will scatter files everywhere.
+brief:
+brief: -c here means stdout, not count.
 ---
 q: %list% what is inside @archive@ without extracting anything
 a: tar -tf @archive@
@@ -57,7 +59,7 @@ ref: tar
 teach: tar -C
 hint: -C changes into that directory before extracting
 ---
-q: {pull one file out of @archive@ and print it to stdout rather than to disk|use tar -O to extract one file from @archive@ straight to stdout|extract src/main.c from @archive@ without writing it, printing it instead}
+q: {pull src/main.c out of @archive@ and print it to stdout rather than to disk|use tar -O to extract src/main.c from @archive@ straight to stdout|extract src/main.c from @archive@ without writing it, printing it instead}
 a: tar -xzOf @archive@ src/main.c
 ref: tar
 teach: tar -O

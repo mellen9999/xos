@@ -79,11 +79,12 @@ ref: hexdump
 teach: hexdump -e
 hint: -e takes a format string, the same kind -f reads from a file
 ---
-q: {dump @bin@ with the format string read from a file|dump @bin@ using a format string stored in a separate file|point hexdump at a file holding the format string, then dump @bin@ with it}
+q: {dump @bin@ with the format string read from fmt.txt|dump @bin@ using the format string stored in fmt.txt|point hexdump at fmt.txt, the file holding the format string, then dump @bin@ with it}
 a: hexdump -f fmt.txt @bin@
+out: [0-9a-f]{2} [0-9a-f]{2}
 ref: hexdump
 teach: hexdump -f
-hint: -f points hexdump at a file holding the format string
+hint: -f points hexdump at a file holding the format string -- fmt.txt already exists in this sandbox
 ---
 q: {dump @txt@ in octal with od, the older tool that does the same job|use od, hexdump's older cousin, to dump @txt@ in octal|show @txt@ in octal using od rather than hexdump}
 a: od @txt@
@@ -91,6 +92,27 @@ out: [0-7]
 ref: od
 teach: od
 hint: od's default is octal words -- no flags needed here
+---
+q: %show% @bin@'s address column in decimal instead of octal
+a: od -A d @bin@
+out: ^0000016
+ref: od
+teach: od -A
+hint: -A picks the radix for the address column -- d decimal, x hex, n none at all
+---
+q: %show% @bin@ as single hex bytes, one per position, instead of od's default octal words
+a: od -t x1 @bin@
+out: 7f 45 4c 46
+ref: od
+teach: od -t
+hint: -t picks the display type -- x1 is hex, one byte at a time
+---
+q: %show% only the first 8 bytes of @bin@ with od
+a: od -N 8 @bin@
+out: ^0000010$
+ref: od
+teach: od -N
+hint: -N caps how many bytes od reads, from the start
 ---
 q: {copy @txt@ to copy.txt using dd|use dd to copy @txt@ into copy.txt|make a copy of @txt@ named copy.txt with dd}
 a: dd if=@txt@ of=copy.txt
