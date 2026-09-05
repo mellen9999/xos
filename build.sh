@@ -562,16 +562,16 @@ rootfs() {
   # data structures -- which is what lets the one shell be ash.
   [ -x learn/learn ] || { echo "FAIL: learn/learn missing or not executable" >&2; return 1; }
   local part
-  for part in ref lib pools levels; do
+  for part in ref lib pools levels scenarios; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  for _f in skip builtins phrases; do
+  for _f in skip builtins phrases syntax; do
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
-  cp -r learn/ref learn/lib learn/pools learn/levels root/usr/share/learn/
-  cp learn/skip learn/builtins learn/phrases learn/chains root/usr/share/learn/
+  cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios root/usr/share/learn/
+  cp learn/skip learn/builtins learn/phrases learn/chains learn/syntax root/usr/share/learn/
 
   # hand-written shims for things busybox lacks
   # overlay carries the udhcpc script without

@@ -1,0 +1,80 @@
+# scenarios -- narrative missions that compose what the levels already taught.
+#
+# a scenario plays a question file in ORDER, no boss, no random draw: real
+# machine state (/etc/passwd, /proc/mounts, this build's own ref corpus)
+# instead of the generated sandbox fixtures the levels grade against. each
+# one gates on a level: `after: NN-name` unlocks it the moment that level's
+# boss falls, so the campaign stays a guided path and never a wall.
+#
+# the format is the level format (q_load already reads a path with a slash
+# as-is, level id otherwise) minus boss:/flavor: and with `intro:` standing
+# in for `brief:` -- a scenario's opening prose, not a lesson to re-teach.
+
+SCENARIOS="$ROOT/scenarios"
+
+scenario_ids() { ls -1 "$SCENARIOS" 2>/dev/null | sort; }
+scn_path()     { echo "$SCENARIOS/$1"; }
+scn_nq()       { awk '/^---$/ { c++ } END { print c + 0 }' "$(scn_path "$1")" 2>/dev/null; }
+scn_field()    { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$(scn_path "$1")"; }
+scn_after()    { scn_field "$1" after | head -1; }
+
+# unlocked when the level named in after: has fallen (or there is no gate)
+scn_unlocked() { local a; a=$(scn_after "$1"); [ -n "$a" ] || return 0; level_is_passed "$a"; }
+scenarios_any_unlocked() { local s; for s in $(scenario_ids); do scn_unlocked "$s" && return 0; done; return 1; }
+
+# a mission: every step in the order it was written, one card per screen.
+# no boss, no shuffle -- the sequence itself is the thing being taught.
+run_scenario() {
+	local sid=$1 nq i rc name
+	nq=$(scn_nq "$sid")
+	[ "${nq:-0}" -gt 0 ] || { note "scenario '$sid' is empty"; return 0; }
+	name=$(scn_field "$sid" name)
+
+	cls
+	hdr "$name" "scenario  ${nq} steps"
+	scn_field "$sid" intro | say
+	pause_card || return 2
+
+	MODE=learn
+	i=1
+	while [ "$i" -le "$nq" ]; do
+		cls
+		statusbar "$name" "scenario" "$i" "$nq" ""
+		ask "$(scn_path "$sid")" "$i"; rc=$?
+		[ "$rc" = 2 ] && return 2
+		i=$((i + 1))
+		pause_card || return 2
+	done
+
+	cls
+	rule
+	ok "$name -- swept clean."
+	pause_card
+}
+
+scenarios_menu() {
+	local sid n=0 pick name
+	cls
+	hdr "scenarios" "narrative missions, in order"
+	for sid in $(scenario_ids); do
+		n=$((n + 1))
+		name=$(scn_field "$sid" name)
+		if scn_unlocked "$sid"; then
+			_mi "$n" "$name" ""
+		else
+			_mi_off "$n" "$name" "  (unlocks after $(scn_after "$sid"))"
+		fi
+	done
+	[ "$n" -gt 0 ] || { note "no scenarios yet"; pause_card; return 0; }
+	printf '\n  %snumber (enter to go back):%s ' "$D" "$N"
+	IFS= read -r pick 2>/dev/null || return 0
+	[ -n "$pick" ] || return 0
+	sid=$(scenario_ids | sed -n "${pick}p")
+	if [ -z "$sid" ]; then
+		no "no such scenario"; pause_card
+	elif scn_unlocked "$sid"; then
+		run_scenario "$sid"
+	else
+		no "locked -- beat $(scn_after "$sid") first."; pause_card
+	fi
+}

@@ -113,6 +113,11 @@ export TERM=linux
 export ENV=/etc/shrc
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
+# ash keeps history only when HISTFILE is set. point it at the tmpfs home so
+# a session builds one for `learn autopsy` to read -- wiped at the next boot,
+# which is exactly the privacy property that command wants.
+export HISTFILE="$HOME/.ash_history"
+
 ip link set lo up 2>/dev/null
 # per-boot mac: a stick that never leaves a stable hardware address on the
 # networks it visits. locally-administered (bit 2 set) + unicast (bit 1

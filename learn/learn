@@ -29,7 +29,7 @@ die() { echo "learn: $*" >&2; exit 1; }
 mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
 trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
 
-for _l in ui ctx grade fixtures cards coach chal edit; do
+for _l in ui ctx grade fixtures cards coach chal edit scenarios autopsy explain; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -175,7 +175,14 @@ blk_load() {
 	[ -n "$Q_PROMPT" ]
 }
 
-q_load() { blk_load "$(level_path "$1")" "$2"; }
+# a level id (08-cutting) resolves under levels/; a path with a slash
+# (as scenarios pass it) is read as-is, so scenarios reuse this loader.
+q_load() {
+	case "$1" in
+		*/*) blk_load "$1" "$2" ;;
+		*)   blk_load "$(level_path "$1")" "$2" ;;
+	esac
+}
 
 # ---- the question loop ----------------------------------------------------
 
@@ -226,6 +233,9 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 					note "not here."
 				else
 					[ -n "$Q_REF" ] && ref "$Q_REF" | ${PAGER:-cat}
+					# the shell grammar the first listed answer leans on -- the
+					# operators and expansions that have no manpage of their own
+					explain_syntax "$(printf '%s\n' "$Q_ANSWERS" | head -1)" | ${PAGER:-cat}
 				fi
 				continue ;;
 			skip)
@@ -909,7 +919,7 @@ st_block() {
 }
 
 selftest() {
-	local id nq i bad=0 nq_lvl=0 nq_chain=0 a
+	local id nq i bad=0 nq_lvl=0 nq_chain=0 nq_scn=0 sid a
 	sandbox_build || die "cannot build sandbox at $SANDBOX"
 
 	for id in $(level_ids); do
@@ -956,6 +966,21 @@ selftest() {
 		done
 	fi
 
+	# scenarios get the same per-block treatment. they grade against real
+	# machine state rather than the sandbox fixtures, so the out:/state:
+	# checks below run against whatever this build machine actually is --
+	# which is exactly the state the mission is describing.
+	for sid in $(scenario_ids); do
+		nq=$(scn_nq "$sid")
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			blk_load "$(scn_path "$sid")" "$i" || { echo "FAIL $sid/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+			nq_scn=$((nq_scn + 1))
+			st_block "$sid/$i"
+			i=$((i + 1))
+		done
+	done
+
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
 	# survival -- the subshell turns a fatal ash error into a caught failure.
@@ -966,8 +991,8 @@ selftest() {
 			|| { echo "FAIL coach: crashed on: $a" >&2; bad=$((bad+1)); }
 	done
 
-	printf 'learn: %d questions in %d levels, %d chain stages, %d bad\n' \
-		"$nq_lvl" "$(level_ids | grep -c .)" "$nq_chain" "$bad"
+	printf 'learn: %d questions in %d levels, %d chain stages, %d scenario steps, %d bad\n' \
+		"$nq_lvl" "$(level_ids | grep -c .)" "$nq_chain" "$nq_scn" "$bad"
 	[ "$bad" -eq 0 ]
 }
 
@@ -1016,6 +1041,9 @@ usage() {
 	learn review [n]      re-ask your weakest cards, weakest first
 	learn daily           today's ten -- same ten everywhere, compare scores
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
+	learn scenario [name] a narrative mission, or the list of unlocked ones
+	learn autopsy [file]  your own shell history, held up to the curriculum
+	learn explain <line>  every command's summary plus the shell syntax in it
 	learn stats           what you have mastered
 	learn reset           forget all progress
 
@@ -1075,7 +1103,10 @@ menu() {
 		else _mi_off g gauntlet "locked until every boss has fallen"; fi
 		_mi x placement "skip past what you already know"
 		_mi f find      "look up any command's reference"
+		if scenarios_any_unlocked; then _mi m missions "narrative pipelines, on real machine state"
+		else _mi_off m missions "locked until a level unlocks one"; fi
 		_mi s stats     "what you have mastered"
+		_mi a autopsy   "your own shell history, held up to the curriculum"
 		_mi q quit      ""
 		rule
 		printf '  %schoose%s ' "$D" "$N"
@@ -1094,7 +1125,9 @@ menu() {
 			f) cls; printf '  %swhich command?%s ' "$W" "$N"
 			   IFS= read -r k 2>/dev/null || continue
 			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
+			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
 			s) cls; stats; pause_card ;;
+			a) cls; autopsy; pause_card ;;
 			q|:q|Q|"$E_EOT") break ;;   # q or Ctrl-D leaves, as in cmdchamp
 		esac
 	done
@@ -1128,6 +1161,18 @@ case "${1:-}" in
 	coverage) shift; coverage "${1:--q}" ;;
 	order)    order ;;
 	review)   shift; review "${1:-20}"; session_summary ;;
+	scenario) shift
+	          if [ -z "${1:-}" ]; then
+	          	scenarios_menu
+	          else
+	          	_sid=$(scenario_ids | grep "^0*$1-" | head -1)
+	          	[ -n "$_sid" ] || _sid=$(scenario_ids | grep -xF -- "$1")
+	          	if [ -z "$_sid" ]; then die "no scenario $1"
+	          	elif scn_unlocked "$_sid"; then run_scenario "$_sid"
+	          	else no "locked -- beat $(scn_after "$_sid") first."; fi
+	          fi ;;
+	autopsy)  shift; autopsy "$@" ;;
+	explain)  shift; explain "$@" ;;
 	reset)    rm -f "$CARDS" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" 2>/dev/null; ok "progress cleared" ;;
 	-h|--help|help) usage ;;
 	[0-9]*)   _id=$(level_ids | grep "^0*$1-" | head -1)

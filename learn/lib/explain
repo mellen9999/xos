@@ -1,0 +1,42 @@
+# explain -- break a command line into the pieces you need to run it: the
+# manpage for each command it names, and a gloss for every shell operator and
+# special variable around them. the operators are not commands and have no
+# manpage of their own, but you still have to know them to build the line -- so
+# the tab panel appends them to the command's ref, and `learn explain '<line>'`
+# shows the whole breakdown on its own.
+
+SYNTAX="$ROOT/syntax"
+
+# explain_syntax LINE -- print a gloss for each shell construct the line uses,
+# longest form first. single-quoted spans (awk and sed scripts) are stripped
+# first, so an awk $1 or $NF or a sed \1 inside a script is never mistaken for a
+# shell positional parameter. returns 1 if the line used no shell syntax at all.
+explain_syntax() {
+	local work found=0 label ere gloss tab
+	tab=$(printf '\t')
+	work=$(printf '%s' "$1" | sed "s/'[^']*'//g")
+	while IFS="$tab" read -r label ere gloss; do
+		case "$label" in ''|'#'*) continue ;; esac
+		if printf '%s' "$work" | grep -qE -- "$ere"; then
+			found=1
+			printf '  %s%-9s%s %s\n' "$C" "$label" "$N" "$gloss"
+			work=$(printf '%s' "$work" | sed -E "s/$ere//g")
+		fi
+	done < "$SYNTAX"
+	return $(( 1 - found ))
+}
+
+# explain LINE... -- the one-line summary of every command in the line, then the
+# shell syntax holding them together. `learn <cmd>` still prints a full page;
+# this reads a whole pipeline at once.
+explain() {
+	[ $# -ge 1 ] || die "usage: learn explain '<command line>'"
+	local line="$*" c r
+	printf '%s\n' "$line" | answer_cmds | awk 'NF' | sort -u | while read -r c; do
+		r=$(refname "$c")
+		[ -f "$REF/$r" ] && printf '  %s%-9s%s %s\n' "$W" "$c" "$N" "$(sed -n '2p' "$REF/$r")"
+	done
+	echo
+	printf '  %sshell syntax%s\n' "$D" "$N"
+	explain_syntax "$line" || printf '  %s(none -- a single command, no operators)%s\n' "$D" "$N"
+}

@@ -1,0 +1,168 @@
+# autopsy -- read your own shell history and hold it up against the curriculum.
+# a coach, not a quiz: what you actually reach for, habits the machine already
+# does better, and how much of what learn teaches you have ever run.
+#
+# PRIVACY IS THE WHOLE DESIGN. this reads a file full of tokens you typed as
+# arguments -- paths, hostnames, the odd password. so it emits COMMAND NAMES and
+# COUNTS only. not one line, fragment, or argument of your history is ever
+# printed, and there is no flag to make it. nothing leaves this machine; on xos
+# history lives on a tmpfs that is gone at the next boot.
+
+# ap_scan FILE -- one awk pass over the history. emits a tiny tsv the shell
+# formats: TOTAL, CMD (leading command + count), SEEN (command anywhere + count),
+# HAB (a habit key + count). command position matters: `ls | grep x` USES grep,
+# so counting only the first word would tell you you had never run it.
+ap_scan() {
+	awk '
+		{ line = $0 }
+		line ~ /^: [0-9]+:[0-9]*;/ { sub(/^: [0-9]+:[0-9]*;/, "", line) }   # zsh stamps
+		/^#[0-9]+$/ { next }                                               # bash stamps
+		{
+			gsub(/^[ \t]+/, "", line); gsub(/[ \t]+$/, "", line)
+			if (line == "") next
+			total++
+			nseg = split(line, seg, /\|\||&&|;|\||&/)
+			for (sx = 1; sx <= nseg; sx++) {
+				n = split(seg[sx], w, /[ \t]+/); cmd = ""
+				for (i = 1; i <= n; i++) {
+					t = w[i]
+					if (t=="sudo"||t=="doas"||t=="env"||t=="time"||t=="nice"||t=="command"||t=="builtin"||t=="exec") continue
+					if (t ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue   # VAR=val prefix
+					if (t ~ /^-/) continue                          # a flag, not the command
+					sub(/^.*\//, "", t)                             # /bin/ls -> ls
+					if (t == "" || t !~ /^[A-Za-z]/) continue
+					cmd = t; break
+				}
+				if (cmd == "") continue
+				used[cmd]++
+				if (sx == 1) cnt[cmd]++
+			}
+			# habits -- each is a thing a tool already does better, not a style call
+			if (line ~ /(^|[ \t;|&(])cat[ \t][^|]*\|[ \t]*(grep|egrep|fgrep)([ \t]|$)/) h["catgrep"]++
+			else if (line ~ /(^|[ \t;|&(])cat[ \t][^|]*\|[ \t]*(awk|sed|sort|head|tail|cut|tr|wc|uniq)([ \t]|$)/) h["catpipe"]++
+			if (line ~ /(grep|egrep)[^|]*\|[ \t]*wc[ \t]+-l([ \t]|$)/) h["grepwc"]++
+			if (line ~ /(^|[ \t;|&(])ls[^|]*\|[ \t]*(grep|egrep)([ \t]|$)/) h["lsgrep"]++
+			if (line ~ /(^|[ \t;|&(])ps[ \t][^|]*\|[ \t]*(grep|egrep)([ \t]|$)/) h["psgrep"]++
+			if (line ~ /(^|[ \t;|&(])find[ \t]/ && line ~ /\|[ \t]*xargs([ \t]|$)/ && line !~ /-print0/) h["xargs0"]++
+			if (line ~ /for[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]+in[ \t]+.?\$\(ls/) h["forls"]++
+			if (line ~ /chmod[ \t]+(-[A-Za-z]+[ \t]+)*777([ \t]|$)/) h["chmod777"]++
+			if (line ~ /kill[ \t]+(-9|-KILL|-s[ \t]*KILL)([ \t]|$)/) h["kill9"]++
+			if (line ~ /sort[^|]*\|[ \t]*uniq[ \t]*\|[ \t]*wc/) h["sortuniqwc"]++
+			if (line ~ /(^|[ \t;|&(])echo[ \t][^|]*\|[ \t]*(sed|cut|tr|awk)([ \t]|$)/) h["echopipe"]++
+			if (line ~ /(curl|wget)[^|]*\|[ \t]*(sudo[ \t]+)?(ba)?sh([ \t]|$)/) h["curlsh"]++
+			if (line ~ /(^|[ \t;|&(])(grep|egrep)[ \t]/ && line ~ /\|[ \t]*head[ \t]+-1([ \t]|$)/) h["grephead"]++
+		}
+		END {
+			printf "TOTAL\t-\t%d\n", total
+			for (c in cnt)  printf "CMD\t%s\t%d\n",  c, cnt[c]
+			for (c in used) printf "SEEN\t%s\t%d\n", c, used[c]
+			for (k in h)    printf "HAB\t%s\t%d\n",  k, h[k]
+		}
+	' "$1"
+}
+
+# hab KEY -> "label<TAB>the tool that already does it". ordered by how much it
+# matters (curl|sh first). ash has no arrays, so a case is the lookup table.
+hab() {
+	case "$1" in
+	curlsh)     printf 'curl into a shell\tyou are running code you never read\n' ;;
+	chmod777)   printf 'chmod 777\tworld-writable is a privesc primitive, not a fix\n' ;;
+	catgrep)    printf 'cat into grep\tgrep reads files: grep PATTERN FILE\n' ;;
+	catpipe)    printf 'cat into a text tool\tawk sed sort cut all take a filename\n' ;;
+	xargs0)     printf 'find into xargs, no -print0\ta space in a name breaks it: -print0 | xargs -0\n' ;;
+	forls)      printf 'for f in $(ls ...)\tword splitting eats spaces: for f in *\n' ;;
+	psgrep)     printf 'ps into grep\tmatch a bracket so it skips itself: grep [s]shd\n' ;;
+	grepwc)     printf 'grep into wc -l\tgrep -c counts matches on its own\n' ;;
+	lsgrep)     printf 'ls into grep\ta glob or find matches names properly\n' ;;
+	sortuniqwc) printf 'sort | uniq | wc\tsort -u | wc -l does it in one pass\n' ;;
+	grephead)   printf 'grep | head -1\tgrep -m1 stops at the first match\n' ;;
+	echopipe)   printf 'echo into sed/cut\tparameter expansion does it with no fork\n' ;;
+	kill9)      printf 'kill -9 first\tTERM lets it clean up; KILL is the last resort\n' ;;
+	*)          return 1 ;;
+	esac
+}
+# rank a habit key for ordering (lower = shown first)
+hab_rank() {
+	case "$1" in
+	curlsh) echo 1;; chmod777) echo 2;; catgrep) echo 3;; catpipe) echo 4;;
+	xargs0) echo 5;; forls) echo 6;; psgrep) echo 7;; grepwc) echo 8;;
+	lsgrep) echo 9;; sortuniqwc) echo 10;; grephead) echo 11;; echopipe) echo 12;;
+	kill9) echo 13;; *) echo 99;; esac
+}
+
+# ap_taught -- "command earliest-level" for every command the curriculum drills,
+# read straight off the levels' ref: lines. levels are numbered in teaching
+# order, so the first level a command appears in is where it is introduced.
+ap_taught() {
+	awk '
+		FNR==1 { lvl = FILENAME; sub(/.*\//, "", lvl); n = lvl + 0 }
+		/^ref: / { c = $2; if (c != "" && !(c in seen)) { seen[c] = 1; print c, n } }
+	' "$LEVELS"/* 2>/dev/null
+}
+
+autopsy() {
+	local file=${1:-} c
+	if [ "$file" = "-" ]; then file=/dev/stdin
+	elif [ -z "$file" ]; then
+		for c in "${HISTFILE:-}" "$HOME/.ash_history" /tmp/home/.ash_history; do
+			[ -n "$c" ] && [ -r "$c" ] && [ -s "$c" ] && { file=$c; break; }
+		done
+	fi
+	[ -n "$file" ] || { printf '%s\n' "autopsy: no history yet. run some commands first, or name a file: learn autopsy FILE" >&2; return 2; }
+	[ "$file" = /dev/stdin ] || [ -r "$file" ] || { printf '%s\n' "autopsy: cannot read $file" >&2; return 2; }
+
+	local scan total
+	scan=$(ap_scan "$file")
+	total=$(printf '%s\n' "$scan" | awk -F'	' '$1=="TOTAL"{print $3}')
+	[ "${total:-0}" -gt 0 ] 2>/dev/null || { printf '%s\n' "autopsy: nothing to read in that history." >&2; return 1; }
+
+	hdr "autopsy" "$total commands from your own history"
+	note "patterns and counts only -- no line of your history is printed,"
+	note "and nothing leaves this machine."
+
+	# ---- what you reach for -------------------------------------------------
+	printf '\n  %syou reach for%s\n' "$U" "$N"
+	local max cmds
+	cmds=$(printf '%s\n' "$scan" | awk -F'	' '$1=="CMD"{print $3"\t"$2}' | sort -rn | head -8)
+	max=$(printf '%s\n' "$cmds" | awk -F'	' 'NR==1{print $1}')
+	[ -n "$max" ] && [ "$max" -gt 0 ] 2>/dev/null || max=1
+	printf '%s\n' "$cmds" | while IFS='	' read -r n name; do
+		[ -n "$name" ] || continue
+		bw=$(( n * 20 / max )); [ "$bw" -ge 1 ] || bw=1
+		bar=$(awk -v b="$bw" 'BEGIN{while(b-->0)printf "#"}')
+		printf '    %s%-12s%s %s%-20s%s %s%d%s\n' "$C" "$name" "$N" "$W" "$bar" "$N" "$D" "$n" "$N"
+	done
+
+	# ---- habits worth dropping ---------------------------------------------
+	local habs
+	habs=$(printf '%s\n' "$scan" | awk -F'	' '$1=="HAB"{print $2"\t"$3}')
+	if [ -n "$habs" ]; then
+		printf '\n  %shabits worth dropping%s\n' "$U" "$N"
+		# prefix each with its rank, sort, then render
+		printf '%s\n' "$habs" | while IFS='	' read -r key cnt; do
+			[ -n "$key" ] || continue
+			printf '%02d\t%s\t%s\n' "$(hab_rank "$key")" "$key" "$cnt"
+		done | sort -n | while IFS='	' read -r _r key cnt; do
+			line=$(hab "$key") || continue
+			label=${line%%	*}; fix=${line#*	}
+			printf '    %s%-26s%s %sx%s%s\n' "$Y" "$label" "$N" "$D" "$cnt" "$N"
+			printf '      %s%s%s\n' "$D" "$fix" "$N"
+		done
+	fi
+
+	# ---- the curriculum, against what you have actually run ----------------
+	local seen_run taught
+	seen_run=$(printf '%s\n' "$scan" | awk -F'	' '$1=="SEEN"{print $2}' | sort -u)
+	taught=$(ap_taught)
+	printf '\n  %sthe curriculum%s\n' "$U" "$N"
+	printf '%s\n' "$taught" | awk -v seen="$seen_run" '
+		BEGIN { n = split(seen, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") S[a[i]] = 1 }
+		{ t++; if ($1 in S) run++; else if (gap == 0 || $2 < gap) { gap = $2; gapcmd = $1 } }
+		END {
+			if (t == 0) { print "    (no curriculum found)"; exit }
+			printf "    %d of %d taught commands you have run\n", run, t
+			if (gap > 0) printf "    first gap: level %02d, you have never run  %s\n", gap, gapcmd
+			else         print  "    every command the curriculum teaches, you have run. ROOT."
+		}'
+	echo
+}
