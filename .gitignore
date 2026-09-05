@@ -3,9 +3,7 @@ root/
 keys/
 /bzImage
 /busybox
-initramfs.cpio.gz
 build.log
-syslinux.cfg
 *.img
 *.squashfs
 *.verity
@@ -24,11 +22,8 @@ verity.roothash
 /ii
 /tlstunnel
 /rootfs.squashfs
-/esp.part
 bzImage.config.sha256
 /abduco
-/learn/lessons/
-/learn/challenges/
 /cryptsetup
 /wg
 /dropbearmulti

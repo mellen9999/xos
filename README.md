@@ -334,7 +334,7 @@ keyboard are usable; the serial console stays primary and is what the harness
 reads.
 
 `learn` is this repo's own, and it is why the one shell can be ash. it teaches
-the whole shipped command surface from nothing to fluent -- the ~140 applets,
+the whole shipped command surface from nothing to fluent -- the ~180 applets,
 builtins and binaries this image actually contains, in dependency order. losing
 cmdchamp cost the corpus that needed bash; on a read-only root the filesystem is
 already a lookup table, so `learn` reads `ref/<cmd>` and needs no associative
@@ -357,7 +357,7 @@ where the last boss fell, `learn review` re-asks the weakest cards first,
 `learn daily` is the same ten questions for everyone on a date, and
 `learn place` climbs the curriculum one question per rung so a first run can
 skip what you already know. `learn challenge` is the endgame, unlocked when
-the last boss falls: thirteen timed chains that compose the whole curriculum,
+the last boss falls: nineteen timed chains that compose the whole curriculum,
 one life, graded purely on what your pipeline prints. Tab at any question is
 the reference panel, mid-line, without losing what you typed.
 

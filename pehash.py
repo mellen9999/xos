@@ -8,9 +8,9 @@ number that never matches anything, and a dbx entry that silently revokes
 nothing -- which looks exactly like a dbx entry that works.
 
 two independent checks keep this honest, because a wrong hash here fails open:
-  G15  the digest this computes must equal the one inside the image's own
+  G21  the digest this computes must equal the one inside the image's own
        PKCS#7 signature (sbsign signed that digest, so it is ground truth)
-  A7   a revoked image must actually be refused by the firmware, in a vm
+  A11  a revoked image must actually be refused by the firmware, in a vm
 """
 import hashlib
 import struct
