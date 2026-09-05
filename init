@@ -702,7 +702,18 @@ if state_open; then
 			cat /etc/dropbear/authorized_keys "$STATE_DIR/authorized_keys" 2>/dev/null > "$HOME/.ssh/authorized_keys"
 			chmod 600 "$HOME/.ssh/authorized_keys"
 			if [ -s "$HOME/.ssh/authorized_keys" ]; then
-				dropbear -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >/dev/null 2>&1 &
+				# supervise it like the consoles: the remote shell is the only
+				# way back in, and you cannot reboot a machine whose ssh has died
+				# from across a tunnel. -F keeps dropbear in the foreground so
+				# the loop sees it exit; a crash-loop backs off instead of
+				# pinning a passive-cooled cpu.
+				( _fail=0
+				  while : ; do
+				    _t0=$(date +%s 2>/dev/null || echo 0)
+				    dropbear -F -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >/dev/null 2>&1
+				    if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then _fail=$((_fail + 1)); else _fail=0; fi
+				    [ "$_fail" -ge 5 ] && sleep 30 || sleep 1
+				  done ) &
 				printf '  ssh listening on the tunnel only (%s:22), pubkey only\n' "$wgip" > /dev/console
 			else
 				printf '  no authorized_keys -- ssh not started (add one to enable)\n' > /dev/console
