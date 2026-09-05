@@ -1,0 +1,23 @@
+name: first blood
+after: 08-cutting
+intro: No hints from here on. No reference lookups, no tab, no manpage. Just the
+intro: machine and what you already carry in your hands. Three questions on the
+intro: one file every unix has. Build each pipeline a stage at a time and look
+intro: at what each stage prints before you add the next -- that IS the skill.
+---
+setup: /etc/passwd is colon-separated. Field 1 is the username, field 7 the
+setup: login shell. It is the first file you read on any machine you are handed.
+q: count how many accounts exist
+a: wc -l < /etc/passwd
+a: cat /etc/passwd | wc -l
+a: wc -l /etc/passwd
+ref: wc
+---
+setup: You want just the names, nothing else around them.
+q: print every username, one per line
+a: cut -d: -f1 /etc/passwd
+ref: cut
+---
+q: print every username, sorted alphabetically
+a: cut -d: -f1 /etc/passwd | sort
+ref: sort

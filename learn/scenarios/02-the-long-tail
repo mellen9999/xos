@@ -1,0 +1,21 @@
+name: the long tail
+after: 09-sed
+intro: Counting and summarising a corpus you did not write -- which is most of
+intro: what triage actually is. Everything here reads learn's own shipped files,
+intro: so the answers are real and the tree is yours to measure.
+---
+q: count how many commands learn documents
+a: ls /usr/share/learn/ref | wc -l
+a: ls -1 /usr/share/learn/ref | wc -l
+ref: ls
+---
+setup: find prints one path per line, so it counts by piping into wc.
+q: count every regular file under /usr/share/learn
+a: find /usr/share/learn -type f | wc -l
+ref: find
+---
+setup: Each ref file's first line is the command's own name.
+q: print the first line of every ref file, sorted
+a: sed -n '1p' /usr/share/learn/ref/* | sort
+a: head -n 1 /usr/share/learn/ref/* | sort
+ref: sed

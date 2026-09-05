@@ -1,0 +1,24 @@
+name: the audit
+after: 17-permissions
+intro: You have been handed a machine and asked what is on it. Answer with
+intro: pipelines, not guesses. This is where xos's own guarantees become
+intro: something you can check for yourself instead of taking on faith.
+---
+setup: /bin is full of symlinks to the one busybox binary.
+q: count how many names in /bin point at busybox
+a: ls -l /bin | grep -c busybox
+ref: grep
+---
+setup: A setuid binary anywhere on a system you did not build is worth a hard
+setup: look -- it runs as its owner, not as you. xos fails its own build if one
+setup: exists, so on this machine the correct answer is nothing at all.
+q: find every setuid file on the whole filesystem
+a: find / -perm -4000
+a: find / -perm -4000 -type f
+ref: find
+---
+setup: The busiest ref entries are the ones worth reading first.
+q: print the ten ref files with the most lines, largest first
+a: wc -l /usr/share/learn/ref/* | sort -rn | head -n 10
+a: wc -l /usr/share/learn/ref/* | sort -nr | head -n 10
+ref: wc

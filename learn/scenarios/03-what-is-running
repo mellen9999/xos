@@ -1,0 +1,16 @@
+name: what is running
+after: 16-processes
+intro: Two questions you will ask on every machine you are ever handed: what is
+intro: running, and which of it is yours. ps is where both start.
+---
+setup: ps prints a header line and then one line per process.
+q: count the running processes, excluding the header line
+a: ps | tail -n +2 | wc -l
+a: ps | grep -v PID | wc -l
+a: ps | awk 'NR>1' | wc -l
+ref: ps
+---
+setup: The first column of ps output is the pid.
+q: print only the pid column of every process
+a: ps | awk '{print $1}'
+ref: awk

@@ -1,0 +1,24 @@
+name: the census
+after: 18-xargs
+intro: Four commands minimum from here. Build the pipeline one stage at a time
+intro: and read the output of each before you add the next -- that is the actual
+intro: skill, not memorising flags.
+---
+setup: Every ref file lists its flags on indented lines beginning with a dash.
+setup: A character class avoids having to type a literal tab.
+q: count the documented flags in ref/ls, printing only the number
+a: grep -c '^[[:space:]]-' /usr/share/learn/ref/ls
+a: grep -cE '^[[:space:]]+-' /usr/share/learn/ref/ls
+ref: grep
+---
+setup: In ls -l output the fifth field is the size in bytes.
+q: print the total bytes used by every ref file, summing column 5 with awk
+a: ls -l /usr/share/learn/ref | awk '{s+=$5} END {print s}'
+ref: awk
+---
+setup: Every level declares the commands it drills on ref: lines. Difference
+setup: the whole corpus down to the unique set of commands the curriculum touches.
+q: print every command any level drills, one per line, with no duplicates
+a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u
+a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u
+ref: sed

@@ -1,0 +1,42 @@
+# syntax -- the shell grammar learn explains alongside a command's manpage.
+#
+# when you hit tab (or `man`) on a question, the panel shows the command's ref
+# AND every shell operator, special variable and expansion your answer uses --
+# the pieces that are not a command and so have no manpage of their own, but
+# that you still have to know to build the line.
+#
+# three tab-separated fields: label, an ERE that detects it, a one-line gloss.
+# ROW ORDER IS CONSUMED ORDER: the detector removes each match before testing
+# the rows below, so the long forms ($((, 2>&1, ||, ${#) are ruled on before
+# the short ones they contain ($(, 2>, |, ${). only constructs busybox ash
+# actually runs are listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays.
+arith	\$\(\(	$((...)) evaluates arithmetic, e.g. $((2 + 3))
+2>&1	2>&1	send errors (fd 2) to wherever stdout is going
+2>	2>	redirect errors (fd 2) to a file
+>>	>>	append stdout to a file, keeping what is there
+>	>	redirect stdout to a file, replacing it
+<	<	read stdin from a file instead of the keyboard
+||	\|\|	run the next command only if this one FAILED (nonzero exit)
+&&	&&	run the next command only if this one SUCCEEDED (zero exit)
+|	\|	pipe: wire this command stdout into the next command stdin
+;	;	run one command then the next, no matter what
+$?	\$\?	exit status of the last command -- 0 means success
+$$	\$\$	the process id of this shell
+$!	\$!	the process id of the last command started with &
+$#	\$#	how many positional parameters ($1, $2, ...) there are
+$@	\$@	all positional parameters, each kept as its own word
+$*	\$\*	all positional parameters joined into one word
+$0	\$0	the name the script or shell was invoked as
+$1..$9	\$[1-9]	a positional parameter -- $1 is the first argument
+${#name}	\$\{#	the length of a variable in characters: ${#name}
+${name:-x}	\$\{[A-Za-z_][A-Za-z0-9_]*:-	a variable value, or a default if it is unset/empty: ${name:-x}
+${name#%}	\$\{[A-Za-z_][A-Za-z0-9_]*[#%]	strip a prefix (#) or suffix (%) off a variable: ${f%.log}
+${name}	\$\{	expand a variable; braces let you glue text right after it
+$(cmd)	\$\(	command substitution: run a command and become its output
+`cmd`	`	command substitution, the older form of $(...)
+$name	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value
+&	&	run the command in the background and carry on
+[...]	\[[^] ]*\]	a character class in a filename pattern, e.g. [0-9]
+*	\*	wildcard: any run of characters when matching filenames
+?	\?	wildcard: any single character when matching filenames
+~	~	your home directory

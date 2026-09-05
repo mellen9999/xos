@@ -1,0 +1,166 @@
+name: the sweep
+after: 30-root
+intro: You booted xos onto a box you do not trust -- or you are the defender
+intro: making sure it can never be turned against you. An attacker's whole
+intro: endgame is two things: PERSISTENCE, surviving a reboot, and EGRESS,
+intro: getting a shell or your data back out. This is the sweep. For each
+intro: technique you learn the artifact it leaves, the one command that surfaces
+intro: it, and why -- on this machine -- most of them cannot arm at all. No
+intro: payloads here. A defender never needs to fire the weapon to recognise it.
+---
+setup: Start with the loudest artifact. A bind shell, or any service an intruder
+setup: leaves running, opens a LISTENING socket. On xos there is exactly one
+setup: listener you put there: dropbear, bound to the wireguard address alone.
+setup: Anything listening on 0.0.0.0 or a public port is not yours.
+q: list every listening tcp socket and the program holding it open
+a: netstat -tlnp
+ref: netstat
+teach: netstat -t
+teach: netstat -l
+teach: netstat -n
+teach: netstat -p
+hint: t tcp, l listening, n numeric ports, p the owning program
+---
+setup: Now the mirror image. A reverse shell does not listen -- it dials OUT to
+setup: the attacker and hands them a prompt. xos is built to dial out too, but to
+setup: ONE peer you control, over wireguard. That tiny baseline is the point:
+setup: every OTHER established connection is a question you have to answer.
+q: show every established tcp connection with the process behind it
+a: netstat -tnp
+ref: netstat
+teach: netstat -t
+teach: netstat -n
+teach: netstat -p
+hint: drop -l: not what is waiting, but what is already talking
+---
+setup: The shortest reverse shells skip the tools entirely and let the SHELL open
+setup: the socket, through bash's /dev/tcp. xos ships no bash. /bin/sh is ash and
+setup: has no network of its own, so that one-liner has nothing to write to.
+q: confirm this shell has no /dev/tcp back door
+a: test -e /dev/tcp && echo present || echo absent
+out: absent
+ref: test
+teach: test -e
+hint: /dev/tcp was never a file on disk -- it was a bash-only trick
+---
+setup: A tcp scan misses the quieter channels. A local backdoor can wait on a
+setup: unix-domain SOCKET instead of a port -- same idea as the fifo, a file in
+setup: the tree a process is listening on, invisible to netstat -t. Sweep those
+setup: too. (And note what is NOT a worry here: nc's server mode is compiled out,
+setup: so the classic nc -l -e bind shell has no receiving half on this build.)
+q: find every unix-domain socket file on the system
+a: find / -type s 2>/dev/null
+ref: find
+teach: find -type
+hint: -type s is a socket, the sibling of -type p; account for each one
+---
+setup: Denied the shell's socket and denied a listener, the last route is a NAMED
+setup: PIPE: mkfifo makes a fifo, and a shell reads from it while a client writes
+setup: to it. The fifo is the fingerprint -- a pipe sitting in the filesystem,
+setup: wired to a running process. So enumerate them and account for every one.
+q: find every named pipe (fifo) on the system
+a: find / -type p 2>/dev/null
+ref: find
+teach: find -type
+hint: -type p is the fifo; -type s would be a unix socket
+---
+setup: Persistence next. The quiet backdoor is an extra ssh key: add one line to
+setup: authorized_keys and you return whenever you like. On xos that file lives
+setup: inside the read-only, verity-covered root -- an attacker cannot append to
+setup: it without changing a byte the hash tree covers, which halts the next boot.
+setup: The only writable home for a key is the encrypted p3, if you opted in.
+q: print every key dropbear is configured to accept
+a: cat /state/authorized_keys 2>/dev/null
+ref: cat
+teach: cat
+hint: on a running stick this is the file to eyeball line by line
+---
+setup: The oldest persistence of all: a second account with uid 0. root should be
+setup: the only name the system answers to as superuser; a hidden second uid-0 is
+setup: a whole extra root hiding in plain sight in the passwd database.
+q: print every account whose uid is 0
+a: awk -F: '$3==0 {print $1}' /etc/passwd
+out: root
+ref: awk
+teach: awk -F
+hint: field 3 is the uid; field 1 is the name
+---
+setup: Attackers love a startup hook -- cron, an init script, a profile file that
+setup: runs on every login. xos ships no cron daemon at all, and its init lives on
+setup: the read-only root, so there is no writable hook to plant. The way you
+setup: confirm it is to look at what is actually running.
+q: list every process with its pid, its parent's pid, and its command
+a: ps -o pid,ppid,comm
+out: .
+ref: ps
+teach: ps -o
+hint: the parent pid is the tell -- a shell whose parent is a network tool
+---
+setup: A reverse shell, once caught, is a /bin/sh whose PARENT is a network tool
+setup: or whose input comes from a socket -- a shell that no login started. The
+setup: process TREE makes that parentage obvious at a glance.
+q: show the process tree so a shell with the wrong parent stands out
+a: pstree
+out: .
+ref: pstree
+teach: pstree
+hint: read who spawned whom; a shell under a network tool is the tell
+---
+setup: Malware often unlinks its own binary after starting, so nothing on disk
+setup: points back at it. The kernel still knows: /proc/PID/exe is a link to the
+setup: real file, and for a deleted one it reads "(deleted)".
+q: show the path of the binary behind this very shell
+a: ls -l /proc/$$/exe
+out: .
+ref: ls
+teach: ls -l
+hint: $$ is this shell's pid; a "(deleted)" target is the alarm
+---
+setup: Egress is not only tcp. Data can leave as dns lookups, icmp, anything the
+setup: routes allow. You cannot judge a connection without knowing where traffic
+setup: is even permitted to go, so read the map first.
+q: show the routing table and the default route
+a: ip route
+out: .
+ref: ip
+teach: ip
+hint: one default route, to the network you plugged into -- know it cold
+---
+setup: Time to turn from hunting to proving. The deepest defense is that the root
+setup: filesystem is dm-verity and mounted read-only: an attacker cannot write a
+setup: backdoor to it AT ALL, and a single altered byte halts the next boot rather
+setup: than booting compromised. Confirm the root is read-only from where you sit.
+q: show the root mount's options and pick out that it is read-only
+a: awk '$2=="/" {print $4}' /proc/mounts | grep -o ro
+ref: grep
+teach: grep -o
+hint: field 4 is the mount options; ro is the one that matters
+---
+setup: A kernel-level implant is the way past a read-only root -- load a module, or
+setup: write kernel memory through /dev/mem. xos compiles both out: no module
+setup: loader, no /dev/mem. Show that the loader interface is simply not there.
+q: report whether the module loader is present or absent
+a: test -e /proc/modules && echo present || echo absent
+ref: test
+teach: test -e
+hint: on xos this reads absent -- there is nothing to load a rootkit into
+---
+setup: The lockdown state is the kernel's own promise that even root cannot reach
+setup: into it -- no /dev/mem, no kexec, no loading unsigned code. Read it straight
+setup: from the kernel.
+q: print the kernel lockdown state
+a: cat /sys/kernel/security/lockdown
+ref: cat
+teach: cat
+hint: the bracketed word is the active level; you want it locked down
+---
+setup: Last. You have swept for listeners, egress, fifos, keys, hidden roots,
+setup: startup hooks and implants, and proven the root cannot be written and the
+setup: kernel cannot be reached. One line to state the verdict: the machine is
+setup: running the code you signed, and nothing is listening for anyone else.
+q: show the root device with its options, and that nothing is waiting on the network
+a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
+out: .
+ref: awk
+teach: awk
+hint: two facts in one breath -- the root is yours, the ports are quiet
