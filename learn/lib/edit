@@ -40,7 +40,7 @@ _ed_last() { _r=${1#"${1%?}"}; }
 _ed_first() { _r=${1%"${1#?}"}; }
 
 read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
-	local prompt="$1" L="" R="" mode=insert c c2 c3 _r _pc _quit=
+	local prompt="${1:-}" L="" R="" mode=insert c c2 c3 _r _pc _quit=
 	if [ ! -t 0 ]; then
 		IFS= read -r REPLY_LINE || return 1
 		return 0
