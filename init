@@ -683,9 +683,12 @@ if state_open; then
 		case "$wgcidr" in */*) : ;; ?*) wgcidr="$wgip/24" ;; esac
 		# an operator writes wg-quick style (Address inside the conf), but
 		# `wg setconf` is strict and REJECTS unknown keys -- fed the raw file it
-		# errors out and the tunnel never comes up. strip the keys wg does not
-		# own into a tmpfs copy; the original on p3 stays exactly as written.
-		sed '/^ *Address *=/d;/^ *DNS *=/d;/^ *MTU *=/d' "$STATE_DIR/wg0.conf" > /tmp/wgset.conf
+		# errors out and the tunnel never comes up. keep ONLY the keys setconf
+		# owns (an allowlist: a denylist breaks again on the next wg-quick key,
+		# Table=, PostUp=, ...) in a tmpfs copy; the original on p3 stays as
+		# written.
+		grep -E '^[ 	]*(\[|PrivateKey|ListenPort|FwMark|PublicKey|PresharedKey|AllowedIPs|Endpoint|PersistentKeepalive)' \
+			"$STATE_DIR/wg0.conf" > /tmp/wgset.conf
 		chmod 600 /tmp/wgset.conf
 		if ip link add wg0 type wireguard 2>/dev/null \
 		   && wg setconf wg0 /tmp/wgset.conf 2>/dev/null \
