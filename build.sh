@@ -1096,10 +1096,11 @@ flagchk() {
 #   G32 fingerprint wordlist holds its shape (256 unique words)
 #   G33 init remote-access arg-building, run through the real ash   (new)
 #   G34 signed UKI's embedded roothash matches the tree             (new)
+#   G35 first-party scripts parse under the shipped ash             (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=31   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=32   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1162,27 +1163,31 @@ size() {
   # this is the whole point of a pinned clock, salt and uuid: without it,
   # "reproducible" is a claim in a README that nothing ever checks.
   if [ -f image.sha256 ]; then
-    local want_img have_img want_sq have_sq want_tc have_tc
+    local want_img have_img want_sq have_sq want_tc have_tc want_rh have_rh
     want_img=$(awk '$1=="image"{print $2}'     image.sha256)
     want_sq=$(awk '$1=="squashfs"{print $2}'   image.sha256)
     want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
+    want_rh=$(awk '$1=="roothash"{print $2}'   image.sha256)
     have_img=$(sha256sum < xos.img | awk '{print $1}')
     have_sq=$(sha256sum < rootfs.squashfs | awk '{print $1}')
+    have_rh=$(cat verity.roothash 2>/dev/null)
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
       g "G13 reproducible (toolchain differs, not checked)" ok
       printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
       printf '    so a byte mismatch here would prove nothing. rebuild is unverified.\n' >&2
     else
-      # check the squashfs digest too -- pin() records it, so a mismatch there
-      # localises drift to the filesystem vs the verity padding/tree, and stops
-      # the recorded line from being decoration nothing ever reads.
+      # check the squashfs and roothash digests too -- pin() records both, so a
+      # mismatch localises drift (filesystem vs verity padding/tree), and stops
+      # either recorded line from being decoration nothing ever reads.
       g "G13 image matches committed digest" \
-        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && echo ok || echo FAIL)"
+        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] && echo ok || echo FAIL)"
       [ "$want_img" = "$have_img" ] || \
         printf '    image pinned %s\n    image built  %s\n' "${want_img:0:32}..." "${have_img:0:32}..." >&2
       [ "$want_sq" = "$have_sq" ] || \
         printf '    squashfs pinned %s\n    squashfs built  %s\n' "${want_sq:0:32}..." "${have_sq:0:32}..." >&2
+      [ "$want_rh" = "$have_rh" ] || \
+        printf '    roothash pinned %s\n    roothash built  %s\n' "${want_rh:0:32}..." "${have_rh:0:32}..." >&2
     fi
   else
     g "G13 image digest pinned" FAIL
@@ -1309,6 +1314,18 @@ size() {
   g34_have=$(strings xos-signed.efi 2>/dev/null | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2)
   g "G34 signed UKI embeds the tree's roothash" \
     "$([ -n "$g34_have" ] && [ "$g34_have" = "$(cat verity.roothash)" ] && echo ok || echo FAIL)"
+
+  # G35 -- every first-party script parses under the ash that ships. shellcheck
+  # is host-optional (lint()); this is not: a script the shipped shell cannot
+  # even parse is a boot- or lease-time failure no other gate can see, because
+  # init and the dhcp hook only ever run on the stick.
+  local g35=ok bb35 f35 e35
+  bb35=./busybox; [ -x "$bb35" ] || bb35=$(command -v busybox 2>/dev/null)
+  for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script; do
+    e35=$("$bb35" ash -n "$f35" 2>&1) \
+      || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
+  done
+  g "G35 first-party scripts parse under shipped ash" "$g35"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.
@@ -1682,11 +1699,13 @@ stick_install() {
   printf '  \033[1;32minstall complete\033[0m\n'
 }
 
-# lint -- shellcheck over every shell source in the tree. not wired into
-# `all`: it's a lint pass, not a build gate, and a machine without shellcheck
-# must still be able to build. warnings print but don't fail the run; errors
-# do. learn/lib/* are sourced fragments with no shebang of their own, so they
-# need -s sh spelled out -- learn/learn (their one caller) is #!/bin/sh.
+# lint -- shellcheck over every shell source in the tree. wired into `all`
+# after the gates: errors fail the build, but a machine without shellcheck
+# must still be able to build, so absence is a printed skip, not a failure
+# (G35 still parse-checks the shipped scripts either way). warnings print but
+# don't fail the run; errors do. learn/lib/* are sourced fragments with no
+# shebang of their own, so they need -s sh spelled out -- learn/learn (their
+# one caller) is #!/bin/sh.
 lint() {
   say "shellcheck"
   if ! command -v shellcheck >/dev/null 2>&1; then
@@ -1755,7 +1774,7 @@ build_all() {
   # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
   # and G11 stays green. a sealed tree short-circuits keys() and skips this.
   if [ -f keys/db.key ]; then seal; fi
-  uki; stick; size
+  uki; stick; size; lint
 }
 
 case "${1:-all}" in

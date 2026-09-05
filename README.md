@@ -184,7 +184,8 @@ the build fails, loudly, on any of:
 - an image missing anything `manifest` says it must contain
 - a firmware blob shipped in the image
 - a stick whose partitions or embedded kernel don't match the built artifacts
-- an image whose bytes don't match `image.sha256` on the pinned toolchain
+- an image, filesystem, or verity root hash that doesn't match `image.sha256`
+  on the pinned toolchain
 - a plaintext private signing key sitting on disk
 - an image that is in `revoked` (you would be shipping a brick)
 - a revocation digest that disagrees with the signature it is meant to revoke
@@ -197,6 +198,9 @@ the build fails, loudly, on any of:
 - a `learn` answer invoking a command xos does not ship
 - a challenge track that stops getting harder
 - a `bzImage` built from a different `.config` than the one just validated
+- a first-party script (`init`, `learn`, the dhcp hook) the shipped ash cannot
+  parse
+- (when shellcheck is installed) an error-severity finding in any shell source
 
 a build that reports success while quietly dropping features is the failure
 mode this is built against. every claim above has a check that fails when it
