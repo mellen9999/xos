@@ -34,7 +34,7 @@ die() { echo "learn: $*" >&2; exit 1; }
 mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
 trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
 
-for _l in ui ctx grade fixtures cards coach chal edit scenarios autopsy explain; do
+for _l in ui ctx grade fixtures cards coach chal edit scenarios autopsy explain lint; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -544,38 +544,6 @@ daily() {
 	printf '  %sdaily %s%s  %s/10\n' "$B" "$day" "$N" "$right"
 }
 
-# ---- lint -----------------------------------------------------------------
-
-# reported, never gated: wording variety and hint coverage are judgment
-# calls, and a hard gate on them would breed filler. the numbers print
-# beside the gates so drift is visible instead of silent.
-lint() {
-	awk -v verbose="${1:-}" '
-		function flushblk() {
-			if (!inblk) return
-			total++; ft[FILENAME]++
-			if (!hashint) { nohint++; fh[FILENAME]++ }
-			if (q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[FILENAME]++ }
-			inblk = 0
-		}
-		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; hashint = 0; q = ""; next }
-		inblk && /^hint:/ { hashint = 1 }
-		inblk && /^q: / && q == "" { q = $0 }
-		END {
-			flushblk()
-			if (verbose == "-v")
-				for (f in ft) {
-					n = split(f, p, "/")
-					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing\n", \
-						p[n], ft[f], fh[f] + 0, fv[f] + 0
-				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing\n", \
-				total, nohint, novary
-		}
-	' "$LEVELS"/*
-}
-
 # ---- stats ----------------------------------------------------------------
 
 stats() {
@@ -626,12 +594,59 @@ answer_cmds() {
 		}'
 }
 
+# order_syntax FILE... -- the construct half of the order contract: a level
+# may only REQUIRE shell syntax that it, or an earlier file in the list,
+# declares in its syntax: header. required means EVERY listed answer of the
+# block uses it -- one alternate spelling that avoids a construct keeps the
+# question answerable without knowing it. detection mirrors explain's panel:
+# single-quoted spans stripped, syntax-table rows matched and consumed in
+# order. two consumers, one table -- and because this one matches in awk
+# while the panel matches in grep/sed, selftest holds the two engines in
+# agreement on a fixed battery.
+order_syntax() {
+	local sq; sq=$(printf '\047')
+	awk -F'\t' -v sq="$sq" '
+		function flushblk(   l) {
+			if (na > 0)
+				for (l in used)
+					if (used[l] == na && !(l in declared))
+						printf "OUT OF ORDER %s: every answer of block %d needs %s before any level declares it\n", \
+							fname, blk, l
+			na = 0; delete used
+		}
+		NR == FNR {
+			if ($0 ~ /^[ \t]*$/ || $1 ~ /^#/) next
+			nrow++; lab[nrow] = $1; ere[nrow] = $2
+			next
+		}
+		FNR == 1 { flushblk(); blk = 0; n = split(FILENAME, p, "/"); fname = p[n] }
+		/^syntax:/ {
+			s = $0; sub(/^syntax:[ \t]*/, "", s)
+			m = split(s, parts, /, */)
+			for (i = 1; i <= m; i++) declared[parts[i]] = 1
+		}
+		/^---$/ { flushblk(); blk++ }
+		/^a: /  {
+			na++
+			line = $0; sub(/^a: /, "", line)
+			# pool tokens render to plain words at play time; scanned raw,
+			# @var@ after a $ would read as the $@ special. stand a word in.
+			gsub(/@[a-z0-9]+@/, "x", line)
+			gsub(sq "[^" sq "]*" sq, " ", line)
+			for (i = 1; i <= nrow; i++)
+				if (line ~ ere[i]) { used[lab[i]]++; gsub(ere[i], " ", line) }
+		}
+		END { flushblk() }
+	' "$SYNTAX" "$@"
+}
+
 # order -- optimal order, enforced.
 #
 # a level may only use commands that it, or an earlier level, introduces. the
 # header of this file claims the curriculum teaches "in order"; without this
 # that is an intention someone has to remember every time a question moves.
-# "introduced" means: named as the command in a teach: line.
+# "introduced" means: named as the command in a teach: line. the same claim
+# holds for shell constructs, via order_syntax and the syntax: headers.
 order() {
 	local id bad=0 c
 	: > "$TMP/seen"
@@ -647,6 +662,9 @@ order() {
 				|| echo "OUT OF ORDER $id: uses '$c' before any level introduces it"
 		done
 	done > "$TMP/ord" 2>&1
+	set --
+	for id in $(level_ids); do set -- "$@" "$(level_path "$id")"; done
+	order_syntax "$@" >> "$TMP/ord"
 	bad=$(awk 'END { print NR }' "$TMP/ord")
 	[ "$bad" -eq 0 ] || cat "$TMP/ord" >&2
 	printf 'learn: %d level(s) checked for order, %d violation(s)\n' \
@@ -1004,6 +1022,42 @@ selftest() {
 			i=$((i + 1))
 		done
 	done
+
+	# a boss is a level's identity: two levels sharing a name or a flavor is
+	# an authoring slip thirty files wide that no eye catches. (it shipped.)
+	local dup
+	dup=$(sed -n 's/^boss: //p' "$LEVELS"/* | sort | uniq -d)
+	[ -z "$dup" ] || { echo "FAIL boss name duplicated across levels: $dup" >&2; bad=$((bad+1)); }
+	dup=$(sed -n 's/^flavor: //p' "$LEVELS"/* | sort | uniq -d)
+	[ -z "$dup" ] || { echo "FAIL boss flavor duplicated across levels: $dup" >&2; bad=$((bad+1)); }
+
+	# the syntax table has two consumers: explain's panel matches with
+	# grep/sed, order_syntax gates with awk. same table, two regex engines --
+	# prove they read a fixed battery identically, so a dialect difference
+	# can never let the gate and the panel drift apart. the battery covers
+	# every tricky row class: consumed-order longest-first, boundary-anchored
+	# (-- and lone -), slash-bearing (/dev/null), space-bearing ([ ]), and
+	# the quoted-span strip.
+	local bl g1 g2 hits=0
+	while IFS= read -r bl; do
+		[ -n "$bl" ] || continue
+		g1=$(_syn_scan "$bl" | cut -f1 | sort)
+		printf 'name: synbattery\n---\nq: x\na: %s\n' "$bl" > "$TMP/synlvl"
+		g2=$(order_syntax "$TMP/synlvl" | sed 's/.*needs //;s/ before any level.*//' | sort)
+		[ "$g1" = "$g2" ] || { echo "FAIL syntax engines disagree on: $bl" >&2
+			printf '  panel: %s\n  gate:  %s\n' "$(echo $g1)" "$(echo $g2)" >&2; bad=$((bad+1)); }
+		[ -n "$g1" ] && hits=$((hits+1))
+	done <<-'EOF'
+	[ -f x ] && echo y || echo n
+	find . -name '*.log' -exec rm {} +
+	wc -l < in > out 2>&1 &
+	x=5; echo $((x+1))
+	sort -u f | tee -a g >> h
+	grep -q e f 2>/dev/null
+	echo -- -
+	[ $# -gt 0 ] && echo "$@" $1 ${#v} ${v:-d}
+	EOF
+	[ "$hits" -ge 6 ] || { echo "FAIL syntax battery went dark ($hits lines matched)" >&2; bad=$((bad+1)); }
 
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require

@@ -19,8 +19,29 @@ SYNTAX="$ROOT/syntax"
 # every table match is replaced with a SPACE, not deleted -- deleting would
 # fuse the tokens on either side of it into one, and a later boundary-checked
 # row (--, a lone -) reads the fused result as a single token and misses it.
+# _syn_scan LINE -- label<TAB>gloss for each syntax-table row the line uses,
+# consumed order, quoting excluded. the one shell-side detector: the panel
+# formats its rows, and selftest checks it agrees with order_syntax's awk
+# reading of the same table.
+_syn_scan() {
+	local work label ere gloss tab
+	tab=$(printf '\t')
+	work=$(printf '%s' "$1" | sed "s/'[^']*'//g")
+	while IFS="$tab" read -r label ere gloss; do
+		case "$label" in ''|'#'*) continue ;; esac
+		if printf '%s' "$work" | grep -qE -- "$ere"; then
+			printf '%s\t%s\n' "$label" "$gloss"
+			# TAB delimits the s command: the table is tab-separated, so a
+			# tab is the one character no ERE can contain. (/ dies on the
+			# /dev/null row, @ died on $@ -- and that one shipped, caught
+			# by selftest's two-engine battery.)
+			work=$(printf '%s' "$work" | sed -E "s$tab$ere$tab $tab""g")
+		fi
+	done < "$SYNTAX"
+}
+
 explain_syntax() {
-	local work found=0 label ere gloss tab
+	local found=0 label gloss tab
 	tab=$(printf '\t')
 
 	case "$1" in
@@ -36,17 +57,13 @@ explain_syntax() {
 			"protects the next character"; found=1 ;;
 	esac
 
-	work=$(printf '%s' "$1" | sed "s/'[^']*'//g")
-	while IFS="$tab" read -r label ere gloss; do
-		case "$label" in ''|'#'*) continue ;; esac
-		if printf '%s' "$work" | grep -qE -- "$ere"; then
-			found=1
-			printf '  %s%-9s%s %s\n' "$C" "$label" "$N" "$gloss"
-			# @ delimits, not / -- the /dev/null row's ERE contains literal
-			# slashes, which would otherwise close the s@@@ early.
-			work=$(printf '%s' "$work" | sed -E "s@$ere@ @g")
-		fi
-	done < "$SYNTAX"
+	while IFS="$tab" read -r label gloss; do
+		[ -n "$label" ] || continue
+		found=1
+		printf '  %s%-9s%s %s\n' "$C" "$label" "$N" "$gloss"
+	done <<-EOF
+	$(_syn_scan "$1")
+	EOF
 	return $(( 1 - found ))
 }
 

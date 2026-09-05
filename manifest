@@ -35,6 +35,7 @@ usr/share/learn/lib/coach
 usr/share/learn/lib/scenarios
 usr/share/learn/lib/autopsy
 usr/share/learn/lib/explain
+usr/share/learn/lib/lint
 usr/share/learn/syntax
 usr/share/learn/scenarios/01-first-blood
 usr/share/learn/scenarios/10-the-sweep

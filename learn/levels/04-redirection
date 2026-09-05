@@ -1,7 +1,7 @@
 name: redirection
 boss: DevNull
 flavor: Your stderr falls into the void.
-syntax: 2>&1, 2>, >>, >, <, |
+syntax: 2>&1, >&2, 2>, >>, >, <, |
 brief: A command has three channels: stdin (0) it reads, stdout (1) it prints,
 brief: and stderr (2) it complains on. Redirection re-points them at files.
 brief:

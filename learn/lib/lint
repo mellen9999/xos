@@ -1,0 +1,60 @@
+# lint -- the authoring ledger: reported, never gated. hint coverage,
+# wording variety, execution-grading reach and prompt completeness are
+# judgment calls, and a hard gate on them would breed filler. the numbers
+# print beside the gates so drift is visible instead of silent.
+#
+# scope rules, so each number means one thing:
+#   hintless        levels and missions. gauntlet stages are hintless by
+#                   design (no hints under the clock).
+#   single-phrasing levels only. missions and chains are fixed narrative,
+#                   one voice on purpose.
+#   ungraded        levels and missions: a block with no out:/state:/cmp:
+#                   falls back to string-matching its listed answers -- the
+#                   listed-answer-quiz failure grade's notes warn about.
+#                   chains are always reference-graded, never ungraded.
+#   unnamed-token   any @token@ an answer needs that neither the question,
+#                   its setup, nor its hint mentions: the learner cannot
+#                   derive it from what is on screen.
+lint() {
+	awk -v verbose="${1:-}" '
+		function cls(f) {
+			if (f ~ /chains$/) return "chain"
+			if (f ~ /scenarios\//) return "scn"
+			return "lvl"
+		}
+		function toks(s, dst) {
+			while (match(s, /@[a-z0-9]+@/)) {
+				dst[substr(s, RSTART, RLENGTH)] = 1
+				s = substr(s, RSTART + RLENGTH)
+			}
+		}
+		function flushblk(   k, t) {
+			if (!inblk) return
+			total++; ft[FILENAME]++
+			k = cls(FILENAME)
+			if (!hashint && k != "chain") { nohint++; fh[FILENAME]++ }
+			if (k == "lvl" && q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[FILENAME]++ }
+			if (!graded && k != "chain") { nograde++; fg[FILENAME]++ }
+			for (t in atok) if (!(t in qtok)) { nounnamed++; fu[FILENAME]++; break }
+			inblk = 0; delete atok; delete qtok
+		}
+		FNR == 1 { flushblk() }
+		/^---$/  { flushblk(); inblk = 1; hashint = 0; graded = 0; q = ""; next }
+		inblk && /^hint:/ { hashint = 1 }
+		inblk && /^(out|state|cmp):/ { graded = 1 }
+		inblk && /^q: / && q == "" { q = $0 }
+		inblk && /^(q|setup|hint):/ { toks($0, qtok) }
+		inblk && /^a: / { toks($0, atok) }
+		END {
+			flushblk()
+			if (verbose == "-v")
+				for (f in ft) {
+					n = split(f, p, "/")
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d unnamed-token\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fu[f] + 0
+				}
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded, %d with an unnamed token\n", \
+				total, nohint, novary, nograde, nounnamed
+		}
+	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
+}

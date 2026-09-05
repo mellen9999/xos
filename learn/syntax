@@ -17,6 +17,7 @@
 /dev/null	[0-9]?>>?/dev/null	the bit bucket -- data written there is discarded
 arith	\$\(\(	$((...)) evaluates arithmetic, e.g. $((2 + 3))
 2>&1	2>&1	send errors (fd 2) to wherever stdout is going
+>&2	>&[0-9]	send stdout to the error channel -- echo x >&2 prints to stderr
 2>	2>	redirect errors (fd 2) to a file
 >>	>>	append stdout to a file, keeping what is there
 >	>	redirect stdout to a file, replacing it
