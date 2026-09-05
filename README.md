@@ -195,7 +195,8 @@ the build fails, loudly, on any of:
 - a shipped command with no `learn` entry, a `learn` entry for nothing shipped,
   or a requested busybox applet that did not actually build
 - a `learn` question whose answer is not in the reference it cites
-- a lesson using a command no earlier lesson introduced
+- a lesson using a command, or requiring a shell construct, that no earlier
+  lesson introduced
 - a documented command that no lesson introduces
 - a `learn` answer invoking a command xos does not ship
 - a challenge track that stops getting harder
@@ -358,8 +359,15 @@ where the last boss fell, `learn review` re-asks the weakest cards first,
 `learn place` climbs the curriculum one question per rung so a first run can
 skip what you already know. `learn challenge` is the endgame, unlocked when
 the last boss falls: nineteen timed chains that compose the whole curriculum,
-one life, graded purely on what your pipeline prints. Tab at any question is
-the reference panel, mid-line, without losing what you typed.
+one life, graded purely on what your pipeline prints. `learn scenario` is the
+missions track -- ten narrative jobs run against the real machine rather than
+the sandbox, unlocking as the levels that teach their tools fall, ending in a
+full sweep of the running system. `learn autopsy` reads your own shell history
+against the curriculum and says which drills would have saved you keystrokes,
+without a byte leaving the machine. Tab at any question is
+the reference panel, mid-line, without losing what you typed -- the command's
+ref page plus a gloss for every shell operator and expansion the answer uses,
+because `2>&1` and `${x:-y}` have no manpage of their own.
 
 five rules govern it, and all five are gates rather than intentions:
 
