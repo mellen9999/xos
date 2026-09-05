@@ -79,6 +79,32 @@ boot_img() {
 		-nographic -no-reboot < /dev/null 2>&1
 }
 
+# for boots the firmware is EXPECTED to refuse: a refused image drops to the
+# BDS menu and sits there until timeout 360 expires -- ~18 wasted minutes
+# across A3/A4/A11. run qemu detached, poll the log for a verdict either way
+# (the refusal string, or XOS-TEST-BEGIN -- the regression these sections
+# exist to catch), and kill it the moment one lands. prints the log, so
+# callers grep it exactly like boot_img output.
+boot_refused() {
+	local log=/tmp/xos-refused.$$.log t=0 qp
+	rm -f "$log"
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-global driver=cfi.pflash01,property=secure,value=on \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-drive file="$1",if=virtio,format=raw,readonly=on \
+		-nic user,model=virtio-net-pci \
+		-nographic -no-reboot < /dev/null > "$log" 2>&1 &
+	qp=$!
+	while [ "$t" -lt 120 ] && kill -0 "$qp" 2>/dev/null; do
+		grep -aqiE 'access denied|security violation|XOS-TEST-BEGIN' "$log" 2>/dev/null && break
+		sleep 1; t=$((t+1))
+	done
+	sleep 2   # let the message finish landing before the kill
+	kill "$qp" 2>/dev/null; wait "$qp" 2>/dev/null
+	cat "$log"; rm -f "$log"
+}
+
 # same chain but over an emulated xHCI USB mass-storage device -- the real
 # hardware path, including usb enumeration and the dm-mod.waitfor poll.
 # boot with a second virtio disk attached (becomes /dev/vdb), for the p3 test.
@@ -200,7 +226,7 @@ echo
 section "A3  unsigned UKI -- firmware must refuse it"
 cp stick.img /tmp/xos-a3.img
 mcopy -o -i /tmp/xos-a3.img@@1M xos.efi ::/EFI/BOOT/BOOTX64.EFI
-o3=$(boot_img /tmp/xos-a3.img)
+o3=$(boot_refused /tmp/xos-a3.img)
 if grep -q XOS-TEST-BEGIN <<< "$o3"; then
 	bad "unsigned kernel booted -- secure boot is not enforcing"
 else
@@ -217,7 +243,7 @@ sbverify --cert keys/db.crt /tmp/xos-a4.efi >/dev/null 2>&1 \
 	&& bad "tampered UKI still verified" || ok "one flipped bit invalidates the signature"
 cp stick.img /tmp/xos-a4.img
 mcopy -o -i /tmp/xos-a4.img@@1M /tmp/xos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
-o4=$(boot_img /tmp/xos-a4.img)
+o4=$(boot_refused /tmp/xos-a4.img)
 grep -q XOS-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware refused the tampered image"
 rm -f /tmp/xos-a4.efi /tmp/xos-a4.img
 
@@ -232,8 +258,13 @@ grep -q 'dynamic-loader-present: no' <<< "$out" && ok "confirmed absent from ins
 
 echo
 section "A6  TLS must refuse a certificate outside our trust anchors"
-if ! printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' \
-     | timeout 20 ./tlstunnel - letsencrypt.org 443 2>/dev/null | has 'HTTP/1'; then
+# host reachability is the proxy for guest reachability: the guest rides
+# qemu's user-mode nat, so if the host cannot reach letsencrypt.org over the
+# shipped tunnel, neither can init's tls-time. probed once, reused by A15.
+net_ok=no
+printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' \
+	| timeout 20 ./tlstunnel - letsencrypt.org 443 2>/dev/null | has 'HTTP/1' && net_ok=yes
+if [ "$net_ok" != yes ]; then
 	skipped "no network -- A6 not evaluated"
 else
 	ok "trusted CA: handshake with letsencrypt.org succeeded"
@@ -335,7 +366,7 @@ else
 		# drop the revoked image into a copy of the stick's ESP and boot that
 		cp stick.img /tmp/xos-a11.img
 		mcopy -o -i /tmp/xos-a11.img@@1M /tmp/xos-a11-signed.efi ::/EFI/BOOT/BOOTX64.EFI
-		o11=$(boot_img /tmp/xos-a11.img)
+		o11=$(boot_refused /tmp/xos-a11.img)
 		if grep -q XOS-TEST-BEGIN <<< "$o11"; then
 			bad "a revoked image still booted -- dbx is not being enforced"
 		else
@@ -491,12 +522,17 @@ grep -q 'clock-not-before-floor: yes' <<< "$backout" \
 # the floor made time not-backward; tls-time must then make it RIGHT. this is
 # the real production path end to end: floored clock -> handshake against the
 # compiled-in anchors -> Date header parsed -> clock advanced, forward only.
-grep -q 'advanced to tls time' <<< "$backout" \
-	&& ok "floored clock was advanced to authenticated tls time" \
-	|| bad "tls-time did not advance a floored clock (dead-rtc machines stay 90 days behind)"
-grep -q 'tls-time: synced' <<< "$backout" \
-	&& ok "probe agrees: tls-time synced" \
-	|| bad "tls-time probe did not report synced"
+# needs the network (same probe A6 ran); the floor above holds without it.
+if [ "$net_ok" = yes ]; then
+	grep -q 'advanced to tls time' <<< "$backout" \
+		&& ok "floored clock was advanced to authenticated tls time" \
+		|| bad "tls-time did not advance a floored clock (dead-rtc machines stay 90 days behind)"
+	grep -q 'tls-time: synced' <<< "$backout" \
+		&& ok "probe agrees: tls-time synced" \
+		|| bad "tls-time probe did not report synced"
+else
+	skipped "no network -- tls-time advance not evaluated (floor still asserted)"
+fi
 # this is a second full boot of the same stick -- free vehicle for the
 # per-boot properties: the mac must be fresh, the fingerprint must not be.
 mac15=$(grep -oP 'mac-uplink: \K[0-9a-f:]{17}' <<< "$backout" | head -1)
