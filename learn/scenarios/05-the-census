@@ -6,19 +6,25 @@ intro: skill, not memorising flags.
 ---
 setup: Every ref file lists its flags on indented lines beginning with a dash.
 setup: A character class avoids having to type a literal tab.
-q: count the documented flags in ref/ls, printing only the number
+q: count the documented flags in /usr/share/learn/ref/ls, printing only the number
 a: grep -c '^[[:space:]]-' /usr/share/learn/ref/ls
 a: grep -cE '^[[:space:]]+-' /usr/share/learn/ref/ls
 ref: grep
+cmp: ref
+hint: -c counts matches instead of printing them
 ---
 setup: In ls -l output the fifth field is the size in bytes.
-q: print the total bytes used by every ref file, summing column 5 with awk
+q: sum column 5 of ls -l /usr/share/learn/ref with awk, for the total bytes used
 a: ls -l /usr/share/learn/ref | awk '{s+=$5} END {print s}'
 ref: awk
+cmp: ref
+hint: s+=$5 accumulates; END runs once, after every line has been seen
 ---
-setup: Every level declares the commands it drills on ref: lines. Difference
-setup: the whole corpus down to the unique set of commands the curriculum touches.
-q: print every command any level drills, one per line, with no duplicates
+setup: Every level under /usr/share/learn/levels declares the commands it
+setup: drills on ref: lines. Difference the whole corpus down to the unique set
+setup: of commands the curriculum touches.
+q: print every command drilled by a level in /usr/share/learn/levels, one per line, no duplicates
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u
 a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u
 ref: sed
+hint: strip the "ref: " prefix, then sort -u does the deduplicating

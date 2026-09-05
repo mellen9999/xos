@@ -7,7 +7,9 @@ intro: something you can check for yourself instead of taking on faith.
 setup: /bin is full of symlinks to the one busybox binary.
 q: count how many names in /bin point at busybox
 a: ls -l /bin | grep -c busybox
+out: ^[0-9]+$
 ref: grep
+hint: grep -c counts matching lines instead of printing them
 ---
 setup: A setuid binary anywhere on a system you did not build is worth a hard
 setup: look -- it runs as its owner, not as you. xos fails its own build if one
@@ -16,9 +18,12 @@ q: find every setuid file on the whole filesystem
 a: find / -perm -4000
 a: find / -perm -4000 -type f
 ref: find
+hint: -perm -4000 matches the setuid bit; the mode number is octal
 ---
-setup: The busiest ref entries are the ones worth reading first.
-q: print the ten ref files with the most lines, largest first
+setup: The busiest files in /usr/share/learn/ref are the ones worth reading first.
+q: print the ten files under /usr/share/learn/ref with the most lines, largest first
 a: wc -l /usr/share/learn/ref/* | sort -rn | head -n 10
 a: wc -l /usr/share/learn/ref/* | sort -nr | head -n 10
 ref: wc
+cmp: ref
+hint: wc -l on many files also prints a total; sort -rn puts it at the top

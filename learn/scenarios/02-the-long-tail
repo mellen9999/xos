@@ -4,18 +4,26 @@ intro: Counting and summarising a corpus you did not write -- which is most of
 intro: what triage actually is. Everything here reads learn's own shipped files,
 intro: so the answers are real and the tree is yours to measure.
 ---
-q: count how many commands learn documents
+setup: Every shipped command has one page under /usr/share/learn/ref, one file
+setup: per command.
+q: count how many commands learn documents in /usr/share/learn/ref
 a: ls /usr/share/learn/ref | wc -l
 a: ls -1 /usr/share/learn/ref | wc -l
 ref: ls
+cmp: ref
+hint: one filename per line out of ls, then count the lines
 ---
-setup: find prints one path per line, so it counts by piping into wc.
+setup: find prints one path per line under /usr/share/learn, so it counts by
+setup: piping into wc.
 q: count every regular file under /usr/share/learn
 a: find /usr/share/learn -type f | wc -l
 ref: find
+cmp: ref
+hint: -type f picks files only, skipping the directories find also lists
 ---
 setup: Each ref file's first line is the command's own name.
-q: print the first line of every ref file, sorted
+q: print the first line of every file under /usr/share/learn/ref, sorted
 a: sed -n '1p' /usr/share/learn/ref/* | sort
-a: head -n 1 /usr/share/learn/ref/* | sort
+a: head -qn 1 /usr/share/learn/ref/* | sort
 ref: sed
+hint: sed -n '1p' prints only line 1 and stays silent on the rest

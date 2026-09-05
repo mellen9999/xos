@@ -4,20 +4,26 @@ intro: Binaries are not text, but they are full of text. Reading it is how you
 intro: interrogate a program you cannot read the source of -- including the ones
 intro: this very machine trusts.
 ---
-q: count the printable strings in the tlstunnel binary
+q: count the printable strings in /bin/tlstunnel
 a: strings /bin/tlstunnel | wc -l
 ref: strings
+cmp: ref
+hint: strings pulls out the runs; wc -l just counts how many
 ---
 setup: tlstunnel compiles its trust anchor INTO the binary rather than reading a
 setup: system CA store, so the certificate authority's name is somewhere inside.
 setup: That single baked-in anchor is the whole reason this machine trusts one
 setup: issuer and no other.
-q: show every string in tlstunnel mentioning Internet Security Research Group
+q: show every string in /bin/tlstunnel mentioning Internet Security Research Group
 a: strings /bin/tlstunnel | grep 'Internet Security Research Group'
 ref: strings
+cmp: ref
+hint: pipe strings' output into grep for the phrase
 ---
 setup: A digest is how you say "this exact binary, no other" in one line.
-q: print the sha256 digest of busybox, and nothing else
+q: print the sha256 digest of /bin/busybox, and nothing else
 a: sha256sum /bin/busybox | awk '{print $1}'
 a: sha256sum /bin/busybox | cut -d' ' -f1
+out: ^[0-9a-f]{64}$
 ref: sha256sum
+hint: sha256sum prints the digest then the filename; you only want field 1

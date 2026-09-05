@@ -8,9 +8,14 @@ q: count the running processes, excluding the header line
 a: ps | tail -n +2 | wc -l
 a: ps | grep -v PID | wc -l
 a: ps | awk 'NR>1' | wc -l
+out: ^[0-9]+$
 ref: ps
+hint: drop line 1 before you count what is left
 ---
-setup: The first column of ps output is the pid.
-q: print only the pid column of every process
+setup: ps's own first column is the pid, with no other tool needed to get it.
+q: print only the pid column of every process ps lists
 a: ps | awk '{print $1}'
-ref: awk
+a: ps -o pid
+out: ^[[:space:]]*[0-9]+[[:space:]]*$
+ref: ps
+hint: ps -o picks columns by name; pid is one of them

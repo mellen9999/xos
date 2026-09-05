@@ -18,11 +18,14 @@ setup: The root hash you trusted did not float in on its own -- it rode in on
 setup: the kernel command line, and that command line is baked INTO a single
 setup: signed file, the UKI, on the EFI partition. Edit the hash and you break
 setup: the signature over the whole image. That is why a checksum stored beside
-setup: the data it describes proves nothing, but this one proves everything.
-q: print the command line the firmware handed the kernel -- the signed line the root hash rides in
+setup: the data it describes proves nothing, but this one proves everything. The
+setup: running kernel exposes the line it was booted with at /proc/cmdline.
+q: print the command line the firmware handed the kernel, from /proc/cmdline
 a: cat /proc/cmdline
 ref: cat
 teach: cat
+cmp: ref
+hint: /proc/cmdline is a file the kernel exposes; cat just dumps it
 ---
 setup: That UKI is signed with keys you enrolled into the firmware yourself:
 setup: the platform key PK, the key-exchange key KEK, and the signature db. They
@@ -32,7 +35,11 @@ setup: against further change. Get that order wrong and you can brick a laptop.
 q: which of those three keys is enrolled LAST, sealing the rest
 a: PK
 a: pk
+a: Pk
 a: the platform key
+a: platform key
+a: the PK
+a: PK key
 hint: two letters -- until it lands, the firmware is still in setup mode
 ---
 setup: A UKI is a PE binary, and PE signatures have a quirk you must know before
@@ -51,6 +58,8 @@ setup: sharpest trap in the whole chain: the obvious tool gives the wrong number
 setup: and it is not lying to you, it is answering a different question.
 q: name the digest the firmware actually checks -- authenticode, or sha256sum
 a: authenticode
+a: Authenticode
+a: AUTHENTICODE
 hint: the PE-aware one that skips three regions, not the whole-file one
 ---
 setup: Now revocation. A signature proves WHO signed an image. It can never, by
@@ -59,6 +68,10 @@ setup: the story. The firmware's answer is a denylist of digests it refuses even
 setup: though they were once validly signed.
 q: name that denylist the firmware consults to reject a still-signed but known-bad image
 a: dbx
+a: DBX
+a: Dbx
+a: the dbx
+a: the dbx database
 hint: the counterpart of db -- the forbidden-signatures database
 ---
 setup: Verified boot has now proven one thing precisely: the machine runs what
@@ -68,8 +81,11 @@ setup: same bytes every time -- rebuild from source, get the same image.sha256,
 setup: and the signature you trusted now vouches for code, not just for a blob.
 q: one word: the property that makes what-was-signed equal what-is-in-the-source
 a: reproducibility
+a: Reproducibility
 a: reproducible
+a: Reproducible
 a: reproducible builds
+a: build reproducibility
 hint: rebuild from source, compare image.sha256, get the same number
 ---
 setup: Know where the chain STOPS, or you will trust it too far. The signature
@@ -80,7 +96,10 @@ setup: the machine booting -- you cannot change what runs.
 q: name the filesystem whose metadata on the efi partition sits outside the signature
 a: FAT
 a: fat
+a: Fat
 a: vfat
+a: VFAT
+a: Vfat
 hint: three letters, the classic efi-partition filesystem
 ---
 setup: That last gap has a physical answer, not a cryptographic one.
@@ -89,6 +108,10 @@ a: write-protect switch
 a: a write-protect switch
 a: write protect switch
 a: the write-protect switch
+a: write-protection switch
+a: the write-protection switch
+a: hardware write protect
+a: hardware write-protect switch
 hint: a switch on the stick that makes the whole device read-only in hardware
 ---
 setup: And the limit no design on this stick can cross: the host's own silicon.
@@ -98,16 +121,23 @@ setup: the host's installed operating system and its disks -- not its hardware.
 q: name the host layer, beneath its os, that no stick can defend against
 a: firmware
 a: the firmware
+a: Firmware
 a: BIOS
 a: bios
+a: the BIOS
+a: the bios
 a: SMM
+a: smm
+a: the SMM
+a: system management mode
 hint: the code that runs before any operating system does
 ---
 setup: Close the loop. You have followed the chain from the firmware down; now
 setup: read the bottom link one more time -- the anchored number every link above
-setup: exists to protect.
-q: pull the verity root hash out of the signed command line, and nothing else
+setup: exists to protect, still sitting in /proc/cmdline.
+q: pull the verity root hash out of /proc/cmdline, and nothing else
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 ref: sed
 teach: sed -n
+cmp: ref
 hint: the 64 hex characters after the word sha256

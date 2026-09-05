@@ -14,6 +14,7 @@ setup: listener you put there: dropbear, bound to the wireguard address alone.
 setup: Anything listening on 0.0.0.0 or a public port is not yours.
 q: list every listening tcp socket and the program holding it open
 a: netstat -tlnp
+out: .
 ref: netstat
 teach: netstat -t
 teach: netstat -l
@@ -27,6 +28,7 @@ setup: ONE peer you control, over wireguard. That tiny baseline is the point:
 setup: every OTHER established connection is a question you have to answer.
 q: show every established tcp connection with the process behind it
 a: netstat -tnp
+out: .
 ref: netstat
 teach: netstat -t
 teach: netstat -n
@@ -72,6 +74,7 @@ setup: The only writable home for a key is the encrypted p3, if you opted in.
 q: print every key dropbear is configured to accept
 a: cat /state/authorized_keys 2>/dev/null
 ref: cat
+cmp: ref
 teach: cat
 hint: on a running stick this is the file to eyeball line by line
 ---
@@ -133,6 +136,7 @@ setup: than booting compromised. Confirm the root is read-only from where you si
 q: show the root mount's options and pick out that it is read-only
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o ro
 ref: grep
+cmp: ref
 teach: grep -o
 hint: field 4 is the mount options; ro is the one that matters
 ---
@@ -142,6 +146,7 @@ setup: loader, no /dev/mem. Show that the loader interface is simply not there.
 q: report whether the module loader is present or absent
 a: test -e /proc/modules && echo present || echo absent
 ref: test
+cmp: ref
 teach: test -e
 hint: on xos this reads absent -- there is nothing to load a rootkit into
 ---
@@ -151,6 +156,7 @@ setup: from the kernel.
 q: print the kernel lockdown state
 a: cat /sys/kernel/security/lockdown
 ref: cat
+cmp: ref
 teach: cat
 hint: the bracketed word is the active level; you want it locked down
 ---

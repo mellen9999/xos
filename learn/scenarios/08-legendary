@@ -1,37 +1,46 @@
 name: legendary
 after: 29-proving-this-machine
-intro: The last one before the machine itself falls. Every stage here uses
-intro: something from an earlier level, and none of them fit on one line
-intro: comfortably. If you can build these with no reference and no tab, you
-intro: know this machine.
+intro: The last one before the machine itself falls. Hints cost nothing here --
+intro: see how far you get without them. Every stage uses something from an
+intro: earlier level, and none of them fit on one line comfortably.
 ---
-setup: Each level declares the commands it drills on ref: lines. You want the
-setup: commands that appear across the most separate levels -- the load-bearing
-setup: ones the whole curriculum leans on.
+setup: Each level under /usr/share/learn/levels declares the commands it drills
+setup: on ref: lines. You want the commands that appear across the most
+setup: separate levels -- the load-bearing ones the whole curriculum leans on.
 q: print the five most frequently drilled commands with their counts, most first
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort | uniq -c | sort -rn | head -n 5
 ref: uniq
+cmp: ref
+hint: uniq -c needs sorted input first, or it only dedupes adjacent runs
 ---
-setup: A ref exists for every shipped command; the levels drill only some. There
-setup: is no comm here and ash has no process substitution, so you difference two
-setup: lists with grep.
-q: write the drilled commands to /tmp/taught, one per line, sorted and deduplicated
+setup: A ref exists under /usr/share/learn/ref for every shipped command; the
+setup: levels drill only some. There is no comm here and ash has no process
+setup: substitution, so you difference two lists with grep instead.
+q: write the commands drilled in /usr/share/learn/levels to /tmp/taught, sorted and deduplicated, one per line
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u > /tmp/taught
+a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u > /tmp/taught
 ref: sort
+hint: redirect the sorted, deduplicated list straight into the file
 ---
-setup: /tmp/taught now holds one command per line.
-q: print every documented command absent from that list
+setup: /tmp/taught now holds one drilled command per line.
+q: print every command documented in /usr/share/learn/ref but absent from /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxF -f /tmp/taught
+a: ls /usr/share/learn/ref | grep -vxFf /tmp/taught
 ref: grep
+cmp: ref
+hint: -f reads patterns from a file; -x anchors each to a whole line; -v inverts
 ---
-setup: Prove nothing in the corpus was altered since you built it: one digest
-setup: over every ref file's contents at once.
-q: print a single sha256 digest covering every ref file's contents
+setup: Prove nothing in /usr/share/learn/ref was altered since you built it: one
+setup: digest over every file's contents at once.
+q: print a single sha256 digest covering every file in /usr/share/learn/ref
 a: cat /usr/share/learn/ref/* | sha256sum
 a: find /usr/share/learn/ref -type f | sort | xargs cat | sha256sum
 ref: sha256sum
+hint: concatenate every file into one stream before hashing it once
 ---
 setup: The final question. /proc/mounts, field 4 the comma-separated options.
-q: print each mount option that appears on more than one filesystem, with its count
+q: print each mount option in /proc/mounts that appears on more than one filesystem, with its count
 a: awk '{print $4}' /proc/mounts | tr ',' '\n' | sort | uniq -c | awk '$1>1'
 ref: awk
+cmp: ref
+hint: split the comma list onto separate lines before you sort and count
