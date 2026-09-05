@@ -23,6 +23,10 @@ usr/share/learn/levels/01-first-steps
 usr/share/learn/pools/logs
 usr/share/learn/lib/ctx
 usr/share/learn/lib/edit
+usr/share/learn/lib/ui
+usr/share/learn/lib/grade
+usr/share/learn/lib/fixtures
+usr/share/learn/lib/cards
 usr/share/learn/skip
 usr/share/learn/phrases
 usr/share/learn/chains

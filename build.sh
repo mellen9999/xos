@@ -558,8 +558,15 @@ rootfs() {
   printf 'root:x:0:0:root:/tmp/home:/bin/sh\n' > root/etc/passwd
   printf 'root:x:0:\n' > root/etc/group
   # ssh: the dir where a baked authorized_keys lives (verity-covered). empty by
-  # default -- add titan's PUBLIC key here to enable remote login, then rebuild.
+  # default. set XOS_SSH_KEY=path/to/key.pub to bake a public key in here so
+  # remote login works on first boot without any p3 -- baking it into the
+  # verity-covered root means the key itself is attested, not just present.
   mkdir -p root/etc/dropbear
+  if [ -n "${XOS_SSH_KEY:-}" ]; then
+    [ -f "$XOS_SSH_KEY" ] || { echo "FAIL: XOS_SSH_KEY=$XOS_SSH_KEY not found" >&2; return 1; }
+    install -m 0600 "$XOS_SSH_KEY" root/etc/dropbear/authorized_keys
+    echo "  baked $XOS_SSH_KEY -> etc/dropbear/authorized_keys"
+  fi
   # sourced by every interactive ash (via $ENV). vi editing on by default --
   # the shell has emacs keys too and there is no busybox option to remove them,
   # but nothing here ever leaves vi, so it is vi-only in practice.
@@ -607,7 +614,7 @@ keys() {
     openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der"
   done
   chmod 700 keys; chmod 600 keys/*.key
-  echo "  PK/KEK/db written to keys/ (gitignored, xos-only -- NOT heatpc's)"
+  echo "  PK/KEK/db written to keys/ (gitignored, xos-only -- never your host's)"
 }
 
 seal() {
@@ -1755,5 +1762,5 @@ case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb|lint|repro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|lint|repro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|size|boot|bootusb|lint|repro|all}"; exit 1 ;;
 esac
