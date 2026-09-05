@@ -603,12 +603,19 @@ rm -f "$p3disk"
 
 echo
 section "A17  remote access: wireguard up, ssh in over it, invisible otherwise"
-# the "ssh in from titan and attach to what is running" ask. a full two-machine
-# handshake is verified on real hardware; here every component is proven: the
-# wireguard interface comes up and wg configures it, dropbear accepts a real
-# ed25519 pubkey login end to end, and a wrong key is refused. dropbear only
-# ever binds to the wireguard address in the real flow, so xos stays invisible
-# on the network it is plugged into.
+# the "ssh in from the operator box and attach to what is running" ask. a full
+# two-machine handshake is verified on real hardware; here every component is
+# proven: the wireguard interface comes up and wg configures it, dropbear
+# accepts a real ed25519 pubkey login end to end, and a wrong key is refused.
+# dropbear only ever binds to the wireguard address in the real flow, so xos
+# stays invisible on the network it is plugged into.
+#
+# why not a real connect THROUGH the tunnel here: the harness would have to be
+# the wg peer, which needs a host-side wireguard interface (root + kernel
+# module on the build host), and the client key that A19's provision boot
+# fabricates never leaves the guest's p3 -- by design. so the through-tunnel
+# login stays a real-hardware check; A19 asserts the production dropbear binds
+# the tunnel address, and this section proves the auth path end to end.
 grep -q 'wg-iface-up: ok' <<< "$out" && ok "a wireguard interface comes up" \
 	|| bad "no wireguard -- the kernel or wg userland is missing"
 grep -q 'wg-show: ok' <<< "$out" && ok "wg configures the interface (key, port)" \
