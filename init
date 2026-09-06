@@ -70,7 +70,7 @@ fprh=$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1)
 if [ -n "$fprh" ] && [ -f /usr/share/xos/words ]; then
 	i=1
 	while [ "$i" -le 8 ]; do
-		b=$(printf %s "$fprh" | cut -c"$i"-"$((i+1))")
+		b=$(printf %s "$fprh" | cut -c"$i-$((i+1))")
 		w=$(sed -n "$((0x$b + 1))p" /usr/share/xos/words)
 		[ -n "$w" ] || { fpw=""; break; }
 		fpw="$fpw$w "
@@ -270,8 +270,11 @@ recon_check() { # $1 = root of the unlocked state filesystem
 		printf '  recon: MACHINE %s CHANGED since your last visit:\n' "$mid" > /dev/console
 		diff "$old" "$now" | sed -n 's/^-\([^-]\)/    gone: \1/p;s/^+\([^+]\)/    new:  \1/p' > /dev/console
 	fi
-	{ mkdir -p "$dir" && cp "$now" "$old" && sync; } 2>/dev/null \
-		|| printf '  recon FAILED: could not record the baseline\n' > /dev/console
+	# same write-then-rename as the ledger: a baseline truncated by a power cut
+	# reads as "this machine changed" on every later visit, which is the alarm
+	# crying wolf -- the one failure mode that makes an alarm worth ignoring.
+	{ mkdir -p "$dir" && cp "$now" "$old.new" && mv "$old.new" "$old" && sync; } 2>/dev/null \
+		|| { rm -f "$old.new"; printf '  recon FAILED: could not record the baseline\n' > /dev/console; }
 	rm -f "$now"
 }
 # the boot ledger: p3 counts its own unlocks. recon watches the MACHINE change
@@ -291,7 +294,12 @@ ledger_note() { # $1 = root of the unlocked state filesystem
 		esac
 	fi
 	n=$((n + 1))
-	if printf '%s %s\n' "$n" "$(date -u +%s)" > "$f" 2>/dev/null && sync; then
+	# write-then-rename: `> "$f"` truncates first, so a power cut mid-write left
+	# a half-written ledger that the next boot reads as CORRUPT and counts from
+	# zero -- losing exactly the history this file exists to keep. rename on ext4
+	# is atomic, so the ledger is either the old boot or the new one, never neither.
+	if printf '%s %s\n' "$n" "$(date -u +%s)" > "$f.new" 2>/dev/null \
+	   && mv "$f.new" "$f" 2>/dev/null && sync; then
 		if [ "$n" = 1 ]; then
 			printf '  ledger: first boot recorded on this state\n' > /dev/console
 		else
@@ -430,6 +438,16 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; _c=$(grep -c nameserver /tmp/resolv.conf 2>/dev/null); echo "${_c:-0}"
+	# the headline network claim: xos never opens a port on the network it is
+	# plugged into -- dropbear binds the wireguard address alone and nothing
+	# else listens at all. that was asserted in prose and nowhere else. count
+	# every listening socket not on loopback; a wildcard bind (0.0.0.0, ::)
+	# counts as exposed, because a wildcard bind IS the lan.
+	printf 'lan-listeners: '
+	netstat -ltnu 2>/dev/null | awk '
+		/^(tcp|udp)/ { a=$4; sub(/:[^:]*$/, "", a)
+		               if (a != "127.0.0.1" && a != "::1") n++ }
+		END { print n+0 }'
 	# print the mac itself only here: the block is xos.test-gated (G31 keeps
 	# the flag off production) and a per-boot random mac identifies nothing.
 	_up=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1)

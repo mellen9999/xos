@@ -198,6 +198,13 @@ grep -q 'net-iface-up: none' <<< "$out" \
 	&& bad "no network interface came up" \
 	|| ok "a network interface came up"
 grep -q 'net-has-address: yes' <<< "$out" && ok "dhcp lease obtained" || bad "no ipv4 address"
+# "nmap from that lan finds nothing" is the headline network claim and it was
+# asserted only in prose. with a lease held and the stack up, nothing may be
+# listening anywhere but loopback -- a wildcard bind counts as exposed.
+lanl=$(grep -oP 'lan-listeners: \K[0-9]+' <<< "$out" | head -1)
+[ "${lanl:-x}" = 0 ] \
+	&& ok "nothing listens off loopback -- xos opens no port on the lan" \
+	|| bad "xos is listening on the lan (${lanl:-probe missing} non-loopback socket(s))"
 grep -q 'net-default-route: yes' <<< "$out" && ok "a default route was installed" || bad "no default route"
 dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
 [ "${dns_n:-0}" -gt 0 ] && ok "$dns_n dns server(s) from dhcp" || bad "no dns servers from dhcp"
