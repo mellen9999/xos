@@ -31,7 +31,9 @@ the boot banner prints four words derived from the image's root hash on the
 signed cmdline -- `this image is: cobra drifter payday willow`. write them on
 the stick. a swapped or superseded stick speaks different words; a tampered
 one does not speak at all. they change only when the image is re-pinned, so
-re-memorize after a reflash.
+re-memorize after a reflash. four words is 32 bits of the hash: enough to tell
+two of your own images apart, not a substitute for the signature that decides
+whether an image boots at all.
 
 ## the chain
 
@@ -52,7 +54,8 @@ part of the chain that can say an image is *old*.
 
 `install` builds the image if it is not already there, auto-detects the usb
 stick (only ever a **removable** disk -- your fixed drives are never listed, so
-it cannot target the wrong one), flashes it, **reads every byte back and checks
+it can never target a fixed drive -- and if the only removable disk attached is
+an sd card of photos, the model prompt below is what saves it), flashes it, **reads every byte back and checks
 it against the pinned digest**, and offers to add the encrypted state partition.
 name the disk explicitly -- `./build.sh install /dev/sdX` -- if more than one
 removable disk is attached. before it writes anything it makes you type the

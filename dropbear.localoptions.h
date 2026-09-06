@@ -11,6 +11,10 @@
  * baked into the read-only image where verity covers it. */
 #define DROPBEAR_SVR_PASSWORD_AUTH 0
 #define DROPBEAR_SVR_PUBKEY_AUTH 1
+/* and the client never types one either: a dbclient that will fall back to a
+ * password prompt is a client that can be phished by a server that asks. */
+#define DROPBEAR_CLI_PASSWORD_AUTH 0
+#define DROPBEAR_CLI_INTERACT_AUTH 0
 
 /* ed25519 is the host and user key type: small, fast, no parameter choices to
  * get wrong. drop the older, larger, more error-prone families. */

@@ -319,6 +319,11 @@ if grep -q xos.test /proc/cmdline; then
 	# kernel attack-surface + containment probes (A8/A9 grep these)
 	printf 'devmem-node: '; if [ -e /dev/mem ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'devport-node: '; if [ -e /dev/port ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	# the thesis: nothing in this kernel can bind a sata, nvme or mmc device.
+	printf 'host-disk-drivers: '; _hd=""
+	for _d in ahci ata_piix nvme sdhci-pci; do [ -e "/sys/bus/pci/drivers/$_d" ] && _hd="$_hd $_d"; done
+	[ -d /sys/bus/mmc ] && _hd="$_hd mmc-bus"
+	if [ -n "$_hd" ]; then echo "$_hd (BAD)"; else echo "none"; fi
 	printf 'kcore: '; if [ -e /proc/kcore ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'kexec-loaded: '; if [ -e /sys/kernel/kexec_loaded ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'vsyscall-map: '; _c=$(grep -c vsyscall /proc/self/maps 2>/dev/null); echo "${_c:-0}"

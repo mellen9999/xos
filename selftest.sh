@@ -43,7 +43,10 @@ restore() {
 	./build.sh lock >/dev/null 2>&1
 	rm -f /tmp/xos-a*.img /tmp/xos-a*.efi
 }
-trap restore EXIT
+# INT/TERM too: a ctrl-c at minute six of A19 must still put the production
+# uki/stick back and discard A11's throwaway dbx entry, or the tree is left
+# holding a TEST-flavoured signed image and a firmware store that refuses one.
+trap restore EXIT INT TERM
 ok()  { printf '  \033[1;32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
 bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # a skip is never silence: it is counted and reported, because "9 passed" with
@@ -194,9 +197,9 @@ grep -q 'verity-onerror: panic_on_corruption' <<< "$out" \
 	&& ok "verity is set to panic on corruption, not merely warn" \
 	|| bad "verity onerror is not panic_on_corruption"
 # networking: qemu's usermode nic + built-in dhcp server, no real internet needed.
-grep -q 'net-iface-up: none' <<< "$out" \
-	&& bad "no network interface came up" \
-	|| ok "a network interface came up"
+grep -qE 'net-iface-up: [a-z0-9]+' <<< "$out" && ! grep -q 'net-iface-up: none' <<< "$out" \
+	&& ok "a network interface came up" \
+	|| bad "no network interface came up"
 grep -q 'net-has-address: yes' <<< "$out" && ok "dhcp lease obtained" || bad "no ipv4 address"
 grep -q 'net-default-route: yes' <<< "$out" && ok "a default route was installed" || bad "no default route"
 dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
@@ -244,12 +247,20 @@ sbverify --cert keys/db.crt /tmp/xos-a4.efi >/dev/null 2>&1 \
 cp stick.img /tmp/xos-a4.img
 mcopy -o -i /tmp/xos-a4.img@@1M /tmp/xos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
 o4=$(boot_refused /tmp/xos-a4.img)
-grep -q XOS-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware refused the tampered image"
+if grep -q XOS-TEST-BEGIN <<< "$o4"; then
+	bad "tampered UKI booted"
+else
+	# absence of a boot is not a refusal: an empty log (qemu died) looked like one
+	grep -qi 'access denied' <<< "$o4" && ok "firmware refused the tampered image" \
+		|| bad "tampered image did not boot, but not visibly refused by secure boot"
+fi
 rm -f /tmp/xos-a4.efi /tmp/xos-a4.img
 
 echo
 section "A5  no dynamic loader to preload into"
-if [ -z "$(find root -name 'ld-musl-*' -o -name 'ld-linux*' 2>/dev/null)" ]; then
+if [ ! -d root/bin ]; then
+	bad "no root/ tree to inspect -- run ./build.sh rootfs"
+elif [ -z "$(find root -name 'ld-musl-*' -o -name 'ld-linux*' 2>/dev/null)" ]; then
 	ok "no ld-musl/ld-linux in the image (LD_PRELOAD has nothing to load)"
 else
 	bad "a dynamic loader is present"
@@ -306,6 +317,9 @@ grep -q 'vsyscall-map: 0'      <<< "$out" && ok "no fixed vsyscall page"   || ba
 grep -q 'lockdown: .*\[confidentiality\]' <<< "$out" && ok "lockdown=confidentiality enforced" || bad "lockdown not in confidentiality mode"
 grep -q 'module-loader: absent' <<< "$out" && ok "no loadable module support" || bad "module loading is possible"
 grep -q 'devport-node: absent'  <<< "$out" && ok "/dev/port absent"           || bad "/dev/port present"
+# the product thesis: no driver in this kernel can bind the host's own disks.
+grep -q 'host-disk-drivers: none' <<< "$out" && ok "no sata/nvme/mmc driver in the running kernel" \
+	|| bad "a host-disk driver is registered (sata/nvme/mmc)"
 grep -q 'mem-autoinit: heap alloc:on, heap free:on' <<< "$out" \
 	&& ok "memory zeroed on both alloc and free" || bad "init_on_free not active"
 
@@ -316,7 +330,8 @@ grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  |
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
 grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
 grep -q 'sysctls-hardened: yes' <<< "$out" && ok "every hardening sysctl took" || bad "a hardening sysctl is not at its value"
-grep -q 'sysctl FAILED'       <<< "$out" && bad "a sysctl write failed at boot" || ok "no sysctl write failed"
+grep -q 'sysctls-hardened: '  <<< "$out" && ! grep -q 'sysctl FAILED' <<< "$out" \
+	&& ok "no sysctl write failed" || bad "a sysctl write failed at boot (or the probe never ran)"
 
 echo
 section "A10  boot the stick over emulated USB (the real hardware path)"
@@ -402,9 +417,9 @@ if [ "${refs:-0}" -gt 0 ] && [ "${refs:-0}" = "${runs:-x}" ]; then
 else
 	bad "learn corpus unreadable at runtime (refs=${refs:-?} listed=${runs:-?})"
 fi
-grep -q 'learn-ref-ls: MISSING' <<< "$out" \
-	&& bad "learn ref ls returned nothing -- the manpage substitute is empty" \
-	|| ok "learn ref resolves an entry at runtime"
+grep -qE 'learn-ref-ls: .' <<< "$out" && ! grep -q 'learn-ref-ls: MISSING' <<< "$out" \
+	&& ok "learn ref resolves an entry at runtime" \
+	|| bad "learn ref ls returned nothing -- the manpage substitute is empty (or the probe never ran)"
 les=$(grep -oP 'learn-levels: \K[0-9]+' <<< "$out" | head -1)
 pls=$(grep -oP 'learn-pools: \K[0-9]+' <<< "$out" | head -1)
 [ "${les:-0}" -gt 0 ] && ok "curriculum present in the image ($les levels)" \
@@ -454,8 +469,8 @@ grep -q 'console-device-ok: yes' <<< "$out" \
 	&& ok "the console supervisor runs with a real device" \
 	|| bad "the console got an empty device -- it would error-loop on real hardware"
 # PID 1 used to BE the shell, so a shell exiting was a kernel panic.
-grep -q 'Kernel panic' <<< "$out" && bad "the boot panicked" \
-	|| ok "PID 1 survived every console session"
+grep -q 'XOS-TEST-DONE' <<< "$out" && ! grep -q 'Kernel panic' <<< "$out" \
+	&& ok "PID 1 survived every console session" || bad "the boot panicked (or never reached DONE)"
 
 echo
 section "A14  state can be encrypted AND authenticated"
@@ -796,7 +811,9 @@ else
 			-drive file="$2",if=virtio,format=raw \
 			-nic user,model=virtio-net-pci -nographic -no-reboot < "$fifo" > "$4" 2>&1 &
 		qp19=$!
-		exec 9> "$fifo"
+		# rdwr: a write-only open of a fifo blocks until a reader appears, and
+		# a qemu that died on startup is a reader that never comes.
+		exec 9<> "$fifo"
 		# answer every prompt that appears -- init allows three tries, so a
 		# wrong passphrase re-prompts. type once per prompt seen, stop the
 		# moment a terminal verdict lands.
