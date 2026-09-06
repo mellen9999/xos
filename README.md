@@ -121,7 +121,9 @@ to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
 
 on the next unlock, init brings up `wg0`, generates the ssh host key on p3 if it
 is not there yet (a host key in the reproducible image would be a *published*
-private key), and starts dropbear bound to the tunnel. pubkey only -- password
+private key), and starts dropbear bound to the tunnel. the console says
+"listening" only once the socket exists, and every auth event lands in
+`/tmp/ssh.log` -- tmpfs, gone at reboot, there while it matters. pubkey only -- password
 auth is compiled out, and xos is single-user root, so there is no password to
 guess and no second account to find.
 
@@ -175,7 +177,9 @@ the build fails, loudly, on any of:
 - image over 8 MiB, or the whole bootable system (signed kernel + image) over it
 - any dynamically linked binary (no `ld.so` means nothing to `LD_PRELOAD`)
 - any non-PIE binary (plain `-static` is an ASLR downgrade; this is static-PIE)
-- any binary with an executable stack
+- any binary with an executable stack (and the detector proves it can say so,
+  on a deliberately bad binary, every run)
+- any binary built without the stack protector
 - any setuid or world-writable file
 - root hash in the signed image not matching the filesystem
 - a kernel with a module loader (you can't `insmod` into a kernel that has none)
@@ -188,13 +192,17 @@ the build fails, loudly, on any of:
   maintainer's committed signature and pinned key fingerprint
 - an image missing anything `manifest` says it must contain
 - a firmware blob shipped in the image
+- a driver that could bind a sata, nvme or mmc device -- the host's own disks
+- a dropbear hardening knob that upstream no longer recognises (a renamed
+  option would otherwise silently re-enable what it turned off)
 - a stick whose partitions or embedded kernel don't match the built artifacts
 - an image, filesystem, or verity root hash that doesn't match `image.sha256`
   on the pinned toolchain
 - a plaintext private signing key sitting on disk
 - an image that is in `revoked` (you would be shipping a brick)
 - a revocation digest that disagrees with the signature it is meant to revoke
-- a second shell in the image, or `/bin/sh` that is not busybox ash
+- an executable in the image nobody declared -- which is how a second shell
+  would arrive -- or `/bin/sh` that is not busybox ash
 - a shipped command with no `learn` entry, a `learn` entry for nothing shipped,
   or a requested busybox applet that did not actually build
 - a `learn` question whose answer is not in the reference it cites
@@ -213,6 +221,9 @@ the build fails, loudly, on any of:
 - a first-party script (`init`, `learn`, the dhcp hook) the shipped ash cannot
   parse
 - (when shellcheck is installed) an error-severity finding in any shell source
+
+`install` and `usb` run every one of these before a byte is written, so a
+stick.img left behind by a failed build cannot be flashed.
 
 a build that reports success while quietly dropping features is the failure
 mode this is built against. every claim above has a check that fails when it
@@ -263,20 +274,26 @@ the boot stick is a dead-man switch: the root runs from RAM, so pulling the
 stick would otherwise change nothing. when the boot device sits on the usb
 bus, init watches it and powers the machine off within seconds of removal,
 taking the tmpfs session with it. `xos.notether` opts out. the arming test is
-"is the boot device on usb", so qemu/virtio boots never arm.
+"is the boot device on usb", so qemu/virtio boots never arm; the banner says
+which it did, next to the fingerprint words. `poweroff`, `reboot` and `halt`
+at the console are honoured by init, which unmounts and closes p3 first.
 
 when the state partition is unlocked, init takes an inventory of the machine
 -- dmi identity, the pci and usb buses, the cpu -- and diffs it against the
 last visit to that same machine, one baseline file per machine on p3. a
 reflashed bios, a new pci card, or an extra usb device gets printed before
 the first console spawns; evil-maid detection for the *machines* you visit,
-not just the stick. no state unlocked, no recon -- the stick records nothing
+not just the stick. a changed machine is an alarm until you clear it: the
+baseline is kept, the new inventory sits beside it, and every boot repeats
+the diff until you type `recon_accept` at the shell. no state unlocked, no recon -- the stick records nothing
 about where it has been unless you open the encrypted partition.
 
 the same unlock feeds a boot ledger: p3 counts its own opens and shows the
 number and the previous boot's time at every unlock. remember it like the
 fingerprint words -- a stick that says boot 44 when you left it at 47 was
 rolled back to an older copy of p3, and nothing else on it can tell you that.
+a ledger that cannot be read is kept as evidence (`ledger.corrupt.<time>`) and
+named on every later boot; the count restarts beside it, never over it.
 
 flash rots in a drawer, and verity only checks blocks it reads -- a stick can
 be half-dead and still boot. type `scrub` at the shell to read every covered
@@ -322,6 +339,23 @@ is indistinguishable from one that works:
 entries are permanent. removing one un-revokes a known-bad image, which is the
 whole reason the file is tracked and the image is not.
 
+## the parts
+
+every program on the stick, what it is here for, and what it was chosen over.
+sizes are the stripped static-pie binaries; anchors are in SOURCES.md.
+
+| part | does | why this one, not the usual one |
+|---|---|---|
+| linux 6.12 lts, from `tinyconfig` | the kernel | every driver is opt-in, so "no driver can see your disks" is a config line, not a promise. a distro kernel turns on five thousand things nobody asked for |
+| busybox | the userland and the one shell (ash), ~180 applets in one 700 KB binary | one parser to audit instead of bash + coreutils + util-linux, and its `--help` is a per-build corpus `learn` is generated from |
+| bearssl + `tlstunnel.c` | tls with the trust set compiled in | openssl is ten times the code and reads a ca directory at runtime; bearssl is small, allocation-free, and takes a fixed anchor list |
+| ii | irc, as files in a directory | no ncurses, no scripting language, 11 KB of source |
+| abduco | detach and reattach a session | tmux/screen multiplex and carry terminfo; the framebuffer vts are the multiplexer, this only has to keep one session alive |
+| cryptsetup (+ libdevmapper, popt, json-c, libuuid) | luks2 with hmac integrity for p3 -- state that is encrypted AND authenticated | the largest trust-surface increase this repo ever took, argued in SOURCES.md; the kernel's own crypto (AF_ALG) is what kept openssl/gcrypt out |
+| wg | configures the in-kernel wireguard | wg-quick is a bash script; init does its four lines by hand |
+| dropbear | ssh server, client and keygen in one 430 KB binary -- the one listening service | ed25519 only, pubkey only, no password path to protect, no x11/agent forwarding, bound to the tunnel address alone; openssh's privilege-separation machinery defends a surface this one does not have |
+| learn | the curriculum | first-party; the only program here whose behaviour the build can gate line by line |
+
 ## userland
 
 busybox, ii (irc), a tls tunnel, `learn`, abduco (session detach),
@@ -356,7 +390,9 @@ inside the running system, that the machine underneath you is the one you built.
 the questions are generated, not fixed: each rolls its own filenames, values
 and file *contents* -- the sandbox data is rebuilt from the roll's seed, so a
 count has to be computed, never remembered -- and is graded by running what you
-type, so `sort -u` and `sort | uniq` both pass. the gameable count questions go
+type, so `sort -u` and `sort | uniq` both pass. what you type runs as `nobody`,
+in a sandbox nobody owns: a typo meets file permissions, not the encrypted
+state partition. the gameable count questions go
 further: the answer's own output is derived by running it, and yours must match
 exactly, so `grep -c WARN` cannot pass an ERROR question. a miss shows you
 where your command died -- what it printed against what was wanted, the line
