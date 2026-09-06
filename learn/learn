@@ -64,7 +64,7 @@ ref() {
 	# down to the taught letters. the raw corpus stays complete -- coverage and
 	# selftest read the files, not this view -- so the ledger keeps its meaning
 	# while the learner sees only what the curriculum asks of them.
-	_tf=$(awk -v c="$1" '$1 == c { print $2 }' "$(taught_all)" | tr '\n' ' ')
+	_tf=$(awk -v c="$1" -v t="$(twin "$1")" '$1 == c || (t != "" && $1 == t) { print $2 }' "$(taught_all)" | tr '\n' ' ')
 	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" -v taught=" $_tf" '
 		function rl(   i,s){ s=""; for(i=0;i<cols;i++) s=s"-"; return D s N }
 		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r == s ? s "  " : r }
@@ -869,7 +869,8 @@ coverage() {
 
 	# a pair both taught and skipped is one flag ruled on twice, in opposite
 	# directions. the ledger holds exactly one ruling each, or it holds none.
-	local both; both=$(comm -12 "$TMP/taught" "$TMP/skipped")
+	# (grep -xF, not comm: comm trusts a byte order the host locale can break.)
+	local both; both=$(grep -xF -f "$TMP/skipped" "$TMP/taught" 2>/dev/null)
 	[ -z "$both" ] || { printf '%s\n' "$both" | sed 's/^/  taught AND skipped: /' >&2; }
 
 	# grep -c prints 0 AND exits non-zero on no match, so `|| echo 0` fired as
@@ -967,10 +968,15 @@ flag_ok() {
 	return 0
 }
 
+# twin CMD -- test and [ are one command with two spellings; the operators are
+# drilled once, on [. every taught-set reader folds the pair through here.
+twin() { case "$1" in test) echo "[" ;; "[") echo test ;; esac; }
+
 # taught_has CMD FLAG -- is this exact flag claimed by some teach: line?
 taught_has() {
 	set -- "$1" "${2%%[*}"
 	grep -qxF -- "$1 $2" "$(taught_all)" && return 0
+	[ -n "$(twin "$1")" ] && grep -qxF -- "$(twin "$1") $2" "$(taught_all)" && return 0
 	# a single digit is covered by a taught -1..9 compression range
 	case "$2" in -[0-9]) grep -qxF -- "$1 -1..9" "$(taught_all)" ;; *) return 1 ;; esac
 }

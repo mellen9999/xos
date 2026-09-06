@@ -110,13 +110,6 @@ ref: id
 teach: id -G
 hint: -G lists every group id you belong to, not just the primary
 ---
-q: %show% your real user id rather than the effective one
-a: id -ur
-out: ^[0-9]+$
-ref: id
-teach: id -r
-hint: -r combined with -u asks for the real id rather than the effective one
----
 q: %show% the default permission mask new files are created with
 a: umask
 out: [0-7]
@@ -152,27 +145,6 @@ out: ^[0-9]+$
 ref: stat
 teach: stat -c
 hint: %a in the format string is permission bits
----
-q: %show% filesystem information for @txt@ rather than the file itself
-a: stat -f @txt@
-out: ID|Block
-ref: stat
-teach: stat -f
-hint: -f switches from the file's info to the filesystem it lives on
----
-q: {stat @txt@'s target rather than the symlink itself|use stat -L on @txt@ to report on what it points to, not the link|follow the symlink @txt@ with stat -L before reading its info}
-a: stat -L @txt@
-out: Size
-ref: stat
-teach: stat -L
-hint: -L follows the link and reports on its target instead of the link itself
----
-q: %show% stat's output for @txt@ in terse single-line form
-a: stat -t @txt@
-out: [0-9]
-ref: stat
-teach: stat -t
-hint: -t packs every field onto one line, script-friendly
 ---
 q: {set @txt@'s timestamp to a date you name rather than to now|use touch -d to stamp @txt@ with a date you choose|give @txt@ an explicit timestamp instead of the current time}
 a: touch -d 2024-03-01 @txt@

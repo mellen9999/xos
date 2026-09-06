@@ -19,7 +19,7 @@ q: %show% addresses one per line, in a form that is easy to cut up
 a: ip -o addr
 out: .
 ref: ip
-teach: ip
+teach: ip -o
 hint: -o (oneline) puts each address on its own line for easy parsing
 ---
 q: %show% only ipv4 addresses
@@ -103,7 +103,7 @@ q: %show% just the interface names, one per line
 a: ip -o link | cut -d: -f2
 out: .
 ref: ip
-teach: ip
+teach: ip -o
 hint: -o lines them up so cut can grab just the name field
 ---
 q: %show% interfaces the old way
@@ -141,20 +141,6 @@ ref: route
 teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
-q: %show% route table entries with extended fields
-a: route -e
-out: .
-ref: route
-teach: route -e
-hint: -e adds the extra fields netstat-style output shows
----
-q: %show% routes for a named address family
-a: route -A inet
-out: .
-ref: route
-teach: route -A
-hint: -A takes the address family name, inet for ipv4
----
 q: %show% the arp cache
 a: arp
 out: .
@@ -190,41 +176,6 @@ ref: arp
 teach: arp -s
 hint: -s pins an ip to a mac address by hand
 ---
-q: %show% arp entries for @iface@ only
-a: arp -i @iface@
-out: .
-ref: arp
-teach: arp -i
-hint: -i filters the cache down to one interface
----
-q: %show% the arp cache verbosely
-a: arp -v
-out: .
-ref: arp
-teach: arp -v
-hint: -v adds detail arp normally leaves out
----
-q: %show% arp entries of a given hardware type
-a: arp -H ether
-out: .
-ref: arp
-teach: arp -H
-hint: -H filters by hardware type, ether being the common case
----
-q: {use a named address family for arp|tell arp which address family to use|restrict arp to a named address family}
-a: arp -A inet
-out: .
-ref: arp
-teach: arp -A
-hint: -A picks the address family, same idea as route -A
----
-q: {publish an arp entry for @ip@ on @iface@, on behalf of another host|answer arp requests for @ip@ out of @iface@, on another host's behalf|publish a proxy arp entry for @ip@ out of @iface@}
-a: arp -D @iface@ -s @ip@
-why: live-hw
-ref: arp
-teach: arp -D
-hint: -D answers arp requests for an address on another host's behalf
----
 q: {is anyone already using the address @ip@ -- ask at the link layer|check at the link layer whether @ip@ is already in use|find out, below ip, whether @ip@ already has an owner}
 a: arping -c 3 @ip@
 why: live-hw
@@ -239,61 +190,12 @@ ref: arping
 teach: arping -I
 hint: -I picks which interface the probe goes out of
 ---
-q: {arping @ip@ quietly, reporting only the exit status|run arping against @ip@ silently, leaving only the exit status to check|arping @ip@ with no output, just the exit status}
-a: arping -q -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -q
-hint: -q silences output, leaving just the exit status to check
----
 q: {send a duplicate-address-detection probe for @ip@|probe for whether @ip@ is already a duplicate|send a duplicate-address-detection check for @ip@}
 a: arping -D -c 1 @ip@
 why: live-hw
 ref: arping
 teach: arping -D
 hint: -D checks whether an address is already claimed before you use it
----
-q: {send an unsolicited arp announcement claiming @ip@|announce @ip@ unsolicited|broadcast an unsolicited arp announcement of @ip@}
-a: arping -U -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -U
-hint: -U announces your address without being asked
----
-q: {arping @ip@ using @ip2@ as the chosen source address|arping @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when arping @ip@}
-a: arping -s @ip2@ -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -s
-hint: -s sets the source address the probe claims to be from
----
-q: {stop arping @ip@ after 5 seconds whatever happens|cap arping @ip@ at 5 seconds no matter what|make arping @ip@ give up after 5 seconds}
-a: arping -w 5 @ip@
-why: live-hw
-ref: arping
-teach: arping -w
-hint: -w caps the total time arping will run
----
-q: {keep arping @ip@ until a reply arrives, then stop|arping @ip@ until the first reply, then stop|stop arping @ip@ as soon as a reply comes back}
-a: arping -f @ip@
-why: live-hw
-ref: arping
-teach: arping -f
-hint: -f stops at the first reply instead of sending a fixed count
----
-q: {send broadcast arp probes for @ip@|send the arp probes for @ip@ to the broadcast address|broadcast the arp probes for @ip@ instead of unicasting them}
-a: arping -b -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -b
-hint: -b sends to the broadcast address instead of a unicast one
----
-q: {arping @ip@ in a mode that does not require a source address|arping @ip@ without claiming any source address|run arping against @ip@ so it needs no source address}
-a: arping -A -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -A
-hint: -A lets arping run without claiming a source address
 ---
 q: {work out the network settings for the address @ip@/24|derive the network settings for @ip@/24|break down @ip@/24 into its network settings}
 a: ipcalc @ip@/24
@@ -329,10 +231,3 @@ cmp: ref
 ref: ipcalc
 teach: ipcalc -p
 hint: -p converts a dotted netmask into its prefix length
----
-q: {get ipcalc output for @ip@ without any resolved hostnames, for a script|run ipcalc on @ip@ without resolved hostnames, for scripting|strip ipcalc's output for @ip@ down to script-friendly form, no hostnames}
-a: ipcalc -s @ip@/24
-cmp: ref
-ref: ipcalc
-teach: ipcalc -s
-hint: -s silences ipcalc's extra explanatory output

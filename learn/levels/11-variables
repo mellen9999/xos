@@ -93,22 +93,8 @@ q: {run a command with the environment completely emptied first|run a command th
 a: env -i sh -c 'echo empty'
 out: empty
 ref: env
-teach: env
+teach: env -i
 hint: -i drops the entire inherited environment before running the command
----
-q: {run a command with @mvar@ removed from the environment|run a command that cannot see @mvar@|hide @mvar@ from a single command without touching your own shell}
-a: env -u @mvar@ sh -c 'echo gone'
-out: gone
-ref: env
-teach: env -u
-hint: -u strips one variable out of the environment for that command only
----
-q: %show% the environment with entries separated by NUL rather than newline
-a: env -0
-out: =
-ref: env
-teach: env -0
-hint: -0 separates entries with NUL instead of a newline
 ---
 q: {remove the variable @var@ from your shell entirely|delete @var@ so it is no longer set at all|make @var@ fully unset, not just empty}
 a: unset @var@
@@ -159,19 +145,12 @@ ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot
 ---
-q: {describe what ls is, in a full sentence rather than just a path|explain in words what ls resolves to|ask command for a plain-english description of ls}
-a: command -V ls
-out: ls
+q: {run echo through the command builtin, bypassing any function or alias named echo|use command to invoke the real echo, skipping any function that shadows it|invoke echo via command, ignoring any same-named function}
+a: command echo @word@
+out: ^@word@$
 ref: command
-teach: command -V
-hint: -V gives a full descriptive sentence rather than just a path
----
-q: %find% ls using a safe default PATH rather than whatever yours happens to be, and use it to list @txt@
-a: command -p ls @txt@
-out: @txt@
-ref: command
-teach: command -p
-hint: -p ignores your PATH and uses the system's standard one instead
+teach: command
+hint: command runs the real thing, skipping any function or alias with that name
 ---
 q: %show% every place in your PATH that has a command called sh
 a: which -a sh

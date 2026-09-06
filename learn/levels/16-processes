@@ -23,13 +23,6 @@ ref: ps
 teach: ps -o
 hint: -o picks exactly which columns to show
 ---
-q: %list% processes including their threads
-a: ps -T
-out: PID
-ref: ps
-teach: ps -T
-hint: -T adds a row for every thread, not just every process
----
 q: {watch processes live, updating as they change|open top to watch processes update in real time|run top so you can watch processes live}
 a: top
 why: interactive
@@ -72,41 +65,6 @@ why: live-hw
 ref: pgrep
 teach: pgrep -l
 hint: -l adds the process name next to each pid
----
-q: %find% only the newest process called @proc@
-a: pgrep -n @proc@
-why: live-hw
-ref: pgrep
-teach: pgrep -n
-hint: -n keeps only the most recently started match
----
-q: %find% only the oldest process called @proc@
-a: pgrep -o @proc@
-why: live-hw
-ref: pgrep
-teach: pgrep -o
-hint: -o keeps only the oldest match
----
-q: %find% processes whose name is exactly @proc@ and not merely contains it
-a: pgrep -x @proc@
-why: live-hw
-ref: pgrep
-teach: pgrep -x
-hint: -x requires an exact name match, not a substring
----
-q: %find% every process that is NOT called @proc@
-a: pgrep -v @proc@
-why: live-hw
-ref: pgrep
-teach: pgrep -v
-hint: -v inverts the match, like grep -v
----
-q: %find% the children of process 1
-a: pgrep -P 1
-out: [0-9]
-ref: pgrep
-teach: pgrep -P
-hint: -P filters by parent pid
 ---
 q: {politely ask process 12345 to exit|send process 12345 the default signal, asking it to exit|ask process 12345 to terminate, with no explicit signal}
 a: kill 12345
@@ -157,27 +115,6 @@ ref: free
 teach: free -h
 hint: -h scales the numbers to whichever unit reads best
 ---
-q: %show% memory in megabytes
-a: free -m
-out: Mem
-ref: free
-teach: free -m
-hint: -m reports every figure in megabytes
----
-q: %show% memory in kilobytes
-a: free -k
-out: Mem
-ref: free
-teach: free -k
-hint: -k reports every figure in kilobytes
----
-q: %show% memory in raw bytes
-a: free -b
-out: Mem
-ref: free
-teach: free -b
-hint: -b reports every figure in raw bytes
----
 q: {how many processors does this machine have|ask nproc how many processors are available|find out how many CPUs you have to work with}
 a: nproc
 out: ^[0-9]+$
@@ -185,33 +122,12 @@ ref: nproc
 teach: nproc
 hint: nproc reports how many CPUs are available to you, not the machine total
 ---
-q: {how many processors exist, including ones not available to you|ask nproc for the machine's total CPU count, not just your share|find the full processor count, ignoring any restriction on you}
-a: nproc --all
-out: ^[0-9]+$
-ref: nproc
-teach: nproc --all
-hint: --all counts every CPU, even ones your process can't use
----
-q: %list% @proc@ processes showing the full command line of each
-a: pgrep -a @proc@
-why: live-hw
-ref: pgrep
-teach: pgrep -a
-hint: -a shows the full command line beside each match
----
 q: %find% the process id of @proc@ in one step
 a: pidof @proc@
 why: live-hw
 ref: pidof
 teach: pidof
 hint: pidof looks up pids by name in one step, like pgrep without the flags
----
-q: %find% only a single pid for @proc@, not all of them
-a: pidof -s @proc@
-why: live-hw
-ref: pidof
-teach: pidof -s
-hint: -s returns only one pid even if several match
 ---
 q: %show% the whole process tree, who started what
 a: pstree
@@ -282,10 +198,3 @@ why: live-hw
 ref: killall
 teach: killall
 hint: killall matches by exact process name, unlike pkill's substring matching
----
-q: %list% the signal names killall knows
-a: killall -l
-out: KILL
-ref: killall
-teach: killall -l
-hint: -l lists the signal names killall recognizes

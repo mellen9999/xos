@@ -42,7 +42,6 @@ q: confirm this shell has no /dev/tcp back door
 a: test -e /dev/tcp && echo present || echo absent
 out: absent
 ref: test
-teach: test -e
 hint: /dev/tcp was never a file on disk -- it was a bash-only trick
 ---
 setup: A tcp scan misses the quieter channels. A local backdoor can wait on a
@@ -149,7 +148,6 @@ q: report whether the module loader is present or absent
 a: test -e /proc/modules && echo present || echo absent
 ref: test
 cmp: ref
-teach: test -e
 hint: on xos this reads absent -- there is nothing to load a rootkit into
 ---
 setup: The lockdown state is the kernel's own promise that even root cannot reach

@@ -22,13 +22,6 @@ ref: cat
 teach: cat -n
 hint: n numbers every line, including blanks
 ---
-q: %show% @txt@ numbering only the lines that are not blank
-a: cat -b @txt@
-out: ^ *1
-ref: cat
-teach: cat -b
-hint: like -n but skips numbering blank lines
----
 q: %show% @cfg@ with a $ marking the end of every line
 a: cat -e @cfg@
 out: \$$
@@ -157,10 +150,3 @@ why: interactive
 ref: tail
 teach: tail -F
 hint: capital F reopens the name; lowercase f holds the old file open forever
----
-q: %show% the byte offset of every string found in @bin@
-a: strings -o @bin@
-out: [0-9]
-ref: strings
-teach: strings -o
-hint: o prints the offset before every string found

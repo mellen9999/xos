@@ -33,27 +33,13 @@ teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
 q: {start ii against @host@ on the standard tls-free irc port, as nick xos|connect ii to @host@ on the plain irc port, using the nick xos|start ii, joining @host@ on the standard irc port as xos}
-a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
+a: ii -s @host@ -p 6667 -n xos
 why: live-net
 ref: ii
 teach: ii -s
 teach: ii -p
 teach: ii -n
-hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
----
-q: {start ii against @host@ with a chosen real name|start ii on @host@, setting a real name of your choosing|connect ii to @host@ while supplying a real name}
-a: ii -s @host@ -f xos -n xos -i $HOME/irc
-why: live-net
-ref: ii
-teach: ii -f
-hint: -f sets the real name shown alongside the nick
----
-q: {start ii against @host@, putting its directory tree somewhere you choose|start ii on @host@ with its directory tree rooted somewhere you pick|connect ii to @host@, choosing where its directory tree lives}
-a: ii -s @host@ -n xos -i /tmp/irc
-why: live-net
-ref: ii
-teach: ii -i
-hint: -i points ii at a directory of your choosing instead of the default
+hint: -s is the server, -p the port, -n the nick -- ii keeps its files under ~/irc by default
 ---
 q: {join the channel #xos on @host@ by writing to the server's in fifo|write a /j command into @host@'s in fifo to join #xos|join #xos on @host@ by echoing the join command into ii's in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in

@@ -27,13 +27,6 @@ ref: df
 teach: df -h
 hint: -h scales the numbers to k/m/g instead of raw block counts
 ---
-q: %show% free space in megabytes
-a: df -m
-out: [0-9]
-ref: df
-teach: df -m
-hint: -m forces megabytes specifically, no auto-scaling
----
 q: %show% inode usage rather than block usage
 a: df -i
 out: [0-9]
@@ -41,33 +34,12 @@ ref: df
 teach: df -i
 hint: -i swaps the space columns for inode counts and percent-used
 ---
-q: %show% free space including pseudo-filesystems normally hidden
-a: df -a
-out: [0-9]
-ref: df
-teach: df -a
-hint: -a includes filesystems df otherwise skips, like proc and tmpfs
----
 q: %show% free space with the filesystem type in a column
 a: df -T
 out: [0-9]
 ref: df
 teach: df -T
 hint: -T adds a column naming each filesystem's type
----
-q: %show% free space only for filesystems of type squashfs
-a: df -t squashfs
-why: root
-ref: df
-teach: df -t
-hint: -t filters the listing down to one filesystem type
----
-q: %show% free space in units of 1024 bytes, chosen explicitly
-a: df -B 1024
-out: [0-9]
-ref: df
-teach: df -B
-hint: -B takes a size -- here 1024 -- to fix the unit df reports in
 ---
 q: {how much space does @dir@ use in total|what is the total space used by @dir@|report the total size of @dir@}
 a: du -s @dir@
@@ -90,40 +62,12 @@ ref: du
 teach: du -a
 hint: -a walks down to individual files, not just directories
 ---
-q: %show% @dir@'s sizes in bytes rather than blocks
-a: du -b @dir@
-out: [0-9]
-ref: du
-teach: du -b
-hint: -b reports raw bytes instead of filesystem blocks
----
 q: %show% @dir@ only one level deep
 a: du -d 1 @dir@
 out: [0-9]
 ref: du
 teach: du -d
 hint: -d takes a depth -- 1 stops descending after the first level
----
-q: %show% @dir@'s sizes with a grand total at the end
-a: du -c @dir@
-out: total
-ref: du
-teach: du -c
-hint: -c appends one extra 'total' line summing everything above it
----
-q: %show% @dir@'s sizes in megabytes
-a: du -m @dir@
-out: [0-9]
-ref: du
-teach: du -m
-hint: -m forces megabytes
----
-q: %show% @dir@'s sizes in kilobytes explicitly
-a: du -k @dir@
-out: [0-9]
-ref: du
-teach: du -k
-hint: -k forces kilobytes, explicit rather than du's default
 ---
 q: {measure @dir@ without crossing onto another filesystem|measure @dir@ but stay on its own filesystem|report the size of @dir@ without descending into other mounts}
 a: du -x @dir@
@@ -245,13 +189,6 @@ ref: fdisk
 teach: fdisk -l
 hint: -l just lists the partition table, no interactive prompt
 ---
-q: {report the block size of /dev/sda|what is the block size of /dev/sda|find the block size of /dev/sda}
-a: blockdev --getbsz /dev/sda
-why: root
-ref: blockdev
-teach: blockdev --getbsz
-hint: --getbsz reports the block size
----
 q: {report the size of /dev/sda in bytes|what is the size of /dev/sda, in bytes|find the exact byte size of /dev/sda}
 a: blockdev --getsize64 /dev/sda
 why: root
@@ -280,13 +217,6 @@ ref: sync
 teach: sync
 hint: sync with no arguments flushes every dirty buffer on the system
 ---
-q: {flush only the data for @txt@, not the whole system|flush just @txt@'s buffered data, leaving the rest alone|write out only @txt@'s pending data, not every buffer on the system}
-a: sync -d @txt@
-why: root
-ref: sync
-teach: sync -d
-hint: -d limits the flush to the file you name
----
 q: {run a command holding an exclusive lock on lock.file, so two copies cannot overlap|hold an exclusive lock on lock.file while a command runs, so it cannot overlap another copy|use lock.file as an exclusive lock around a command so two copies never run together}
 a: flock -x lock.file echo held
 out: held
@@ -309,16 +239,13 @@ teach: flock -s
 hint: -s takes a shared lock, which can coexist with other shared locks
 ---
 setup: p3 is the state partition -- the only thing on this stick that survives
-setup: a reboot, and the only place a key can live. It is encrypted, and it is
-setup: also authenticated, which is a different property and the harder one.
-q: {write a new LUKS2 header on /dev/sda3, with authentication as well as encryption|format /dev/sda3 with a LUKS2 header that is both encrypted and authenticated|put a new LUKS2 header on /dev/sda3, adding integrity checking alongside the encryption}
-a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
-a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
+setup: a reboot, and the only place a key can live.
+q: {write a new LUKS2 header on /dev/sda3, naming the format explicitly|format /dev/sda3 with a LUKS2 header, naming the type instead of taking the default|put a new LUKS2 header on /dev/sda3, specifying the format by name}
+a: cryptsetup luksFormat --type luks2 /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --type
-teach: cryptsetup --integrity
-hint: encryption stops them reading it; integrity stops them changing it
+hint: --type picks the header format explicitly -- luks2 is the default here, but not everywhere
 ---
 q: {unlock /dev/sda3 and expose it as /dev/mapper/state|open /dev/sda3 and map it as /dev/mapper/state|decrypt /dev/sda3, exposing it under /dev/mapper as state}
 a: cryptsetup open /dev/sda3 state
@@ -326,13 +253,6 @@ why: root
 ref: cryptsetup
 teach: cryptsetup
 hint: open maps the decrypted device under /dev/mapper by the name you give
----
-q: {unlock it without allowing any writes|open /dev/sda3 read-only, allowing no writes through it|decrypt /dev/sda3 without permitting any writes}
-a: cryptsetup open --readonly /dev/sda3 state
-why: root
-ref: cryptsetup
-teach: cryptsetup --readonly
-hint: --readonly maps the device without allowing writes through it
 ---
 q: {lock it again and remove the mapping|close the state mapping and re-lock the device|tear down /dev/mapper/state and lock /dev/sda3 again}
 a: cryptsetup close state
@@ -354,41 +274,6 @@ why: root
 ref: cryptsetup
 teach: cryptsetup
 hint: luksDump reads the header itself -- it never touches the encrypted data
----
-q: {format /dev/sda3 choosing the cipher explicitly|format /dev/sda3, naming the cipher instead of taking the default|choose the cipher yourself while formatting /dev/sda3}
-a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
-why: root
-ref: cryptsetup
-teach: cryptsetup --cipher
-hint: --cipher names the cipher instead of taking cryptsetup's default
----
-q: {format with a 512 bit key|format /dev/sda3 using a 512 bit key|choose a 512 bit key while formatting /dev/sda3}
-a: cryptsetup luksFormat --key-size 512 /dev/sda3
-why: root
-ref: cryptsetup
-teach: cryptsetup --key-size
-hint: --key-size is in bits, and must match what the cipher supports
----
-q: {format choosing pbkdf2 rather than the argon2id default|format /dev/sda3 with pbkdf2 instead of the argon2id default|swap the key derivation function to pbkdf2 while formatting}
-a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
-why: root
-ref: cryptsetup
-teach: cryptsetup --pbkdf
-hint: --pbkdf picks the key derivation function used to slow down password guessing
----
-q: {format without any prompt or confirmation, for a script|format /dev/sda3 with no confirmation prompt, suitable for a script|skip the are-you-sure prompt while formatting, for scripted use}
-a: cryptsetup luksFormat --batch-mode /dev/sda3
-why: root
-ref: cryptsetup
-teach: cryptsetup --batch-mode
-hint: --batch-mode skips the are-you-sure prompt, for scripting
----
-q: {open a device saying out loud what is happening|open /dev/sda3 while narrating what cryptsetup is doing|unlock the device with verbose output describing each step}
-a: cryptsetup open --verbose /dev/sda3 state
-why: root
-ref: cryptsetup
-teach: cryptsetup --verbose
-hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
 q: {mount the unlocked state device with nothing on it able to run|mount /dev/mapper/state so nothing on it can execute|attach the decrypted state device with execution disabled}
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
@@ -466,13 +351,6 @@ why: root
 ref: mke2fs
 teach: mke2fs -L
 hint: -L sets the filesystem's volume label
----
-q: {reserve no blocks for admin, so all space is usable, when making the filesystem|when making the filesystem, reserve zero blocks for admin use|build the filesystem with no space reserved for the superuser}
-a: mke2fs -m 0 /dev/mapper/state
-why: root
-ref: mke2fs
-teach: mke2fs -m
-hint: -m sets the percent reserved for root; 0 reserves nothing
 ---
 q: {format a usb stick partition as fat32|make a fat32 filesystem on a usb stick partition|turn a usb stick partition into fat32}
 a: mkdosfs /dev/sda1

@@ -64,13 +64,6 @@ ref: grep
 teach: grep -l
 hint: l switches grep from printing lines to printing filenames
 ---
-q: %list% the files under here that do NOT contain @term@
-a: grep -rL @term@ .
-out: .
-ref: grep
-teach: grep -L
-hint: capital L is the opposite of -l -- files with NO match
----
 q: %show% only the matched @sev@ text from @log@, not the whole line
 a: grep -o @sev@ @log@
 out: ^@sev@$
@@ -84,13 +77,6 @@ out: @sev@
 ref: grep
 teach: grep -w
 hint: w anchors the match to word boundaries
----
-q: %show% lines of @log@ that consist of exactly @sev@ and nothing else
-a: grep -x @sev@ @log@
-out: ^@sev@$
-ref: grep
-teach: grep -x
-hint: x requires the whole line to match, not just part of it
 ---
 q: %find% @sev@ in @log@ and show the 2 lines after each match
 a: grep -A 2 @sev@ @log@
@@ -112,13 +98,6 @@ out: @sev@
 ref: grep
 teach: grep -C
 hint: C for context -- both before and after
----
-q: %show% only the first 2 lines of @log@ matching @sev@, then stop
-a: grep -m 2 @sev@ @log@
-out: @sev@
-ref: grep
-teach: grep -m
-hint: m caps the number of matches before grep stops reading
 ---
 q: {search @log@ for the literal text 0.0.0.0 -- the dots must not be wildcards|find the literal string 0.0.0.0 in @log@, not the dots-as-wildcards version|search @log@ for 0.0.0.0 as plain text, no regex}
 a: grep -F 0.0.0.0 @log@
@@ -148,27 +127,6 @@ why: fixture-cost
 ref: grep
 teach: grep -q
 hint: this is the form you use inside an if
----
-q: {search @log@ for @sev@ and suppress any error about unreadable files|search @log@ for @sev@, silencing any complaint about files it can't read|search @log@ for @sev@ without printing errors for unreadable files}
-a: grep -s @sev@ @log@
-out: @sev@
-ref: grep
-teach: grep -s
-hint: s silences the "no such file" complaints, built into grep itself
----
-q: {search @log@ using each line of @txt@ as a separate pattern|search @log@ against a whole list of patterns, one per line of @txt@|search @log@ for anything matching a line from @txt@}
-a: grep -f @txt@ @log@
-why: fixture-cost
-ref: grep
-teach: grep -f
-hint: f reads patterns from a file instead of the command line, one per line
----
-q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using -e to name the pattern}
-a: grep -e @sev@ @log@
-out: @sev@
-ref: grep
-teach: grep -e
-hint: -e is how you search for something starting with a dash
 ---
 q: {%find% lines of @log@ containing a run of whitespace, using the POSIX space character class instead of a literal space|search @log@ for whitespace using the [[:space:]] POSIX class rather than typing a space|match whitespace in @log@ with [[:space:]], a POSIX character class, instead of a literal space}
 a: grep '[[:space:]]' @log@

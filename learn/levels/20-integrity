@@ -48,12 +48,12 @@ ref: sha256sum
 teach: sha256sum -c
 hint: -c reads a hash file back and reports OK or FAILED per line
 ---
-q: {check sums.txt quietly, printing nothing unless something fails|use sha256sum -c -s so only failures produce output|verify sums.txt silently, staying quiet unless a hash mismatches}
-a: sha256sum *.log > sums.txt && sha256sum -c -s sums.txt
+q: {verify @txt@'s sha256 hash file using just the exit status, no output check|confirm @txt@ still matches its recorded sha256 hash, judging only by the exit status|check @txt@ against a saved sha256 hash file, relying on the exit status alone}
+a: sha256sum @txt@ > s2.txt && sha256sum -c s2.txt
 status: 0
 ref: sha256sum
-teach: sha256sum -s
-hint: -s silences the OK lines, leaving output only for failures
+teach: sha256sum -c
+hint: -c exits 0 the moment every hash matches, nonzero the moment one doesn't
 ---
 q: {compute the sha512 of @txt@|run sha512sum on @txt@|hash @txt@ with sha512}
 a: sha512sum @txt@
@@ -69,12 +69,12 @@ ref: sha512sum
 teach: sha512sum -c
 hint: -c checks a saved hash file the same way it does for sha256sum
 ---
-q: {check a sha512 list for @txt@ without printing the successes|use sha512sum -c -s to verify @txt@'s hash silently|check @txt@'s sha512 hash file, staying quiet unless something fails}
-a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
+q: {verify @txt@'s sha512 hash file using just the exit status|check @txt@'s sha512 hash file, judging only by the exit status|confirm @txt@ still matches its recorded sha512 hash, by exit status alone}
+a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
 status: 0
 ref: sha512sum
-teach: sha512sum -s
-hint: -s keeps the successes quiet, same as with sha256sum
+teach: sha512sum -c
+hint: -c exits 0 when the hash matches, nonzero otherwise -- same as sha256sum
 ---
 q: {compute the sha1 of @txt@, for checking against an old published value|run sha1sum on @txt@ to compare against a value published elsewhere|hash @txt@ with the older sha1 algorithm}
 a: sha1sum @txt@
@@ -90,12 +90,12 @@ ref: sha1sum
 teach: sha1sum -c
 hint: -c verifies a sha1 hash file the same way as the other *sum tools
 ---
-q: {check a sha1 list for @txt@ silently|use sha1sum -c -s to verify @txt@'s hash without the OK noise|check @txt@'s sha1 hash file, staying quiet unless something fails}
-a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
+q: {verify @txt@'s sha1 hash file using just the exit status|check @txt@'s sha1 hash file, judging only by the exit status|confirm @txt@ still matches its recorded sha1 hash, by exit status alone}
+a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
 status: 0
 ref: sha1sum
-teach: sha1sum -s
-hint: -s suppresses the OK lines, showing only failures
+teach: sha1sum -c
+hint: -c exits 0 when the hash matches, nonzero otherwise
 ---
 q: {compute the md5 of @txt@|run md5sum on @txt@|hash @txt@ with md5}
 a: md5sum @txt@
@@ -111,12 +111,12 @@ ref: md5sum
 teach: md5sum -c
 hint: -c verifies an md5 hash file the same way as the other *sum tools
 ---
-q: {check an md5 list for @txt@ silently|use md5sum -c -s to verify @txt@'s hash without printing every OK|check @txt@'s md5 hash file, staying quiet unless something fails}
-a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
+q: {verify @txt@'s md5 hash file using just the exit status|check @txt@'s md5 hash file, judging only by the exit status|confirm @txt@ still matches its recorded md5 hash, by exit status alone}
+a: md5sum @txt@ > m.txt && md5sum -c m.txt
 status: 0
 ref: md5sum
-teach: md5sum -s
-hint: -s keeps the successes quiet, printing failures only
+teach: md5sum -c
+hint: -c exits 0 when the hash matches, nonzero otherwise
 ---
 q: {compute the old unix checksum and byte count of @txt@|run cksum on @txt@ for its legacy checksum and size|get @txt@'s cksum value alongside its byte count}
 a: cksum @txt@
@@ -139,21 +139,6 @@ status: 1
 ref: cmp
 teach: cmp -s
 hint: -s suppresses all output, leaving only the exit status to check
----
-q: %list% every differing byte between @txt@ and @txt2@, not just the first
-a: cmp -l @txt@ @txt2@
-out: ^[0-9]+ [0-9]+ [0-9]+
-status: 1
-ref: cmp
-teach: cmp -l
-hint: -l lists every differing byte position and value, not just the first
----
-q: {compare only the first 10 bytes of two files|use cmp -n 10 to compare just the first 10 bytes|limit the byte comparison between @txt@ and @txt2@ to the first 10 bytes}
-a: cmp -n 10 @txt@ @txt2@
-why: fixture-cost
-ref: cmp
-teach: cmp -n
-hint: -n limits the comparison to the first N bytes of each file
 ---
 q: %show% the differences between @txt@ and @txt2@ line by line
 a: diff @txt@ @txt2@
@@ -215,10 +200,3 @@ out: rotate
 ref: base64
 teach: base64 -d
 hint: base64 is an encoding, not encryption -- anyone can undo it
----
-q: {encode @txt@ as base64 wrapped at 40 columns|use base64 -w 40 so output wraps every 40 columns|base64-encode @txt@ with lines wrapped to 40 characters}
-a: base64 -w 40 @txt@
-out: [A-Za-z0-9+/]
-ref: base64
-teach: base64 -w
-hint: -w wraps output at that many columns instead of one long line

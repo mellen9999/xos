@@ -43,34 +43,6 @@ ref: uname
 teach: uname -n
 hint: -n is the node's network hostname, same field hostname reports
 ---
-q: {the kernel build version string|report the kernel's build version string|what build string does the kernel report}
-a: uname -v
-out: .
-ref: uname
-teach: uname -v
-hint: -v is the kernel's build string -- when and how it was compiled
----
-q: {the operating system name|what operating system is this, according to uname|report the os name uname knows}
-a: uname -o
-out: .
-ref: uname
-teach: uname -o
-hint: -o names the operating system, distinct from the kernel name
----
-q: {the processor type|what processor type does uname report|report the processor type}
-a: uname -p
-out: .
-ref: uname
-teach: uname -p
-hint: -p reports the processor type, when the kernel knows it
----
-q: {the hardware platform|what hardware platform does uname report|report the machine's hardware platform}
-a: uname -i
-out: .
-ref: uname
-teach: uname -i
-hint: -i reports the hardware platform, distinct from -m's architecture
----
 q: {this machine's hostname|what is this machine's hostname|report the current hostname}
 a: hostname
 out: .
@@ -92,20 +64,6 @@ ref: hostname
 teach: hostname -f
 hint: -f prints the fully qualified name, domain included
 ---
-q: {just the dns domain part|only the dns domain, without the host|report just the domain part of the hostname}
-a: hostname -d
-why: live-hw
-ref: hostname
-teach: hostname -d
-hint: -d prints only the domain part, no host
----
-q: {the ip addresses this host resolves to|which ip addresses does this hostname resolve to|report the ip addresses this host's name maps to}
-a: hostname -i
-why: live-hw
-ref: hostname
-teach: hostname -i
-hint: -i resolves the hostname to its ip addresses
----
 q: {what the kernel said while it was booting|dump the kernel's boot-time messages|report everything the kernel logged while booting}
 a: dmesg
 why: live-hw
@@ -113,33 +71,12 @@ ref: dmesg
 teach: dmesg
 hint: dmesg alone dumps the whole kernel ring buffer
 ---
-q: {kernel messages with the raw log level markers left in|dump the kernel log leaving the raw level prefixes in place|show kernel messages without stripping their raw level markers}
-a: dmesg -r
-why: live-hw
-ref: dmesg
-teach: dmesg -r
-hint: -r keeps the raw <N> facility/level prefix on each line
----
 q: {clear the kernel ring buffer after printing it|print the kernel ring buffer, then empty it|dump the kernel ring buffer and clear it once printed}
 a: dmesg -c
 why: live-hw
 ref: dmesg
 teach: dmesg -c
 hint: -c prints the buffer then empties it
----
-q: {set the console log level so only errors reach the screen|limit what reaches the console to error-level kernel messages|turn the console log level down to errors only}
-a: dmesg -n 3
-why: live-hw
-ref: dmesg
-teach: dmesg -n
-hint: -n sets the console log level, not what dmesg itself prints
----
-q: {read only the last 4096 bytes of the kernel buffer|dump just the final 4096 bytes of the kernel buffer|limit the kernel buffer read to its last 4096 bytes}
-a: dmesg -s 4096
-why: live-hw
-ref: dmesg
-teach: dmesg -s
-hint: -s caps how many bytes of the buffer are read, from the end
 ---
 q: %find% every line of the kernel log mentioning verity
 a: dmesg | grep -i verity
@@ -183,33 +120,12 @@ ref: date
 teach: date -I[SPEC]
 hint: -I is a shortcut for iso 8601 output, no format string needed
 ---
-q: {the date in rfc 2822 form, the one email headers use|report the date the way email headers format it, rfc 2822|print today's date in rfc 2822 form}
-a: date -R
-out: [0-9]
-ref: date
-teach: date -R
-hint: -R formats the date the way rfc 2822 (email headers) expects
----
-q: {the modification time of @txt@ rather than the time now|report @txt@'s modification time instead of the current time|when was @txt@ last modified, not what time is it now}
-a: date -r @txt@
-out: [0-9]
-ref: date
-teach: date -r
-hint: -r reports a file's modification time instead of the clock
----
 q: {interpret a date string rather than reading the clock|parse a given date string instead of reading the system clock|turn a date string into a formatted date without touching the clock}
 a: date -d 2024-03-01
 out: 2024|Mar
 ref: date
 teach: date -d
 hint: -d parses the string you give instead of reading the clock
----
-q: {parse 2024-03-01 using an explicit input format string, printing it as epoch seconds|parse the date 2024-03-01 with an input format you specify, converting it to epoch seconds|interpret 2024-03-01 using a format you name explicitly, and print the result as epoch seconds}
-a: date -D "%Y-%m-%d" -d 2024-03-01 +%s
-out: ^[0-9]{10}$
-ref: date
-teach: date -D
-hint: -D names the format of the input date, paired with -d
 ---
 q: {how long has this machine been up, straight from the kernel|report uptime straight from the kernel, not a wrapper around it|read this machine's uptime directly out of the kernel}
 a: cat /proc/uptime
@@ -281,13 +197,6 @@ ref: stty
 teach: stty -a
 hint: -a dumps every setting, not just the summary
 ---
-q: {dump terminal settings in the form you can restore later|save the terminal's settings in a form you can feed back in later|report terminal settings in the compact, restorable format}
-a: stty -g
-out: .
-ref: stty
-teach: stty -g
-hint: -g prints settings in a compact form meant to be fed back to stty
----
 q: {query the settings of a terminal other than your own|report the settings of a terminal that is not your controlling one|check another terminal device's settings, not your own}
 a: stty -F /dev/tty1 -a
 out: .
@@ -309,13 +218,6 @@ ref: watch
 teach: watch -n
 hint: -n sets the interval in seconds
 ---
-q: {watch df with the header line suppressed|watch df but drop its header line|rerun df under watch with no header shown}
-a: watch -t df
-why: live-hw
-ref: watch
-teach: watch -t
-hint: -t hides watch's own header/title line
----
 q: {wait two seconds and then continue|pause for two seconds before continuing|block for two seconds, then carry on}
 a: sleep 2
 status: 0
@@ -336,13 +238,6 @@ why: live-hw
 ref: lspci
 teach: lspci -k
 hint: -k adds which kernel module claims each device
----
-q: %list% pci devices in a form easy to parse
-a: lspci -m
-why: live-hw
-ref: lspci
-teach: lspci -m
-hint: -m switches to a machine-parseable, script-friendly format
 ---
 q: %list% every usb device
 a: lsusb
@@ -386,30 +281,9 @@ ref: logger
 teach: logger -t
 hint: -t sets the tag that shows up in the log for this line
 ---
-q: {log a line and also print it to your own terminal|log a line while also echoing it to your terminal|send a line to the log and print it locally too}
-a: logger -s checking
-why: live-hw
-ref: logger
-teach: logger -s
-hint: -s echoes the message to stderr as well as logging it
----
-q: {log a line at a chosen priority|log a line tagged with a specific priority|send a log line at a priority you choose}
-a: logger -p user.warn suspicious
-why: live-hw
-ref: logger
-teach: logger -p
-hint: -p takes facility.level to set the message's priority
----
 q: {open a serial console to a device at 115200 baud|connect to a serial console running at 115200 baud|dial into a serial device at 115200 baud}
 a: microcom -s 115200 /dev/ttyS0
 why: live-hw
 ref: microcom
 teach: microcom -s
 hint: when ethernet is dead, this is how you reach a router or another machine
----
-q: {talk to a serial device giving up after 10 seconds of silence|open a serial device but bail out after 10 seconds of silence|connect to a serial device, timing out after 10 idle seconds}
-a: microcom -t 10000 /dev/ttyS0
-why: live-hw
-ref: microcom
-teach: microcom -t
-hint: -t sets an idle timeout in milliseconds before it gives up

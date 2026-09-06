@@ -38,7 +38,6 @@ sha1sum -w      # verbose
 sha256sum -w    # verbose
 sha512sum -w    # verbose
 diff -s         # verbose
-cmp -s          # verbose, and -s is taught on grep where it matters
 
 # ── second spellings of something already drilled ──
 cp -R           # alias of -r
@@ -55,7 +54,6 @@ ls -lc          # -l plus a sort key we teach separately
 ls -lu          # as above
 ls -tc          # as above
 ls -tu          # as above
-find -print     # the default
 find -H         # symlink-follow nuance; -L is the one to know
 find -follow    # alias of -L
 find -amin      # -mmin is the one that matters in triage
@@ -119,7 +117,6 @@ mount -O        # filters an -a mount by option; xos mounts one root, never fsta
 # question to no purpose.
 test -e
 test -f
-test -d
 test -L
 test -n
 test -r
@@ -294,7 +291,6 @@ ls -X                           # sort by extension
 # ping6 and traceroute6 take the SAME flags as ping and traceroute, drilled in
 # the reachability level. teaching them twice teaches nothing new.
 ping6 -A
-ping6 -c
 ping6 -i
 ping6 -I
 ping6 -p
@@ -351,7 +347,6 @@ dbclient -f      # background after auth
 # to coverage since the start. each is retired on purpose or noted as a
 # future lesson.
 date -s          # sets the system clock; danger, and xos pins its own clock
-env -i           # clean-slate environment; worth a lesson one day
 flock -c         # run a shell string; the direct PROG form is taught
 hash -r          # drop the shell's command cache, a debugging one-off
 ifconfig -a      # legacy tool kept for compat; ip addr is the taught spelling
@@ -566,7 +561,6 @@ wc -L            # lookup
 wget -o          # lookup
 wget -P          # lookup
 wget --post-file # lookup
-wget --no-check-certificate # lookup
 wget -T          # lookup
 wget -U          # lookup
 xargs -a         # lookup
@@ -574,3 +568,8 @@ xargs -E         # lookup
 xargs -p         # lookup
 xargs -s         # lookup
 xargs -t         # lookup
+find -depth      # lookup
+find -empty      # lookup
+find -executable # lookup
+find -group      # lookup
+find -mindepth   # lookup

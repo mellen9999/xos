@@ -71,10 +71,10 @@ a: sha256sum @txt@ | cut -d' ' -f1
 lvl: 20
 ref: sha256sum
 ---
-q: {name @bin@ by its first eight bytes in hex, on one line|read @bin@'s first eight bytes as hex, one line|dump the first eight bytes of @bin@ as hex on a single line}
-a: od -A n -t x1 -N 8 @bin@ | head -1
+q: {show @bin@'s first eight bytes as a hexdump, one line|dump the first eight bytes of @bin@ with hexdump, on one line|read @bin@'s first eight bytes through hexdump, one line}
+a: hexdump -C -n 8 @bin@ | head -1
 lvl: 21
-ref: od
+ref: hexdump
 ---
 q: {pull the readable secret buried in @bin@|carve the unlocking string out of @bin@|dig the string that mentions unlocking out of @bin@}
 a: strings @bin@ | grep unlock

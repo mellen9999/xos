@@ -143,17 +143,3 @@ out: ^gone$
 ref: [
 teach: [
 hint: ! in front of a test negates its result
----
-q: {require both that @txt@ exists and @dir@ is a directory, printing both|test that @txt@ exists AND @dir@ is a directory, printing both|combine two conditions with -a, printing both when @txt@ exists and @dir@ is a directory}
-a: [ -f @txt@ -a -d @dir@ ] && echo both
-out: ^both$
-ref: [
-teach: [ -a
-hint: -a inside [ ] means logical AND between two conditions
----
-q: {accept either @txt@ existing or @word@-nope.txt existing, printing either|test that @txt@ exists OR @word@-nope.txt exists, printing either|combine two conditions with -o, printing either when one of the files exists}
-a: [ -f @txt@ -o -f @word@-nope.txt ] && echo either
-out: ^either$
-ref: [
-teach: [ -o
-hint: -o inside [ ] means logical OR between two conditions

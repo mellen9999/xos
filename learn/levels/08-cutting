@@ -46,13 +46,6 @@ ref: cut
 teach: cut -f
 hint: a trailing dash with no end number means to the end of the line
 ---
-q: %show% fields 4 and 1 of @csv@, in that exact order -- not resorted to 1 then 4
-a: cut -D -d, -f4,1 @csv@
-out: 42,gateway
-ref: cut
-teach: cut -D
-hint: without -D, cut always prints selected fields back in ascending order; -D keeps them (and any duplicates) exactly as you listed them
----
 q: %show% the first 10 characters of each line of @log@
 a: cut -c1-10 @log@
 out: ^2024-03-01$
@@ -66,27 +59,6 @@ out: [0-9]
 ref: cut
 teach: cut -c
 hint: same trailing-dash trick as field ranges, but for characters
----
-q: %show% the first 8 bytes of each line of @log@
-a: cut -b1-8 @log@
-out: ^2024-03
-ref: cut
-teach: cut -b
-hint: -b counts bytes; same as -c unless the text is multibyte
----
-q: %show% field 1 of @csv@, skipping lines that have no comma in them at all
-a: cut -d, -f1 -s @csv@
-out: ^gateway$
-ref: cut
-teach: cut -s
-hint: without -s, a line with no delimiter is printed whole
----
-q: %show% fields 1 and 3 of @csv@, joining them with a colon instead of a comma
-a: cut -d, -f1,3 -O: @csv@
-out: ^gateway:up$
-ref: cut
-teach: cut -O
-hint: -O sets the OUTPUT delimiter, separate from -d which sets the input one
 ---
 q: {uppercase everything in @txt@|%turn% @txt@ to upper case|make @txt@ all capitals}
 a: tr a-z A-Z < @txt@

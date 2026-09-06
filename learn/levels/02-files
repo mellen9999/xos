@@ -26,7 +26,6 @@ hint: when the destination is a directory, cp keeps the original name for you
 ---
 q: {copy the whole @dir@ directory, and everything inside it, to @dir2@-copy|copy @dir@ and all its contents to @dir2@-copy|duplicate @dir@, contents included, as @dir2@-copy}
 a: cp -r @dir@ @dir2@-copy
-a: cp -R @dir@ @dir2@-copy
 a: cp -a @dir@ @dir2@-copy
 state: exists:@dir2@-copy
 ref: cp
@@ -114,13 +113,6 @@ ref: mkdir
 teach: mkdir -p
 hint: p for parents
 ---
-q: %make% a directory @word@ that only you can enter, using a numeric mode
-a: mkdir -m 700 @word@
-state: exists:@word@
-ref: mkdir
-teach: mkdir -m
-hint: -m sets permissions at creation time -- 700 is owner-only rwx
----
 q: {remove the already-empty directory empty-dir|delete empty-dir, which is already empty|get rid of empty-dir, sitting there empty}
 a: rmdir empty-dir
 state: gone:empty-dir
@@ -207,26 +199,12 @@ ref: rm
 teach: rm -i
 hint: i for interactive -- prompts before removing
 ---
-q: {remove prune/mid/deep and any parent directories left empty behind it|delete prune/mid/deep, then clean up any now-empty parents above it|remove prune/mid/deep along with the empty parent directories it leaves behind}
-a: rmdir -p prune/mid/deep
-state: gone:prune
-ref: rmdir
-teach: rmdir -p
-hint: p walks back up removing each parent as long as it's now empty
----
 q: %make% a named pipe called @word@.fifo
 a: mkfifo @word@.fifo
 state: exists:@word@.fifo
 ref: mkfifo
 teach: mkfifo
 hint: a fifo connects a writer to a reader instead of storing data
----
-q: %make% a named pipe @word@.fifo, readable and writable only by you
-a: mkfifo -m 600 @word@.fifo
-state: exists:@word@.fifo
-ref: mkfifo
-teach: mkfifo -m
-hint: -m sets permissions at creation, same as mkdir -m
 ---
 q: %make% a temporary file with a name nothing else will collide with
 a: mktemp
@@ -241,17 +219,3 @@ out: ^/
 ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
----
-q: %make% a temporary name without actually creating anything
-a: mktemp -u
-out: ^/
-ref: mktemp
-teach: mktemp -u
-hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
----
-q: %make% a temporary file, staying silent if it cannot
-a: mktemp -q
-out: ^/
-ref: mktemp
-teach: mktemp -q
-hint: q suppresses the error message on failure

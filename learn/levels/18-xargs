@@ -37,13 +37,6 @@ ref: xargs
 teach: xargs -I
 hint: -I defines a placeholder that gets replaced with each input item
 ---
-q: %show% each command before running it
-a: ls | xargs -t echo
-out: .
-ref: xargs
-teach: xargs -t
-hint: -t prints the command line to stderr before running it
----
 q: {do nothing at all when the input is empty, rather than running once|when there's no input at all, run nothing rather than one empty invocation|make xargs skip running entirely on empty input}
 a: printf '' | xargs -r echo nothing
 why: primitive-cost
@@ -51,40 +44,12 @@ ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
-q: {stop reading input at the word STOP|use xargs -E STOP to cut off input the moment STOP appears|make xargs ignore everything from STOP onward}
-a: printf 'a b STOP c' | xargs -E STOP echo
-out: ^a b$
-ref: xargs
-teach: xargs -E
-hint: -E names a string that, once seen, ends input reading right there
----
 q: {run at most 2 commands at the same time|use xargs -P 2 to run two invocations in parallel|cap concurrent xargs invocations at 2}
 a: ls | xargs -P 2 -n 1 echo
 out: .
 ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
----
-q: {ask before running each command|use xargs -p to confirm each invocation before it runs|make xargs pause and ask before every command}
-a: ls | xargs -p echo
-why: interactive
-ref: xargs
-teach: xargs -p
-hint: -p prompts for confirmation before each invocation, handy for a dry run
----
-q: {take the argument list from @txt@ rather than standard input|use xargs -a @txt@ so arguments come from that file, not a pipe|read arguments out of @txt@ instead of piping them in}
-a: xargs -a @txt@ echo
-out: rotate
-ref: xargs
-teach: xargs -a
-hint: -a reads the argument list from a file instead of stdin
----
-q: {keep each command line under 100 bytes, splitting into more invocations|use xargs -s 100 to cap each command line's length|limit each invocation's command line to 100 bytes}
-a: ls | xargs -s 100 echo
-out: .
-ref: xargs
-teach: xargs -s
-hint: -s caps the total length of each generated command line
 ---
 q: {strip the directory part off the path @dir@/@txt@|use basename to drop everything up to the last slash in @dir@/@txt@|reduce @dir@/@txt@ down to just its filename}
 a: basename @dir@/@txt@
@@ -99,20 +64,6 @@ out: .
 ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
----
-q: {strip @txt@'s .txt suffix using the explicit flag rather than a second argument|use basename -s .txt on @txt@ instead of passing the suffix as a bare argument|strip .txt off @txt@ using the -s flag form}
-a: basename -s .txt @txt@
-out: .
-ref: basename
-teach: basename -s
-hint: -s is the explicit-flag form of the same suffix stripping
----
-q: {take the basename of several paths at once|use basename -a to process @txt@ and @log@ together|run basename over multiple paths in a single call}
-a: basename -a @txt@ @log@
-out: .
-ref: basename
-teach: basename -a
-hint: -a lets you hand basename several paths in one call
 ---
 q: %show% the directory part of @dir@/@txt@
 a: dirname @dir@/@txt@
@@ -134,13 +85,6 @@ out: ^/
 ref: readlink
 teach: readlink -f
 hint: -f follows every link in the chain, not just the first one
----
-q: {read a symlink without a trailing newline|use readlink -n so no newline follows the output|print @txt@'s link target with no newline at the end}
-a: readlink -n @txt@
-why: primitive-cost
-ref: readlink
-teach: readlink -n
-hint: -n suppresses the trailing newline readlink would otherwise print
 ---
 q: {where does the command sed live|use which to find the path sed resolves to|ask which where sed lives on disk}
 a: which sed
