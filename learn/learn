@@ -150,7 +150,7 @@ _ledger_add() { # FILE ID
 		&& mv "$1.tmp.$$" "$1" 2>/dev/null || rm -f "$1.tmp.$$" 2>/dev/null
 	return 0
 }
-level_passed()    { _ledger_add "$PASSED" "$1"; }
+level_passed()    { _ledger_add "$PASSED" "$1"; inprog_clear "$1"; }
 level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
 
 # the placed ledger -- levels a placement run skipped past. resume treats
@@ -158,7 +158,7 @@ level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
 # not: a placement guess is not a boss fought, so it must never unlock the
 # endgame the way a real fall does.
 PLACED="$STATE/placed"
-level_placed()    { _ledger_add "$PLACED" "$1"; }
+level_placed()    { _ledger_add "$PLACED" "$1"; inprog_clear "$1"; }
 level_is_placed() { grep -qxF -- "$1" "$PLACED" 2>/dev/null; }
 
 # the briefed ledger -- a level's brief is a teaching paragraph, worth reading
@@ -167,6 +167,53 @@ level_is_placed() { grep -qxF -- "$1" "$PLACED" 2>/dev/null; }
 BRIEFED="$STATE/briefed"
 level_briefed()    { _ledger_add "$BRIEFED" "$1"; }
 level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
+
+# the in-progress ledger -- one file per level, holding the cards it still
+# owes you. quitting a 33-card level at card 20 used to throw the place away:
+# the next run reshuffled and asked all 33 again, so a level was something you
+# had to finish in one sitting or repeat. one line, rewritten after each
+# answer: <fingerprint> <right> <answered> <cards still to ask>...
+INPROG="$STATE/inprogress"
+_inprog_file() { printf '%s.%s\n' "$INPROG" "$1"; }
+# the level's CONTENT, not its name. an edited level renumbers its questions,
+# and resuming into the old numbering would ask card 7 of a file that no
+# longer has one -- or, worse, a different card 7.
+level_fp() { md5sum < "$(level_path "$1")" 2>/dev/null | cut -d' ' -f1; }
+inprog_save() { # ID FP RIGHT ANSWERED REMAINING...
+	local f; f=$(_inprog_file "$1"); shift
+	mkdir -p "$STATE" 2>/dev/null || return 0
+	# same-directory rename, like every other ledger: power can cut between a
+	# truncate and a write, and a half-written place is worse than none.
+	printf '%s\n' "$*" > "$f.tmp.$$" 2>/dev/null \
+		&& mv "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$" 2>/dev/null
+	return 0
+}
+inprog_clear() { rm -f "$(_inprog_file "$1")" 2>/dev/null; return 0; }
+# sets INPROG_LEFT/RIGHT/DONE, or returns 1 with nothing to resume. every
+# field is proved before any of it is believed -- a truncated, stale or
+# hand-edited file starts the level over rather than indexing past its end.
+inprog_load() { # ID FP NQ
+	INPROG_LEFT=""; INPROG_RIGHT=0; INPROG_DONE=0
+	local id=$1 fp=$2 nq=$3 f line n
+	f=$(_inprog_file "$id")
+	[ -f "$f" ] || return 1
+	IFS= read -r line < "$f" 2>/dev/null || line=""
+	set -f; set -- $line; set +f
+	[ $# -ge 4 ] && [ "$1" = "$fp" ] || { inprog_clear "$id"; return 1; }
+	case "$2$3" in *[!0-9]*) inprog_clear "$id"; return 1 ;; esac
+	INPROG_RIGHT=$2; INPROG_DONE=$3
+	shift 3
+	# answered + still owed must be the whole level, and every card must be
+	# one this level actually has.
+	[ $(($# + INPROG_DONE)) -eq "$nq" ] && [ "$INPROG_RIGHT" -le "$INPROG_DONE" ] \
+		|| { inprog_clear "$id"; return 1; }
+	for n; do
+		case "$n" in *[!0-9]*) inprog_clear "$id"; return 1 ;; esac
+		[ "$n" -ge 1 ] && [ "$n" -le "$nq" ] || { inprog_clear "$id"; return 1; }
+	done
+	INPROG_LEFT="$*"
+	return 0
+}
 
 # blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
 # from block INDEX of any question file -- the levels and the challenge chains
@@ -369,10 +416,12 @@ boss_round() {
 }
 
 run_level() {
-	local id=$1 nq i k=0 right=0 total=0 rc lname
+	local id=$1 nq i k=0 right=0 total=0 rc lname lsub fp order rest
 	nq=$(level_nq "$id")
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
 	lname=$(level_field "$id" name)
+	lsub="level ${id%%-*}"
+	fp=$(level_fp "$id")
 
 	# the brief teaches once, on its own screen; after that the header alone, so
 	# a resume is the questions, not the lecture. `learn brief <n>` reprints it.
@@ -386,19 +435,40 @@ run_level() {
 
 	# the order changes every run, so the level cannot be memorised as a
 	# sequence -- only as a set of things you can do. one card per screen.
-	for i in $(shuffle_n "$nq" "$nq"); do
+	# a level left unfinished keeps its order and its score: you come back to
+	# the cards you had not answered, not to the whole level again.
+	# the status bar carries the news -- "resumed  21/33" says it without
+	# spending a screen and a keypress on saying it.
+	if inprog_load "$id" "$fp" "$nq"; then
+		order=$INPROG_LEFT; right=$INPROG_RIGHT; total=$INPROG_DONE; k=$total
+		lsub="$lsub  resumed"
+	else
+		order=$(shuffle_n "$nq" "$nq")
+	fi
+	inprog_save "$id" "$fp" "$right" "$total" $order
+	while :; do
+		set -f; set -- $order; set +f
+		[ $# -gt 0 ] || break
+		i=$1; shift; rest="$*"
 		k=$((k + 1))
 		cls
-		statusbar "$lname" "level ${id%%-*}" "$k" "$nq" "$right"
+		statusbar "$lname" "$lsub" "$k" "$nq" "$right"
 		ask "$id" "$i"; rc=$?
+		# quitting mid-card leaves that card owed: the place on disk still
+		# has it at the head, because it was never answered.
 		[ "$rc" = 2 ] && return 2
 		[ "$rc" = 0 ] && right=$((right + 1))
 		total=$((total + 1))
+		order=$rest
+		inprog_save "$id" "$fp" "$right" "$total" $order
 		pause_card || return 2
 	done
+	# the questions are done; the boss is a fresh event. a boss you walk away
+	# from means the level gets practised again, which is the point of it.
+	inprog_clear "$id"
 
 	cls
-	statusbar "$lname" "level ${id%%-*}" "$total" "$total" "$right"
+	statusbar "$lname" "$lsub" "$total" "$total" "$right"
 	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
 	echo
 	while :; do
@@ -1235,6 +1305,26 @@ selftest() {
 	  correct "$a" ) \
 		|| { echo "FAIL grade: correct() does not build its own sandbox" >&2; bad=$((bad+1)); }
 
+	# the mid-level place is the one ledger that indexes INTO a level, so a
+	# file it wrongly trusts asks a card that is not there. round-trip it, then
+	# hand it four kinds of wrong and require a refusal (and a cleared file)
+	# each time. the subshell keeps these writes out of real state.
+	( STATE="$TMP/st"; INPROG="$STATE/inprogress"; mkdir -p "$STATE"
+	  inprog_load L fp1 6 && exit 1                     # nothing saved yet
+	  inprog_save L fp1 2 3 4 5 6
+	  inprog_load L fp1 6 || exit 1
+	  [ "$INPROG_LEFT" = "4 5 6" ] && [ "$INPROG_RIGHT" = 2 ] && [ "$INPROG_DONE" = 3 ] || exit 1
+	  inprog_load L fp2 6 && exit 1                     # the level was edited
+	  [ -f "$INPROG.L" ] && exit 1                      # ...and the file is gone
+	  inprog_save L fp1 2 3 4 5 9; inprog_load L fp1 6 && exit 1   # card past the end
+	  inprog_save L fp1 2 3 4 5;   inprog_load L fp1 6 && exit 1   # counts do not add up
+	  inprog_save L fp1 9 3 4 5 6; inprog_load L fp1 6 && exit 1   # more right than asked
+	  inprog_save L fp1 x 3 4 5 6; inprog_load L fp1 6 && exit 1   # not a number
+	  inprog_save L fp1 2 3 4 5 6; inprog_clear L
+	  inprog_load L fp1 6 && exit 1                     # cleared means cleared
+	  exit 0 ) \
+		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
+
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
 	# survival -- the subshell turns a fatal ash error into a caught failure.
@@ -1442,7 +1532,7 @@ case "${1:-}" in
 	          	IFS= read -r _ok 2>/dev/null; case "$_ok" in y|Y|yes) _ok=1 ;; *) _ok=0 ;; esac
 	          else _ok=0; fi
 	          if [ "$_ok" = 1 ]; then
-	          	rm -f "$CARDS" "$CARDS.lock" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" "$EDIT_HIST" 2>/dev/null
+	          	rm -f "$CARDS" "$CARDS.lock" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" "$EDIT_HIST" "$INPROG".* 2>/dev/null
 	          	ok "progress cleared"
 	          else note "nothing erased (learn reset --yes skips the question)"; fi ;;
 	-h|--help|help) usage ;;
