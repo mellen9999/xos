@@ -188,8 +188,9 @@ the build fails, loudly, on any of:
   hardening on; /dev/mem, kexec, io_uring, bpf, ia32 emulation off)
 - the signed cmdline missing its hardening params or the wait-for-device root
 - an upstream tarball whose digest doesn't match `sources.sha256`
-- (when gpg is installed) an lvm2 or dropbear tarball that doesn't match its
-  maintainer's committed signature and pinned key fingerprint
+- (when gpg is installed) a linux, cryptsetup, util-linux, lvm2 or dropbear
+  tarball that doesn't match its maintainer's committed signature and pinned
+  key fingerprint
 - an image missing anything `manifest` says it must contain
 - a firmware blob shipped in the image
 - a driver that could bind a sata, nvme or mmc device -- the host's own disks
@@ -349,7 +350,7 @@ sizes are the stripped static-pie binaries; anchors are in SOURCES.md.
 
 | part | does | why this one, not the usual one |
 |---|---|---|
-| linux 6.12 lts, from `tinyconfig` | the kernel | every driver is opt-in, so "no driver can see your disks" is a config line, not a promise. a distro kernel turns on five thousand things nobody asked for |
+| linux 6.18 lts, from `tinyconfig` | the kernel | every driver is opt-in, so "no driver can see your disks" is a config line, not a promise. a distro kernel turns on five thousand things nobody asked for |
 | busybox 1.38 | the userland and the one shell (ash), ~180 applets in one 700 KB binary | one parser to audit instead of bash + coreutils + util-linux, and its `--help` is a per-build corpus `learn` is generated from |
 | bearssl + `tlstunnel.c` | tls with the trust set compiled in | openssl is ten times the code and reads a ca directory at runtime; bearssl is small, allocation-free, and takes a fixed anchor list |
 | ii | irc, as files in a directory | no ncurses, no scripting language, 11 KB of source |

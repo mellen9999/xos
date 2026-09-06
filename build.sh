@@ -11,7 +11,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     || git config core.hooksPath githooks 2>/dev/null || true
 fi
 
-KVER="${KVER:-6.12.108}"
+KVER="${KVER:-6.18.49}"
 BBVER="${BBVER:-1.38.0}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
@@ -37,6 +37,9 @@ DBVER="${DBVER:-2026.94}"
 # are convenience copies; a swapped pubkey cannot satisfy these pins.
 DB_FPR=F7347EF2EE2E07A267628CA944931494F29C6773    # Matt Johnston (dropbear)
 LVM_FPR=D501A478440AE2FD130A1BE8B9112431E509039F   # Marian Csontos (lvm2)
+LNX_FPR=647F28654894E3BD457199BE38DBBDC86092693E   # Greg Kroah-Hartman (linux stable)
+CS_FPR=2A2918243FDE46648D0686F9D9B0577BD93E98FC    # Milan Broz (cryptsetup)
+UTL_FPR=B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284   # Karel Zak (util-linux)
 # one cflags line for every first-party and upstream userland build. the
 # -ffile-prefix-map used to live only in cryptsetup_(), where a __FILE__ in an
 # assert string had already leaked the absolute build path into the image; a
@@ -119,7 +122,7 @@ deps() {
              mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux \
              wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base \
              cmake:cmake flex:flex bison:bison bc:bc pkg-config:pkgconf \
-             partprobe:parted strings:binutils; do
+             partprobe:parted strings:binutils xz:xz; do
     command -v "${cmd%%:*}" >/dev/null 2>&1 || miss+=("${cmd%%:*} (${cmd##*:})")
   done
   # musl is linked into every binary but is NOT built from source here -- it is
@@ -157,13 +160,21 @@ get() {
 # digest pin (G8) already stops later substitution; this anchors what the
 # first sighting WAS to the maintainer's key instead of trust-on-first-use.
 # gpg is host-optional: absence skips loudly, the digest pin still holds.
-sigver() { # $1 tarball  $2 committed .asc  $3 committed pubkey  $4 pinned fingerprint
+# $5=xz: kernel.org signs the UNCOMPRESSED tar (one .tar.sign covers .gz and
+# .xz), so the tarball is decompressed into gpg's stdin. a truncated or
+# corrupt .xz cannot pass: gpg sees a short stream and the signature fails.
+sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned fingerprint  [$5 xz]
   command -v gpg >/dev/null 2>&1 || {
     printf '  %s: gpg not installed -- signature not checked (digest pin still enforced)\n' "$1"; return 0; }
-  local gh; gh=$(mktemp -d) || return 1
+  local gh ok=1; gh=$(mktemp -d) || return 1
   gpg -q --homedir "$gh" --import "$3" 2>/dev/null
   # VALIDSIG + the pinned fingerprint: a swapped pubkey file cannot satisfy this.
-  if gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | has "VALIDSIG $4"; then
+  if [ "${5:-}" = xz ]; then
+    xz -dc "src/$1" | gpg --homedir "$gh" --status-fd 1 --verify "$2" - 2>/dev/null | has "VALIDSIG $4" && ok=0
+  else
+    gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | has "VALIDSIG $4" && ok=0
+  fi
+  if [ "$ok" -eq 0 ]; then
     printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)"
     rm -rf "$gh"
   else
@@ -178,8 +189,12 @@ fetch() {
 
   # G8 -- every source pinned, verified BEFORE extraction. a verified boot
   # chain rooted in an unverified tarball proves nothing.
+  # kernel.org sources: the maintainer's detached signature over the tar,
+  # matched against a fingerprint pinned above. a digest is only ever pinned
+  # for a tarball whose signature verified first.
   get "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz" \
       "linux-$KVER.tar.xz" "linux-$KVER"
+  sigver "linux-$KVER.tar.xz" "sigs/linux-$KVER.tar.sign" sigs/linux-release-key.asc "$LNX_FPR" xz
   get "https://busybox.net/downloads/busybox-$BBVER.tar.bz2" \
       "busybox-$BBVER.tar.bz2" "busybox-$BBVER"
   # ii: suckless publishes no signature, so this pin is trust-on-first-use
@@ -191,12 +206,13 @@ fetch() {
   # of stale: four C files that do one thing.
   get "https://www.brain-dump.org/projects/abduco/abduco-$ABDVER.tar.gz" \
       "abduco-$ABDVER.tar.gz" "abduco-$ABDVER"
-  # cryptsetup and its four libraries. kernel.org publishes sha256sums for
-  # cryptsetup and util-linux; the other three are trust-on-first-use. see
-  # SOURCES.md, which records which is which rather than letting one digest
-  # list look as authoritative as another.
+  # cryptsetup and its four libraries. cryptsetup and util-linux are signed by
+  # their maintainers (kernel.org hosting); popt and json-c are
+  # trust-on-first-use. see SOURCES.md, which records which is which rather
+  # than letting one digest look as authoritative as another.
   get "https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${CSVER%.*}/cryptsetup-$CSVER.tar.xz" \
       "cryptsetup-$CSVER.tar.xz" "cryptsetup-$CSVER"
+  sigver "cryptsetup-$CSVER.tar.xz" "sigs/cryptsetup-$CSVER.tar.sign" sigs/cryptsetup-release-key.asc "$CS_FPR" xz
   get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
       "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
   sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR"
@@ -206,6 +222,7 @@ fetch() {
       "json-c-$JSONCVER.tar.gz" "json-c-json-c-$JSONCVER"
   get "https://cdn.kernel.org/pub/linux/utils/util-linux/v${UTLVER%.*}/util-linux-$UTLVER.tar.xz" \
       "util-linux-$UTLVER.tar.xz" "util-linux-$UTLVER"
+  sigver "util-linux-$UTLVER.tar.xz" "sigs/util-linux-$UTLVER.tar.sign" sigs/util-linux-release-key.asc "$UTL_FPR" xz
   # wireguard-tools: git.zx2c4.com publishes no per-release signature; the
   # github mirror tag is trust-on-first-use over TLS.
   get "https://github.com/WireGuard/wireguard-tools/archive/refs/tags/v$WGTVER.tar.gz" \
@@ -409,7 +426,7 @@ wg_() {
   # makefile's own CFLAGS; supplying ours drops both, so put them back. the
   # bundled linux/wireguard.h goes FIRST: wg is written against the newest
   # netlink attributes and only sends the ones the operator's conf uses, so
-  # it must see its own header, not the older one in the 6.12 sysroot.
+  # it must see its own header, never an older one in the kernel sysroot.
   make -C "$d" CC="gcc -specs=$specs" \
     CFLAGS="-isystem $PWD/$d/uapi/linux $XCF -DRUNSTATEDIR='\"/run\"'" \
     LDFLAGS="" WITH_BASHCOMPLETION=no WITH_WGQUICK=no WITH_SYSTEMDUNITS=no wg >/dev/null 2>&1
@@ -1024,7 +1041,7 @@ verity() {
   # dm-mod.waitfor polls (5ms) until the device exists -- usb enumeration takes
   # a second or two, and without this dm-init tries exactly once and the root
   # never appears (a silent hang rootwait cannot fix). there is NO timeout knob
-  # in 6.12: an unsupported controller hangs at "waiting for device", visibly.
+  # in the kernel: an unsupported controller hangs at "waiting for device", visibly.
   #
   # console: serial LAST so it owns /dev/console (harness scrapes serial, output
   # stays byte-identical); tty0 first mirrors printk to a real screen.
@@ -1034,7 +1051,7 @@ verity() {
   # anywhere fatal -- the machine refuses to run at all, which is the point.
   #
   # random.trust_cpu=1: nothing persists here, so the entropy pool starts empty
-  # on every boot with no seed file to carry across. 6.12 already defaults this
+  # on every boot with no seed file to carry across. the kernel already defaults this
   # to true and dropped the Kconfig symbol, so pinning it on the signed cmdline
   # is how it stays true across a kernel bump. the kernel always MIXES rdrand
   # rather than using it alone -- a backdoored instruction cannot dictate the
