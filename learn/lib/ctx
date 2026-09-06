@@ -73,26 +73,26 @@ roll() {
 	# same question always sees the same bytes.
 	FX_SEED=$RANDOM
 
-	pick2 logs;  sub log "$REPLY";  sub log2 "$REPLY2"
+	pick  logs;  sub log "$REPLY"
 	pick2 txts;  sub txt "$REPLY";  sub txt2 "$REPLY2"
 	pick2 cfgs;  sub cfg "$REPLY";  sub cfg2 "$REPLY2"
-	pick2 csvs;  sub csv "$REPLY";  sub csv2 "$REPLY2"
+	pick  csvs;  sub csv "$REPLY"
 	pick2 dirs;  sub dir "$REPLY";  sub dir2 "$REPLY2"
 	pick  scripts; sub script "$REPLY"
 	pick  bins;    sub bin "$REPLY"
 	pick  archives; sub archive "$REPLY"
 
-	pick2 terms; sub term "$REPLY"; sub term2 "$REPLY2"
-	pick  sev;   sub sev "$REPLY"
-	pick  fields; sub field "$REPLY"
-	pick  exts;   sub ext "$REPLY"
+	pick  terms; sub term "$REPLY"
+	pick  sev;   sub sev "$REPLY"; _sev=$REPLY
+	# @needle@: @sev@ half the time, otherwise a severity the log fixture never
+	# writes. a found/missing question is only a question when both happen.
+	rnd 6; case $REPLY in 0|1|2) sub needle "$_sev" ;; 3) sub needle TRACE ;; 4) sub needle NOTICE ;; *) sub needle PANIC ;; esac
 	pick2 ips;    sub ip "$REPLY";  sub ip2 "$REPLY2"
-	pick2 ports;  sub port "$REPLY"; sub port2 "$REPLY2"
+	pick  ports;  sub port "$REPLY"
 	pick  ifaces; sub iface "$REPLY"
 	pick  hosts;  sub host "$REPLY"
 	pick  users;  sub user "$REPLY"
 	pick  procs;  sub proc "$REPLY"
-	pick  sizes;  sub size "$REPLY"
 	pick  old;    sub old "$REPLY"
 	pick  new;    sub new "$REPLY"
 	pick  words;  sub word "$REPLY"
@@ -100,13 +100,10 @@ roll() {
 	pick var.value; sub var "$REPLY"
 	pick var.count; sub cvar "$REPLY"
 	pick var.time;  sub tvar "$REPLY"
-	pick var.host;  sub hvar "$REPLY"
 	pick var.mode;  sub mvar "$REPLY"
 
 	rnd 20; sub n  "$((REPLY + 1))"
-	rnd 45; sub n2 "$((REPLY + 5))"
 	rnd 8;  sub n3 "$((REPLY + 2))"
-	rnd 4;  sub col "$((REPLY + 1))"
 }
 
 # render -- stdin through the rolled script, then collapse {a|b|c} alternations.

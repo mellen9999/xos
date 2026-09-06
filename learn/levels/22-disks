@@ -62,13 +62,6 @@ ref: df
 teach: df -t
 hint: -t filters the listing down to one filesystem type
 ---
-q: %show% free space in units of 1024 bytes, chosen explicitly
-a: df -B 1024
-why: primitive-cost
-ref: df
-teach: df -B
-hint: -B takes a size -- here 1024 -- to fix the unit df reports in
----
 q: {how much space does @dir@ use in total|what is the total space used by @dir@|report the total size of @dir@}
 a: du -s @dir@
 cmp: ref
@@ -117,13 +110,6 @@ cmp: ref
 ref: du
 teach: du -m
 hint: -m forces megabytes
----
-q: %show% @dir@'s sizes in kilobytes explicitly
-a: du -k @dir@
-why: primitive-cost
-ref: du
-teach: du -k
-hint: -k forces kilobytes, explicit rather than du's default
 ---
 q: {measure @dir@ without crossing onto another filesystem|measure @dir@ but stay on its own filesystem|report the size of @dir@ without descending into other mounts}
 a: du -x @dir@
@@ -438,13 +424,6 @@ why: root
 ref: mount
 teach: mount -t
 hint: -o ro,loop reads the iso straight off the image file, no burn needed
----
-q: {attach disk.img to a loop device first, then you can mount or examine it|before mounting or examining disk.img, attach it to a loop device|loop-attach disk.img so it can be mounted or examined afterward}
-a: losetup -f disk.img
-why: root
-ref: losetup
-teach: losetup -f
-hint: the same -f as before -- find a free loop device and attach here
 ---
 q: %make% an ext filesystem on the unlocked state device
 a: mke2fs /dev/mapper/state

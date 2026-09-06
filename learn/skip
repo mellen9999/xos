@@ -70,7 +70,13 @@ find -links     # as above
 cut -n          # no-op in this implementation
 df -P           # POSIX output form, same information
 df -k           # the default unit
+df -B           # the unit df already reports in; -B 1024 changes nothing
 du -k           # the default unit
+route -A        # inet is the only family here; selecting it is a no-op
+arp -a          # every entry is shown anyway
+arp -v          # nothing extra to say in this implementation
+arp -H          # ether is the only hardware type here
+arp -A          # inet is the only family here; selecting it is a no-op
 du -l           # hard-link accounting nuance
 less -~         # display nicety
 less -E         # display nicety

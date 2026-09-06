@@ -23,9 +23,9 @@ ref: sh
 teach: sh
 hint: if runs the command after it and branches on that command's exit status
 ---
-q: %show% yes if @log@ mentions @sev@, otherwise no, using if and else
-a: if grep -q @sev@ @log@; then echo yes; else echo no; fi
-why: fixture-cost
+q: %show% yes if @log@ mentions @needle@, otherwise no, using if and else
+a: if grep -q @needle@ @log@; then echo yes; else echo no; fi
+cmp: ref
 ref: grep
 teach: grep -q
 hint: else covers exactly the case the if branch didn't take

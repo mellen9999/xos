@@ -116,23 +116,23 @@ ref: [
 teach: [
 hint: != is the string inequality operator, the opposite of =
 ---
-q: {check that the line count of @cfg@ equals 7, printing seven|test whether @cfg@ has exactly 7 lines, printing seven|confirm the line count of @cfg@ is 7, printing seven}
-a: [ "$(wc -l < @cfg@)" -eq 7 ] && echo seven
-out: ^seven$
+q: {print seven if @cfg@ has exactly 7 lines, otherwise other|test whether the line count of @cfg@ equals 7: seven if so, other if not|check @cfg@ for exactly 7 lines, printing seven or other}
+a: [ "$(wc -l < @cfg@)" -eq 7 ] && echo seven || echo other
+cmp: ref
 ref: [
 teach: [ -eq
 hint: -eq is numeric equality; use = for strings instead
 ---
-q: {check the line count of @log@ is greater than 5, printing more|test whether @log@ has more than 5 lines, printing more|confirm @log@'s line count exceeds 5, printing more}
-a: [ "$(wc -l < @log@)" -gt 5 ] && echo more
-out: ^more$
+q: {print more if @log@ has over 14 lines, otherwise few|test whether @log@'s line count exceeds 14: more if so, few if not|check @log@ for more than 14 lines, printing more or few}
+a: [ "$(wc -l < @log@)" -gt 14 ] && echo more || echo few
+cmp: ref
 ref: [
 teach: [ -gt
 hint: -gt is numeric greater-than
 ---
-q: {check the line count of @log@ is less than 100, printing fewer|test whether @log@ has fewer than 100 lines, printing fewer|confirm @log@'s line count is under 100, printing fewer}
-a: [ "$(wc -l < @log@)" -lt 100 ] && echo fewer
-out: ^fewer$
+q: {print fewer if @log@ has under 14 lines, otherwise many|test whether @log@'s line count is below 14: fewer if so, many if not|check @log@ for fewer than 14 lines, printing fewer or many}
+a: [ "$(wc -l < @log@)" -lt 14 ] && echo fewer || echo many
+cmp: ref
 ref: [
 teach: [ -lt
 hint: -lt is numeric less-than

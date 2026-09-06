@@ -131,6 +131,9 @@ _fx_cfg() {
 			print "port = 8080"
 			print "debug = " (rand() < 0.5 ? "true" : "false")
 			print "retries = " (1 + int(rand() * 9))
+			# half the rolls carry one more key: a line count the [ -eq lesson
+			# can be wrong about. nothing else reads it.
+			if (rand() < 0.5) print "workers = " (1 + int(rand() * 8))
 			print ""
 			print "timeout = " (10 + int(rand() * 90))
 		}'
@@ -302,9 +305,10 @@ _sandbox_fill() {
 	[ -z "$missing" ] || { echo "learn: sandbox missing:$missing" >&2; return 1; }
 }
 
-# rebuild when an answer changed something, or when the roll moved on and the
-# tree holds the previous question's content. a read-only answer against the
-# current roll (the common case) leaves the tree alone and costs nothing.
+# rebuild after any executed answer, and when the roll moved on and the tree
+# holds the previous question's content. whether an answer wrote is not
+# knowable cheaply (a chmod leaves mtime alone), so every run marks it dirty:
+# a stale tree grades the next question against the wrong bytes.
 SANDBOX_DIRTY=0
 sandbox_reset() {
 	[ "$SANDBOX_OK" = 1 ] || { sandbox_build || return 1; return 0; }
