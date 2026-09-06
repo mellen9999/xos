@@ -117,6 +117,15 @@ unix_listen(const char *path)
  * side closes. This drives the engine directly rather than using br_sslio,
  * because sslio blocks in one direction and a tunnel needs both at once.
  */
+/* read() with the same EINTR retry every write() here already has: an
+ * interrupted read is not EOF, and treating it as one tore the session down. */
+static ssize_t rd(int fd, void *b, size_t n)
+{
+	ssize_t r;
+	do { r = read(fd, b, n); } while (r < 0 && errno == EINTR);
+	return r;
+}
+
 static int
 pump(br_ssl_client_context *cc, int tcp, int local)
 {
@@ -164,14 +173,14 @@ pump(br_ssl_client_context *cc, int tcp, int local)
 			}
 			if (fds[i].fd == tcp && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_RECVREC)) {
 				buf = br_ssl_engine_recvrec_buf(&cc->eng, &len);
-				ssize_t n = read(tcp, buf, len);
+				ssize_t n = rd(tcp, buf, len);
 				if (n <= 0) { br_ssl_engine_close(&cc->eng); break; }
 				br_ssl_engine_recvrec_ack(&cc->eng, n);
 				st = br_ssl_engine_current_state(&cc->eng);
 			}
 			if (fds[i].fd == local && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_SENDAPP)) {
 				buf = br_ssl_engine_sendapp_buf(&cc->eng, &len);
-				ssize_t n = read(local, buf, len);
+				ssize_t n = rd(local, buf, len);
 				if (n <= 0) { br_ssl_engine_close(&cc->eng); break; }
 				br_ssl_engine_sendapp_ack(&cc->eng, n);
 				st = br_ssl_engine_current_state(&cc->eng);
@@ -193,6 +202,7 @@ pump(br_ssl_client_context *cc, int tcp, int local)
 static int
 pump_stdio(br_ssl_client_context *cc, int tcp)
 {
+	int in_eof = 0;
 	unsigned char *buf;
 	size_t len;
 	struct pollfd fds[2];
@@ -212,7 +222,9 @@ pump_stdio(br_ssl_client_context *cc, int tcp)
 		}
 		if (st & BR_SSL_SENDREC) tcp_ev |= POLLOUT;
 		if (st & BR_SSL_RECVREC) tcp_ev |= POLLIN;
-		if (st & BR_SSL_SENDAPP) want_in = 1;
+		/* stdin at EOF stays readable (POLLHUP) forever; polling it again
+		 * made every '-' request spin a core until the reply arrived. */
+		if ((st & BR_SSL_SENDAPP) && !in_eof) want_in = 1;
 		if (st & BR_SSL_RECVAPP) want_out = 1;
 
 		if (tcp_ev) { fds[nf].fd = tcp; fds[nf].events = tcp_ev; fds[nf].revents = 0; nf++; }
@@ -244,15 +256,15 @@ pump_stdio(br_ssl_client_context *cc, int tcp)
 			}
 			if (fds[i].fd == tcp && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_RECVREC)) {
 				buf = br_ssl_engine_recvrec_buf(&cc->eng, &len);
-				ssize_t n = read(tcp, buf, len);
+				ssize_t n = rd(tcp, buf, len);
 				if (n <= 0) { br_ssl_engine_close(&cc->eng); break; }
 				br_ssl_engine_recvrec_ack(&cc->eng, n);
 				st = br_ssl_engine_current_state(&cc->eng);
 			}
 			if (fds[i].fd == 0 && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_SENDAPP)) {
 				buf = br_ssl_engine_sendapp_buf(&cc->eng, &len);
-				ssize_t n = read(0, buf, len);
-				if (n <= 0) { br_ssl_engine_flush(&cc->eng, 0); continue; }
+				ssize_t n = rd(0, buf, len);
+				if (n <= 0) { in_eof = 1; br_ssl_engine_flush(&cc->eng, 0); continue; }
 				br_ssl_engine_sendapp_ack(&cc->eng, n);
 				st = br_ssl_engine_current_state(&cc->eng);
 				br_ssl_engine_flush(&cc->eng, 0);
