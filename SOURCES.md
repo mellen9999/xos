@@ -6,13 +6,13 @@ what that first sighting was anchored to. They are not equal:
 
 | source | anchor | strength |
 |---|---|---|
-| linux 6.12.108 | sha256sums.asc published by kernel.org, matched byte for byte (downloaded and compared locally -- never transcribed from a summary) | good -- an independent published list |
+| linux 6.18.49 | maintainer PGP signature (Greg Kroah-Hartman, `.tar.sign` over the uncompressed tar), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | busybox 1.38.0 | sha256 published by busybox.net, matched | good -- same |
 | bearssl | none available (bearssl.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | ii | none available (suckless publishes no .sig/.asc/.sha256) | **weakest -- trust-on-first-use over TLS only** |
 | abduco | none available (brain-dump.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
-| cryptsetup 2.8.7 | sha256sums.asc published by kernel.org, matched | good -- an independent published list |
-| util-linux 2.42.2 | sha256sums.asc published by kernel.org, matched | good -- same |
+| cryptsetup 2.8.7 | maintainer PGP signature (Milan Broz, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| util-linux 2.42.2 | maintainer PGP signature (Karel Zak, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | lvm2 2.03.42 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | popt | none available | **weakest -- trust-on-first-use over TLS only** |
 | json-c 0.19 | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
@@ -25,18 +25,26 @@ rather than hidden behind a hash that looks as authoritative as the others.
 
 Note what dropping bash cost this table, and what refilled it. bash was the
 only entry anchored to a maintainer's PGP signature -- the strongest link here
--- and losing it emptied the "best" tier. lvm2 and dropbear now occupy it: the
-upstream detached signatures and the maintainers' public keys are committed in
-`sigs/`, the full key fingerprints are pinned as constants in `build.sh`
-(`DB_FPR`, `LVM_FPR`), and `sigver()` matches tarball -> signature -> pinned
-fingerprint on every fetch. A swapped pubkey file cannot satisfy the
-fingerprint pin. Hosts without gpg skip the check loudly; the digest pin (G8)
-still holds either way.
+-- and losing it emptied the "best" tier. five entries now occupy it: linux,
+cryptsetup, util-linux, lvm2 and dropbear. the upstream detached signatures and
+the maintainers' public keys are committed in `sigs/`, the full key
+fingerprints are pinned as constants in `build.sh` (`LNX_FPR`, `CS_FPR`,
+`UTL_FPR`, `LVM_FPR`, `DB_FPR`), and `sigver()` matches tarball -> signature ->
+pinned fingerprint on every fetch. kernel.org signs the uncompressed tar, so
+those three are verified through `xz -dc`. A swapped pubkey file cannot
+satisfy the fingerprint pin. Hosts without gpg skip the check loudly; the
+digest pin (G8) still holds either way.
 
-How the fingerprints were established (2026-09-05), each via two independent
-channels: the signature fetched from the upstream site over TLS, and Arch
-Linux's packaging `validpgpkeys` for the same projects. dropbear's key also
-matches the one published in its own releases directory.
+How the fingerprints were established, each via two independent channels, and
+never transcribed from a fetched summary (one such summary invented a kernel
+digest once). dropbear and lvm2 (2026-09-05): the signature from the upstream
+site over TLS, and Arch Linux's packaging `validpgpkeys`. linux, cryptsetup and
+util-linux (2026-09-06): the kernel.org account keyring
+(`git.kernel.org/pub/scm/docs/kernel/pgpkeys.git`, cross-signed inside the
+kernel web of trust) as the first channel; for the second, kernel.org's own
+signature page and WKD for Greg Kroah-Hartman, cryptsetup's FAQ for Milan Broz,
+Arch's `validpgpkeys` for Karel Zak. every `.tar.sign` names its issuer
+fingerprint, and each matched before anything was pinned.
 
 Adding cryptsetup took this repo from four pinned upstreams to nine in one
 step -- the largest single increase in trust surface it has ever taken, and
@@ -71,11 +79,12 @@ already in `build.sh`, so a new release needs no new trust decision, only a new
 knob that was never a knob (`DROPBEAR_CLI_INTERACT_AUTH`) was caught on the
 first build instead of shipping as a silent no-op.
 
-kernel.org signs each tarball (`.tar.sign`, over the uncompressed tar). that
-would lift linux, cryptsetup and util-linux to the signed tier; it needs an
-`xz -dc | gpg --verify` variant of `sigver()` and three fingerprints
-cross-checked on two channels. not done yet -- named here so it is a gap on
-the record, not a hash that looks as good as its neighbours.
+the second re-pin (2026-09-06) moved the kernel off 6.12 (end of life
+2026-12) to the 6.18 longterm series (fixes to about 2027-12) and lifted linux,
+cryptsetup and util-linux to the signed tier in the same step -- a kernel
+series change is exactly the moment a signature earns its keep. busybox
+publishes a `.sig` too; it is the remaining kernel-adjacent pin still anchored
+to a published digest, named here rather than hidden.
 
 ## the toolchain is host-provided, and unpinned
 
