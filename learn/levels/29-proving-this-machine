@@ -28,7 +28,7 @@ hint: it is the 64 hex characters that follow the word sha256
 ---
 q: {what filesystem is mounted at / and with what flags|report the filesystem type and mount flags for /|what type is / mounted as, and with which flags}
 a: awk '$2=="/" {print $3, $4}' /proc/mounts
-out: .
+cmp: ref
 ref: awk
 teach: awk
 hint: awk's $2 and $4 pick the mountpoint and options columns out of /proc/mounts
@@ -42,7 +42,7 @@ hint: grep -o on the flags column proves ro is actually set, not just present ne
 ---
 q: {what device is the root actually on|which device is / actually mounted from|report the real device backing /}
 a: awk '$2=="/" {print $1}' /proc/mounts
-out: .
+cmp: ref
 ref: awk
 teach: awk
 hint: $1 in /proc/mounts is the device column
@@ -120,7 +120,7 @@ hint: strings pulls printable text out of the binary; grep -c counts the matches
 ---
 q: %list% every command this system documents, and count them
 a: learn list | wc -l
-out: ^[0-9]+$
+cmp: ref
 ref: learn
 teach: learn
 hint: learn list enumerates every documented command; wc -l counts the lines

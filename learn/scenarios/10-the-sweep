@@ -14,7 +14,7 @@ setup: listener you put there: dropbear, bound to the wireguard address alone.
 setup: Anything listening on 0.0.0.0 or a public port is not yours.
 q: list every listening tcp socket and the program holding it open
 a: netstat -tlnp
-out: .
+cmp: ref
 ref: netstat
 teach: netstat -t
 teach: netstat -l
@@ -28,7 +28,7 @@ setup: ONE peer you control, over wireguard. That tiny baseline is the point:
 setup: every OTHER established connection is a question you have to answer.
 q: show every established tcp connection with the process behind it
 a: netstat -tnp
-out: .
+why: live-net
 ref: netstat
 teach: netstat -t
 teach: netstat -n
@@ -96,7 +96,7 @@ setup: the read-only root, so there is no writable hook to plant. The way you
 setup: confirm it is to look at what is actually running.
 q: list every process with its pid, its parent's pid, and its command
 a: ps -o pid,ppid,comm
-out: .
+out: PPID
 ref: ps
 teach: ps -o
 hint: the parent pid is the tell -- a shell whose parent is a network tool
@@ -106,7 +106,7 @@ setup: or whose input comes from a socket -- a shell that no login started. The
 setup: process TREE makes that parentage obvious at a glance.
 q: show the process tree so a shell with the wrong parent stands out
 a: pstree
-out: .
+out: -\+-|`-
 ref: pstree
 teach: pstree
 hint: read who spawned whom; a shell under a network tool is the tell
@@ -116,7 +116,7 @@ setup: points back at it. The kernel still knows: /proc/PID/exe is a link to the
 setup: real file, and for a deleted one it reads "(deleted)".
 q: show the path of the binary behind this very shell
 a: ls -l /proc/$$/exe
-out: .
+out: -> /
 ref: ls
 teach: ls -l
 hint: $$ is this shell's pid; a "(deleted)" target is the alarm
@@ -126,7 +126,7 @@ setup: routes allow. You cannot judge a connection without knowing where traffic
 setup: is even permitted to go, so read the map first.
 q: show the routing table and the default route
 a: ip route
-out: .
+cmp: ref
 ref: ip
 teach: ip
 hint: one default route, to the network you plugged into -- know it cold
@@ -168,7 +168,7 @@ setup: kernel cannot be reached. One line to state the verdict: the machine is
 setup: running the code you signed, and nothing is listening for anyone else.
 q: show the root device with its options, and that nothing is waiting on the network
 a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
-out: .
+cmp: ref
 ref: awk
 teach: awk
 hint: two facts in one breath -- the root is yours, the ports are quiet

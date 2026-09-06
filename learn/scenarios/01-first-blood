@@ -12,7 +12,7 @@ a: wc -l < /etc/passwd
 a: cat /etc/passwd | wc -l
 a: wc -l /etc/passwd
 a: grep -c . /etc/passwd
-out: ^[0-9]+$
+why: live-hw
 ref: wc
 hint: wc -l counts lines; feed it the file as an argument or on stdin
 ---

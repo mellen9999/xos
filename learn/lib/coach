@@ -35,6 +35,8 @@ _c_state() {
 		gone:*)   printf 'afterwards %s should be gone' "${1#gone:}" ;;
 		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
 		          printf 'afterwards %s should contain %s' "$_p" "$_e" ;;
+		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should have mode %s' "$_p" "$_e" ;;
 		*)        printf '%s' "$1" ;;
 	esac
 }

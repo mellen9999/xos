@@ -14,7 +14,7 @@ setup: looks right; it is trusted because every block read out of it is
 setup: checked against a hash tree.
 q: %show% that the root is a read-only squashfs on a device-mapper device
 a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
-out: .
+cmp: ref
 ref: awk
 teach: awk
 hint: $1, $3, $4 print the device, filesystem type and mount flags together
@@ -34,7 +34,7 @@ setup: signed with keys you enrolled into the firmware yourself. So the hash
 setup: is anchored OUTSIDE the filesystem it describes.
 q: %show% the whole command line so you can see the hash sitting in it
 a: cat /proc/cmdline
-out: .
+cmp: ref
 ref: cat
 teach: cat
 hint: no filtering this time -- the whole line, hash included
@@ -81,7 +81,7 @@ setup: And nothing writable may be executable, or the read-only root is a
 setup: formality.
 q: %show% every writable filesystem and whether it is mounted noexec
 a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
-out: .
+cmp: ref
 ref: awk
 teach: awk
 hint: $4 ~ /rw/ matches writable filesystems by their mount options
@@ -103,3 +103,51 @@ cmp: ref
 ref: printf
 teach: printf
 hint: three substitutions, one printf. you have used every piece of this before
+---
+setup: The claim was read-only. Check the flag, not the feeling.
+q: %show% only the mount flags of the root filesystem -- the first must be ro
+a: awk '$2=="/" {print $4}' /proc/mounts
+why: live-hw
+ref: awk
+teach: awk
+hint: field 4 of the / line in /proc/mounts is the flag list, ro first
+---
+setup: dm-0 is a device-mapper target, not a disk. Something real sits under it.
+q: {name the block device underneath the verity root|which physical device is dm-0 built on|show what backs the device-mapper root}
+a: ls /sys/block/dm-0/slaves
+why: live-hw
+ref: ls
+teach: ls
+hint: a dm device lists what it is stacked on under slaves/
+---
+setup: Lockdown is compiled in. Compiled-in means there is a file that says so.
+q: {print the lockdown mode the kernel is enforcing|read the kernel's lockdown state from securityfs|what lockdown mode is this kernel in}
+a: cat /sys/kernel/security/lockdown
+why: live-hw
+ref: cat
+teach: cat
+hint: the active mode is the one in [brackets]
+---
+setup: No module loader means nothing can be added to the kernel after boot.
+q: {print present if /proc/modules exists, none if it does not|report present or none for the module loader, by testing /proc/modules|say whether a module loader exists: present or none}
+a: [ -e /proc/modules ] && echo present || echo none
+why: live-hw
+ref: [
+teach: [ -e
+hint: -e tests existence; && and || pick which word to echo
+---
+setup: The host's own disks are never touched because no driver can see them.
+q: {count the pci drivers named ahci or nvme -- it should be 0|how many sata or nvme drivers are bound on the pci bus|count the ahci and nvme entries under the pci drivers directory}
+a: ls /sys/bus/pci/drivers | grep -c -E 'ahci|nvme'
+why: live-hw
+ref: grep
+teach: grep -c -E
+hint: -E makes | an alternation; -c counts the matching names
+---
+setup: p3 counts its own unlocks. Remember the number the way you remember the four words.
+q: {print the boot count from the state ledger in your home|read the first field of the ledger file in $HOME|show how many times this state has been unlocked}
+a: cut -d' ' -f1 $HOME/ledger
+why: live-hw
+ref: cut
+teach: cut -d -f
+hint: the ledger is "count stamp"; -d' ' splits on the space, -f1 keeps the count

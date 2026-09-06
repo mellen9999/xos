@@ -10,7 +10,7 @@ else
 	R=$(printf '\033[38;5;196m') G=$(printf '\033[38;5;46m')
 	Y=$(printf '\033[38;5;226m') C=$(printf '\033[38;5;51m')
 	M=$(printf '\033[38;5;208m') W=$(printf '\033[38;5;231m')
-	U=$(printf '\033[4m')     V=$(printf '\033[7m')
+	V=$(printf '\033[7m')
 fi
 
 # terminal width. ash does not export COLUMNS the way bash does, so trusting it

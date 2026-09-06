@@ -11,28 +11,28 @@ brief: block size, count= how many blocks.
 ---
 q: %show% @bin@ as hex bytes with the printable characters beside them
 a: hexdump -C @bin@
-out: \|
+cmp: ref
 ref: hexdump
 teach: hexdump -C
 hint: C is the canonical format, and the only one worth memorising
 ---
 q: %show% @bin@ as one-byte octal values
 a: hexdump -b @bin@
-out: [0-7]
+cmp: ref
 ref: hexdump
 teach: hexdump -b
 hint: b for byte -- one-byte octal display, unlike the two-byte forms below
 ---
 q: %show% @bin@ as characters, escaping the unprintable ones
 a: hexdump -c @bin@
-out: .
+cmp: ref
 ref: hexdump
 teach: hexdump -c
 hint: c is for character -- unprintable bytes show as C-style escapes
 ---
 q: %show% @bin@ as two-byte decimal values
 a: hexdump -d @bin@
-out: [0-9]
+cmp: ref
 ref: hexdump
 teach: hexdump -d
 hint: d for decimal, grouped two bytes at a time
@@ -46,28 +46,28 @@ hint: x for hex, but grouped two bytes at a time, unlike -C
 ---
 q: %show% @bin@ as two-byte octal values
 a: hexdump -o @bin@
-out: [0-7]
+cmp: ref
 ref: hexdump
 teach: hexdump -o
 hint: o for octal, again grouped two bytes at a time
 ---
 q: {dump only the first 32 bytes of @bin@|show just the first 32 bytes of @bin@, nothing past that|limit the dump of @bin@ to its first 32 bytes}
 a: hexdump -C -n 32 @bin@
-out: \|
+cmp: ref
 ref: hexdump
 teach: hexdump -n
 hint: -n caps how many bytes hexdump reads, from the start
 ---
 q: {dump @bin@ starting 8 bytes in, skipping the header|skip the first 8 bytes of @bin@ and dump what follows|show @bin@ from byte 8 onward, past its header}
 a: hexdump -C -s 8 @bin@
-out: \|
+cmp: ref
 ref: hexdump
 teach: hexdump -s
 hint: -s skips that many bytes before the dump begins
 ---
 q: {dump @bin@ without collapsing repeated lines into a single asterisk|show every line of @bin@ in full, even the repeated ones|turn off the asterisk that normally hides repeated lines when dumping @bin@}
 a: hexdump -C -v @bin@
-out: \|
+cmp: ref
 ref: hexdump
 teach: hexdump -v
 hint: hexdump normally folds repeated lines into a *; -v turns that off
@@ -88,7 +88,7 @@ hint: -f points hexdump at a file holding the format string -- fmt.txt already e
 ---
 q: {dump @txt@ in octal with od, the older tool that does the same job|use od, hexdump's older cousin, to dump @txt@ in octal|show @txt@ in octal using od rather than hexdump}
 a: od @txt@
-out: [0-7]
+cmp: ref
 ref: od
 teach: od
 hint: od's default is octal words -- no flags needed here
@@ -130,7 +130,7 @@ hint: bs= sets the block size, count= how many blocks to copy
 ---
 q: {read 16 bytes from @log@ starting at byte 32|starting 32 bytes into @log@, read the next 16 bytes|skip the first 32 bytes of @log@ and read 16 bytes from there}
 a: dd if=@log@ bs=1 skip=32 count=16
-out: .
+out: 16 bytes
 ref: dd
 teach: dd
 hint: skip= moves the read start point; bs=1 makes skip/count mean bytes

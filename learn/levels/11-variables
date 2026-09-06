@@ -49,7 +49,7 @@ hint: command substitution feeds wc's count straight into the assignment
 ---
 q: %show% the length of @word@ after storing it in @var@
 a: @var@=@word@; echo ${#@var@}
-out: [0-9]
+cmp: ref
 ref: sh
 teach: sh
 hint: a hash inside the braces gives the length
@@ -77,7 +77,7 @@ hint: export is what makes a variable visible to child processes
 ---
 q: %show% every exported variable in the environment
 a: env
-out: =
+cmp: ref
 ref: env
 teach: env
 hint: env with no arguments dumps the whole environment
@@ -105,7 +105,7 @@ hint: -u strips one variable out of the environment for that command only
 ---
 q: %show% the environment with entries separated by NUL rather than newline
 a: env -0
-out: =
+cmp: ref
 ref: env
 teach: env -0
 hint: -0 separates entries with NUL instead of a newline
@@ -161,7 +161,7 @@ hint: -a clears every alias in one shot
 ---
 q: {describe what ls is, in a full sentence rather than just a path|explain in words what ls resolves to|ask command for a plain-english description of ls}
 a: command -V ls
-out: ls
+cmp: ref
 ref: command
 teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
@@ -175,7 +175,7 @@ hint: -p ignores your PATH and uses the system's standard one instead
 ---
 q: %show% every place in your PATH that has a command called sh
 a: which -a sh
-out: sh
+cmp: ref
 ref: which
 teach: which -a
 hint: -a lists every match in PATH, not just the first one found

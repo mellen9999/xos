@@ -15,42 +15,42 @@ brief: not a delimiter filter.
 ---
 q: {show how much space is free on the mounted filesystems|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
 a: df
-out: [0-9]
+out: 1K-blocks
 ref: df
 teach: df
 hint: df alone reports every mounted filesystem, one line each
 ---
 q: %show% free space in a human readable form
 a: df -h
-out: [0-9]
+out: [0-9]+\.[0-9]+[KMGT]
 ref: df
 teach: df -h
 hint: -h scales the numbers to k/m/g instead of raw block counts
 ---
 q: %show% free space in megabytes
 a: df -m
-out: [0-9]
+out: 1M-blocks
 ref: df
 teach: df -m
 hint: -m forces megabytes specifically, no auto-scaling
 ---
 q: %show% inode usage rather than block usage
 a: df -i
-out: [0-9]
+out: Inodes
 ref: df
 teach: df -i
 hint: -i swaps the space columns for inode counts and percent-used
 ---
 q: %show% free space including pseudo-filesystems normally hidden
 a: df -a
-out: [0-9]
+out: devpts|sysfs
 ref: df
 teach: df -a
 hint: -a includes filesystems df otherwise skips, like proc and tmpfs
 ---
 q: %show% free space with the filesystem type in a column
 a: df -T
-out: [0-9]
+out: Filesystem +Type
 ref: df
 teach: df -T
 hint: -T adds a column naming each filesystem's type
@@ -64,42 +64,42 @@ hint: -t filters the listing down to one filesystem type
 ---
 q: %show% free space in units of 1024 bytes, chosen explicitly
 a: df -B 1024
-out: [0-9]
+why: primitive-cost
 ref: df
 teach: df -B
 hint: -B takes a size -- here 1024 -- to fix the unit df reports in
 ---
 q: {how much space does @dir@ use in total|what is the total space used by @dir@|report the total size of @dir@}
 a: du -s @dir@
-out: [0-9]
+cmp: ref
 ref: du
 teach: du -s
 hint: -s collapses the whole tree into one summary line
 ---
 q: {how much space does @dir@ use, in a human readable form|what does @dir@ use, scaled to something readable|report the size of @dir@ in human readable units}
 a: du -sh @dir@
-out: [0-9]
+cmp: ref
 ref: du
 teach: du -h
 hint: -h scales the summary size to k/m/g
 ---
 q: %show% the size of every file under @dir@, not just the directories
 a: du -a @dir@
-out: [0-9]
+cmp: ref
 ref: du
 teach: du -a
 hint: -a walks down to individual files, not just directories
 ---
 q: %show% @dir@'s sizes in bytes rather than blocks
 a: du -b @dir@
-out: [0-9]
+cmp: ref
 ref: du
 teach: du -b
 hint: -b reports raw bytes instead of filesystem blocks
 ---
 q: %show% @dir@ only one level deep
 a: du -d 1 @dir@
-out: [0-9]
+why: fixture-cost
 ref: du
 teach: du -d
 hint: -d takes a depth -- 1 stops descending after the first level
@@ -113,28 +113,28 @@ hint: -c appends one extra 'total' line summing everything above it
 ---
 q: %show% @dir@'s sizes in megabytes
 a: du -m @dir@
-out: [0-9]
+cmp: ref
 ref: du
 teach: du -m
 hint: -m forces megabytes
 ---
 q: %show% @dir@'s sizes in kilobytes explicitly
 a: du -k @dir@
-out: [0-9]
+why: primitive-cost
 ref: du
 teach: du -k
 hint: -k forces kilobytes, explicit rather than du's default
 ---
 q: {measure @dir@ without crossing onto another filesystem|measure @dir@ but stay on its own filesystem|report the size of @dir@ without descending into other mounts}
 a: du -x @dir@
-out: [0-9]
+why: fixture-cost
 ref: du
 teach: du -x
 hint: -x stops du from following mounts onto other filesystems
 ---
 q: %find% the ten largest things under here
 a: du -a . | sort -rn | head -10
-out: [0-9]
+cmp: ref
 ref: du
 teach: du -a
 hint: du -a lists everything with a size; sort -rn and head -10 do the ranking
@@ -177,7 +177,7 @@ hint: -o takes a comma-separated list of mount options
 ---
 q: %show% what is currently mounted
 a: mount
-out: /
+out: on / type
 ref: mount
 teach: mount
 hint: mount with no arguments lists what is currently mounted

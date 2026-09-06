@@ -27,7 +27,7 @@ chal_rank() {
 	fi
 }
 
-chal_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$CHAINS"; }
+chal_nq() { blocks_nq "$CHAINS"; }
 
 # chal_lvl -- the lvl: field of the block just loaded, de-padded for $(( ))
 chal_lvl() { _n=$(sed -n 's/^lvl: \{0,1\}//p' "$TMP/blk" | head -1); echo "${_n#0}"; }

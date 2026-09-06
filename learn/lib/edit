@@ -12,6 +12,12 @@
 #   right      first char of R moves to the end of L
 # the whole line is "$L$R"; the cursor sits between them.
 #
+# the redraw is wrap-aware: a line longer than the terminal occupies several
+# rows, and _ED_ROW remembers which row the cursor was left on so the next
+# redraw climbs back to the first one before reprinting. without it a
+# backspace on a wrapped line left the tail of the old row on screen and
+# parked the cursor a row off.
+#
 # not a tty (the build's automated runs, any pipe) falls straight back to a
 # plain read, so nothing here can break a headless learn.
 
@@ -28,9 +34,29 @@ YANK=
 # redraw: reprint the line after the prompt, clear to end, park the cursor. the
 # whole repaint is wrapped in one synchronised-output frame so a remote terminal
 # never shows a half-drawn line mid-keystroke.
-_ed_draw() {   # $1 prompt  $2 L  $3 R
-	printf '%s\r%s%s%s\033[K' "$SYNC_BEG" "$1" "$2" "$3"
-	[ -n "$3" ] && printf '\033[%dD' "${#3}"
+_ED_ROW=0
+_ed_draw() {   # $1 prompt  $2 L  $3 R   (the prompt is 2 cells wide: "$ ")
+	local _w=${COLS:-80} _p _t _prow _erow
+	[ "$_w" -gt 0 ] 2>/dev/null || _w=80
+	_p=$(( 2 + ${#2} ))            # cell index of the cursor (0-based)
+	_t=$(( 2 + ${#2} + ${#3} ))    # cells the whole line occupies
+	printf '%s' "$SYNC_BEG"
+	# climb to the line's first row, reprint it all, clear whatever is below
+	[ "$_ED_ROW" -gt 0 ] && printf '\033[%dA' "$_ED_ROW"
+	printf '\r%s%s%s\033[J' "$1" "$2" "$3"
+	# the print left the cursor after the last cell: on row (t-1)/w. with
+	# nothing right of the cursor that IS the cursor; otherwise climb to the
+	# row of cell p and step right to its column.
+	_erow=$(( (_t - 1) / _w ))
+	if [ -n "$3" ]; then
+		_prow=$(( _p / _w ))
+		[ "$_erow" -gt "$_prow" ] && printf '\033[%dA' $(( _erow - _prow ))
+		printf '\r'
+		[ $(( _p % _w )) -gt 0 ] && printf '\033[%dC' $(( _p % _w ))
+		_ED_ROW=$_prow
+	else
+		_ED_ROW=$_erow
+	fi
 	printf '%s' "$SYNC_END"
 }
 
@@ -48,15 +74,25 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 
 	local hn hi
 	hn=$([ -f "$EDIT_HIST" ] && grep -c '' "$EDIT_HIST" 2>/dev/null || echo 0)
+	# the history is unbounded otherwise, and every arrow-up costs a sed over
+	# it: keep the last thousand, trimmed once it runs two hundred over
+	if [ "$hn" -gt 1200 ]; then
+		tail -n 1000 "$EDIT_HIST" > "$EDIT_HIST.tmp.$$" 2>/dev/null \
+			&& mv "$EDIT_HIST.tmp.$$" "$EDIT_HIST" 2>/dev/null && hn=1000
+	fi
 	hi=$hn   # index one past the newest entry == the fresh line being typed
+	_ED_ROW=0
 
 	# the prompt colour tracks the mode, the way cmdchamp's does: white while you
 	# type, red the instant you drop to normal mode, so the mode is legible
 	# without a separate indicator. PROMPT_INS/NORM come from ui, where the red
 	# global is not shadowed by this function's R (the right-of-cursor buffer).
-	_ed_prompt() { [ "$mode" = normal ] && printf '%s' "$PROMPT_NORM" || printf '%s' "$PROMPT_INS"; }
+	# a variable, not a $(...): that was a fork per keystroke in the file
+	# whose header promises none
+	_ed_pr() { if [ "$mode" = normal ]; then _pr="$PROMPT_NORM"; else _pr="$PROMPT_INS"; fi; }
+	local _pr
 
-	_ed_draw "$(_ed_prompt)" "$L" "$R"
+	_ed_pr; _ed_draw "$_pr" "$L" "$R"
 	while :; do
 		IFS= read -rsn1 c || { printf '\n'; REPLY_LINE="$L$R"; return 1; }
 		[ -z "$c" ] && break   # Enter (read strips the newline -> empty)
@@ -105,6 +141,7 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 				printf '\n'
 				ref_panel "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)"
 				printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+				_ED_ROW=0
 			fi
 			;;
 		*)
@@ -118,7 +155,7 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 		# normal-mode q sets this (cmdchamp binds q to quit); honour it here,
 		# where a return actually leaves read_line.
 		[ -n "$_quit" ] && { printf '\n'; REPLY_LINE=""; return 1; }
-		_ed_draw "$(_ed_prompt)" "$L" "$R"
+		_ed_pr; _ed_draw "$_pr" "$L" "$R"
 	done
 
 	printf '\n'
@@ -137,7 +174,8 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 _ed_normal() {   # $1 = key
 	local _k="$1" _c
 	case "$_k" in
-		q|"$E_EOT") _quit=1 ;;   # q or Ctrl-D quits, as in cmdchamp; read_line acts on it
+		"$E_EOT") _quit=1 ;;     # Ctrl-D quits, as in cmdchamp; read_line acts on it
+		q) [ "${Q_REF:-}" = vi ] || _quit=1 ;;   # q too -- except in the vi level, where q is an answer
 		h) [ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; } ;;
 		l|' ') [ "${R#?}" != "" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
 		0|^) R="$L$R"; L="" ;;

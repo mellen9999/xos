@@ -7,7 +7,7 @@ intro: something you can check for yourself instead of taking on faith.
 setup: /bin is full of symlinks to the one busybox binary.
 q: count how many names in /bin point at busybox
 a: ls -l /bin | grep -c busybox
-out: ^[0-9]+$
+cmp: ref
 ref: grep
 hint: grep -c counts matching lines instead of printing them
 ---

@@ -43,7 +43,7 @@ hint: sha256sum's normal output format is exactly what -c later expects to read
 ---
 q: {check the files listed in sums.txt still match their recorded hashes|use sha256sum -c to verify every file listed in sums.txt|re-hash the files in sums.txt and confirm they still match}
 a: sha256sum *.log > sums.txt && sha256sum -c sums.txt
-out: OK
+out: : OK
 ref: sha256sum
 teach: sha256sum -c
 hint: -c reads a hash file back and reports OK or FAILED per line
@@ -64,7 +64,7 @@ hint: sha512 produces a longer, 128 hex character digest
 ---
 q: {verify a sha512 checksum file made from @txt@|use sha512sum -c to check a saved sha512 hash file for @txt@|confirm @txt@ still matches its recorded sha512 hash}
 a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
-out: OK
+out: : OK
 ref: sha512sum
 teach: sha512sum -c
 hint: -c checks a saved hash file the same way it does for sha256sum
@@ -85,7 +85,7 @@ hint: sha1 is 40 hex characters, kept around only for matching old published has
 ---
 q: {verify a sha1 checksum file made from @txt@|use sha1sum -c to check a saved sha1 hash file for @txt@|confirm @txt@ still matches its recorded sha1 hash}
 a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
-out: OK
+out: : OK
 ref: sha1sum
 teach: sha1sum -c
 hint: -c verifies a sha1 hash file the same way as the other *sum tools
@@ -106,7 +106,7 @@ hint: md5 is 32 hex characters, the oldest and weakest of these tools
 ---
 q: {verify an md5 checksum file made from @txt@|use md5sum -c to check a saved md5 hash file for @txt@|confirm @txt@ still matches its recorded md5 hash}
 a: md5sum @txt@ > m.txt && md5sum -c m.txt
-out: OK
+out: : OK
 ref: md5sum
 teach: md5sum -c
 hint: -c verifies an md5 hash file the same way as the other *sum tools
@@ -120,7 +120,7 @@ hint: -s keeps the successes quiet, printing failures only
 ---
 q: {compute the old unix checksum and byte count of @txt@|run cksum on @txt@ for its legacy checksum and size|get @txt@'s cksum value alongside its byte count}
 a: cksum @txt@
-out: [0-9]
+out: [0-9]+ [0-9]+
 ref: cksum
 teach: cksum
 hint: cksum prints a checksum and the byte count together, unlike the *sum tools

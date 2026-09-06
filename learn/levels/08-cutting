@@ -20,7 +20,7 @@ hint: -d sets the delimiter, -f picks the field number
 ---
 q: %show% the third comma-separated field of @csv@
 a: cut -d, -f3 @csv@
-out: ^up$
+cmp: ref
 ref: cut
 teach: cut -f
 hint: field numbers start at 1, not 0
@@ -62,7 +62,7 @@ hint: -c counts characters by position, not fields
 ---
 q: %show% characters 12 onward of each line of @log@
 a: cut -c12- @log@
-out: [0-9]
+cmp: ref
 ref: cut
 teach: cut -c
 hint: same trailing-dash trick as field ranges, but for characters
@@ -140,7 +140,7 @@ hint: -c complements the set, so -dc deletes everything NOT listed
 ---
 q: {sort the numbers in the count column of @csv@ numerically, largest first|order the count column of @csv@ numerically, biggest number first|pull the count column from @csv@ and sort it numerically, descending}
 a: cut -d, -f4 @csv@ | sort -rn
-out: 42
+cmp: ref
 ref: sort
 teach: sort -n
 hint: without -n, 7 sorts after 42 because it compares text

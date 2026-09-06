@@ -24,7 +24,7 @@ hint: -a strings together everything uname knows into one line
 ---
 q: {just the kernel version|report only the kernel release version|what is the kernel version, and nothing else}
 a: uname -r
-out: [0-9]
+cmp: ref
 ref: uname
 teach: uname -r
 hint: -r isolates just the kernel release/version number
@@ -38,56 +38,56 @@ hint: -m reports the cpu architecture uname was built for
 ---
 q: {the network node name|what is this machine's network node name|report the node name uname reports}
 a: uname -n
-out: .
+cmp: ref
 ref: uname
 teach: uname -n
 hint: -n is the node's network hostname, same field hostname reports
 ---
 q: {the kernel build version string|report the kernel's build version string|what build string does the kernel report}
 a: uname -v
-out: .
+cmp: ref
 ref: uname
 teach: uname -v
 hint: -v is the kernel's build string -- when and how it was compiled
 ---
 q: {the operating system name|what operating system is this, according to uname|report the os name uname knows}
 a: uname -o
-out: .
+cmp: ref
 ref: uname
 teach: uname -o
 hint: -o names the operating system, distinct from the kernel name
 ---
 q: {the processor type|what processor type does uname report|report the processor type}
 a: uname -p
-out: .
+why: live-hw
 ref: uname
 teach: uname -p
 hint: -p reports the processor type, when the kernel knows it
 ---
 q: {the hardware platform|what hardware platform does uname report|report the machine's hardware platform}
 a: uname -i
-out: .
+why: live-hw
 ref: uname
 teach: uname -i
 hint: -i reports the hardware platform, distinct from -m's architecture
 ---
 q: {this machine's hostname|what is this machine's hostname|report the current hostname}
 a: hostname
-out: .
+why: live-hw
 ref: hostname
 teach: hostname
 hint: hostname alone prints the current hostname
 ---
 q: {the short hostname, without any domain part|just the hostname, with the domain part stripped off|report the hostname without its domain suffix}
 a: hostname -s
-out: .
+why: live-hw
 ref: hostname
 teach: hostname -s
 hint: -s trims off everything after the first dot
 ---
 q: {the fully qualified name including the domain|the hostname together with its domain, in full|report the fully qualified domain name}
 a: hostname -f
-out: .
+why: live-hw
 ref: hostname
 teach: hostname -f
 hint: -f prints the fully qualified name, domain included
@@ -150,7 +150,7 @@ hint: pipe dmesg into grep -i -- dmesg itself has no text filter
 ---
 q: {what time is it|report the current date and time|what is the time right now}
 a: date
-out: [0-9]
+why: live-hw
 ref: date
 teach: date
 hint: date with no arguments prints the current date and time
@@ -171,7 +171,7 @@ hint: a +FORMAT argument controls exactly what date prints
 ---
 q: {the current time as seconds since 1970|report now as a unix timestamp|what is the current time in seconds since the epoch}
 a: date +%s
-out: ^[0-9]+$
+out: ^[0-9]{10}$
 ref: date
 teach: date
 hint: %s in a +FORMAT string is seconds since the epoch
@@ -185,14 +185,14 @@ hint: -I is a shortcut for iso 8601 output, no format string needed
 ---
 q: {the date in rfc 2822 form, the one email headers use|report the date the way email headers format it, rfc 2822|print today's date in rfc 2822 form}
 a: date -R
-out: [0-9]
+out: [0-9]{2}:[0-9]{2}:[0-9]{2} [-+][0-9]{4}$
 ref: date
 teach: date -R
 hint: -R formats the date the way rfc 2822 (email headers) expects
 ---
 q: {the modification time of @txt@ rather than the time now|report @txt@'s modification time instead of the current time|when was @txt@ last modified, not what time is it now}
 a: date -r @txt@
-out: [0-9]
+why: live-hw
 ref: date
 teach: date -r
 hint: -r reports a file's modification time instead of the clock
@@ -213,42 +213,35 @@ hint: -D names the format of the input date, paired with -d
 ---
 q: {how long has this machine been up, straight from the kernel|report uptime straight from the kernel, not a wrapper around it|read this machine's uptime directly out of the kernel}
 a: cat /proc/uptime
-out: ^[0-9]
+out: ^[0-9]+\.[0-9]+ [0-9]+\.[0-9]+$
 ref: cat
 teach: cat
 hint: /proc holds files that are not on any disk
 ---
 q: {what processor does this machine have, from /proc|report the processor details /proc knows about|read the processor information straight out of /proc}
 a: cat /proc/cpuinfo
-out: .
+out: processor
 ref: cat
 teach: cat
 hint: cpuinfo lists this the way /proc sees each core
 ---
 q: {how much memory, from /proc|report memory usage as /proc sees it|how much memory does /proc report}
 a: cat /proc/meminfo
-out: Mem
+out: MemTotal
 ref: cat
 teach: cat
 hint: meminfo is where free and top get their numbers too
 ---
-q: {what command line was this kernel booted with|report the kernel's boot command line|which command line did this kernel boot with}
-a: cat /proc/cmdline
-out: .
-ref: cat
-teach: cat
-hint: cmdline is the exact string the bootloader handed the kernel
----
 q: {what filesystems are mounted, read from /proc rather than asking mount|report the mounted filesystems by reading /proc, not the mount command|list what is mounted straight from /proc instead of asking mount}
 a: cat /proc/mounts
-out: /
+out: /proc proc
 ref: cat
 teach: cat
 hint: mounts is the same list mount prints, straight from the kernel
 ---
 q: {which terminal am i on|report which terminal device you are attached to|what terminal is this session on}
 a: tty
-out: .
+out: not a tty
 ref: tty
 teach: tty
 hint: tty with no arguments prints the path of your controlling terminal
@@ -276,21 +269,21 @@ hint: reset reinitializes the terminal, further than clear goes
 ---
 q: %show% every terminal setting
 a: stty -a
-out: .
+why: live-hw
 ref: stty
 teach: stty -a
 hint: -a dumps every setting, not just the summary
 ---
 q: {dump terminal settings in the form you can restore later|save the terminal's settings in a form you can feed back in later|report terminal settings in the compact, restorable format}
 a: stty -g
-out: .
+why: live-hw
 ref: stty
 teach: stty -g
 hint: -g prints settings in a compact form meant to be fed back to stty
 ---
 q: {query the settings of a terminal other than your own|report the settings of a terminal that is not your controlling one|check another terminal device's settings, not your own}
 a: stty -F /dev/tty1 -a
-out: .
+why: live-hw
 ref: stty
 teach: stty -F
 hint: -F points stty at a device other than your own controlling terminal

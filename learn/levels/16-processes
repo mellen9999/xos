@@ -11,21 +11,21 @@ brief: program killed with 9 never gets to clean up after itself.
 ---
 q: %list% the processes running right now
 a: ps
-out: PID
+out: ^PID +USER +TIME +COMMAND$
 ref: ps
 teach: ps
 hint: ps alone shows just this terminal's processes, not the whole system
 ---
 q: %list% processes showing just the pid and the command name
 a: ps -o pid,comm
-out: PID
+out: ^PID +COMMAND$
 ref: ps
 teach: ps -o
 hint: -o picks exactly which columns to show
 ---
 q: %list% processes including their threads
 a: ps -T
-out: PID
+out: \{[A-Za-z_]+\}
 ref: ps
 teach: ps -T
 hint: -T adds a row for every thread, not just every process
@@ -103,7 +103,7 @@ hint: -v inverts the match, like grep -v
 ---
 q: %find% the children of process 1
 a: pgrep -P 1
-out: [0-9]
+why: live-hw
 ref: pgrep
 teach: pgrep -P
 hint: -P filters by parent pid
@@ -152,42 +152,42 @@ hint: -f matches the whole command line, and -9 makes it unignorable
 ---
 q: %show% how much memory this machine has, in a human readable form
 a: free -h
-out: Mem
+out: Mem: *[0-9]+\.[0-9]+[MGKT]
 ref: free
 teach: free -h
 hint: -h scales the numbers to whichever unit reads best
 ---
 q: %show% memory in megabytes
 a: free -m
-out: Mem
+out: Mem: *[0-9]{3,5}[^0-9]
 ref: free
 teach: free -m
 hint: -m reports every figure in megabytes
 ---
 q: %show% memory in kilobytes
 a: free -k
-out: Mem
+out: Mem: *[0-9]{7,9}[^0-9]
 ref: free
 teach: free -k
 hint: -k reports every figure in kilobytes
 ---
 q: %show% memory in raw bytes
 a: free -b
-out: Mem
+out: Mem: *[0-9]{10,13}[^0-9]
 ref: free
 teach: free -b
 hint: -b reports every figure in raw bytes
 ---
 q: {how many processors does this machine have|ask nproc how many processors are available|find out how many CPUs you have to work with}
 a: nproc
-out: ^[0-9]+$
+cmp: ref
 ref: nproc
 teach: nproc
 hint: nproc reports how many CPUs are available to you, not the machine total
 ---
 q: {how many processors exist, including ones not available to you|ask nproc for the machine's total CPU count, not just your share|find the full processor count, ignoring any restriction on you}
 a: nproc --all
-out: ^[0-9]+$
+cmp: ref
 ref: nproc
 teach: nproc --all
 hint: --all counts every CPU, even ones your process can't use

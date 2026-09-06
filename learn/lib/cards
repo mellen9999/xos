@@ -26,6 +26,14 @@ cards_init() {
 	[ -f "$CARDS" ] || : > "$CARDS" 2>/dev/null || :
 }
 
+# every rewrite of the card file goes through a same-directory rename (a cp
+# or a cross-device mv is a truncate followed by a write, and the tether can
+# cut power between the two) and under a lock (two consoles each running
+# learn used to rewrite the whole file from their own copy, last one wins).
+# flock is a shipped applet; where it is missing the rename alone still holds.
+_cards_lock()   { exec 8>>"$CARDS.lock" 2>/dev/null && flock -x 8 2>/dev/null; :; }
+_cards_unlock() { flock -u 8 2>/dev/null; exec 8>&- 2>/dev/null; :; }
+
 # a card is keyed by the TEMPLATE, not the rendered prompt. the roll changes
 # the filenames every time; what you are learning is the shape of the question,
 # so `list %dir% in long format` is one card however it renders.
@@ -37,13 +45,15 @@ card_tier() {
 }
 
 card_set() {
-	local tmp="$TMP/cards.$$"
+	local tmp="$CARDS.tmp.$$"
 	[ -f "$CARDS" ] || : > "$CARDS"
+	_cards_lock
 	awk -F'\t' -v OFS='\t' -v k="$1" -v t="$2" -v s="$3" '
 		$1 == k { next }
 		{ print }
 		END { if (t > 0) print k, t, s }
-	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || :
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	_cards_unlock
 }
 
 now() { date +%s; }
@@ -66,14 +76,16 @@ card_grade() {
 # DECAY_DAYS drops by one; a card that drops to 0 is dropped from the file.
 cards_decay() {
 	[ -s "$CARDS" ] || return 0
-	local tmp="$TMP/cards.$$" cutoff n
+	local tmp="$CARDS.tmp.$$" cutoff n
 	n=$(now)
 	cutoff=$(( n - DECAY_DAYS * 86400 ))
+	_cards_lock
 	# stamp the decay time: re-emitting the old timestamp decayed the same
 	# stale card again on every launch instead of once per DECAY_DAYS.
 	awk -F'\t' -v OFS='\t' -v c="$cutoff" -v n="$n" '
 		{ t = $2; ts = $3; if ($3 < c) { t = t - 1; ts = n } if (t > 0) print $1, t, ts }
-	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || :
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	_cards_unlock
 }
 
 # weakest first: lowest tier, then longest unproved. the tier is already

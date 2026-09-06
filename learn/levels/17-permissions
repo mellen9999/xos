@@ -84,7 +84,7 @@ hint: id with no flags prints uid, gid and every group at once
 ---
 q: %show% just your numeric user id
 a: id -u
-out: ^[0-9]+$
+why: primitive-cost
 ref: id
 teach: id -u
 hint: -u limits output to just the numeric uid
@@ -98,28 +98,28 @@ hint: -n added to -u prints the name instead of the number
 ---
 q: %show% just your numeric group id
 a: id -g
-out: ^[0-9]+$
+why: primitive-cost
 ref: id
 teach: id -g
 hint: -g limits output to just the numeric gid
 ---
 q: %show% every group you belong to, numerically
 a: id -G
-out: [0-9]
+why: primitive-cost
 ref: id
 teach: id -G
 hint: -G lists every group id you belong to, not just the primary
 ---
 q: %show% your real user id rather than the effective one
 a: id -ur
-out: ^[0-9]+$
+why: primitive-cost
 ref: id
 teach: id -r
 hint: -r combined with -u asks for the real id rather than the effective one
 ---
 q: %show% the default permission mask new files are created with
 a: umask
-out: [0-7]
+out: ^[0-7]{3,4}$
 ref: umask
 teach: umask
 hint: umask alone prints the current mask without changing it
@@ -148,7 +148,7 @@ hint: -c takes a format; %s is size, %n name, %a permission bits
 ---
 q: %show% the permission bits of @script@ as a number
 a: stat -c %a @script@
-out: ^[0-9]+$
+cmp: ref
 ref: stat
 teach: stat -c
 hint: %a in the format string is permission bits
@@ -169,7 +169,7 @@ hint: -L follows the link and reports on its target instead of the link itself
 ---
 q: %show% stat's output for @txt@ in terse single-line form
 a: stat -t @txt@
-out: [0-9]
+out: ^[^ ]+ [0-9]+ [0-9]+ [0-9a-f]+
 ref: stat
 teach: stat -t
 hint: -t packs every field onto one line, script-friendly
@@ -187,3 +187,10 @@ why: primitive-cost
 ref: touch
 teach: touch -r
 hint: -r copies another file's timestamp instead of specifying one yourself
+---
+q: {run id as the user nobody instead of as root|use setuidgid to run id as nobody|drop to the nobody account and run id there}
+a: setuidgid nobody id
+why: root
+ref: setuidgid
+teach: setuidgid
+hint: setuidgid USER PROG switches to USER's uid and gid, then runs PROG -- learn runs your answers this way
