@@ -5,7 +5,11 @@
 # executable tmpfs was a place to drop and run code. noexec /tmp shuts it.
 mount -t proc  -o nosuid,nodev,noexec none /proc
 mount -t sysfs -o nosuid,nodev,noexec none /sys
-mount -t devtmpfs -o nosuid,noexec none /dev 2>/dev/null
+# the kernel already mounted devtmpfs (CONFIG_DEVTMPFS_MOUNT) with suid+exec.
+# remount that one tighter rather than stacking a second mount on top of it --
+# a stacked mount leaves the permissive one underneath, one umount away.
+mount -o remount,nosuid,noexec /dev 2>/dev/null \
+	|| mount -t devtmpfs -o nosuid,noexec none /dev 2>/dev/null
 # securityfs exposes /sys/kernel/security/lockdown so the lockdown state is
 # provable at runtime (the test block reads it; A8 asserts it).
 mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
@@ -21,6 +25,16 @@ mount -t devpts -o nosuid,noexec,gid=5,mode=620,ptmxmode=666 none /dev/pts 2>/de
 # the root is read-only by design, so anything that needs to write gets a
 # RAM-backed home. nothing here survives a reboot, which is the point.
 mount -t tmpfs -o nosuid,nodev,noexec none /tmp
+# tighten default permissions before anything is created, not after: $HOME,
+# the xdg dirs and the test block's keys were all made at 0755/0644 because
+# this line used to sit below them.
+umask 077
+
+# the signed cmdline, read once. every flag test is an exact word: the old
+# `grep -q xos.test /proc/cmdline` also matched xos.teststate and xos.testwg.
+CMDLINE=$(cat /proc/cmdline 2>/dev/null)
+cmdline_has() { case " $CMDLINE " in *" $1 "*) return 0 ;; esac; return 1; }
+cmdline_get() { printf '%s\n' "$CMDLINE" | sed -n "s/.*[ ^]$1=\([^ ]*\).*/\1/p" | head -1; }
 
 # runtime sysctl hardening. write /proc/sys directly (no sysctl-applet dep).
 # a key whose feature is compiled out is simply absent -- that is already the
@@ -30,7 +44,7 @@ mount -t tmpfs -o nosuid,nodev,noexec none /tmp
 # one source of truth for the hardening sysctls: the setter below applies them,
 # and the xos.test probe re-reads this same list to prove every one took (a
 # deleted or silently-failed line is otherwise invisible).
-HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/icmp_echo_ignore_broadcasts=1"
+HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/tcp_timestamps=0"
 for kv in $HARDEN_SYSCTLS
 do
   p=/proc/sys/${kv%=*}; v=${kv#*=}
@@ -48,7 +62,8 @@ mkdir -p /tmp/run/cryptsetup
 # the build date, pinned inside the signed UKI where it cannot be forged. never
 # go below it: max(clock, floor). this does not make the clock RIGHT, it makes
 # it impossible to push into the past, which is the property TLS needs.
-epoch=$(sed -n 's/.*xos\.epoch=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+epoch=$(cmdline_get xos.epoch)
+case "$epoch" in *[!0-9]*) epoch="" ;; esac
 clockfloored=""
 if [ -n "$epoch" ]; then
 	now=$(date -u +%s 2>/dev/null || echo 0)
@@ -56,7 +71,7 @@ if [ -n "$epoch" ]; then
 		# remember that we floored: the rtc was broken or absent, so the clock
 		# is now merely NOT-WRONG-BACKWARD. tls-time below tries to make it right.
 		if date -u -s "@$epoch" >/dev/null 2>&1; then clockfloored=1
-		else echo "clock floor FAILED: could not set clock to epoch $epoch"; fi
+		else clockfloored=failed; echo "clock floor FAILED: could not set clock to epoch $epoch"; fi
 	fi
 fi
 
@@ -82,21 +97,51 @@ fi
 
 # dead-man tether: the root is a RAM copy, so pulling the stick otherwise
 # changes nothing. if the device backing dm-0 sits on the usb bus, watch it;
+# one exit path for everything: the tether, the console's `poweroff`, a
+# `reboot`. p3 is unmounted and closed when it can be (an open shell inside
+# $HOME makes that lazy), the page cache is flushed, then the kernel is told.
+# plain `poweroff`/`reboot`/`halt` signal PID 1 (USR2/TERM/USR1) and the
+# kernel drops a signal PID 1 has no handler for -- so without these traps
+# the operator's emergency `poweroff` exited 0 and did nothing.
+STATE_DIR=/tmp/home
+shutdown_() { # $1 = poweroff|reboot|halt
+	echo "xos: $1" > /dev/console
+	if grep -q '^/dev/mapper/xosstate ' /proc/mounts; then
+		umount "$STATE_DIR" 2>/dev/null || umount -l "$STATE_DIR" 2>/dev/null
+		cryptsetup close xosstate 2>/dev/null
+	fi
+	sync
+	case "$1" in reboot) reboot -f ;; halt) halt -f ;; *) poweroff -f ;; esac
+}
+trap 'shutdown_ poweroff' USR2
+trap 'shutdown_ reboot' TERM
+trap 'shutdown_ halt' USR1
+
 # the moment it vanishes, power off -- nothing to flush, nothing to save,
 # that is the amnesic contract. the arming test is "is the backing device on
 # usb", not a flag, so virtio boots (qemu rigs) are never armed.
+# the root is the dm target the signed cmdline named "vroot"; find it by that
+# name. this used to hard-code dm-0, and an empty answer silently read as
+# "not usb" -- tether off, boot-stick-first p3 ordering off, no message.
+tslave=""
+for _d in /sys/block/dm-*; do
+	[ "$(cat "$_d/dm/name" 2>/dev/null)" = vroot ] || continue
+	tslave=$(ls "$_d/slaves" 2>/dev/null | head -1); break
+done
 XOS_TETHER="no (not usb)"
-tslave=$(ls /sys/block/dm-0/slaves 2>/dev/null | head -1)
-if grep -q xos.notether /proc/cmdline; then
+if cmdline_has xos.notether; then
 	XOS_TETHER="off (xos.notether)"
-elif [ -n "$tslave" ]; then
+elif [ -z "$tslave" ]; then
+	XOS_TETHER="UNKNOWN (root device not found -- tether NOT armed)"
+	echo "xos: cannot find the device behind the verity root -- tether not armed" > /dev/console
+else
 	case "$(realpath "/sys/class/block/$tslave" 2>/dev/null)" in
 	*/usb*)
 		XOS_TETHER=yes
 		(
 			while [ -e "/sys/class/block/$tslave" ]; do sleep 2; done
 			echo "xos: boot stick removed -- powering off" > /dev/console
-			poweroff -f
+			shutdown_ poweroff
 		) &
 		;;
 	esac
@@ -131,12 +176,12 @@ randmac() {
 	printf '%02x:%02x:%02x:%02x:%02x:%02x' \
 		"$(( ($1 | 2) & 254 ))" "$2" "$3" "$4" "$5" "$6"
 }
-if ! grep -q xos.nonet /proc/cmdline; then
+if ! cmdline_has xos.nonet; then
 	# pci nics are up before /init; usb net (tether/dongle) enumerates on
 	# xhci a second or two later. one pass misses it -- re-scan until a lease
 	# lands or the deadline passes. wired boxes exit on pass 1; only a box
 	# that needs the usb uplink waits, and it is bounded so we never hang.
-	t=0
+	t=0; leased=0
 	while : ; do
 		# busybox ls is the idiom for iterating /sys/class/net here
 		# shellcheck disable=SC2045
@@ -146,15 +191,19 @@ if ! grep -q xos.nonet /proc/cmdline; then
 			# down. failure is loud but not fatal: the iface comes up on
 			# its hardware mac (degraded privacy, not a dead network) and
 			# the mac-randomized probe makes it visible.
-			if ! grep -q xos.realmac /proc/cmdline && [ ! -f "/tmp/mac.$dev" ]; then
+			if ! cmdline_has xos.realmac && [ ! -f "/tmp/mac.$dev" ]; then
 				cat "/sys/class/net/$dev/address" > "/tmp/mac.$dev" 2>/dev/null
 				ip link set dev "$dev" address "$(randmac)" 2>/dev/null \
 					|| echo "mac randomization FAILED: $dev"
 			fi
 			ip link set "$dev" up 2>/dev/null
 			[ "$(cat /sys/class/net/"$dev"/carrier 2>/dev/null)" = 1 ] || continue
-			udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && break 2
+			# finish the pass after a lease: a second carrier-up interface
+			# in the same pass still gets its randomized mac and its lease.
+			[ "$leased" = 1 ] && continue
+			udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && leased=1
 		done
+		[ "$leased" = 1 ] && break
 		t=$((t+1)); [ "$t" -ge 6 ] && break
 		sleep 1
 	done
@@ -183,8 +232,14 @@ fi
 # an attacker gains nothing: any rung still demands a chain valid at a time at
 # or after the floor, exactly what tls demands of a correct clock.
 XOS_TLSTIME="skipped (rtc sane)"
-if [ -n "$clockfloored" ]; then
-	if grep -q xos.nonet /proc/cmdline; then
+if [ "$clockfloored" = failed ]; then
+	# the clock is below the build date and could not be raised: every tls
+	# validity check from here is against a time the floor was meant to
+	# forbid. this used to fall through as "rtc sane" -- the one state that
+	# must never be reported as fine.
+	XOS_TLSTIME="clock floor FAILED -- tls dates unverifiable"
+elif [ -n "$clockfloored" ]; then
+	if cmdline_has xos.nonet; then
 		XOS_TLSTIME="off (xos.nonet)"
 	else
 		thdr=""
@@ -196,8 +251,9 @@ if [ -n "$clockfloored" ]; then
 				| sed -n 's/^[Dd]ate: \(.*\) GMT.*/\1/p' | head -1)
 			[ -n "$thdr" ] && break
 			tofs=$((tofs + 3888000))
-			# a blackholed network burns the full timeout per rung; bound the
-			# whole ladder so a hostile net cannot stall the boot for minutes.
+			# a blackholed network burns the full timeout per rung; the check
+			# runs after a rung, so the ladder is bounded at ~30s (two rungs of
+			# 15), not 25 -- a hostile net stalls the boot by that much, no more.
 			[ $(( $(date -u +%s 2>/dev/null || echo 0) - tstart )) -ge 25 ] && break
 		done
 		tsec=""
@@ -266,9 +322,22 @@ recon_check() { # $1 = root of the unlocked state filesystem
 		printf '  recon: first visit to machine %s -- baseline recorded\n' "$mid" > /dev/console
 	elif cmp -s "$old" "$now"; then
 		printf '  recon: machine %s is as you left it\n' "$mid" > /dev/console
+		rm -f "$old.new"
+	elif [ -f "$old.new" ] && cmp -s "$old.new" "$now"; then
+		# reported before, never accepted: the alarm does not clear itself
+		printf '  recon: MACHINE %s still CHANGED since its baseline (unaccepted -- `recon_accept` at the shell)\n' "$mid" > /dev/console
+		rm -f "$now"; return
 	else
+		# the baseline is NOT replaced: it used to be, so the one console line
+		# above the login was the only time the change was ever mentioned, and
+		# the next boot said "as you left it". the new inventory sits beside
+		# the baseline until `recon_accept` at the shell makes it the baseline;
+		# every boot until then repeats the alarm.
 		printf '  recon: MACHINE %s CHANGED since your last visit:\n' "$mid" > /dev/console
-		diff "$old" "$now" | sed -n 's/^-\([^-]\)/    gone: \1/p;s/^+\([^+]\)/    new:  \1/p' > /dev/console
+		diff "$old" "$now" | sed -n 's/^-\([^-]\)/    gone: \1/p;s/^+\([^+]\)/    new:  \1/p' | head -40 > /dev/console
+		printf '    (baseline kept -- `recon_accept` at the shell accepts this machine as it is now)\n' > /dev/console
+		cp "$now" "$old.new" 2>/dev/null
+		rm -f "$now"; return
 	fi
 	{ mkdir -p "$dir" && cp "$now" "$old" && sync; } 2>/dev/null \
 		|| printf '  recon FAILED: could not record the baseline\n' > /dev/console
@@ -279,19 +348,28 @@ recon_check() { # $1 = root of the unlocked state filesystem
 # the number the way you remember the fingerprint words -- a stick that says
 # boot 44 when you left it at 47 was rolled back to an older p3 image, and
 # nothing else on it will tell you that. a corrupt or non-numeric ledger is
-# called out, never silently reset to a clean-looking count.
+# called out on every later boot and the bytes are kept beside the new count
+# -- it used to be overwritten with 1, which made the next boot look exactly
+# like a fresh p3 and erased the only evidence. the write goes through a
+# rename so the tether's mid-write poweroff cannot truncate it.
 ledger_note() { # $1 = root of the unlocked state filesystem
-	local f="$1/ledger" n=0 last=""
+	local f="$1/ledger" n=0 last="" bad
+	for bad in "$f".corrupt.*; do
+		[ -f "$bad" ] || continue
+		printf '  ledger: was found CORRUPT on %s UTC -- treat this state as replayed\n' \
+			"$(date -u -d "@${bad##*.}" '+%Y-%m-%d %H:%M' 2>/dev/null)" > /dev/console
+	done
 	if [ -f "$f" ]; then
 		n=$(cut -d' ' -f1 "$f" 2>/dev/null)
 		last=$(cut -d' ' -f2 "$f" 2>/dev/null)
 		case "$n" in ''|*[!0-9]*)
-			printf '  ledger CORRUPT -- treat this state as replayed\n' > /dev/console
-			n=0 ;;
+			printf '  ledger CORRUPT -- kept as evidence, count restarts\n' > /dev/console
+			mv "$f" "$f.corrupt.$(date -u +%s)" 2>/dev/null
+			n=0; last="" ;;
 		esac
 	fi
 	n=$((n + 1))
-	if printf '%s %s\n' "$n" "$(date -u +%s)" > "$f" 2>/dev/null && sync; then
+	if printf '%s %s\n' "$n" "$(date -u +%s)" > "$f.tmp" 2>/dev/null && mv "$f.tmp" "$f" 2>/dev/null && sync; then
 		if [ "$n" = 1 ]; then
 			printf '  ledger: first boot recorded on this state\n' > /dev/console
 		else
@@ -303,7 +381,7 @@ ledger_note() { # $1 = root of the unlocked state filesystem
 	fi
 }
 
-if grep -q xos.test /proc/cmdline; then
+if cmdline_has xos.test; then
 	echo
 	echo "XOS-TEST-BEGIN"
 	# no kernel message may split a probe line: the harness greps for exact
@@ -328,7 +406,7 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'kexec-loaded: '; if [ -e /sys/kernel/kexec_loaded ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'vsyscall-map: '; _c=$(grep -c vsyscall /proc/self/maps 2>/dev/null); echo "${_c:-0}"
 	printf 'lockdown: '; cat /sys/kernel/security/lockdown 2>/dev/null || echo "(no securityfs)"
-	printf 'remount-rw: '; if mount -o remount,rw / 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi
+	printf 'remount-rw: '; if mount -o remount,rw / 2>/dev/null; then echo "SUCCEEDED (BAD)"; mount -o remount,ro / 2>/dev/null; else echo "refused (good)"; fi
 	printf 'tmp-exec: '; cp /bin/busybox /tmp/probe-x 2>/dev/null; chmod +x /tmp/probe-x 2>/dev/null; if /tmp/probe-x true 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi; rm -f /tmp/probe-x
 	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
@@ -344,7 +422,7 @@ if grep -q xos.test /proc/cmdline; then
 	# probes run as root, so dmesg_restrict does not bite here.
 	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 | grep . || echo "MISSING (BAD)"
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
-	printf 'shell-vi-default: '; ENV=/etc/shrc printf 'set +o\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q 'o vi' && echo yes || echo "no (BAD)"
+	printf 'shell-vi-default: '; printf 'set +o\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q 'o vi' && echo yes || echo "no (BAD)"
 	printf 'no-bash: '; if [ -e /bin/bash ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	# a pty is the thing every multiplexer and every ssh session needs. prove one
 	# can actually be allocated, not merely that the config claims to allow it.
@@ -379,16 +457,16 @@ if grep -q xos.test /proc/cmdline; then
 	# do not appear until something asks for xts(aes) or hmac(sha512), so their
 	# absence here means nothing -- G14 asserts them from the built config
 	# instead. what is worth probing is the concrete ciphers they build on.
-	printf 'clock-floor: '; sed -n 's/.*xos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
-	printf 'clock-not-before-floor: '; nowchk=$(date -u +%s); floorchk=$(sed -n 's/.*xos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1); [ "${nowchk:-0}" -ge "${floorchk:-0}" ] && echo yes || echo "no (BAD)"
+	printf 'clock-floor: %s\n' "${epoch:-not pinned (BAD)}"
+	printf 'clock-not-before-floor: '; nowchk=$(date -u +%s); [ -n "$epoch" ] && [ "${nowchk:-0}" -ge "$epoch" ] && echo yes || echo "no (BAD)"
 	printf 'entropy-trusted: '; grep -o 'random.trust_cpu=1' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
 	printf 'crypto-aes: '; grep -qw aes /proc/crypto && echo yes || echo "no (BAD)"
 	printf 'crypto-sha512: '; grep -qw sha512 /proc/crypto && echo yes || echo "no (BAD)"
 	# the whole p3 stack, exercised rather than assumed: cryptsetup binary,
-	# dm-crypt, dm-integrity and the kernel crypto backend. a 24 MiB scratch
+	# dm-crypt, dm-integrity and the kernel crypto backend. a 64 MiB scratch
 	# file in tmpfs stands in for the partition. --pbkdf pbkdf2 because argon2
 	# would spend seconds grinding memory for a throwaway test.
-	printf 'flock-works: '; if flock -x /tmp/lk true 2>/dev/null; then echo yes; else echo "no (BAD)"; fi
+	printf 'flock-works: '; if flock -x /tmp/lk true 2>/dev/null; then echo yes; else echo "no (BAD)"; fi; rm -f /tmp/lk
 	printf 'cryptsetup-runs: '; cryptsetup --version 2>&1 | head -1 | grep -q KERNEL_CAPI && echo yes || echo "no (BAD)"
 	dd if=/dev/zero of=/tmp/p3.img bs=1M count=64 2>/dev/null
 	printf 'loop-node: '; [ -b /dev/loop0 ] && echo present || echo "absent (BAD)"
@@ -405,7 +483,7 @@ if grep -q xos.test /proc/cmdline; then
 	cryptsetup status p3test 2>/dev/null | grep -o 'integrity:.*' | head -1 || echo none
 	printf 'luks-wrong-pass-refused: '
 	if printf 'wrongpass' | cryptsetup open --key-file - /dev/loop0 p3bad >/dev/null 2>&1
-	then echo "ACCEPTED (BAD)"; else echo "refused (good)"; fi
+	then echo "ACCEPTED (BAD)"; cryptsetup close p3bad >/dev/null 2>&1; else echo "refused (good)"; fi
 	cryptsetup close p3test >/dev/null 2>&1
 	losetup -d /dev/loop0 2>/dev/null; rm -f /tmp/p3.img
 	printf 'abduco-runs: '; abduco 2>&1 | head -1 | grep -q 'Active sessions' && echo yes || echo no
@@ -440,7 +518,7 @@ if grep -q xos.test /proc/cmdline; then
 	_up=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1)
 	printf 'mac-uplink: '; cat "/sys/class/net/${_up:-none}/address" 2>/dev/null || echo none
 	printf 'mac-randomized: '
-	if grep -q xos.realmac /proc/cmdline; then echo "off (xos.realmac)"
+	if cmdline_has xos.realmac; then echo "off (xos.realmac)"
 	elif [ -n "$_up" ] && [ -s "/tmp/mac.$_up" ] && [ "$(cat "/tmp/mac.$_up")" != "$(cat "/sys/class/net/$_up/address")" ]; then echo yes
 	else echo "no (BAD)"; fi
 	# ii ships and is build-tested (compiled + manifest-checked), but its
@@ -458,6 +536,12 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'trust-anchors-in-binary: '; _c=$(grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null); echo "${_c:-0}"
 
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
+	# learn runs every answer as nobody; nobody must not be able to write --
+	# or read -- the operator's home. this is the containment, proven.
+	printf 'grader-privdrop: '
+	if setuidgid nobody sh -c 'echo x > /tmp/home/probe-nobody' 2>/dev/null; then echo "nobody wrote HOME (BAD)"; rm -f /tmp/home/probe-nobody
+	elif setuidgid nobody sh -c 'ls /tmp/home' >/dev/null 2>&1; then echo "nobody read HOME (BAD)"
+	else echo ok; fi
 	# the shipped scrub function, run as shipped: source the rc it lives in and
 	# call it. on a clean image this reads every verity-covered byte and says
 	# so; on a rotten one the machine panics right here -- either way, loud.
@@ -472,7 +556,7 @@ if grep -q xos.test /proc/cmdline; then
 	# target vdb1 when the disk is partitioned: that is the shape the REAL
 	# state_open() scan matches, so the same provisioned disk can then feed a
 	# production boot end to end (A19). a bare vdb keeps the old behavior.
-	if grep -q xos.teststate /proc/cmdline && [ -b /dev/vdb ]; then
+	if cmdline_has xos.teststate && [ -b /dev/vdb ]; then
 		tsdev=/dev/vdb
 		[ -b /dev/vdb1 ] && tsdev=/dev/vdb1
 		if cryptsetup isLuks "$tsdev" 2>/dev/null; then
@@ -503,9 +587,12 @@ if grep -q xos.test /proc/cmdline; then
 				# how a human writes one) so a later production boot of this same
 				# disk exercises the real unlock -> wg -> ssh chain end to end.
 				if command -v wg >/dev/null 2>&1; then
+					# a full operator conf: a peer section too, because init
+					# refuses a conf with no peer (a tunnel to nobody is not "up").
+					# the peer key is a throwaway; the endpoint is never reached.
 					wg genkey > /tmp/tswg.key 2>/dev/null
-					printf '[Interface]\nPrivateKey = %s\nAddress = 10.9.0.2/32\n' \
-						"$(cat /tmp/tswg.key)" > /tmp/ts/wg0.conf
+					printf '[Interface]\nPrivateKey = %s\nAddress = 10.9.0.2/32\n\n[Peer]\nPublicKey = %s\nAllowedIPs = 10.9.0.1/32\nEndpoint = 127.0.0.1:51820\n' \
+						"$(cat /tmp/tswg.key)" "$(wg genkey | wg pubkey)" > /tmp/ts/wg0.conf
 					chmod 600 /tmp/ts/wg0.conf
 					rm -f /tmp/tswg.key
 					# and an operator key on p3, so the later production boot
@@ -526,7 +613,7 @@ if grep -q xos.test /proc/cmdline; then
 	# two-machine handshake needs a second endpoint and is verified on real
 	# hardware; here we prove every component works -- the interface comes up and
 	# wg configures it, and dropbear accepts a real pubkey login end to end.
-	if grep -q xos.testwg /proc/cmdline; then
+	if cmdline_has xos.testwg; then
 		printf 'wg-iface-up: '
 		if ip link add wg0 type wireguard 2>/dev/null; then
 			wg genkey > /tmp/wgkey 2>/dev/null
@@ -562,15 +649,13 @@ if grep -q xos.test /proc/cmdline; then
 			echo "ACCEPTED (BAD)"; else echo "refused (good)"; fi
 		kill "$_dbpid" 2>/dev/null
 		ip link del wg0 2>/dev/null
+		rm -f /tmp/wgkey /tmp/hostkey /tmp/clientkey /tmp/badkey
 	fi
 
 	[ -n "${_prevprintk:-}" ] && echo "$_prevprintk" > /proc/sys/kernel/printk 2>/dev/null
 	echo "XOS-TEST-END"
 	sync
 fi
-
-# tighten default permissions on anything the session writes to tmpfs
-umask 077
 
 # ── p3: encrypted + authenticated persistent state ──────────────────────────
 #
@@ -586,10 +671,9 @@ umask 077
 #
 # this runs AFTER the test block (which powers off) so an automated boot never
 # blocks on the prompt, and BEFORE the consoles so the session that starts sees
-# the persistent home.
-STATE_DIR=/tmp/home
+# the persistent home. STATE_DIR is set at the top, beside shutdown_().
 state_open() {
-	grep -q xos.nostate /proc/cmdline && return 1
+	cmdline_has xos.nostate && return 1
 	command -v cryptsetup >/dev/null 2>&1 || return 1
 	# find the state partition by its LUKS header, not by a label -- an
 	# unopened LUKS container exposes no filesystem label, and this works
@@ -601,12 +685,13 @@ state_open() {
 	# trusted boot -- must never shadow the real p3. off-stick candidates are
 	# still tried last (the qemu rig attaches state as a second disk), and
 	# opening one is announced out loud below.
-	local cands="" late="" dev p name disk bootdisk
+	local cands="" late="" dev p name disk bootdisk cand
 	bootdisk=$(printf '%s' "$tslave" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
+	[ -n "$bootdisk" ] || printf '  note: boot device unknown -- cannot prefer the boot stick for state\n' > /dev/console
 	for p in /sys/class/block/*/partition; do
 		[ -f "$p" ] || continue
 		name=$(basename "$(dirname "$p")")
-		local cand="/dev/$name"
+		cand="/dev/$name"
 		[ -b "$cand" ] || continue
 		cryptsetup isLuks "$cand" 2>/dev/null || continue
 		disk=$(printf '%s' "$name" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
@@ -638,6 +723,9 @@ state_open() {
 				opened="$dev"; break
 			fi
 		done
+		# the secret has done its job; do not leave it in PID 1's memory for
+		# the rest of the uptime
+		pass=""
 		[ -n "$opened" ] && break
 		[ "$tries" -lt 3 ] && printf '  wrong passphrase -- %d attempt(s) left\n' "$((3 - tries))" > /dev/console
 	done
@@ -654,7 +742,11 @@ state_open() {
 	# the persistent one. explicit -t ext4 because busybox mount does not probe
 	# the type (the ext4 driver mounts ext2/3/4 alike), and the mountpoint is
 	# under /tmp because the root is read-only.
-	if ! mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/xosstate "$STATE_DIR" 2>/dev/null; then
+	# the tmpfs home was made under umask 077; the persistent one carries
+	# whatever mode mkfs gave its root (0755). same rule for both: root only.
+	if mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/xosstate "$STATE_DIR" 2>/dev/null; then
+		chmod 700 "$STATE_DIR" 2>/dev/null
+	else
 		# the passphrase was RIGHT -- a silent fall-through here would tell the
 		# operator "wrong passphrase" by omission when the truth is a damaged
 		# filesystem. say exactly which it was.
@@ -701,7 +793,11 @@ if state_open; then
 		grep -E '^[ 	]*(\[|PrivateKey|ListenPort|FwMark|PublicKey|PresharedKey|AllowedIPs|Endpoint|PersistentKeepalive)' \
 			"$STATE_DIR/wg0.conf" > /tmp/wgset.conf
 		chmod 600 /tmp/wgset.conf
-		if ip link add wg0 type wireguard 2>/dev/null \
+		# a conf the allowlist reduced to nothing made setconf a no-op and the
+		# console said "wireguard up" over an interface with no key and no peer
+		if grep -qE '^[[:space:]]*PrivateKey' /tmp/wgset.conf \
+		   && grep -qE '^[[:space:]]*\[Peer\]' /tmp/wgset.conf \
+		   && ip link add wg0 type wireguard 2>/dev/null \
 		   && wg setconf wg0 /tmp/wgset.conf 2>/dev/null \
 		   && [ -n "$wgip" ] \
 		   && ip addr add "$wgcidr" dev wg0 2>/dev/null \
@@ -713,7 +809,13 @@ if state_open; then
 			# safety net that a writable-p3 key must never be able to lock out) and
 			# any key the operator added on p3. either file may be absent.
 			mkdir -p "$HOME/.ssh"
-			cat /etc/dropbear/authorized_keys "$STATE_DIR/authorized_keys" 2>/dev/null > "$HOME/.ssh/authorized_keys"
+			# awk 1, not cat: a file without a final newline would fuse its
+			# last key with the next file's first into one unparseable line,
+			# and dropbear would reject BOTH -- the image key locked out by the
+			# very concatenation meant to keep it in.
+			for _k in /etc/dropbear/authorized_keys "$STATE_DIR/authorized_keys"; do
+				[ -f "$_k" ] && awk 1 "$_k"
+			done > "$HOME/.ssh/authorized_keys"
 			chmod 600 "$HOME/.ssh/authorized_keys"
 			if [ -s "$HOME/.ssh/authorized_keys" ]; then
 				# supervise it like the consoles: the remote shell is the only
@@ -724,11 +826,19 @@ if state_open; then
 				( _fail=0
 				  while : ; do
 				    _t0=$(date +%s 2>/dev/null || echo 0)
-				    dropbear -F -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >/dev/null 2>&1
+				    dropbear -F -E -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >>/tmp/ssh.log 2>&1
 				    if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then _fail=$((_fail + 1)); else _fail=0; fi
 				    [ "$_fail" -ge 5 ] && sleep 30 || sleep 1
 				  done ) &
-				printf '  ssh listening on the tunnel only (%s:22), pubkey only\n' "$wgip" > /dev/console
+				# say "listening" only once the socket exists. the old line was
+				# printed the instant the supervisor forked, bind or no bind.
+				_t=0
+				while [ "$_t" -lt 5 ] && ! netstat -ltn 2>/dev/null | grep -q "$wgip:22"; do sleep 1; _t=$((_t + 1)); done
+				if netstat -ltn 2>/dev/null | grep -q "$wgip:22"; then
+					printf '  ssh listening on the tunnel only (%s:22), pubkey only -- auth log: /tmp/ssh.log\n' "$wgip" > /dev/console
+				else
+					printf '  ssh FAILED to bind %s:22 -- see /tmp/ssh.log\n' "$wgip" > /dev/console
+				fi
 			else
 				printf '  no authorized_keys -- ssh not started (add one to enable)\n' > /dev/console
 			fi
@@ -748,7 +858,10 @@ banner() {
   every byte on this disk is covered by a hash tree
 
 BANNER
-	[ -n "$fpw" ] && printf '  this image is: %s\n\n' "$fpw"
+	[ -n "$fpw" ] && printf '  this image is: %s\n' "$fpw"
+	printf '  tether: %s\n' "$XOS_TETHER"
+	case "$XOS_TLSTIME" in "skipped (rtc sane)"|synced) : ;; *) printf '  clock: %s\n' "$XOS_TLSTIME" ;; esac
+	echo
 }
 
 # ── consoles ────────────────────────────────────────────────────────────────
@@ -771,14 +884,17 @@ console_loop() {
 	_dev=$1; _fail=0
 	# health beacon (bounded -- single line, overwritten): proves this loop is
 	# running with a real device, which the empty-$_dev bug made impossible.
-	[ -n "$_dev" ] && printf '%s\n' "$_dev" > /tmp/console.up 2>/dev/null
+	[ -n "$_dev" ] && printf '%s\n' "$_dev" >> /tmp/console.up 2>/dev/null
 	while : ; do
 		_t0=$(date +%s 2>/dev/null || echo 0)
 		banner > "$_dev" 2>/dev/null
 		# $_dev is a tty, not a regular file: rx+tx on one line is the point, not a hazard
 		# shellcheck disable=SC2094
-		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1 \
-			|| /bin/sh <>"$_dev" >"$_dev" 2>&1
+		# no `|| /bin/sh` fallback: setsid execs cttyhack execs sh, so the
+		# status here is the SHELL's, and `exit 1` used to hand the operator a
+		# second shell with no controlling terminal -- the exact regression
+		# above. cttyhack is manifest-gated; a missing applet is a build failure.
+		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
 		# a console nothing is attached to returns EOF instantly and would
 		# respawn forever. this machine may be passive-cooled; back off instead.
 		if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then
@@ -793,7 +909,7 @@ console_loop() {
 # how many virtual terminals to open. 6 is the convention every linux ships,
 # and 12 is the ceiling: past Alt+F12 there is no key to reach them and this
 # build has no chvt.
-ttys=$(sed -n 's/.*xos\.ttys=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+ttys=$(cmdline_get xos.ttys); case "$ttys" in *[!0-9]*) ttys="" ;; esac
 [ -n "$ttys" ] || ttys=6
 [ "$ttys" -ge 1 ] 2>/dev/null || ttys=6
 [ "$ttys" -le 12 ] 2>/dev/null || ttys=12
@@ -817,7 +933,7 @@ fi
 # no longer takes PID 1 down with it.
 console_loop /dev/console &
 
-if grep -q xos.test /proc/cmdline; then
+if cmdline_has xos.test; then
 	# the console loops set a health beacon when they start with a real device.
 	# with the old empty-$_dev bug it was never written.
 	printf 'console-device-ok: '; [ -s /tmp/console.up ] && echo yes || echo "no (BAD)"
@@ -829,7 +945,7 @@ if grep -q xos.test /proc/cmdline; then
 	# and only ever on a cmdline flag that lives inside the signed UKI.
 	# xos.testtether: A18 owns that boot's lifetime -- the tether (or the
 	# harness timeout) ends it, never this block.
-	if ! grep -q xos.testtether /proc/cmdline; then
+	if ! cmdline_has xos.testtether; then
 		poweroff -f
 	fi
 fi
