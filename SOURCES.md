@@ -14,7 +14,7 @@ what that first sighting was anchored to. They are not equal:
 | cryptsetup 2.8.7 | maintainer PGP signature (Milan Broz, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | util-linux 2.42.2 | maintainer PGP signature (Karel Zak, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | lvm2 2.03.42 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch | **best -- signed by the maintainer** |
-| popt | none available | **weakest -- trust-on-first-use over TLS only** |
+| popt | none available; fetched from fedora's source cache over TLS at a url naming its sha512 (upstream ftp.rpm.org is plain http) | **weakest -- trust-on-first-use over TLS only** |
 | json-c 0.19 | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
 | wireguard-tools 1.0.20260223 | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
 | dropbear 2026.94 | official release tarball, maintainer PGP signature (Matt Johnston), matched against a committed key on every fetch | **best -- signed by the maintainer** |

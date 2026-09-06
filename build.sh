@@ -41,6 +41,8 @@ LNX_FPR=647F28654894E3BD457199BE38DBBDC86092693E   # Greg Kroah-Hartman (linux s
 CS_FPR=2A2918243FDE46648D0686F9D9B0577BD93E98FC    # Milan Broz (cryptsetup)
 UTL_FPR=B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284   # Karel Zak (util-linux)
 BB_FPR=C9E9416F76E610DBD09D040F47B70C55ACC9965B    # Denys Vlasenko (busybox)
+# popt has no signature; this sha512 is part of the fetch url (see fetch()).
+POPT_SHA512=5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639d55ee77ca31f29bb631c0b53368c1893bd96cf76422d257f7997a11f6466
 # one cflags line for every first-party and upstream userland build. the
 # -ffile-prefix-map used to live only in cryptsetup_(), where a __FILE__ in an
 # assert string had already leaked the absolute build path into the image; a
@@ -105,6 +107,14 @@ say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 # like a failed command. this trap bit five separate checks in this script.
 # always pipe into `has` instead of `grep -q`.
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
+# nothing on $1 may be mounted. lsblk failing is a refusal, not a pass.
+unmounted() {
+  local m
+  m=$(lsblk -nro MOUNTPOINTS "$1" 2>/dev/null) \
+    || { echo "FAIL: lsblk could not report mountpoints for $1 -- refusing to guess" >&2; return 1; }
+  if printf '%s\n' "$m" | has .; then
+    echo "FAIL: $1 (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
+}
 
 # a missing host tool used to surface as a mid-build failure -- the exact fail
 # mode this repo eliminates everywhere else. name every one up front instead.
@@ -218,7 +228,10 @@ fetch() {
   get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
       "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
   sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR"
-  get "http://ftp.rpm.org/popt/releases/popt-1.x/popt-$POPTVER.tar.gz" \
+  # popt: ftp.rpm.org is plain http (its tls certificate is for another
+  # name). fedora's source cache carries the identical bytes over tls, at a
+  # url that names their sha512 -- so the host cannot serve anything else there.
+  get "https://src.fedoraproject.org/lookaside/pkgs/popt/popt-$POPTVER.tar.gz/sha512/$POPT_SHA512/popt-$POPTVER.tar.gz" \
       "popt-$POPTVER.tar.gz" "popt-$POPTVER"
   get "https://github.com/json-c/json-c/archive/refs/tags/json-c-$JSONCVER.tar.gz" \
       "json-c-$JSONCVER.tar.gz" "json-c-json-c-$JSONCVER"
@@ -404,13 +417,13 @@ ta() {
 tls() {
   say "building bearssl + tlstunnel"
   local d="src/bearssl-$BSSLVER" specs="$PWD/musl-static-pie.specs"
-  [ -f "$d/build/libbearssl.a" ] || \
-    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall $XCF" \
-      build/libbearssl.a >/dev/null 2>&1
-  [ -x "$d/build/brssl" ] || \
-    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall $XCF" \
-      build/brssl >/dev/null 2>&1
-  [ -f "$d/build/libbearssl.a" ] || { echo "FAIL: libbearssl.a did not build" >&2; return 1; }
+  # from clean every time: make does not track CFLAGS, so a library left from
+  # an earlier run would keep its old flags and nothing downstream could tell.
+  make -C "$d" clean >/dev/null 2>&1
+  make -C "$d" -j"$JOBS" CC="gcc -specs=$specs" CFLAGS="-W -Wall $XCF" \
+      build/libbearssl.a build/brssl >/dev/null 2>&1
+  [ -f "$d/build/libbearssl.a" ] && [ -x "$d/build/brssl" ] \
+    || { echo "FAIL: bearssl did not build" >&2; return 1; }
   ta || return 1
   # shellcheck disable=SC2086
   gcc -specs="$specs" $XCF \
@@ -463,6 +476,9 @@ dropbear_() {
       >/dev/null 2>&1 ) || { echo "FAIL: dropbear configure failed" >&2; return 1; }
   # do NOT pass STATIC=1 -- it injects a plain -static that fights the specs
   # file's -static-pie and produces a fixed-load-address (ASLR-off) binary.
+  # the artifact goes first: an existence check after a failed make otherwise
+  # passes on whatever the previous run left behind.
+  rm -f "$d/dropbearmulti"
   make -C "$d" PROGRAMS="dropbear dbclient dropbearkey" MULTI=1 >/dev/null 2>&1
   [ -f "$d/dropbearmulti" ] || { echo "FAIL: dropbear did not build" >&2; return 1; }
   strip "$d/dropbearmulti"; cp "$d/dropbearmulti" dropbearmulti
@@ -489,7 +505,10 @@ cryptsetup_() {
 
   # libdevmapper: the dm ioctl wrapper. only the library is wanted -- lvm2's
   # own dmsetup tool wants libblkid and is not built.
+  # every artifact is removed before its build: the existence checks below
+  # must prove THIS run built it, not that some earlier run did.
   local d="src/LVM2.$LVMVER"
+  rm -f "$d/libdm/ioctl/libdevmapper.a"
   ( cd "$d" && ./configure --enable-static_link --disable-selinux --disable-udev_sync \
       --disable-udev_rules --disable-readline --disable-nls --disable-shared \
       --with-cache=none --with-thin=none --with-vdo=none --with-writecache=none \
@@ -499,12 +518,14 @@ cryptsetup_() {
   cp "$d/libdm/libdevmapper.h" "$dep/include/"
 
   d="src/popt-$POPTVER"
+  rm -f "$d/src/libpopt.la" "$d/src/.libs/libpopt.a"   # libtool: the .la is the target
   ( cd "$d" && ./configure --disable-shared --enable-static --disable-nls \
       CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || true
   [ -f "$d/src/.libs/libpopt.a" ] || { echo "FAIL: popt did not build" >&2; return 1; }
   cp "$d/src/.libs/libpopt.a" "$dep/lib/"; cp "$d/src/popt.h" "$dep/include/"
 
   d="src/json-c-json-c-$JSONCVER"
+  rm -f "$d/b/libjson-c.a"
   ( cd "$d" && cmake -S . -B b -DCMAKE_C_COMPILER=gcc -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
       -DCMAKE_C_FLAGS="-specs=$specs $cf" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON \
       -DDISABLE_WERROR=ON -DBUILD_TESTING=OFF -DBUILD_APPS=OFF >/dev/null 2>&1 \
@@ -513,6 +534,7 @@ cryptsetup_() {
   cp "$d/b/libjson-c.a" "$dep/lib/"; cp "$d"/*.h "$d"/b/*.h "$dep/include/json-c/" 2>/dev/null
 
   d="src/util-linux-$UTLVER"
+  rm -f "$d/libuuid.la" "$d/.libs/libuuid.a"
   ( cd "$d" && ./configure --disable-all-programs --enable-libuuid --disable-shared \
       --enable-static --without-systemd --without-udev --disable-nls --disable-asciidoc \
       CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || true
@@ -520,6 +542,7 @@ cryptsetup_() {
   cp "$d/.libs/libuuid.a" "$dep/lib/"; cp "$d/libuuid/src/uuid.h" "$dep/include/uuid/"
 
   d="src/cryptsetup-$CSVER"
+  rm -f "$d/cryptsetup.static"
   ( cd "$d" && ./configure --disable-shared --enable-static --enable-static-cryptsetup \
       --with-crypto_backend=kernel --disable-ssh-token --disable-external-tokens \
       --disable-selinux --disable-nls --disable-blkid --disable-udev \
@@ -675,7 +698,11 @@ rootfs() {
 set -o vi
 scrub() {
 	echo "reading every verity-covered byte -- a rotten block panics the machine, and that is the alarm working"
-	if dd if=/dev/dm-0 of=/dev/null bs=1M 2>/dev/null; then
+	local d dev=""
+	for d in /sys/block/dm-*; do
+		[ "$(cat "$d/dm/name" 2>/dev/null)" = vroot ] && dev="/dev/${d##*/}" && break
+	done
+	if [ -n "$dev" ] && dd if="$dev" of=/dev/null bs=1M 2>/dev/null; then
 		echo "scrub clean: every byte on this stick still matches the signed hash tree"
 	else
 		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
@@ -711,13 +738,16 @@ keys() {
   # plaintext made `all` regenerate certs over a sealed key -- old key, new
   # cert, sbverify fails. this was silent because `all` never ran end to end.)
   { [ -f keys/db.key ] || [ -f keys/db.key.enc ]; } && { echo "  already present (delete keys/ to regenerate)"; return 0; }
-  mkdir -p keys
-  for k in PK KEK db; do
-    openssl req -new -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-      -subj "/CN=xos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
-    openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der"
-  done
-  chmod 700 keys; chmod 600 keys/*.key
+  # born private: the directory is 0700 and the umask 077 BEFORE any key is
+  # written. a chmod after the loop left three plaintext keys world-readable
+  # for the length of three keygens.
+  mkdir -p keys && chmod 700 keys || return 1
+  ( umask 077
+    for k in PK KEK db; do
+      openssl req -new -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+        -subj "/CN=xos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null || exit 1
+      openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der" || exit 1
+    done ) || { echo "FAIL: key generation failed" >&2; return 1; }
   echo "  PK/KEK/db written to keys/ (gitignored, xos-only -- never your host's)"
 }
 
@@ -752,13 +782,24 @@ reseal() {
   if [ -n "${XOS_NEWKEYPASS:-}" ]; then newpass="$XOS_NEWKEYPASS"
   else read -rsp "  NEW passphrase: " newpass; echo; fi
   [ -n "$newpass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
-  local k
+  # every key is re-encrypted before any is swapped in: one passphrase opens
+  # all three, so a failure after PK.key.enc had moved left a set no single
+  # passphrase could unlock. the plaintext copies are wiped on every exit path.
+  local k ok=0
   for k in PK KEK db; do
     [ -f "$RAMKEYS/$k.key" ] || continue
     XOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:XOS_PASS || return 1
-    mv "keys/$k.key.enc.new" "keys/$k.key.enc"
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:XOS_PASS && continue
+    ok=1; break
   done
+  if [ "$ok" -ne 0 ]; then
+    rm -f keys/*.key.enc.new; lock
+    echo "FAIL: re-encryption failed -- keys/ untouched, passphrase unchanged" >&2; return 1
+  fi
+  for k in PK KEK db; do
+    [ -f "keys/$k.key.enc.new" ] && mv "keys/$k.key.enc.new" "keys/$k.key.enc"
+  done
+  chmod 600 keys/*.enc
   lock
   echo "  passphrase changed."
 }
@@ -956,11 +997,7 @@ usb() {
   [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] || {
     echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
-  local mounts
-  mounts=$(lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null) \
-    || { echo "FAIL: lsblk could not report mountpoints for $dev -- refusing to guess" >&2; return 1; }
-  if printf '%s\n' "$mounts" | has .; then
-    echo "FAIL: $dev (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
+  unmounted "$dev" || return 1
   [ -f stick.img ] || stick || return 1
   # the gates, every time. a stick.img left behind by a gate-FAILED `all` (stick
   # runs before size) used to flash straight through here; the only check on
@@ -985,6 +1022,9 @@ usb() {
   read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
   [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
 
+  # asked again here: the gate run and the prompt above take long enough for
+  # an automounter to have grabbed the stick since the first check.
+  unmounted "$dev" || return 1
   say "writing stick.img to $dev"
   dd if=stick.img of="$dev" bs=1M oflag=direct conv=fsync status=progress
 
@@ -1407,7 +1447,7 @@ size() {
   # ash the image runs. the wg-address parse and its two consumers (the route
   # keeps the CIDR, the ssh bind takes the bare address) are the exact lines a
   # prior fix inverted -- $wgip carried the CIDR into `dropbear -p`, and neither
-  # the 29 gates nor the boot self-test caught it, because the real state_open()
+  # the gates nor the boot self-test caught it, because the real state_open()
   # / wg block never runs in the harness (it needs a partitioned LUKS stick and
   # an interactive passphrase). this runs init's own parse bytes and asserts the
   # split; the structural checks pin the two consumers and the partition scan so
@@ -1425,6 +1465,15 @@ size() {
   _wg33 "10.9.0.1/24" "10.9.0.1/24|10.9.0.1"
   _wg33 "10.9.0.5"    "10.9.0.5/24|10.9.0.5"
   _wg33 ""            "|"
+  # the signed-cmdline reader, same treatment: a key in FIRST position used to
+  # come back empty (`[ ^]` was a bracket set, not an anchor), and xos.epoch --
+  # the clock floor -- is read through it.
+  local cg33 cl33
+  cg33=$(grep '^cmdline_get()' init)
+  for cl33 in 'xos.epoch=7 a=1|7' 'a=1 xos.epoch=7|7' 'a=1 xos.epoch=7 b=2|7' 'a=1 xos.epochs=9|'; do
+    got33=$(CMDLINE="${cl33%|*}" "$bb33" ash -c "$cg33"'; cmdline_get xos.epoch' 2>/dev/null)
+    [ "$got33" = "${cl33#*|}" ] || { g33=FAIL; printf '    cmdline_get on "%s" -> "%s" (want "%s")\n' "${cl33%|*}" "$got33" "${cl33#*|}" >&2; }
+  done
   rm -rf "$t33"
   grep -q 'ip addr add "\$wgcidr" dev wg0' init          || { g33=FAIL; printf '    wg route no longer uses $wgcidr\n' >&2; }
   grep -q 'dropbear .*-p "\$wgip:22"' init               || { g33=FAIL; printf '    ssh bind no longer uses bare $wgip\n' >&2; }
@@ -1762,11 +1811,7 @@ addstate() {
   [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
     || { echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
-  local mounts
-  mounts=$(lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null) \
-    || { echo "FAIL: lsblk could not report mountpoints for $dev -- refusing to guess" >&2; return 1; }
-  if printf '%s\n' "$mounts" | has .; then
-    echo "FAIL: $dev (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
+  unmounted "$dev" || return 1
   # it must be an xos stick: p1 and p2 carry the fixed PARTUUIDs stick() wrote.
   local ptable
   ptable=$(sfdisk -J "$dev" 2>/dev/null) || { echo "FAIL: cannot read the partition table on $dev" >&2; return 1; }
@@ -1799,6 +1844,7 @@ addstate() {
   echo "  target: $dev  model: ${model:-unknown}  -- p3 goes in the free space after sector $p2end"
   read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
   [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
+  unmounted "$dev" || return 1
   sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
 start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
