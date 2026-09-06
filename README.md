@@ -387,13 +387,17 @@ cmdchamp cost the corpus that needed bash; on a read-only root the filesystem is
 already a lookup table, so `learn` reads `ref/<cmd>` and needs no associative
 array at all.
 
-30 levels and 800-odd questions cover the whole surface in dependency order,
+30 levels and 644 questions cover the whole surface in dependency order,
 from `ls` to reading a suspect disk's bytes without mounting it to proving, from
 inside the running system, that the machine underneath you is the one you built.
 the questions are generated, not fixed: each rolls its own filenames, values
 and file *contents* -- the sandbox data is rebuilt from the roll's seed, so a
 count has to be computed, never remembered -- and is graded by running what you
-type, so `sort -u` and `sort | uniq` both pass. the gameable count questions go
+type wherever running it is possible, so `sort -u` and `sort | uniq` both pass.
+about 240 of the 644 cannot be run to a verdict -- they need live hardware, the
+network, root, or an interactive terminal -- and those match against listed
+answers instead. each carries a written reason from a closed list, and a
+question that is neither graded nor explained fails the build. the gameable count questions go
 further: the answer's own output is derived by running it, and yours must match
 exactly, so `grep -c WARN` cannot pass an ERROR question. a miss shows you
 where your command died -- what it printed against what was wanted, the line
@@ -439,10 +443,14 @@ five rules govern it, and all five are gates rather than intentions:
   stage a real chain, difficulty never falling, the end in the deep end, and
   no stage claiming a level whose commands are not yet taught.
 
-the reference is complete; the curriculum is selective. a lesson's `uses:` are
-drilled with questions, its `mentions:` are named and explained but not drilled
--- because nobody needs to be quizzed on `ls -X`, and nobody should be unable to
-look it up either.
+the raw corpus is complete; both the curriculum and the rendered page are
+selective. a flag named in a lesson's `teach:` line is drilled with questions,
+and everything else is retired in `learn/skip` with a written reason -- G26
+fails the build on a flag in neither set. the page `learn ref` prints is
+abridged to that taught set for the same reason the curriculum is: it is a
+teaching surface, not a manual. it says so in its own footer and points at
+`--help`, which has all 794 documented flags. so `ls -X` is in the corpus and
+not on the page -- a deliberate trade, not an oversight.
 
 tls trusts exactly the certificate authorities in `trust/`, compiled into the
 binary rather than read from a directory, so the set is covered by the hash
