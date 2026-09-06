@@ -145,7 +145,7 @@ ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot
 ---
-q: {run echo through the command builtin, bypassing any function or alias named echo|use command to invoke the real echo, skipping any function that shadows it|invoke echo via command, ignoring any same-named function}
+q: {run echo @word@ through the command builtin, bypassing any function or alias named echo|use command to echo @word@ via the real echo, skipping any function that shadows it|echo @word@ via command, ignoring any same-named function}
 a: command echo @word@
 out: ^@word@$
 ref: command
