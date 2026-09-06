@@ -116,8 +116,9 @@ to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
     /tmp/home/wg0.conf          your wireguard config: private key, titan's
                                 public key + endpoint, an Address = line
     authorized_keys             titan's PUBLIC ssh key -- either baked into the
-                                image at etc/dropbear/authorized_keys (verity
-                                covers it) or dropped on p3
+                                image (`XOS_SSH_KEY=titan.pub ./build.sh all`
+                                puts it at etc/dropbear/authorized_keys, where
+                                verity covers it) or dropped on p3
 
 on the next unlock, init brings up `wg0`, generates the ssh host key on p3 if it
 is not there yet (a host key in the reproducible image would be a *published*
@@ -163,7 +164,8 @@ without this it cannot.
 
 on a different gcc the bytes will differ for innocent reasons, so G13 records
 a toolchain fingerprint and skips with a note rather than failing. a gate that
-cries wolf is a gate you stop reading.
+cries wolf is a gate you stop reading. `./build.sh repro` is the check from the
+other side: a clean clone of committed HEAD, built and compared to the pin.
 
 the stick image itself is assembled deterministically but is not pinned: the
 bytes that matter on it are already covered -- the root by `image.sha256` and
@@ -260,7 +262,8 @@ read.
 every boot draws a fresh locally-administered mac before dhcp, so the stick
 never presents a stable link-layer identity to the networks it visits.
 `xos.realmac` (a rebuild, like any knob -- the cmdline is signed) opts back
-into the burned-in address for mac-allowlisted networks.
+into the burned-in address for mac-allowlisted networks. `xos.nonet` skips the
+network entirely: no mac draw, no dhcp, no clock sync -- an air-gapped stick.
 
 time has no trusted source on a strange machine, and tls validation reads the
 clock. `xos.epoch`, the build date pinned inside the signed uki, is a floor the
@@ -351,9 +354,9 @@ sizes are the stripped static-pie binaries; anchors are in SOURCES.md.
 | part | does | why this one, not the usual one |
 |---|---|---|
 | linux 6.18 lts, from `tinyconfig` | the kernel | every driver is opt-in, so "no driver can see your disks" is a config line, not a promise. a distro kernel turns on five thousand things nobody asked for |
-| busybox 1.38 | the userland and the one shell (ash), ~180 applets in one 700 KB binary | one parser to audit instead of bash + coreutils + util-linux, and its `--help` is a per-build corpus `learn` is generated from |
+| busybox 1.38 | the userland and the one shell (ash), 135 applets in one 700 KB binary | one parser to audit instead of bash + coreutils + util-linux, and its `--help` is a per-build corpus `learn` is generated from |
 | bearssl + `tlstunnel.c` | tls with the trust set compiled in | openssl is ten times the code and reads a ca directory at runtime; bearssl is small, allocation-free, and takes a fixed anchor list |
-| ii | irc, as files in a directory | no ncurses, no scripting language, 11 KB of source |
+| ii | irc, as files in a directory | no ncurses, no scripting language, 20 KB of source |
 | abduco | detach and reattach a session | tmux/screen multiplex and carry terminfo; the framebuffer vts are the multiplexer, this only has to keep one session alive |
 | cryptsetup (+ libdevmapper, popt, json-c, libuuid) | luks2 with hmac integrity for p3 -- state that is encrypted AND authenticated | the largest trust-surface increase this repo ever took, argued in SOURCES.md; the kernel's own crypto (AF_ALG) is what kept openssl/gcrypt out |
 | wg | configures the in-kernel wireguard | wg-quick is a bash script; init does its four lines by hand |
@@ -461,8 +464,8 @@ SOURCES.md.
 ## not this
 
 not a general distro. no package manager, no compiler. persistence is opt-in
-and encrypted (p3) -- decline it and nothing survives a
-reboot. pre-xHCI machines (roughly pre-2012) are out of scope: the stick
+and encrypted (p3) -- decline it and nothing survives a reboot; `xos.nostate`
+on the cmdline makes a stick that never even looks for one. pre-xHCI machines (roughly pre-2012) are out of scope: the stick
 enumerates over xHCI only. iphone usb tethering does not work -- it needs
 usbmuxd, apple's pairing daemon, which xos does not ship; android tethering
 and plain usb-ethernet dongles do.
