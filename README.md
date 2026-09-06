@@ -28,7 +28,7 @@ kernel waits for that partition to appear -- so the same signed image boots
 whether the stick enumerates as the first disk or the third.
 
 the boot banner prints four words derived from the image's root hash on the
-signed cmdline -- `this image is: cobra drifter payday willow`. write them on
+signed cmdline -- e.g. `this image is: cobra drifter payday willow`. write yours on
 the stick. a swapped or superseded stick speaks different words; a tampered
 one does not speak at all. they change only when the image is re-pinned, so
 re-memorize after a reflash.
@@ -119,8 +119,9 @@ and need no firmware at all. plug either in and `udhcpc` runs on it exactly
 like a wired port -- any laptop plus a phone is online, firmware-free.
 
 off by default, and it can only be switched on from the encrypted state
-partition -- so an attacker holding the stick cannot even see that it exists,
-let alone enable it.
+partition -- so an attacker holding the stick cannot see that it is
+*configured*, let alone enable it. the binaries are in the image and `manifest`
+names them; what p3 hides is `wg0.conf`, the part that makes them mean anything.
 
 the model is dial-OUT. xos connects to a machine you control (call it titan)
 over wireguard, and the ssh server binds to the wireguard address alone. xos
@@ -132,7 +133,11 @@ failure: wireguard roams, so a changed IP or a dead link resumes rather than
 resets; dropbear-on-wireguard keeps xos invisible; and abduco keeps the session
 alive, so you ssh back in and `abduco -a work` straight into what was running.
 
-to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
+to enable it, put two files on p3 (which is encrypted, so this is the opt-in).
+note that `state_open` does not look for p3 specifically -- it tries your
+passphrase against every LUKS partition it can see, boot-stick candidates
+first, and whatever opens becomes the state partition and supplies these two
+files. opening one that is not on the boot stick is announced on the console.
 
     /tmp/home/wg0.conf          your wireguard config: private key, titan's
                                 public key + endpoint, an Address = line
@@ -264,7 +269,9 @@ at runtime the root is read-only and verity-covered; /proc, /sys and /tmp are
 mounted nosuid,nodev,noexec, which matters because a static-PIE binary needs no
 loader -- without noexec, /tmp was a place to drop and run code. sysctls tighten
 kernel-pointer exposure, dmesg, and the network stack. every writable byte lives
-on tmpfs and is gone at reboot. memory is zeroed on both allocation and free,
+on tmpfs and is gone at reboot -- again, unless p3 is unlocked, in which case
+the ledger, the recon baselines, the ssh host key and your shell history live
+there instead. memory is zeroed on both allocation and free,
 so freed pages do not keep secrets around for a use-after-free or a cold-boot
 read.
 
@@ -272,6 +279,16 @@ every boot draws a fresh locally-administered mac before dhcp, so the stick
 never presents a stable link-layer identity to the networks it visits.
 `xos.realmac` (a rebuild, like any knob -- the cmdline is signed) opts back
 into the burned-in address for mac-allowlisted networks.
+
+the full set of signed knobs: `xos.epoch` (the clock floor), `xos.realmac`,
+`xos.notether` (the dead-man tether), `xos.nonet` (skip networking entirely --
+no mac randomization, no dhcp, no tls time), `xos.nostate` (never offer the p3
+unlock, so recon, the ledger and remote access can never arm), and `xos.ttys=N`
+(how many framebuffer consoles, clamped 1..12). all six live inside the
+signature, so changing one costs a re-sign -- and that is enforcement only
+while secure boot is ON. with it off, systemd-stub honours the firmware's own
+LoadOptions and unsigned addons on the FAT ESP, so the embedded cmdline is
+authoritative exactly where the firmware is checking it and nowhere else.
 
 time has no trusted source on a strange machine, and tls validation reads the
 clock. `xos.epoch`, the build date pinned inside the signed uki, is a floor the
@@ -402,8 +419,8 @@ further: the answer's own output is derived by running it, and yours must match
 exactly, so `grep -c WARN` cannot pass an ERROR question. a miss shows you
 where your command died -- what it printed against what was wanted, the line
 count at every pipeline stage, and the exact flags between you and the nearest
-accepted answer. every level ends with a named boss -- five questions, thirty seconds each,
-no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
+accepted answer. every level ends with a named boss -- five questions, thirty seconds
+each and a little more as the levels climb, four of five to pass, no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
 where the last boss fell, `learn review` re-asks the weakest cards first,
 `learn daily` is the same ten questions for everyone on a date, and
 `learn place` climbs the curriculum one question per rung so a first run can
