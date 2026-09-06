@@ -19,6 +19,7 @@ setup: substitution, so you difference two lists with grep instead.
 q: write the commands drilled in /usr/share/learn/levels to /tmp/taught, sorted and deduplicated, one per line
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u > /tmp/taught
 a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u > /tmp/taught
+why: live-hw
 ref: sort
 hint: redirect the sorted, deduplicated list straight into the file
 ---
@@ -26,6 +27,7 @@ setup: /tmp/taught now holds one drilled command per line.
 q: print every command documented in /usr/share/learn/ref but absent from /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxF -f /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxFf /tmp/taught
+why: live-hw
 ref: grep
 hint: -f reads patterns from a file; -x anchors each to a whole line; -v inverts
 ---
@@ -34,6 +36,7 @@ setup: digest over every file's contents at once.
 q: print a single sha256 digest covering every file in /usr/share/learn/ref
 a: cat /usr/share/learn/ref/* | sha256sum
 a: find /usr/share/learn/ref -type f | sort | xargs cat | sha256sum
+why: live-hw
 ref: sha256sum
 hint: concatenate every file into one stream before hashing it once
 ---

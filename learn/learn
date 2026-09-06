@@ -919,6 +919,24 @@ st_block() {
 
 	[ -n "$Q_ANSWERS" ] || { echo "FAIL $lbl: no answer" >&2; bad=$((bad+1)); }
 
+	# a block with no grading field falls back to string matching. that is
+	# sometimes the right call and sometimes a debt -- the difference is a
+	# why: line naming the reason, from lib/lint's closed list. no field and
+	# no reason means nobody decided, and the build stops until someone does.
+	# chains are exempt: they are always reference-graded.
+	case "$lbl" in chain/*) ;; *)
+		if ! grep -qE '^(out|state|cmp|status):' "$TMP/blk"; then
+			w=$(sed -n 's/^why: \{0,1\}//p' "$TMP/blk" | head -1)
+			case "${w:-none}" in
+				live-net|live-hw|root|interactive|conceptual|fixture-cost|primitive-cost) : ;;
+				none) echo "FAIL $lbl: ungraded and unexplained -- add out:/state:/status:/cmp: or a why:" >&2
+				      bad=$((bad+1)) ;;
+				*)    echo "FAIL $lbl: why: '$w' is not a reason lib/lint lists" >&2
+				      bad=$((bad+1)) ;;
+			esac
+		fi ;;
+	esac
+
 	# unrendered placeholder: a @name@ with no pool behind it
 	case "$Q_PROMPT$Q_ANSWERS" in
 		*@*@*) echo "FAIL $lbl: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1)) ;;

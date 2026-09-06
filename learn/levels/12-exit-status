@@ -91,12 +91,14 @@ hint: a leading ! flips the status
 ---
 q: %make% the shell stop at the first command that fails
 a: set -e
+why: conceptual
 ref: set
 teach: set -e
 hint: -e makes any failing command end the script immediately
 ---
 q: %make% the shell treat an unset variable as an error rather than an empty string
 a: set -u
+why: conceptual
 ref: set
 teach: set -u
 hint: -u turns a reference to an unset variable into a hard error
@@ -110,12 +112,14 @@ hint: || only runs its right side when the left side's exit status is nonzero --
 ---
 q: %make% the shell print each command before running it
 a: set -x
+why: conceptual
 ref: set
 teach: set -x
 hint: this is the shell debugger, and it is usually enough
 ---
 q: %turn% command tracing back off
 a: set +x
+why: conceptual
 ref: set
 teach: set
 hint: + turns an option off, the mirror of - turning it on

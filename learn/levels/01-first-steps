@@ -90,6 +90,7 @@ q: {change into @dir@|move your working directory to @dir@|make @dir@ the direct
 a: cd @dir@
 a: cd @dir@/
 a: cd ./@dir@
+why: conceptual
 ref: cd
 teach: cd
 hint: just the command and the target -- no flags needed
@@ -97,12 +98,14 @@ hint: just the command and the target -- no flags needed
 q: {go up one directory|move to the parent directory|step out one level up}
 a: cd ..
 a: cd ../
+why: conceptual
 ref: cd
 teach: cd
 hint: two dots mean "the parent"
 ---
 q: {go back to your home directory, in the shortest way possible|return home using the fewest keystrokes possible|jump back to your home directory without typing its path}
 a: cd
+why: conceptual
 ref: cd
 teach: cd
 hint: cd with no argument already means home

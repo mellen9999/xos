@@ -35,6 +35,7 @@ hint: the flag cp calls "Recurse"
 ---
 q: {copy @cfg@ to @cfg2@, but refuse to overwrite it if it already exists|copy @cfg@ to @cfg2@ without clobbering it if it's already there|copy @cfg@ to @cfg2@, only if @cfg2@ doesn't already exist}
 a: cp -n @cfg@ @cfg2@
+why: primitive-cost
 ref: cp
 teach: cp -n
 hint: n for "no clobber"
@@ -144,6 +145,7 @@ hint: with no flags, touch just sets the timestamp to now
 ---
 q: {update @txt@'s timestamp but do NOT create it if it is missing|bump @txt@'s timestamp, but skip creating it if it doesn't exist|refresh @txt@'s timestamp only if it already exists}
 a: touch -c @txt@
+why: primitive-cost
 ref: touch
 teach: touch -c
 hint: c stops touch from creating the file when it doesn't exist
@@ -172,6 +174,7 @@ hint: combine -s for symbolic with -f to replace what's already there
 ---
 q: {copy @cfg@ to @cfg2@, asking before it would overwrite anything|copy @cfg@ to @cfg2@, but prompt first if that would overwrite something|copy @cfg@ over @cfg2@, confirming before any overwrite}
 a: cp -i @cfg@ @cfg2@
+why: interactive
 ref: cp
 teach: cp -i
 hint: i for interactive -- prompts before clobbering
@@ -185,6 +188,7 @@ hint: f removes the destination first if a plain overwrite would fail
 ---
 q: {move @txt@ to @word@.txt, asking first if that would overwrite something|move @txt@ to @word@.txt, but prompt before overwriting anything|rename @txt@ to @word@.txt, confirming first if it would clobber something}
 a: mv -i @txt@ @word@.txt
+why: interactive
 ref: mv
 teach: mv -i
 hint: i for interactive, same idea as cp -i
@@ -198,6 +202,7 @@ hint: f skips confirmation -- the opposite of -i
 ---
 q: {delete @txt@ but ask for confirmation first|remove @txt@, prompting for confirmation first|delete @txt@ only after you confirm it}
 a: rm -i @txt@
+why: interactive
 ref: rm
 teach: rm -i
 hint: i for interactive -- prompts before removing

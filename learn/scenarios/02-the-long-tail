@@ -25,5 +25,6 @@ setup: Each ref file's first line is the command's own name.
 q: print the first line of every file under /usr/share/learn/ref, sorted
 a: sed -n '1p' /usr/share/learn/ref/* | sort
 a: head -qn 1 /usr/share/learn/ref/* | sort
+why: live-hw
 ref: sed
 hint: sed -n '1p' prints only line 1 and stays silent on the rest

@@ -198,6 +198,12 @@ the build fails, loudly, on any of:
 - a lesson using a command, or requiring a shell construct, that no earlier
   lesson introduced
 - a documented command that no lesson introduces
+- a documented flag that no lesson teaches and `learn/skip` does not retire --
+  including flags the `--help` usage line is the only place to mention
+- a `learn` question graded by claims its own answer does not make true when
+  executed (its printed output, exit status, or the files and modes it leaves)
+- an ungraded `learn` question with no written reason -- every block either
+  grades by execution or says why it cannot
 - a `learn` answer invoking a command xos does not ship
 - a challenge track that stops getting harder
 - a `bzImage` built from a different `.config` than the one just validated

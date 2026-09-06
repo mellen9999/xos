@@ -150,6 +150,7 @@ hint: -l lists every differing byte position and value, not just the first
 ---
 q: {compare only the first 10 bytes of two files|use cmp -n 10 to compare just the first 10 bytes|limit the byte comparison between @txt@ and @txt2@ to the first 10 bytes}
 a: cmp -n 10 @txt@ @txt2@
+why: fixture-cost
 ref: cmp
 teach: cmp -n
 hint: -n limits the comparison to the first N bytes of each file
@@ -196,6 +197,7 @@ hint: -w treats runs of whitespace as equivalent, ignoring how much there is
 ---
 q: {compare two directories recursively|use diff -r to compare every file under @dir@ and @dir2@|diff @dir@ against @dir2@, descending into subdirectories}
 a: diff -r @dir@ @dir2@
+why: fixture-cost
 ref: diff
 teach: diff -r
 hint: -r walks into subdirectories, diffing every file it finds on both sides

@@ -82,6 +82,7 @@ hint: a plus sign in front of the number changes it from "last N" to "from N"
 ---
 q: {watch @log@ and keep printing new lines as they are appended|follow @log@, printing each new line as it's appended|keep @log@ open and print new lines as they arrive}
 a: tail -f @log@
+why: interactive
 ref: tail
 teach: tail -f
 hint: f for follow. this one never exits -- Ctrl+c is how you leave.
@@ -117,24 +118,28 @@ hint: t takes a radix -- d decimal, x hex, o octal
 ---
 q: {open @log@ in the pager|page through @log@|view @log@ a screen at a time}
 a: less @log@
+why: interactive
 ref: less
 teach: less
 hint: q leaves, /pattern searches, g and G jump to the ends
 ---
 q: {open @log@ in the pager with line numbers shown|page through @log@ with line numbers displayed|view @log@ in the pager, showing a line number for each line}
 a: less -N @log@
+why: interactive
 ref: less
 teach: less -N
 hint: N turns on line numbers in the margin
 ---
 q: {open @log@ in the pager without wrapping long lines|page through @log@ without wrapping its long lines|view @log@ in the pager, letting long lines run off the screen instead of wrapping}
 a: less -S @log@
+why: interactive
 ref: less
 teach: less -S
 hint: S stops wrapping -- long lines scroll sideways instead
 ---
 q: {open @log@ in the pager, searching case-insensitively|page through @log@ with case-insensitive search|view @log@ in the pager, so searches ignore case}
 a: less -I @log@
+why: interactive
 ref: less
 teach: less -I
 hint: capital I makes searches ignore case
@@ -148,6 +153,7 @@ hint: c for characters/bytes, same idea as head -c
 ---
 q: {follow @log@ by name, so it keeps working if the file is rotated and replaced|follow @log@ by its name rather than its handle, surviving rotation|watch @log@ in a way that keeps working if the file is rotated and replaced}
 a: tail -F @log@
+why: interactive
 ref: tail
 teach: tail -F
 hint: capital F reopens the name; lowercase f holds the old file open forever

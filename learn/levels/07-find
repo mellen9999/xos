@@ -116,12 +116,14 @@ hint: a dash before the mode means all its bits must be set -- the file can have
 ---
 q: %find% files under here owned by user @user@
 a: find . -user @user@
+why: fixture-cost
 ref: find
 teach: find -user
 hint: matches the file's owner, not who's running find
 ---
 q: %find% files under here belonging to group @user@
 a: find . -group @user@
+why: fixture-cost
 ref: find
 teach: find -group
 hint: same idea as -user, but for the owning group

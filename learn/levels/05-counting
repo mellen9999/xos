@@ -114,6 +114,7 @@ hint: f folds case, treating upper and lower as equal
 ---
 q: {check whether @txt@ is already sorted, without printing it|verify @txt@ is already in sorted order, without printing anything|confirm @txt@'s lines are already sorted, silently}
 a: sort -c @txt@
+why: fixture-cost
 ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not

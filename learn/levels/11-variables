@@ -21,6 +21,7 @@ brief: you chain more than one command together.
 ---
 q: {store the word @word@ in a variable called @var@|put @word@ into a variable named @var@|make a variable called @var@ hold the word @word@}
 a: @var@=@word@
+why: conceptual
 ref: sh
 teach: sh
 hint: no spaces around the equals sign
@@ -34,12 +35,14 @@ hint: $name (or ${name}) is how you read a variable back
 ---
 q: {store the output of the date command in a variable called @tvar@|capture what date prints into a variable named @tvar@|put the result of running date into @tvar@}
 a: @tvar@=$(date)
+why: primitive-cost
 ref: sh
 teach: sh
 hint: $( ) runs a command and becomes its output
 ---
 q: {store the number of lines in @log@ in a variable called @cvar@|capture how many lines @log@ has into a variable named @cvar@|put @log@'s line count into a variable called @cvar@}
 a: @cvar@=$(wc -l < @log@)
+why: primitive-cost
 ref: wc
 teach: wc -l
 hint: command substitution feeds wc's count straight into the assignment
@@ -67,6 +70,7 @@ hint: $( ) expands fine inside double quotes, right beside literal text
 ---
 q: {export @mvar@ with the value @word@ so child processes inherit it|set @mvar@ to @word@ and export it so children see it|make @mvar@=@word@ part of the environment, not just this shell}
 a: export @mvar@=@word@
+why: primitive-cost
 ref: export
 teach: export
 hint: export is what makes a variable visible to child processes
@@ -108,24 +112,28 @@ hint: -0 separates entries with NUL instead of a newline
 ---
 q: {remove the variable @var@ from your shell entirely|delete @var@ so it is no longer set at all|make @var@ fully unset, not just empty}
 a: unset @var@
+why: primitive-cost
 ref: unset
 teach: unset
 hint: unset removes the variable entirely, unlike setting it to an empty string
 ---
 q: {read a line from standard input into a variable called @var@|take one line of input and store it in @var@|capture the next line typed into a variable named @var@}
 a: read @var@
+why: interactive
 ref: read
 teach: read
 hint: read takes one line from stdin and stores it in the named variable
 ---
 q: {read a line into @var@ without letting backslashes escape anything|read one line into @var@ while leaving backslashes literal|take a line of input into @var@, raw, with no backslash escaping}
 a: read -r @var@
+why: interactive
 ref: read
 teach: read -r
 hint: -r is what you want essentially always; without it a backslash vanishes
 ---
 q: {prompt with "name: " and read the reply into @var@|show "name: " then read what comes back into @var@|ask "name: " and store the answer in @var@}
 a: read -p "name: " @var@
+why: interactive
 ref: read
 teach: read -p
 hint: -p prints its argument as a prompt before reading
@@ -146,6 +154,7 @@ hint: -c takes the command to run as its next argument
 ---
 q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}
 a: unalias -a
+why: conceptual
 ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot

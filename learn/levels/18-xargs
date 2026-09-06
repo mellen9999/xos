@@ -46,6 +46,7 @@ hint: -t prints the command line to stderr before running it
 ---
 q: {do nothing at all when the input is empty, rather than running once|when there's no input at all, run nothing rather than one empty invocation|make xargs skip running entirely on empty input}
 a: printf '' | xargs -r echo nothing
+why: primitive-cost
 ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
@@ -66,6 +67,7 @@ hint: -P sets how many invocations run in parallel at once
 ---
 q: {ask before running each command|use xargs -p to confirm each invocation before it runs|make xargs pause and ask before every command}
 a: ls | xargs -p echo
+why: interactive
 ref: xargs
 teach: xargs -p
 hint: -p prompts for confirmation before each invocation, handy for a dry run
@@ -135,6 +137,7 @@ hint: -f follows every link in the chain, not just the first one
 ---
 q: {read a symlink without a trailing newline|use readlink -n so no newline follows the output|print @txt@'s link target with no newline at the end}
 a: readlink -n @txt@
+why: primitive-cost
 ref: readlink
 teach: readlink -n
 hint: -n suppresses the trailing newline readlink would otherwise print
@@ -155,6 +158,7 @@ hint: type reports whether a name is a builtin, a file, a function or an alias
 ---
 q: {remember where a command lives so the shell stops searching for it|use hash to cache sed's location for faster lookups|make the shell remember where sed is instead of searching PATH again}
 a: hash sed
+why: primitive-cost
 ref: hash
 teach: hash
 hint: hash remembers a command's location so future lookups skip the PATH search

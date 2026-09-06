@@ -63,6 +63,7 @@ hint: = sets the listed permissions exactly, and an empty list means none
 ---
 q: %make% every file under @dir@ readable by everyone, recursively
 a: chmod -R a+r @dir@
+why: primitive-cost
 ref: chmod
 teach: chmod -R
 hint: -R walks into every subdirectory and applies the change there too
@@ -125,6 +126,7 @@ hint: umask alone prints the current mask without changing it
 ---
 q: {set the mask so new files are private to you|use umask 077 so new files start out owner-only|set the creation mask to 077}
 a: umask 077
+why: primitive-cost
 ref: umask
 teach: umask
 hint: umask is subtracted from the default; 077 leaves only owner permissions
@@ -174,12 +176,14 @@ hint: -t packs every field onto one line, script-friendly
 ---
 q: {set @txt@'s timestamp to a date you name rather than to now|use touch -d to stamp @txt@ with a date you choose|give @txt@ an explicit timestamp instead of the current time}
 a: touch -d 2024-03-01 @txt@
+why: primitive-cost
 ref: touch
 teach: touch -d
 hint: -d takes an explicit date/time instead of using now
 ---
 q: {give @txt2@ the same timestamp @txt@ already has|use touch -r to copy @txt@'s timestamp onto @txt2@|stamp @txt2@ with whatever timestamp @txt@ has}
 a: touch -r @txt@ @txt2@
+why: primitive-cost
 ref: touch
 teach: touch -r
 hint: -r copies another file's timestamp instead of specifying one yourself

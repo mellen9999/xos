@@ -94,48 +94,56 @@ hint: -f prints the fully qualified name, domain included
 ---
 q: {just the dns domain part|only the dns domain, without the host|report just the domain part of the hostname}
 a: hostname -d
+why: live-hw
 ref: hostname
 teach: hostname -d
 hint: -d prints only the domain part, no host
 ---
 q: {the ip addresses this host resolves to|which ip addresses does this hostname resolve to|report the ip addresses this host's name maps to}
 a: hostname -i
+why: live-hw
 ref: hostname
 teach: hostname -i
 hint: -i resolves the hostname to its ip addresses
 ---
 q: {what the kernel said while it was booting|dump the kernel's boot-time messages|report everything the kernel logged while booting}
 a: dmesg
+why: live-hw
 ref: dmesg
 teach: dmesg
 hint: dmesg alone dumps the whole kernel ring buffer
 ---
 q: {kernel messages with the raw log level markers left in|dump the kernel log leaving the raw level prefixes in place|show kernel messages without stripping their raw level markers}
 a: dmesg -r
+why: live-hw
 ref: dmesg
 teach: dmesg -r
 hint: -r keeps the raw <N> facility/level prefix on each line
 ---
 q: {clear the kernel ring buffer after printing it|print the kernel ring buffer, then empty it|dump the kernel ring buffer and clear it once printed}
 a: dmesg -c
+why: live-hw
 ref: dmesg
 teach: dmesg -c
 hint: -c prints the buffer then empties it
 ---
 q: {set the console log level so only errors reach the screen|limit what reaches the console to error-level kernel messages|turn the console log level down to errors only}
 a: dmesg -n 3
+why: live-hw
 ref: dmesg
 teach: dmesg -n
 hint: -n sets the console log level, not what dmesg itself prints
 ---
 q: {read only the last 4096 bytes of the kernel buffer|dump just the final 4096 bytes of the kernel buffer|limit the kernel buffer read to its last 4096 bytes}
 a: dmesg -s 4096
+why: live-hw
 ref: dmesg
 teach: dmesg -s
 hint: -s caps how many bytes of the buffer are read, from the end
 ---
 q: %find% every line of the kernel log mentioning verity
 a: dmesg | grep -i verity
+why: live-hw
 ref: dmesg
 teach: dmesg
 hint: pipe dmesg into grep -i -- dmesg itself has no text filter
@@ -254,12 +262,14 @@ hint: -s suppresses output, useful only for its exit status
 ---
 q: {clear the screen|wipe the terminal screen|blank the screen}
 a: clear
+why: live-hw
 ref: clear
 teach: clear
 hint: clear just writes the terminal escape sequence to wipe the screen
 ---
 q: {put a terminal back to a sane state after a binary scrambled it|recover a terminal that some binary left in a broken state|reinitialize a terminal a misbehaving program has scrambled}
 a: reset
+why: live-hw
 ref: reset
 teach: reset
 hint: reset reinitializes the terminal, further than clear goes
@@ -287,18 +297,21 @@ hint: -F points stty at a device other than your own controlling terminal
 ---
 q: {rerun df every 2 seconds and watch it change|keep rerunning df every 2 seconds so you can watch it change|watch df's output update every 2 seconds}
 a: watch df
+why: live-hw
 ref: watch
 teach: watch
 hint: watch reruns a command every 2 seconds by default
 ---
 q: {rerun df every 5 seconds instead|watch df, but on a 5 second interval instead|rerun df every 5 seconds}
 a: watch -n 5 df
+why: live-hw
 ref: watch
 teach: watch -n
 hint: -n sets the interval in seconds
 ---
 q: {watch df with the header line suppressed|watch df but drop its header line|rerun df under watch with no header shown}
 a: watch -t df
+why: live-hw
 ref: watch
 teach: watch -t
 hint: -t hides watch's own header/title line
@@ -312,78 +325,91 @@ hint: sleep takes a number of seconds and blocks until they pass
 ---
 q: %list% every pci device on this machine
 a: lspci
+why: live-hw
 ref: lspci
 teach: lspci
 hint: this is how you find out what network and storage hardware a strange box has
 ---
 q: %list% pci devices showing which kernel driver is bound to each
 a: lspci -k
+why: live-hw
 ref: lspci
 teach: lspci -k
 hint: -k adds which kernel module claims each device
 ---
 q: %list% pci devices in a form easy to parse
 a: lspci -m
+why: live-hw
 ref: lspci
 teach: lspci -m
 hint: -m switches to a machine-parseable, script-friendly format
 ---
 q: %list% every usb device
 a: lsusb
+why: live-hw
 ref: lsusb
 teach: lsusb
 hint: lsusb walks the usb bus the way lspci walks pci
 ---
 q: {who manufactured this machine|which vendor built this machine|name the maker of this machine}
 a: cat /sys/class/dmi/id/sys_vendor
+why: live-hw
 ref: cat
 teach: cat
 hint: the firmware's own identity plate lives under /sys/class/dmi/id
 ---
 q: {what product name does the firmware give this machine|which model does the firmware say this is|report the machine's product name as the firmware states it}
 a: cat /sys/class/dmi/id/product_name
+why: live-hw
 ref: cat
 teach: cat
 hint: product_name sits beside sys_vendor in /sys/class/dmi/id
 ---
 q: {which bios version is flashed on this machine|what version of firmware is this machine running|report the bios version this machine carries}
 a: cat /sys/class/dmi/id/bios_version
+why: live-hw
 ref: cat
 teach: cat
 hint: a changed bios_version since your last visit is worth noticing
 ---
 q: {write a line into the system log|log a line to the system log|send a line into the system log}
 a: logger hello from xos
+why: live-hw
 ref: logger
 teach: logger
 hint: logger writes its arguments as one line to the system log
 ---
 q: {log a line tagged with a name of your choosing|log a line under a tag you choose|send a log line tagged with your own name}
 a: logger -t xos investigating
+why: live-hw
 ref: logger
 teach: logger -t
 hint: -t sets the tag that shows up in the log for this line
 ---
 q: {log a line and also print it to your own terminal|log a line while also echoing it to your terminal|send a line to the log and print it locally too}
 a: logger -s checking
+why: live-hw
 ref: logger
 teach: logger -s
 hint: -s echoes the message to stderr as well as logging it
 ---
 q: {log a line at a chosen priority|log a line tagged with a specific priority|send a log line at a priority you choose}
 a: logger -p user.warn suspicious
+why: live-hw
 ref: logger
 teach: logger -p
 hint: -p takes facility.level to set the message's priority
 ---
 q: {open a serial console to a device at 115200 baud|connect to a serial console running at 115200 baud|dial into a serial device at 115200 baud}
 a: microcom -s 115200 /dev/ttyS0
+why: live-hw
 ref: microcom
 teach: microcom -s
 hint: when ethernet is dead, this is how you reach a router or another machine
 ---
 q: {talk to a serial device giving up after 10 seconds of silence|open a serial device but bail out after 10 seconds of silence|connect to a serial device, timing out after 10 idle seconds}
 a: microcom -t 10000 /dev/ttyS0
+why: live-hw
 ref: microcom
 teach: microcom -t
 hint: -t sets an idle timeout in milliseconds before it gives up

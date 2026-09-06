@@ -14,12 +14,14 @@ brief: know. No special tool. Nothing you could not do on someone else's box.
 ---
 q: {what command line was this kernel booted with|report the kernel's boot command line|which command line did this kernel boot with}
 a: cat /proc/cmdline
+why: live-hw
 ref: cat
 teach: cat
 hint: cmdline is the exact string the bootloader handed the kernel
 ---
 q: {pull just the verity root hash out of that command line|extract just the verity root hash from the kernel command line|isolate the sha256 root hash out of /proc/cmdline}
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
+why: live-hw
 ref: sed
 teach: sed -n
 hint: it is the 64 hex characters that follow the word sha256
@@ -33,6 +35,7 @@ hint: awk's $2 and $4 pick the mountpoint and options columns out of /proc/mount
 ---
 q: {confirm the root is mounted read-only|check that / is mounted read-only|prove the root filesystem is mounted read-only}
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro'
+why: live-hw
 ref: grep
 teach: grep -o
 hint: grep -o on the flags column proves ro is actually set, not just present nearby
@@ -46,12 +49,14 @@ hint: $1 in /proc/mounts is the device column
 ---
 q: {hash the bytes of the filesystem you are standing on|compute the sha256 of the filesystem you are running on|hash the raw bytes of the mounted root filesystem}
 a: sha256sum /dev/dm-0
+why: live-hw
 ref: sha256sum
 teach: sha256sum
 hint: dm-0 is the device dm-verity hands you once it is checking every block
 ---
 q: %show% just that digest, with the device name cut off
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
+why: live-hw
 ref: cut
 teach: cut -d
 teach: cut -f
@@ -59,42 +64,49 @@ hint: cut -d' ' -f1 grabs just the hash, dropping the filename sha256sum prints 
 ---
 q: {confirm the kernel was told to panic rather than continue on a bad block|check that the kernel is set to panic, not continue, on a bad block|prove the kernel will panic instead of carrying on after a bad block}
 a: grep -o panic_on_corruption /proc/cmdline
+why: live-hw
 ref: grep
 teach: grep -o
 hint: fail closed. a verified system that carries on after a mismatch is not one
 ---
 q: {what does the kernel say about verity in its boot log|report what the kernel logged about verity while booting|find what the kernel's boot log says about verity}
 a: dmesg | grep -i verity
+why: live-hw
 ref: dmesg
 teach: dmesg
 hint: dmesg's boot log names the verity target as it starts checking blocks
 ---
 q: {is the kernel locked down, and how far|report the kernel's current lockdown level|check whether the kernel is locked down, and to what degree}
 a: cat /sys/kernel/security/lockdown
+why: live-hw
 ref: cat
 teach: cat
 hint: lockdown has stages; cat just reads the current one
 ---
 q: {prove there is no module loader to insert code into this kernel|show that this kernel has no module loader to insert code through|confirm no module loader exists on this kernel}
 a: [ -e /proc/modules ] && echo present || echo absent
+why: live-hw
 ref: [
 teach: [ -e
 hint: -e tests for existence; no /proc/modules means no module loader at all
 ---
 q: {prove /dev/mem is not there to read or write physical memory through|show that /dev/mem does not exist on this system|confirm there is no /dev/mem to read or write physical memory through}
 a: [ -e /dev/mem ] && echo present || echo absent
+why: live-hw
 ref: [
 teach: [ -e
 hint: -e tests for existence, same idea as the modules check above
 ---
 q: {prove the root filesystem refuses to be remounted writable|show that attempting to remount / read-write is refused|confirm / cannot be remounted writable}
 a: mount -o remount,rw / 2>/dev/null && echo WRITABLE || echo refused
+why: live-hw
 ref: mount
 teach: mount -o
 hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
 ---
 q: {prove nothing dropped in your home directory can be executed|show that a binary copied into your home directory cannot run|confirm code placed in $HOME cannot be executed}
 a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
+why: live-hw
 ref: chmod
 teach: chmod
 hint: $HOME is on a tmpfs mounted noexec

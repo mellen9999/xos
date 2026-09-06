@@ -49,18 +49,21 @@ hint: j pipes the archive through bzip2 instead of gzip
 ---
 q: %get% archive/export.tar into the current directory
 a: tar -xf archive/export.tar
+why: fixture-cost
 ref: tar
 teach: tar x
 hint: x extracts; with no -C it lands in the current directory
 ---
 q: %get% @archive@ into the @dir@ directory rather than here
 a: tar -xzf @archive@ -C @dir@
+why: fixture-cost
 ref: tar
 teach: tar -C
 hint: -C changes into that directory before extracting
 ---
 q: {pull src/main.c out of @archive@ and print it to stdout rather than to disk|use tar -O to extract src/main.c from @archive@ straight to stdout|extract src/main.c from @archive@ without writing it, printing it instead}
 a: tar -xzOf @archive@ src/main.c
+why: fixture-cost
 ref: tar
 teach: tar -O
 hint: O sends the extracted file's bytes to stdout instead of writing it to disk
@@ -74,12 +77,14 @@ hint: --exclude takes a pattern and skips anything that matches it
 ---
 q: %get% @archive@ dropping the first leading directory from every path
 a: tar -xzf @archive@ --strip-components 1
+why: fixture-cost
 ref: tar
 teach: tar --strip-components
 hint: --strip-components N removes that many leading path segments
 ---
 q: %get% @archive@ overwriting anything already in the way
 a: tar -xzf @archive@ --overwrite
+why: fixture-cost
 ref: tar
 teach: tar --overwrite
 hint: --overwrite lets extraction replace files already in the way
@@ -100,12 +105,14 @@ hint: --no-recursion archives a directory entry itself without descending into i
 ---
 q: %get% @archive@ without restoring the permissions it recorded
 a: tar -xzf @archive@ --no-same-permissions
+why: fixture-cost
 ref: tar
 teach: tar --no-same-permissions
 hint: --no-same-permissions applies your umask instead of the recorded modes
 ---
 q: %get% @archive@ recording numeric owner ids rather than names
 a: tar -xzf @archive@ --numeric-owner
+why: fixture-cost
 ref: tar
 teach: tar --numeric-owner
 hint: --numeric-owner keeps uid/gid numbers instead of resolving to names

@@ -40,6 +40,7 @@ a: the platform key
 a: platform key
 a: the PK
 a: PK key
+why: conceptual
 hint: two letters -- until it lands, the firmware is still in setup mode
 ---
 setup: A UKI is a PE binary, and PE signatures have a quirk you must know before
@@ -50,6 +51,7 @@ setup: carry the signature of its own remaining bytes.
 q: how many regions of the PE does authenticode exclude from its digest
 a: 3
 a: three
+why: conceptual
 hint: the checksum, the cert-table pointer, and the signature
 ---
 setup: So a plain sha256sum of the signed UKI will not equal the digest the
@@ -60,6 +62,7 @@ q: name the digest the firmware actually checks -- authenticode, or sha256sum
 a: authenticode
 a: Authenticode
 a: AUTHENTICODE
+why: conceptual
 hint: the PE-aware one that skips three regions, not the whole-file one
 ---
 setup: Now revocation. A signature proves WHO signed an image. It can never, by
@@ -72,6 +75,7 @@ a: DBX
 a: Dbx
 a: the dbx
 a: the dbx database
+why: conceptual
 hint: the counterpart of db -- the forbidden-signatures database
 ---
 setup: Verified boot has now proven one thing precisely: the machine runs what
@@ -86,6 +90,7 @@ a: reproducible
 a: Reproducible
 a: reproducible builds
 a: build reproducibility
+why: conceptual
 hint: rebuild from source, compare image.sha256, get the same number
 ---
 setup: Know where the chain STOPS, or you will trust it too far. The signature
@@ -100,6 +105,7 @@ a: Fat
 a: vfat
 a: VFAT
 a: Vfat
+why: conceptual
 hint: three letters, the classic efi-partition filesystem
 ---
 setup: That last gap has a physical answer, not a cryptographic one.
@@ -112,6 +118,7 @@ a: write-protection switch
 a: the write-protection switch
 a: hardware write protect
 a: hardware write-protect switch
+why: conceptual
 hint: a switch on the stick that makes the whole device read-only in hardware
 ---
 setup: And the limit no design on this stick can cross: the host's own silicon.
@@ -130,6 +137,7 @@ a: SMM
 a: smm
 a: the SMM
 a: system management mode
+why: conceptual
 hint: the code that runs before any operating system does
 ---
 setup: Close the loop. You have followed the chain from the firmware down; now

@@ -26,5 +26,6 @@ setup: of commands the curriculum touches.
 q: print every command drilled by a level in /usr/share/learn/levels, one per line, no duplicates
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u
 a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u
+why: live-hw
 ref: sed
 hint: strip the "ref: " prefix, then sort -u does the deduplicating

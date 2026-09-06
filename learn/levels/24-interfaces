@@ -38,24 +38,28 @@ hint: ip link shows interfaces themselves, not the addresses on them
 ---
 q: {bring the interface @iface@ up|bring @iface@ up|set @iface@ up}
 a: ip link set @iface@ up
+why: live-hw
 ref: ip
 teach: ip
 hint: ip link set IFACE up/down toggles an interface's state
 ---
 q: {bring @iface@ back down|bring @iface@ down|set @iface@ down}
 a: ip link set @iface@ down
+why: live-hw
 ref: ip
 teach: ip
 hint: down is the mirror of up
 ---
 q: {give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a /24 netmask|add the address @ip@/24 to @iface@}
 a: ip addr add @ip@/24 dev @iface@
+why: live-hw
 ref: ip
 teach: ip
 hint: addr add takes address/prefixlen, and dev to say where
 ---
 q: {take the address @ip@ off @iface@ again|remove @ip@ from @iface@|delete @ip@, which you just added to @iface@}
 a: ip addr del @ip@/24 dev @iface@
+why: live-hw
 ref: ip
 teach: ip
 hint: addr del is the mirror of addr add
@@ -69,24 +73,28 @@ hint: ip route with no filter lists the whole table
 ---
 q: %show% only the default route
 a: ip route show default
+why: live-hw
 ref: ip
 teach: ip
 hint: show default filters the route table to just the default route
 ---
 q: {add a default route via @ip@|set @ip@ as the default route|make @ip@ the gateway for the default route}
 a: ip route add default via @ip@
+why: live-hw
 ref: ip
 teach: ip
 hint: route add default via sets where traffic with no other match goes
 ---
 q: {delete the default route|remove the default route|take the default route out}
 a: ip route del default
+why: live-hw
 ref: ip
 teach: ip
 hint: route del default is the mirror of add
 ---
 q: %show% the arp neighbour table using ip
 a: ip neigh
+why: live-hw
 ref: ip
 teach: ip
 hint: ip neigh is ip's own view of the arp table
@@ -100,6 +108,7 @@ hint: -o lines them up so cut can grab just the name field
 ---
 q: %show% interfaces the old way
 a: ifconfig
+why: live-hw
 ref: ifconfig
 teach: ifconfig
 hint: ifconfig with no arguments lists every interface, the pre-ip tool
@@ -113,6 +122,7 @@ hint: name one interface and ifconfig shows only it
 ---
 q: {set @iface@ up with the address @ip@, the old way|bring @iface@ up with the address @ip@, the old way|the old-way command to give @iface@ the address @ip@ and bring it up}
 a: ifconfig @iface@ @ip@ up
+why: live-hw
 ref: ifconfig
 teach: ifconfig
 hint: ifconfig combines address and up into one command, unlike ip's two steps
@@ -168,12 +178,14 @@ hint: -a includes entries still waiting to resolve
 ---
 q: {delete the arp entry for @ip@|remove the arp entry for @ip@|drop @ip@ from the arp cache}
 a: arp -d @ip@
+why: live-hw
 ref: arp
 teach: arp -d
 hint: -d removes one entry from the cache
 ---
 q: {add a permanent arp entry pinning @ip@|pin @ip@ to a mac address permanently in the arp cache|add a static arp entry for @ip@}
 a: arp -s @ip@ 00:11:22:33:44:55
+why: live-hw
 ref: arp
 teach: arp -s
 hint: -s pins an ip to a mac address by hand
@@ -208,66 +220,77 @@ hint: -A picks the address family, same idea as route -A
 ---
 q: {publish an arp entry for @ip@ on @iface@, on behalf of another host|answer arp requests for @ip@ out of @iface@, on another host's behalf|publish a proxy arp entry for @ip@ out of @iface@}
 a: arp -D @iface@ -s @ip@
+why: live-hw
 ref: arp
 teach: arp -D
 hint: -D answers arp requests for an address on another host's behalf
 ---
 q: {is anyone already using the address @ip@ -- ask at the link layer|check at the link layer whether @ip@ is already in use|find out, below ip, whether @ip@ already has an owner}
 a: arping -c 3 @ip@
+why: live-hw
 ref: arping
 teach: arping -c
 hint: arp works below ip, so this finds hosts that will not answer a ping
 ---
 q: {send the arp probe for @ip@ out of @iface@|send the arp probe for @ip@ through @iface@|pick @iface@ as the interface the arp probe for @ip@ goes out of}
 a: arping -I @iface@ -c 3 @ip@
+why: live-hw
 ref: arping
 teach: arping -I
 hint: -I picks which interface the probe goes out of
 ---
 q: {arping @ip@ quietly, reporting only the exit status|run arping against @ip@ silently, leaving only the exit status to check|arping @ip@ with no output, just the exit status}
 a: arping -q -c 1 @ip@
+why: live-hw
 ref: arping
 teach: arping -q
 hint: -q silences output, leaving just the exit status to check
 ---
 q: {send a duplicate-address-detection probe for @ip@|probe for whether @ip@ is already a duplicate|send a duplicate-address-detection check for @ip@}
 a: arping -D -c 1 @ip@
+why: live-hw
 ref: arping
 teach: arping -D
 hint: -D checks whether an address is already claimed before you use it
 ---
 q: {send an unsolicited arp announcement claiming @ip@|announce @ip@ unsolicited|broadcast an unsolicited arp announcement of @ip@}
 a: arping -U -c 1 @ip@
+why: live-hw
 ref: arping
 teach: arping -U
 hint: -U announces your address without being asked
 ---
 q: {arping @ip@ using @ip2@ as the chosen source address|arping @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when arping @ip@}
 a: arping -s @ip2@ -c 1 @ip@
+why: live-hw
 ref: arping
 teach: arping -s
 hint: -s sets the source address the probe claims to be from
 ---
 q: {stop arping @ip@ after 5 seconds whatever happens|cap arping @ip@ at 5 seconds no matter what|make arping @ip@ give up after 5 seconds}
 a: arping -w 5 @ip@
+why: live-hw
 ref: arping
 teach: arping -w
 hint: -w caps the total time arping will run
 ---
 q: {keep arping @ip@ until a reply arrives, then stop|arping @ip@ until the first reply, then stop|stop arping @ip@ as soon as a reply comes back}
 a: arping -f @ip@
+why: live-hw
 ref: arping
 teach: arping -f
 hint: -f stops at the first reply instead of sending a fixed count
 ---
 q: {send broadcast arp probes for @ip@|send the arp probes for @ip@ to the broadcast address|broadcast the arp probes for @ip@ instead of unicasting them}
 a: arping -b -c 1 @ip@
+why: live-hw
 ref: arping
 teach: arping -b
 hint: -b sends to the broadcast address instead of a unicast one
 ---
 q: {arping @ip@ in a mode that does not require a source address|arping @ip@ without claiming any source address|run arping against @ip@ so it needs no source address}
 a: arping -A -c 1 @ip@
+why: live-hw
 ref: arping
 teach: arping -A
 hint: -A lets arping run without claiming a source address

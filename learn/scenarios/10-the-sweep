@@ -52,6 +52,7 @@ setup: too. (And note what is NOT a worry here: nc's server mode is compiled out
 setup: so the classic nc -l -e bind shell has no receiving half on this build.)
 q: find every unix-domain socket file on the system
 a: find / -type s 2>/dev/null
+why: live-hw
 ref: find
 teach: find -type
 hint: -type s is a socket, the sibling of -type p; account for each one
@@ -62,6 +63,7 @@ setup: to it. The fifo is the fingerprint -- a pipe sitting in the filesystem,
 setup: wired to a running process. So enumerate them and account for every one.
 q: find every named pipe (fifo) on the system
 a: find / -type p 2>/dev/null
+why: live-hw
 ref: find
 teach: find -type
 hint: -type p is the fifo; -type s would be a unix socket

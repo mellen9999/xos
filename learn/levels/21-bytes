@@ -179,6 +179,7 @@ hint: -a sets how many characters long the generated suffixes are
 ---
 q: {open @bin@ in a hex editor to change bytes in place, not just read them|open @bin@ in something that lets you edit bytes, not just view them|unlike hexdump, open @bin@ in a tool that can write bytes back}
 a: hexedit @bin@
+why: interactive
 ref: hexedit
 teach: hexedit
 hint: hexdump shows you bytes; this is how you change them
