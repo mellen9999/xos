@@ -114,7 +114,7 @@ deps() {
              mksquashfs:squashfs-tools unsquashfs:squashfs-tools \
              veritysetup:cryptsetup sbsign:sbsigntools sbverify:sbsigntools \
              ukify:systemd virt-fw-vars:python-virt-firmware \
-             mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux \
+             mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux partx:util-linux \
              wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base; do
     command -v "${cmd%%:*}" >/dev/null 2>&1 || miss+=("${cmd%%:*} (${cmd##*:})")
   done
@@ -928,28 +928,32 @@ usb() {
   # so find p3 before writing anything, write only the two regions stick.img
   # actually owns (esp and root, never the trailing slack), and rewrite the
   # table with p3's geometry carried across byte-for-byte.
-  local p3_dev="${dev}3" p3_start="" p3_size="" p3_type="" p3_uuid="" p3_name=""
+  local p3_dev="${dev}3" p3_start="" p3_size="" p3_type="" p3_uuid="" p3_name="" p3_luks=""
   local root_bytes root_size_s new_p2_end_s
   [ -b "$p3_dev" ] || p3_dev="${dev}p3"
   root_bytes=$(stat -c%s xos.img)
   root_size_s=$((root_bytes / 512))
   new_p2_end_s=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 + root_size_s ))
-  if [ -b "$p3_dev" ]; then
-    command -v partx >/dev/null 2>&1 && command -v sfdisk >/dev/null 2>&1 || {
-      echo "FAIL: $dev has a third partition and partx/sfdisk are missing -- refusing to" >&2
-      echo "  write, because preserving it needs both. install util-linux." >&2; return 1; }
-    # read the entry verbatim -- type, uuid and name included -- so what goes
-    # back into the table is exactly what was in it, not a guess at what
-    # addstate would have written.
-    read -r p3_start p3_size p3_type p3_uuid p3_name < <(
-      partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3 "$dev" 2>/dev/null) || true
+  # required, not probed: without them this cannot tell whether the disk holds a
+  # state partition, and "cannot tell" must never resolve to "overwrite it".
+  command -v partx >/dev/null 2>&1 && command -v sfdisk >/dev/null 2>&1 || {
+    echo "FAIL: partx and sfdisk are needed to write a stick safely (they are what" >&2
+    echo "  finds an existing state partition). install util-linux." >&2; return 1; }
+  # ask the PARTITION TABLE, not /dev. keying this off a block-device node meant
+  # a stick whose p3 entry exists but whose node udev had not created yet -- a
+  # partprobe that failed, a device replugged a second ago, a container -- took
+  # the full-overwrite path and ate the LUKS header anyway. the table is the
+  # authority; the node is a convenience.
+  read -r p3_start p3_size p3_type p3_uuid p3_name < <(
+    partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3 "$dev" 2>/dev/null) || true
+  if [ -n "$p3_start" ]; then
     # always contains the ':', so ':*' and '*:' are the empty-field cases
     case "${p3_start}:${p3_size}" in *[!0-9:]*|:*|*:)
       echo "FAIL: $dev has a third partition whose geometry cannot be read -- refusing" >&2
       echo "  to write over it. back it up, or remove it deliberately, first." >&2; return 1 ;;
     esac
     [ -n "$p3_type" ] || {
-      echo "FAIL: cannot read the type of $p3_dev -- refusing to write over it." >&2; return 1; }
+      echo "FAIL: cannot read the type of partition 3 on $dev -- refusing to write over it." >&2; return 1; }
     # the new root may be a different size than the one this stick carries. if
     # it grew past where p3 begins there is no safe write at all -- say so and
     # stop, rather than half-writing a root into the state partition.
@@ -957,6 +961,12 @@ usb() {
       echo "FAIL: the new root ends at sector $new_p2_end_s but p3 starts at $p3_start --" >&2
       echo "  it no longer fits before your state partition. back p3 up (cryptsetup" >&2
       echo "  luksHeaderBackup + a copy of its contents) and reflash from scratch." >&2; return 1; }
+    # remember WHICH luks volume it is. isLuks alone only proves something
+    # luks-shaped is there afterwards -- a header rewritten with a different key
+    # answers yes to that just as happily.
+    if command -v cryptsetup >/dev/null 2>&1 && [ -b "$p3_dev" ]; then
+      p3_luks=$(cryptsetup luksUUID "$p3_dev" 2>/dev/null || true)
+    fi
   fi
 
   model=$(cat "/sys/block/$n/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//')
@@ -1016,12 +1026,29 @@ EOF
   have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$root_bytes" status=none | sha256sum | awk '{print $1}')
   [ "$want_root" = "$have_root" ] || {
     echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; }
-  # and prove p3 came through: the header we refused to overwrite must still be
-  # a header. this is the assertion the old code needed and did not have.
-  if [ -n "$p3_start" ] && command -v cryptsetup >/dev/null 2>&1; then
-    cryptsetup isLuks "$p3_dev" 2>/dev/null \
-      || { echo "FAIL: $p3_dev is no longer a LUKS volume -- the state partition did not survive" >&2; return 1; }
-    echo "  p3 still holds its LUKS header -- state preserved"
+  if [ -n "$p3_start" ]; then
+    # the table itself is never read back by the region compares above, and the
+    # signed cmdline finds the root by PARTUUID -- a table written with a wrong
+    # uuid dd-verifies clean and then hangs at dm-mod.waitfor on real hardware.
+    local tbl
+    tbl=$(sfdisk -d "$dev" 2>/dev/null || true)
+    printf '%s\n' "$tbl" | grep -qi "uuid=$PU_ROOT" \
+      || { echo "FAIL: the root PARTUUID is not in the table after the write -- this stick will not boot" >&2; return 1; }
+    printf '%s\n' "$tbl" | grep -qi "uuid=$PU_ESP" \
+      || { echo "FAIL: the esp PARTUUID is not in the table after the write" >&2; return 1; }
+    printf '%s\n' "$tbl" | grep -qi "uuid=$p3_uuid" \
+      || { echo "FAIL: p3's entry did not survive the table rewrite -- its bytes are intact but nothing points at them" >&2; return 1; }
+    # and prove p3 itself came through: the same luks volume, not merely
+    # something luks-shaped.
+    if [ -n "$p3_luks" ]; then
+      local now_luks
+      now_luks=$(cryptsetup luksUUID "$p3_dev" 2>/dev/null || true)
+      [ "$now_luks" = "$p3_luks" ] \
+        || { echo "FAIL: p3 is no longer the same LUKS volume ($p3_luks -> ${now_luks:-gone})" >&2; return 1; }
+      echo "  p3 preserved -- same LUKS volume ($p3_luks), entry intact"
+    else
+      echo "  p3's table entry is intact; its LUKS header was not checked (no cryptsetup, or no device node)"
+    fi
   fi
   sync
   printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
@@ -1256,6 +1283,18 @@ size() {
   # looked. permissions come from the image's own metadata (unsquashfs -ll)
   # rather than an extraction, because a non-root unpack cannot be trusted to
   # reproduce a setuid bit -- which would have turned G4 into decoration.
+  # the cmdline the FIRMWARE is handed lives inside the signed PE, not in
+  # cmdline.txt. G15 and G31 read the file, so a UKI signed with
+  # `mitigations=off nokaslr` (or with the test flags still on) beside a
+  # pristine cmdline.txt passed both -- and because the cmdline is inside the
+  # signature, the chain then vouches for the tampering. extract once here and
+  # gate on this, not on the file.
+  local uki_cmd="" uki_cmd_ok=0
+  if [ -f xos-signed.efi ]; then
+    uki_cmd=$(objcopy -O binary --only-section=.cmdline xos-signed.efi /dev/stdout 2>/dev/null | tr -d '\0')
+    [ -n "$uki_cmd" ] && uki_cmd_ok=1
+  fi
+
   local sqx sqll
   sqx=$(mktemp -d /tmp/xos-gates.XXXXXX) || { echo "FAIL: no temp dir for the gate run" >&2; return 1; }
   XOS_GATE_TMP="$sqx"    # the EXIT trap removes it even if a gate dies under set -e
@@ -1263,17 +1302,22 @@ size() {
     || { echo "FAIL: could not unpack rootfs.squashfs for the gates" >&2; return 1; }
   sqll=$(unsquashfs -ll rootfs.squashfs 2>/dev/null)
 
-  local elfs interp exec_type rwe_stack nelf
-  elfs=$(find "$sqx/root" -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && echo "$1"' _ {} \; 2>/dev/null)
-  nelf=$(printf '%s\n' "$elfs" | grep -c . || true)
-  interp=0; exec_type=0; rwe_stack=0
-  for f in $elfs; do
-    readelf -l "$f" 2>/dev/null | grep -q INTERP && interp=$((interp+1))
-    readelf -h "$f" 2>/dev/null | grep -q 'Type:.*EXEC' && exec_type=$((exec_type+1))
+  # -print0 / read -d '': `for f in $elfs` word-split on $IFS and glob-expanded,
+  # so a file named `evil shell` -- a real dynamically-linked non-PIE binary --
+  # left all three of these gates green, while the same bytes at `bash` correctly
+  # failed G2. and `| grep -q` inside an && list is the SIGPIPE-plus-pipefail
+  # trap this file documents at the top: a lost race skips the increment, which
+  # reads exactly like a pass. pipe into has() the way G16 already did.
+  local interp exec_type rwe_stack nelf f
+  interp=0; exec_type=0; rwe_stack=0; nelf=0
+  while IFS= read -r -d '' f; do
+    nelf=$((nelf+1))
+    readelf -l "$f" 2>/dev/null | has INTERP && interp=$((interp+1))
+    readelf -h "$f" 2>/dev/null | has 'Type:.*EXEC' && exec_type=$((exec_type+1))
     # GNU_STACK marked RWE = executable stack (the noexecstack link flag failed).
     # this one IS kernel-enforced, unlike RELRO in a static-pie binary.
     readelf -lW "$f" 2>/dev/null | awk '/GNU_STACK/{print $(NF)}' | has RWE && rwe_stack=$((rwe_stack+1))
-  done
+  done < <(find "$sqx/root" -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && printf "%s\0" "$1"' _ {} \; 2>/dev/null)
   g "G2 no dynamic loader ($interp of $nelf with INTERP)" \
     "$([ "$nelf" -gt 0 ] && [ "$interp" -eq 0 ] && echo ok || echo FAIL)"
   g "G3 all ELF are PIE ($exec_type of $nelf non-PIE)" \
@@ -1399,7 +1443,19 @@ size() {
   # G14 -- the built kernel actually honours the config contract. kernel() checks
   # this at build time; re-checking here catches a stale prebuilt .config that
   # was never rebuilt after kernel.config changed.
-  local kc="src/linux-$KVER/.config" k_miss=0 k_bad=0 opt
+  local kc="src/linux-$KVER/.config" k_miss=0 k_bad=0 opt k_enab k_dis
+  # how many options this gate actually examined. the counters below only ever
+  # count VIOLATIONS, so an extractor that matched nothing -- kernel.config
+  # saved with CRLF line endings, or truncated -- reported "0 off, 0 leaked"
+  # and went green having checked not one option. that is the whole "a kernel
+  # missing any hardening option it must have" claim.
+  k_enab=$(grep -cP '^CONFIG_[A-Z0-9_]+(?==y$)' kernel.config || true)
+  k_dis=$(grep -cP '^CONFIG_[A-Z0-9_]+(?==n$)' kernel.config || true)
+  if [ "${k_enab:-0}" -lt 100 ] || [ "${k_dis:-0}" -lt 15 ]; then
+    k_miss=$((k_miss+1))
+    printf '    kernel.config yielded only %s enables / %s disables -- the extractor matched almost nothing\n' \
+      "${k_enab:-0}" "${k_dis:-0}" >&2
+  fi
   if [ -f "$kc" ]; then
     while read -r opt; do
       [ -n "$opt" ] || continue
@@ -1414,7 +1470,7 @@ size() {
     # scan above skips it -- assert its absence explicitly.
     grep -q '^CONFIG_EXTRA_FIRMWARE="..*"' "$kc" \
       && { k_bad=$((k_bad+1)); printf '    firmware blob embedded in kernel: CONFIG_EXTRA_FIRMWARE\n' >&2; }
-    g "G14 kernel hardening config ($k_miss off, $k_bad leaked)" \
+    g "G14 kernel hardening ($k_miss off, $k_bad leaked, of $k_enab/$k_dis checked)" \
       "$([ "$k_miss" -eq 0 ] && [ "$k_bad" -eq 0 ] && echo ok || echo FAIL)"
   else
     g "G14 kernel hardening config" FAIL
@@ -1424,8 +1480,14 @@ size() {
   # G15 -- the tamper-proof hardening lives on the cmdline (inside the UKI
   # signature). assert every param that must be there is.
   local c15=0 want15
+  # checked against the SIGNED cmdline. an absent or unreadable .cmdline
+  # section is a failure, not a reason to fall back to the file -- the file is
+  # not what boots.
+  if [ "$uki_cmd_ok" -ne 1 ]; then
+    c15=$((c15+1)); printf '    no .cmdline section in xos-signed.efi -- cannot check what actually boots\n' >&2
+  fi
   for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
-    grep -qF "$want15" cmdline.txt || { c15=$((c15+1)); printf '    cmdline missing: %s\n' "$want15" >&2; }
+    printf '%s' "$uki_cmd" | grep -qF "$want15" || { c15=$((c15+1)); printf '    signed cmdline missing: %s\n' "$want15" >&2; }
   done
   # ...and assert NO param is present that would neuter the compiled-in
   # hardening at boot. G15 checked only for presence; a runtime override like
@@ -1434,7 +1496,7 @@ size() {
   # caught here before it ships inside the signature.
   local c15b=0 deny15
   for deny15 in 'mitigations=off' 'init_on_alloc=0' 'init_on_free=0' 'nokaslr' 'lockdown=none' 'nosmep' 'nosmap' 'nopti' 'no_hash_pointers' 'page_alloc.shuffle=0' 'random.trust_cpu=0'; do
-    grep -qF "$deny15" cmdline.txt && { c15b=$((c15b+1)); printf '    cmdline FORBIDDEN: %s\n' "$deny15" >&2; }
+    printf '%s' "$uki_cmd" | grep -qF "$deny15" && { c15b=$((c15b+1)); printf '    signed cmdline FORBIDDEN: %s\n' "$deny15" >&2; }
   done
   g "G15 cmdline hardening params ($c15 missing, $c15b forbidden)" \
     "$([ "$c15" -eq 0 ] && [ "$c15b" -eq 0 ] && echo ok || echo FAIL)"
@@ -1525,12 +1587,22 @@ size() {
   else
     g36=FAIL; printf '    no stick.img -- cannot check the p3 gap\n' >&2
   fi
-  grep -q 'partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3' build.sh \
-    || { g36=FAIL; printf '    usb() no longer reads the existing p3 entry before writing\n' >&2; }
-  grep -q '"\$new_p2_end_s" -le "\$p3_start"' build.sh \
-    || { g36=FAIL; printf '    usb() no longer refuses a root that would overlap p3\n' >&2; }
-  grep -q 'cryptsetup isLuks "\$p3_dev"' build.sh \
-    || { g36=FAIL; printf '    usb() no longer proves p3 survived the write\n' >&2; }
+  # these look for the guards INSIDE usb(), with comments stripped. grepping the
+  # whole file let the first pattern match the gate's own source line -- so the
+  # check stayed green with the code it guards deleted -- and let all three be
+  # satisfied by a guard someone had commented out "just to test".
+  local usbsrc
+  usbsrc=$(sed -n '/^usb() {/,/^}/p' build.sh | sed 's/#.*//')
+  _g36has() {
+    printf '%s\n' "$usbsrc" | grep -qF -- "$1" \
+      || { g36=FAIL; printf '    %s\n' "$2" >&2; }
+  }
+  _g36has 'partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3' \
+    'usb() no longer reads the existing p3 entry from the partition table'
+  _g36has '"$new_p2_end_s" -le "$p3_start"' \
+    'usb() no longer refuses a root that would overlap p3'
+  _g36has 'cryptsetup luksUUID "$p3_dev"' \
+    'usb() no longer records which luks volume p3 is, so it cannot prove it survived'
   g "G36 state partition starts past the image writer" "$g36"
 
   # G37 -- recon must identify the MACHINE, never the firmware on it. the
@@ -1578,8 +1650,12 @@ _f \"$1\"" 2>/dev/null || true; }
   # either. a uki step that fails (locked keys) while verity and stick succeed
   # leaves a stale signed efi beside a fresh image, every gate green, and a
   # stick that panics at the verity mount on real hardware. seen happen.
+  # from the .cmdline SECTION, not `strings | head -1`: the embedded kernel is
+  # 3+ MB of data around that section, and the first `sha256 <64 hex>` string
+  # anywhere in the PE happened to be the right one. one unlucky kernel string
+  # and the only gate that catches a stale signed UKI compares a constant.
   local g34_have
-  g34_have=$(strings xos-signed.efi 2>/dev/null | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2)
+  g34_have=$(printf '%s' "$uki_cmd" | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2)
   g "G34 signed UKI embeds the tree's roothash" \
     "$([ -n "$g34_have" ] && [ "$g34_have" = "$(cat verity.roothash)" ] && echo ok || echo FAIL)"
 
@@ -1769,8 +1845,23 @@ _f \"$1\"" 2>/dev/null || true; }
     [ "$kb_want" = "$kb_have" ] || {
       kb_ok=0
       printf '    kernel.config has changed since bzImage was built -- rebuild the kernel\n' >&2; }
+    # and the EXPANDED config -- what was really compiled. kernel() has recorded
+    # this digest all along and nothing ever read it, so hand-editing
+    # src/linux-*/.config, building, then restoring it from kernel.config left
+    # G7, G14 and G28 all green over a kernel with a working module loader.
+    # G7 and G14 read that same .config; this is what binds it to the binary.
+    local kb_xwant kb_xhave
+    kb_xwant=$(sha256sum < "src/linux-$KVER/.config" 2>/dev/null | awk '{print $1}')
+    kb_xhave=$(awk '/^expanded/ {print $2}' bzImage.config.sha256)
+    if [ -z "$kb_xwant" ]; then
+      kb_ok=0; printf '    no src/linux-%s/.config to compare against the bzImage stamp\n' "$KVER" >&2
+    elif [ "$kb_xwant" != "$kb_xhave" ]; then
+      kb_ok=0
+      printf '    src/linux-%s/.config is not the one bzImage was built from -- the config\n' "$KVER" >&2
+      printf '    G7 and G14 just validated is not what is in the kernel\n' >&2
+    fi
   fi
-  g "G28 bzImage was built from this kernel.config" \
+  g "G28 bzImage was built from the config G7/G14 checked" \
     "$([ "$kb_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # G30 -- SOURCE_DATE_EPOCH doubles as xos.epoch, the security floor init
@@ -1788,11 +1879,15 @@ _f \"$1\"" 2>/dev/null || true; }
   # appends these to cmdline.txt (verity()); selftest.sh restores a clean
   # build afterward, but a hard gate here means that restore is enforced,
   # not just intended.
+  # against the signed cmdline, for the same reason as G15: a test-flavoured UKI
+  # beside a restored cmdline.txt is exactly the state selftest.sh leaves if its
+  # restore fails partway, and the file would have said everything was fine.
   local tf=0 tfword
+  [ "$uki_cmd_ok" -eq 1 ] || { tf=$((tf+1)); printf '    no .cmdline section in xos-signed.efi -- cannot check for test flags\n' >&2; }
   for tfword in xos.test xos.teststate xos.testwg xos.testtether; do
-    grep -qF "$tfword" cmdline.txt && tf=$((tf+1))
+    printf '%s' "$uki_cmd" | grep -qF "$tfword" && { tf=$((tf+1)); printf '    TEST FLAG in the signed cmdline: %s\n' "$tfword" >&2; }
   done
-  g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"
+  g "G31 no test flags on the signed cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"
 
   # the unpacked copy G2..G16 measured has done its job
   rm -rf "$sqx"
