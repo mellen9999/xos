@@ -188,8 +188,8 @@ the build fails, loudly, on any of:
   hardening on; /dev/mem, kexec, io_uring, bpf, ia32 emulation off)
 - the signed cmdline missing its hardening params or the wait-for-device root
 - an upstream tarball whose digest doesn't match `sources.sha256`
-- (when gpg is installed) a linux, cryptsetup, util-linux, lvm2 or dropbear
-  tarball that doesn't match its maintainer's committed signature and pinned
+- (when gpg is installed) a linux, busybox, cryptsetup, util-linux, lvm2 or
+  dropbear tarball that doesn't match its maintainer's committed signature and pinned
   key fingerprint
 - an image missing anything `manifest` says it must contain
 - a firmware blob shipped in the image
