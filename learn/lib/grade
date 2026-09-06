@@ -176,7 +176,19 @@ correct() {
 	# fall back to their listed forms.
 	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || [ -n "${Q_STATUS:-}" ] \
 		|| [ "${Q_CMP:-}" = ref ] || return 1
-	[ "${SANDBOX_OK:-0}" = 1 ] || return 1
+	# sandbox_reset, not a read of SANDBOX_OK. the flag starts at 0 and is only
+	# ever set inside sandbox_build -- and the only main-shell sandbox_build is
+	# the one selftest() runs. every interactive path (learn, learn <n>, review,
+	# daily, place, scenario, challenge) therefore reached here with
+	# SANDBOX_OK=0 and returned BEFORE run_answer, so tier 2 -- "RUN IT" -- has
+	# never once executed for a learner. only a verbatim match against a listed
+	# a: line could pass, which is exactly the listed-answer quiz the comment at
+	# the top of this file says tier 2 exists to replace. the coach ran the
+	# answer to diagnose it while the grader refused to run it to grade it.
+	#
+	# it looked fine because the build's own checker calls sandbox_build in its
+	# own shell, so the gate took a branch the product never takes.
+	sandbox_reset || return 1
 	printf '%s\n' "$1" | unsafe && return 1
 	case "${Q_REF:-}" in
 		''|sh|ash) : ;;   # grammar/builtin question: no one command to demand

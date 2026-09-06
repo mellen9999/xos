@@ -672,6 +672,30 @@ stats() {
 # answer_cmds -- every command an answer invokes, one per line. same boundary
 # rules as answer_flags: a pipe, a list separator, $( ) or a wrapper starts a
 # new command.
+# the tokens that sit where a COMMAND goes: the start of the line, or straight
+# after a separator or a compound-statement keyword. deliberately narrower than
+# answer_cmds, which reports every command-ish token in a pipeline including
+# arguments -- `echo yes` reported `yes`, and `yes` is a real binary the host
+# has and xos does not, so a literal word tripped the check.
+_cmd_positions() {
+	sed "s/['\"]//g" | awk '
+	{
+		want = 1
+		n = split($0, t, /[ \t]+/)
+		for (i = 1; i <= n; i++) {
+			tok = t[i]
+			gsub(/^[({`]+|[);`]+$/, "", tok)
+			if (tok == "") continue
+			if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { want = 1; continue }
+			if (tok ~ /^(if|then|else|elif|fi|do|done|while|until|for|case|esac|in|select|function|time|!)$/) { want = 1; continue }
+			if (want) {
+				if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/ && tok !~ /^-/) print tok
+				want = 0
+			}
+		}
+	}'
+}
+
 answer_cmds() {
 	sed "s/['\"]//g" | awk '
 		function popn() { while (nclose-- > 0 && depth > 0) cmd = stack[depth--]; nclose = 0 }
@@ -1113,7 +1137,7 @@ st_block() {
 	# has and xos does not -- python3, curl, gcc. those are the ones the host
 	# PATH fallback silently satisfies. a filename or a keyword resolves to no
 	# binary at all, so it never reaches the test.
-	_ac_bad=$(printf '%s\n' "$Q_ANSWERS" | answer_cmds | awk 'NF' | sort -u | while read -r _c; do
+	_ac_bad=$(printf '%s\n' "$Q_ANSWERS" | _cmd_positions | sort -u | while read -r _c; do
 		case "$_c" in
 			*[!a-z0-9_.-]*|"") continue ;;                      # not a bare command name
 		esac
