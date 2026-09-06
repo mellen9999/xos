@@ -59,6 +59,30 @@ removable disk is attached. before it writes anything it makes you type the
 disk's model back, so a wrong path cannot wipe a drive on a slip of the enter
 key.
 
+## updating
+
+    git pull && ./build.sh all && ./build.sh usb /dev/sdX
+
+on a stick with no state partition this rewrites the whole disk. on one that has
+p3, the writer reads the state partition's entry first, rewrites only the esp and
+root regions, puts that entry back exactly as it was, and refuses to write at all
+if the new root would no longer fit before it. afterwards it reads the LUKS header
+back and fails if the partition did not survive.
+
+that guard exists because the obvious version of this was destructive. p3 is not
+part of `stick.img` -- `addstate` adds it to the flashed stick afterwards -- so
+writing the whole image dropped p3's table entry, and, because the image carries
+1 MiB of backup-GPT slack past the root, zeroed the first mebibyte *of the
+partition*: both LUKS2 headers and the head of the keyslot area. nothing opens
+that again. p3 is now placed past the image's own end, on a 1 MiB boundary, and
+`G36` fails the build if it could ever start inside what the writer writes.
+
+back the header up anyway if the state matters -- `cryptsetup luksHeaderBackup`
+is a few kilobytes and it is the one part of p3 that no passphrase reconstructs.
+
+re-memorize the fingerprint words after an update: a new image is a new root
+hash, so the stick speaks four different words.
+
 ## build
 
     ./build.sh all            # sources verified against pinned digests, then built
@@ -186,6 +210,7 @@ the build fails, loudly, on any of:
 - an image missing anything `manifest` says it must contain
 - a firmware blob shipped in the image
 - a stick whose partitions or embedded kernel don't match the built artifacts
+- an encrypted state partition placed anywhere the image writer would reach it
 - an image, filesystem, or verity root hash that doesn't match `image.sha256`
   on the pinned toolchain
 - a plaintext private signing key sitting on disk
@@ -217,8 +242,9 @@ stops being true. the self-test then boots the real chain in a vm and expects
 every attack to fail: a flipped root byte, a flipped hash-tree byte, an unsigned
 kernel, a tampered signature, a superseded image the firmware has revoked, a
 cert outside the trust store, and it reads back from inside the running system
-that /dev/mem and kcore are gone, lockdown is enforcing, and neither the root
-nor /tmp will run injected code -- over both virtio and emulated USB.
+that /dev/mem and kcore are gone, lockdown is enforcing, that with a dhcp lease
+held nothing is listening off loopback, and that neither the root nor /tmp will
+run injected code -- over both virtio and emulated USB.
 
 ## hardening
 
@@ -283,11 +309,16 @@ working), a clean pass means every byte still matches the signed hash tree.
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.
 
-the one attack surface this posture knowingly accepts: the usb-net drivers
-(rndis, cdc-ether) that make phone tethering work parse whatever a plugged-in
-device claims to be. xos is a pure usb host, so this is reachable only by
-physically plugging something in, and it sits behind every mitigation above --
-naming it here beats pretending it isn't attack surface.
+two attack surfaces this posture knowingly accepts, both reached the same way --
+by plugging something in. the usb-net drivers (rndis, cdc-ether) that make phone
+tethering work parse whatever a plugged-in device claims to be. and the
+filesystem drivers that let you read someone else's stick -- ntfs3, exfat,
+iso9660 -- parse whatever is on it; they are in-kernel parsers of hostile input
+and, being the youngest and least audited code in the tree, they are the largest
+of the two. neither is reachable over the network: xos is a pure usb host and
+opens no port. both sit behind every mitigation above. naming them here beats
+pretending they aren't attack surface -- and if you never read foreign media,
+dropping the three filesystem drivers from `kernel.config` costs nothing.
 
 ## revocation
 

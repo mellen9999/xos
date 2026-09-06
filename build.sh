@@ -66,6 +66,10 @@ GPT_DISK=56524c00-0000-4000-8000-000000000000
 PU_ESP=56524c00-0000-4001-8000-000000000001
 PU_ROOT=56524c00-0000-4002-8000-000000000002
 PU_STATE=56524c00-0000-4003-8000-000000000003
+# spelled as the GUID, not sfdisk's `8309` shorthand: the shorthand is rejected
+# outright when a whole table is written at once ("Failed to add #3 partition:
+# Invalid argument"), which would have left an updated stick with no p3 entry.
+PT_LUKS=CA7D7CCB-63ED-4C53-861C-1742536059CC
 STICK_ESP_MIB=64
 # fixed build clock: the same commit must yield the same image, so the
 # artifact can be checked against its source instead of trusted. this is also
@@ -87,6 +91,14 @@ say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 # like a failed command. this trap bit five separate checks in this script.
 # always pipe into `has` instead of `grep -q`.
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
+
+# the gate run unpacks the squashfs to measure the artifact rather than the
+# staging tree. under `set -e` any gate that dies takes the script with it, so
+# the cleanup cannot live at the end of the function -- it goes here, where an
+# abort still reaches it. named per-pid so concurrent builds never delete each
+# other's copy.
+XOS_GATE_TMP=""
+trap 'rm -rf "${XOS_GATE_TMP:-}" 2>/dev/null || true' EXIT
 
 # a missing host tool used to surface as a mid-build failure -- the exact fail
 # mode this repo eliminates everywhere else. name every one up front instead.
@@ -883,6 +895,7 @@ usb() {
   if lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null | has .; then
     echo "FAIL: $dev (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
   [ -f stick.img ] || stick || return 1
+  [ -f xos.img ] || { echo "FAIL: no xos.img -- run ./build.sh verity" >&2; return 1; }
 
   local dev_bytes img_bytes model
   dev_bytes=$(( $(cat "/sys/block/$n/size") * 512 ))
@@ -891,9 +904,58 @@ usb() {
   if [ "$dev_bytes" -gt $((128 * 1024 * 1024 * 1024)) ]; then
     echo "WARN: $dev is $((dev_bytes / 1024 / 1024 / 1024)) GiB -- larger than any usb stick, is this the right disk?" >&2
   fi
+
+  # ── an existing p3 must survive an image update ────────────────────────────
+  #
+  # p3 is not in stick.img. `addstate` adds it to the flashed stick's own GPT
+  # afterwards, starting one sector past p2. so writing all of stick.img over an
+  # already-provisioned stick did two irreversible things at once: it replaced
+  # the table with stick.img's two-partition one, dropping p3's entry, and --
+  # because stick.img carries 1 MiB of backup-GPT slack past p2's end -- it
+  # zeroed the first mebibyte OF p3, which is both LUKS2 headers and the head of
+  # the keyslot area. no passphrase opens that again. and it happened on the
+  # ordinary update: git pull, ./build.sh all, ./build.sh usb.
+  #
+  # so find p3 before writing anything, write only the two regions stick.img
+  # actually owns (esp and root, never the trailing slack), and rewrite the
+  # table with p3's geometry carried across byte-for-byte.
+  local p3_dev="${dev}3" p3_start="" p3_size="" p3_type="" p3_uuid="" p3_name=""
+  local root_bytes root_size_s new_p2_end_s
+  [ -b "$p3_dev" ] || p3_dev="${dev}p3"
+  root_bytes=$(stat -c%s xos.img)
+  root_size_s=$((root_bytes / 512))
+  new_p2_end_s=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 + root_size_s ))
+  if [ -b "$p3_dev" ]; then
+    command -v partx >/dev/null 2>&1 && command -v sfdisk >/dev/null 2>&1 || {
+      echo "FAIL: $dev has a third partition and partx/sfdisk are missing -- refusing to" >&2
+      echo "  write, because preserving it needs both. install util-linux." >&2; return 1; }
+    # read the entry verbatim -- type, uuid and name included -- so what goes
+    # back into the table is exactly what was in it, not a guess at what
+    # addstate would have written.
+    read -r p3_start p3_size p3_type p3_uuid p3_name < <(
+      partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3 "$dev" 2>/dev/null) || true
+    # always contains the ':', so ':*' and '*:' are the empty-field cases
+    case "${p3_start}:${p3_size}" in *[!0-9:]*|:*|*:)
+      echo "FAIL: $dev has a third partition whose geometry cannot be read -- refusing" >&2
+      echo "  to write over it. back it up, or remove it deliberately, first." >&2; return 1 ;;
+    esac
+    [ -n "$p3_type" ] || {
+      echo "FAIL: cannot read the type of $p3_dev -- refusing to write over it." >&2; return 1; }
+    # the new root may be a different size than the one this stick carries. if
+    # it grew past where p3 begins there is no safe write at all -- say so and
+    # stop, rather than half-writing a root into the state partition.
+    [ "$new_p2_end_s" -le "$p3_start" ] || {
+      echo "FAIL: the new root ends at sector $new_p2_end_s but p3 starts at $p3_start --" >&2
+      echo "  it no longer fits before your state partition. back p3 up (cryptsetup" >&2
+      echo "  luksHeaderBackup + a copy of its contents) and reflash from scratch." >&2; return 1; }
+  fi
+
   model=$(cat "/sys/block/$n/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//')
   echo "  target: $dev  size: $((dev_bytes / 1024 / 1024)) MiB  model: ${model:-unknown}"
-  if wipefs -n "$dev" 2>/dev/null | has .; then
+  if [ -n "$p3_start" ]; then
+    echo "  $dev already carries an encrypted state partition (p3, sector $p3_start)."
+    echo "  it will be PRESERVED: only the esp and root regions are rewritten."
+  elif wipefs -n "$dev" 2>/dev/null | has .; then
     echo "  WARNING: $dev already contains a filesystem/partition signature -- it will be DESTROYED."
   fi
   # confirmation the user cannot bypass by hammering 'y': type the model back.
@@ -901,22 +963,57 @@ usb() {
   read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
   [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
 
-  say "writing stick.img to $dev"
-  dd if=stick.img of="$dev" bs=1M oflag=direct conv=fsync status=progress
+  if [ -n "$p3_start" ]; then
+    say "updating $dev in place -- esp + root only, p3 untouched"
+    dd if=stick.img of="$dev" bs=1M skip=1 seek=1 count="$STICK_ESP_MIB" \
+      oflag=direct conv=fsync status=progress
+    dd if=stick.img of="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) seek=$((1 + STICK_ESP_MIB)) \
+      iflag=count_bytes count="$root_bytes" oflag=direct conv=fsync status=progress
+    # rewrite the whole table rather than dd'ing stick.img's: that one knows
+    # nothing about p3. same deterministic ids stick() uses, p2 resized to this
+    # image, p3 exactly as it was.
+    sfdisk --no-reread "$dev" >/dev/null <<EOF || { echo "FAIL: could not rewrite the partition table on $dev" >&2; return 1; }
+label: gpt
+label-id: $GPT_DISK
+start=2048, size=$((STICK_ESP_MIB * 1024 * 1024 / 512)), type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="XOS-ESP"
+start=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 )), size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="XOS-ROOT"
+start=$p3_start, size=$p3_size, type=$p3_type, uuid=$p3_uuid, name="$p3_name"
+EOF
+    partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
+    sleep 1
+  else
+    say "writing stick.img to $dev"
+    dd if=stick.img of="$dev" bs=1M oflag=direct conv=fsync status=progress
+  fi
 
   # verify by DIRECT-IO readback -- a page-cache read would just echo what we
-  # wrote and prove nothing. compare the whole stick, then the p2 root region
-  # against the pinned image digest.
+  # wrote and prove nothing. compare the regions that were written, then the p2
+  # root region against the pinned image digest.
   say "verifying written bytes"
-  local want_stick have_stick want_root have_root root_off
-  want_stick=$(sha256sum < stick.img | awk '{print $1}')
-  have_stick=$(dd if="$dev" bs=1M iflag=direct,count_bytes count="$img_bytes" status=none | sha256sum | awk '{print $1}')
-  [ "$want_stick" = "$have_stick" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
-  root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
+  local want have want_root have_root
+  if [ -n "$p3_start" ]; then
+    want=$(dd if=stick.img bs=1M skip=1 count="$STICK_ESP_MIB" status=none | sha256sum | awk '{print $1}')
+    have=$(dd if="$dev" bs=1M skip=1 count="$STICK_ESP_MIB" iflag=direct status=none | sha256sum | awk '{print $1}')
+    [ "$want" = "$have" ] || { echo "FAIL: esp readback mismatch -- write did not land" >&2; return 1; }
+  else
+    want=$(sha256sum < stick.img | awk '{print $1}')
+    have=$(dd if="$dev" bs=1M iflag=direct,count_bytes count="$img_bytes" status=none | sha256sum | awk '{print $1}')
+    [ "$want" = "$have" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
+  fi
+  # the pin is the point of the readback, so a missing pin is a failure, not a
+  # reason to skip the check. an empty want_root used to make this a no-op.
   want_root=$(awk '$1=="image"{print $2}' image.sha256)
-  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$(stat -c%s xos.img)" status=none | sha256sum | awk '{print $1}')
-  if [ -n "$want_root" ] && [ "$want_root" != "$have_root" ]; then
-    echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; fi
+  [ -n "$want_root" ] || { echo "FAIL: image.sha256 has no image digest to verify against" >&2; return 1; }
+  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$root_bytes" status=none | sha256sum | awk '{print $1}')
+  [ "$want_root" = "$have_root" ] || {
+    echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; }
+  # and prove p3 came through: the header we refused to overwrite must still be
+  # a header. this is the assertion the old code needed and did not have.
+  if [ -n "$p3_start" ] && command -v cryptsetup >/dev/null 2>&1; then
+    cryptsetup isLuks "$p3_dev" 2>/dev/null \
+      || { echo "FAIL: $p3_dev is no longer a LUKS volume -- the state partition did not survive" >&2; return 1; }
+    echo "  p3 still holds its LUKS header -- state preserved"
+  fi
   sync
   printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
@@ -1128,20 +1225,38 @@ flagchk() {
 #   G33 init remote-access arg-building, run through the real ash   (new)
 #   G34 signed UKI's embedded roothash matches the tree             (new)
 #   G35 first-party scripts parse under the shipped ash             (new)
+#   G36 state partition starts past every byte the image writer writes (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=32   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=33   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
   local sz; sz=$(stat -c%s xos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
 
-  local elfs interp exec_type
-  elfs=$(find root -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && echo "$1"' _ {} \; 2>/dev/null)
-  interp=0; exec_type=0
-  local rwe_stack=0
+  # G2/G3/G4/G5/G16 used to read the staging directory `root/` rather than the
+  # image, and counted violations without ever counting the population. both
+  # halves were wrong. `root/` is not what ships -- it can be stale, cleaned, or
+  # edited after the squashfs was made -- and a find that matches nothing
+  # reports zero violations in exactly the way a clean tree does, so an empty or
+  # missing root/ made all five say ok having examined not one file. measure the
+  # artifact, and print "0 of N" so that "none found" always carries how hard it
+  # looked. permissions come from the image's own metadata (unsquashfs -ll)
+  # rather than an extraction, because a non-root unpack cannot be trusted to
+  # reproduce a setuid bit -- which would have turned G4 into decoration.
+  local sqx sqll
+  sqx=$(mktemp -d /tmp/xos-gates.XXXXXX) || { echo "FAIL: no temp dir for the gate run" >&2; return 1; }
+  XOS_GATE_TMP="$sqx"    # the EXIT trap removes it even if a gate dies under set -e
+  unsquashfs -n -d "$sqx/root" rootfs.squashfs >/dev/null 2>&1 \
+    || { echo "FAIL: could not unpack rootfs.squashfs for the gates" >&2; return 1; }
+  sqll=$(unsquashfs -ll rootfs.squashfs 2>/dev/null)
+
+  local elfs interp exec_type rwe_stack nelf
+  elfs=$(find "$sqx/root" -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && echo "$1"' _ {} \; 2>/dev/null)
+  nelf=$(printf '%s\n' "$elfs" | grep -c . || true)
+  interp=0; exec_type=0; rwe_stack=0
   for f in $elfs; do
     readelf -l "$f" 2>/dev/null | grep -q INTERP && interp=$((interp+1))
     readelf -h "$f" 2>/dev/null | grep -q 'Type:.*EXEC' && exec_type=$((exec_type+1))
@@ -1149,20 +1264,29 @@ size() {
     # this one IS kernel-enforced, unlike RELRO in a static-pie binary.
     readelf -lW "$f" 2>/dev/null | awk '/GNU_STACK/{print $(NF)}' | has RWE && rwe_stack=$((rwe_stack+1))
   done
-  g "G2 no dynamic loader ($interp with INTERP)" "$([ "$interp" -eq 0 ] && echo ok || echo FAIL)"
-  g "G3 all ELF are PIE ($exec_type non-PIE)"    "$([ "$exec_type" -eq 0 ] && echo ok || echo FAIL)"
-  g "G16 no executable stack ($rwe_stack RWE)"   "$([ "$rwe_stack" -eq 0 ] && echo ok || echo FAIL)"
+  g "G2 no dynamic loader ($interp of $nelf with INTERP)" \
+    "$([ "$nelf" -gt 0 ] && [ "$interp" -eq 0 ] && echo ok || echo FAIL)"
+  g "G3 all ELF are PIE ($exec_type of $nelf non-PIE)" \
+    "$([ "$nelf" -gt 0 ] && [ "$exec_type" -eq 0 ] && echo ok || echo FAIL)"
+  g "G16 no executable stack ($rwe_stack of $nelf RWE)" \
+    "$([ "$nelf" -gt 0 ] && [ "$rwe_stack" -eq 0 ] && echo ok || echo FAIL)"
 
-  local suid ww
-  suid=$(find root -type f \( -perm -4000 -o -perm -2000 \) | wc -l)
-  ww=$(find root -type f -perm -0002 | wc -l)
-  g "G4 no setuid/setgid ($suid)"      "$([ "$suid" -eq 0 ] && echo ok || echo FAIL)"
-  g "G5 no world-writable ($ww)"       "$([ "$ww" -eq 0 ] && echo ok || echo FAIL)"
+  local suid ww nreg
+  nreg=$(printf '%s\n' "$sqll" | awk 'substr($1,1,1)=="-"' | grep -c . || true)
+  suid=$(printf '%s\n' "$sqll" | awk 'substr($1,1,1)=="-" && (substr($1,4,1) ~ /[sS]/ || substr($1,7,1) ~ /[sS]/)' | grep -c . || true)
+  ww=$(  printf '%s\n' "$sqll" | awk 'substr($1,1,1)=="-" && substr($1,9,1)=="w"' | grep -c . || true)
+  g "G4 no setuid/setgid ($suid of $nreg files)" \
+    "$([ "$nreg" -gt 0 ] && [ "$suid" -eq 0 ] && echo ok || echo FAIL)"
+  g "G5 no world-writable ($ww of $nreg files)" \
+    "$([ "$nreg" -gt 0 ] && [ "$ww" -eq 0 ] && echo ok || echo FAIL)"
 
   local want have
   want=$(cat verity.roothash)
   have=$(grep -oE 'sha256 [0-9a-f]{64}' cmdline.txt | awk '{print $2}')
-  g "G6 cmdline root hash matches tree" "$([ "$want" = "$have" ] && echo ok || echo FAIL)"
+  # two empty strings compare equal, so a truncated verity.roothash and a
+  # cmdline carrying no hash at all used to satisfy this. demand a real one.
+  g "G6 cmdline root hash matches tree" \
+    "$([ ${#want} -eq 64 ] && [ "$want" = "$have" ] && echo ok || echo FAIL)"
 
   # a full reproducibility check needs two builds; this asserts the mechanism
   # that makes it possible is still in place, which is cheap and catches drift.
@@ -1172,8 +1296,24 @@ size() {
 
   # find, not ls: `ls nonexistent | wc -l` exits non-zero under pipefail and
   # set -e then kills the whole gate run silently. this bit us four times.
-  local plain; plain=$(find keys -maxdepth 1 -name '*.key' 2>/dev/null | wc -l)
-  g "G11 no plaintext private key on disk ($plain)" "$([ "$plain" -eq 0 ] && echo ok || echo FAIL)"
+  local plain plain_img plain_uki
+  plain=$(find keys -maxdepth 1 -name '*.key' 2>/dev/null | wc -l)
+  # the claim is "no plaintext private key on disk"; this only ever looked in
+  # keys/. a key copied into the overlay would have shipped inside the image --
+  # signed, verity-covered, and published -- with every gate still green. scan
+  # the artifact and the signed UKI too. (dropbear's own key format is binary,
+  # not PEM, so this catches every standard format but not that one; the image
+  # ships no host key by design, and G12's manifest is what pins that.)
+  local keypat='-----BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED |)PRIVATE KEY-----'
+  # `|| true` inside the pipe: a grep that matches nothing exits 1, pipefail
+  # makes that the pipeline's status, and set -e then kills the gate run --
+  # a clean image would have looked exactly like a truncated one.
+  plain_img=$({ grep -rlaE -- "$keypat" "$sqx/root" 2>/dev/null || true; } | wc -l)
+  plain_uki=0
+  [ -f xos-signed.efi ] \
+    && plain_uki=$({ grep -laE -- "$keypat" xos-signed.efi 2>/dev/null || true; } | wc -l)
+  g "G11 no plaintext private key on disk ($plain keys/, $plain_img image, $plain_uki uki)" \
+    "$([ "$plain" -eq 0 ] && [ "$plain_img" -eq 0 ] && [ "$plain_uki" -eq 0 ] && echo ok || echo FAIL)"
 
   # G12 -- the image contains everything the manifest declares. component
   # copies were `[ -f x ] && cp x`, so a component that failed to build made
@@ -1334,6 +1474,42 @@ size() {
   grep -q 'for dev in \$cands' init                      || { g33=FAIL; printf '    state_open no longer tries every candidate\n' >&2; }
   grep -q 'wg setconf wg0 /tmp/wgset.conf' init          || { g33=FAIL; printf '    setconf fed the raw conf -- Address= lines make strict wg error out\n' >&2; }
   g "G33 init remote-access logic (real ash)" "$g33"
+
+  # G36 -- the encrypted state partition must begin past every byte the image
+  # writer writes. it did not. `addstate` placed p3 at p2end+1, flush against
+  # the root, and stick.img carries 1 MiB of backup-GPT slack past p2's end --
+  # so `./build.sh usb` on an already-provisioned stick wrote 1 MiB straight
+  # through p3: both LUKS2 headers and the head of the keyslot area. no
+  # passphrase opens that again, and it happened on the ordinary update (git
+  # pull, build, usb). this runs addstate's own placement expression against
+  # this build's real geometry and asserts the gap, then pins the three guards
+  # in usb() that keep an update from reaching p3 at all.
+  local g36=ok p3f36 p2end36 p3s36 stick36 p2end
+  if [ -f stick.img ]; then
+    p2end36=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 + $(stat -c%s xos.img) / 512 - 1 ))
+    p3f36=$(sed -n 's/^[[:space:]]*p3start=\$((\(.*\)))[[:space:]]*$/\1/p' build.sh | head -1)
+    if [ -z "$p3f36" ]; then
+      g36=FAIL; printf '    addstate no longer computes p3start -- cannot check the gap\n' >&2
+    else
+      p2end=$p2end36
+      p3s36=$(eval "echo \$(( $p3f36 ))")
+      stick36=$(stat -c%s stick.img)
+      [ $((p3s36 * 512)) -ge "$stick36" ] || {
+        g36=FAIL
+        printf '    p3 would start at byte %d, INSIDE stick.img (%d bytes) -- a reflash would eat its LUKS header\n' \
+          $((p3s36 * 512)) "$stick36" >&2; }
+      [ $((p3s36 % 2048)) -eq 0 ] || { g36=FAIL; printf '    p3 start %d is not 1 MiB aligned\n' "$p3s36" >&2; }
+    fi
+  else
+    g36=FAIL; printf '    no stick.img -- cannot check the p3 gap\n' >&2
+  fi
+  grep -q 'partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3' build.sh \
+    || { g36=FAIL; printf '    usb() no longer reads the existing p3 entry before writing\n' >&2; }
+  grep -q '"\$new_p2_end_s" -le "\$p3_start"' build.sh \
+    || { g36=FAIL; printf '    usb() no longer refuses a root that would overlap p3\n' >&2; }
+  grep -q 'cryptsetup isLuks "\$p3_dev"' build.sh \
+    || { g36=FAIL; printf '    usb() no longer proves p3 survived the write\n' >&2; }
+  g "G36 state partition starts past the image writer" "$g36"
 
   # G34 -- the signed UKI's EMBEDDED roothash must match the tree. G6 pins
   # cmdline.txt (a file) to verity.roothash (a file), and G17 pins the ESP to
@@ -1557,6 +1733,9 @@ size() {
   done
   g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"
 
+  # the unpacked copy G2..G16 measured has done its job
+  rm -rf "$sqx"
+
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed.
   if [ "$ran" -ne "$EXPECTED_GATES" ]; then
@@ -1648,9 +1827,21 @@ addstate() {
     || { echo "FAIL: cannot read the partition table on $dev -- flash the image first" >&2; return 1; }
   [ -n "$p2end" ] || { echo "FAIL: no second partition on $dev" >&2; return 1; }
 
-  echo "  adding p3 to $dev in the free space after sector $p2end"
+  # p3 used to start at p2end+1, flush against the root. that put it directly
+  # under the 1 MiB of backup-GPT slack stick.img carries past p2, so a later
+  # `./build.sh usb` wrote straight through its LUKS header. usb() now refuses
+  # to write that far, and starting p3 past the image's own end -- on a 1 MiB
+  # boundary, which is the alignment flash wants anyway -- means the two regions
+  # can never overlap again, whatever writes the stick.
+  local p3start free_mib
+  p3start=$(( ( (p2end + 1 + 2048 + 2047) / 2048 ) * 2048 ))
+  free_mib=$(( ( $(cat "/sys/block/$n/size") - p3start ) / 2048 ))
+  [ "$free_mib" -ge 64 ] || {
+    echo "FAIL: only ${free_mib} MiB free after the root -- p3 needs at least 64 MiB" >&2
+    echo "  (LUKS2 alone reserves 16 MiB for its header). use a larger stick." >&2; return 1; }
+  echo "  adding p3 to $dev at sector $p3start (${free_mib} MiB free)"
   sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
-start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
+start=$p3start, type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
   partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
   sleep 1
