@@ -29,7 +29,9 @@ libgcc.a%s %:if-exists(libgcc_eh.a%s)
 
 # -r (partial link) cannot take -pie, and busybox partial-links every
 # subdirectory, so the static-pie flags must apply to the final link only.
-# -z noexecstack is kernel-enforced (non-exec stack) and gated by G16. relro/now
+# -z noexecstack is kernel-enforced (non-exec stack) and gated by G16, which
+# proves its own detector on a deliberately -z execstack binary every run. the
+# stack protector below is gated by G22 (musl's canary-failure string). relro/now
 # emit PT_GNU_RELRO but nothing enforces it in a static-pie binary with no ldso
 # -- kept as belt, deliberately NOT gated, so no check claims what it can't.
 *link:

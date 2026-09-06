@@ -37,6 +37,12 @@ DBVER="${DBVER:-2024.86}"
 # are convenience copies; a swapped pubkey cannot satisfy these pins.
 DB_FPR=F7347EF2EE2E07A267628CA944931494F29C6773    # Matt Johnston (dropbear)
 LVM_FPR=D501A478440AE2FD130A1BE8B9112431E509039F   # Marian Csontos (lvm2)
+# one cflags line for every first-party and upstream userland build. the
+# -ffile-prefix-map used to live only in cryptsetup_(), where a __FILE__ in an
+# assert string had already leaked the absolute build path into the image; a
+# fix applied at the one place a bug was seen is a fix waiting to be needed at
+# the next. set once, inherited everywhere, so no consumer can drift.
+XCF="-fPIE -Os -isystem $PWD/sysroot/include -ffile-prefix-map=$PWD=xos"
 # the binaries that are not busybox applets. this was written out three separate
 # times -- seed(), and twice inside G24 -- so adding one meant editing three
 # places and forgetting any of them failed confusingly. one list, read everywhere.
@@ -47,6 +53,14 @@ EXTRA_BINS="ii tlstunnel learn abduco cryptsetup wg dropbear dbclient dropbearke
 # path let one tree's unlock silently satisfy another tree's.
 RAMKEYS="/dev/shm/xos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
 JOBS="$(nproc)"
+# reproducibility needs the same modes and the same collation on every host:
+# `cp` into root/ inherits the tree's modes (git creates files as 0666&~umask,
+# and mksquashfs -all-root normalises owners, never modes), and every `sort`
+# feeding a build input collates by locale. pin both; toolchain() fingerprints
+# the umask so a mismatch here downgrades G13 to "unverified" instead of
+# failing on an innocent cause.
+umask 022
+export LC_ALL=C
 # 8 MiB. self-imposed -- the ESP is 64 MiB and the stick is whatever size you
 # flashed. it is a budget, not a limit: every addition has to argue for itself
 # against a number that does not move quietly. G1 measures xos.img; G19
@@ -103,12 +117,17 @@ deps() {
              veritysetup:cryptsetup sbsign:sbsigntools sbverify:sbsigntools \
              ukify:systemd virt-fw-vars:python-virt-firmware \
              mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux \
-             wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base; do
+             wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base \
+             cmake:cmake flex:flex bison:bison bc:bc pkg-config:pkgconf \
+             partprobe:parted strings:binutils; do
     command -v "${cmd%%:*}" >/dev/null 2>&1 || miss+=("${cmd%%:*} (${cmd##*:})")
   done
   # musl is linked into every binary but is NOT built from source here -- it is
   # host-provided. SOURCES.md records this honestly; the build must have it.
   [ -f /usr/lib/musl/lib/rcrt1.o ] || miss+=("/usr/lib/musl/lib/rcrt1.o (musl)")
+  lsblk -nro MOUNTPOINTS /dev/null >/dev/null 2>&1 \
+    || [ "$(lsblk -nro MOUNTPOINTS / 2>/dev/null | grep -c .)" -gt 0 ] \
+    || miss+=("lsblk with MOUNTPOINTS column (util-linux >= 2.37)")
   [ -f "$STUB" ]      || miss+=("$STUB (systemd)")
   [ -f "$OVMF_CODE" ] || miss+=("$OVMF_CODE (edk2-ovmf)")
   [ -f "$OVMF_VARS" ] || miss+=("$OVMF_VARS (edk2-ovmf)")
@@ -143,7 +162,7 @@ sigver() { # $1 tarball  $2 committed .asc  $3 committed pubkey  $4 pinned finge
   local gh; gh=$(mktemp -d) || return 1
   gpg -q --homedir "$gh" --import "$3" 2>/dev/null
   # VALIDSIG + the pinned fingerprint: a swapped pubkey file cannot satisfy this.
-  if gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | grep -q "VALIDSIG $4"; then
+  if gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | has "VALIDSIG $4"; then
     printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)"
     rm -rf "$gh"
   else
@@ -217,8 +236,10 @@ kernel() {
   # `CONFIG_X=n` (must be off). split them -- feeding a `=n` line to --enable
   # would turn hardening-disable requests into enables.
   local enables disables
-  enables=$(grep -oP '^CONFIG_[A-Z0-9_]+(?==y$)' kernel.config)
-  disables=$(grep -oP '^CONFIG_[A-Z0-9_]+(?==n$)' kernel.config)
+  # `=y\s*$`: a trailing space on a line used to drop that option from both
+  # the enable pass AND the gate, silently. whitespace is not a config change.
+  enables=$(grep -oP '^CONFIG_[A-Z0-9_]+(?==y\s*$)' kernel.config)
+  disables=$(grep -oP '^CONFIG_[A-Z0-9_]+(?==n\s*$)' kernel.config)
   # olddefconfig silently drops any option whose deps are unmet, so enable to a
   # fixpoint (a parent enabled on pass N unlocks its children on pass N+1) and
   # then GATE on it -- a kernel quietly missing squashfs still "builds fine".
@@ -298,12 +319,12 @@ busybox() {
   bbset "$d" PIE n
   for off in TC PAM FEATURE_WTMP FEATURE_UTMP; do bbset "$d" "$off" n; done
   sed -i '/^CONFIG_EXTRA_CFLAGS=/d;/^CONFIG_EXTRA_LDFLAGS=/d' "$d/.config"
-  echo "CONFIG_EXTRA_CFLAGS=\"-fPIE -Os -isystem $PWD/sysroot/include\"" >> "$d/.config"
+  echo "CONFIG_EXTRA_CFLAGS=\"$XCF\"" >> "$d/.config"
   echo 'CONFIG_EXTRA_LDFLAGS=""' >> "$d/.config"
 
   if [ "${BBMODE:-trim}" = trim ]; then
-    grep -o '^CONFIG_[A-Z0-9_]*=y' "$d/.config" | sed 's/^CONFIG_//;s/=y$//' > /tmp/bb-all.$$
-    local keep
+    local all keep; all=$(mktemp)
+    grep -o '^CONFIG_[A-Z0-9_]*=y' "$d/.config" | sed 's/^CONFIG_//;s/=y$//' > "$all"
     keep=$( { grep -v '^[[:space:]]*#' busybox.config.applets
               sed 's/#.*//' busybox.config.features
             } | tr ' ' '\n' | grep -v '^$' | tr 'a-z' 'A-Z' | sort -u)
@@ -312,8 +333,8 @@ busybox() {
         STATIC|*FEATURE*|*PLATFORM*|*LFS*|DESKTOP|LONG_OPTS|SHOW_USAGE|*_PREFIX*|INSTALL_*|*_APPLET_*) continue ;;
       esac
       grep -qx "$sym" <<< "$keep" || bbset "$d" "$sym" n
-    done < /tmp/bb-all.$$
-    rm -f /tmp/bb-all.$$
+    done < "$all"
+    rm -f "$all"
   fi
 
   # keeping a symbol out of the trim list only means trim will not turn it OFF;
@@ -364,14 +385,15 @@ tls() {
   say "building bearssl + tlstunnel"
   local d="src/bearssl-$BSSLVER" specs="$PWD/musl-static-pie.specs"
   [ -f "$d/build/libbearssl.a" ] || \
-    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
+    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall $XCF" \
       build/libbearssl.a >/dev/null 2>&1
   [ -x "$d/build/brssl" ] || \
-    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
+    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall $XCF" \
       build/brssl >/dev/null 2>&1
   [ -f "$d/build/libbearssl.a" ] || { echo "FAIL: libbearssl.a did not build" >&2; return 1; }
   ta || return 1
-  gcc -specs="$specs" -fPIE -Os -isystem "$PWD/sysroot/include" \
+  # shellcheck disable=SC2086
+  gcc -specs="$specs" $XCF \
     -I"$d/inc" -I. -o tlstunnel tlstunnel.c "$d/build/libbearssl.a" || return 1
   { ./tlstunnel 2>&1 || true; } | has usage || { echo "FAIL: tlstunnel does not run" >&2; return 1; }
   printf '  tlstunnel: %d bytes\n' "$(stat -c%s tlstunnel)"
@@ -385,7 +407,7 @@ wg_() {
   # RUNSTATEDIR is normally set by the makefile's own CFLAGS; supplying our
   # own CFLAGS drops it, so define it back or the socket path will not compile.
   make -C "$d" CC="gcc -specs=$specs" \
-    CFLAGS="-fPIE -Os -isystem $PWD/sysroot/include -DRUNSTATEDIR='\"/run\"'" \
+    CFLAGS="$XCF -DRUNSTATEDIR='\"/run\"'" \
     LDFLAGS="" WITH_BASHCOMPLETION=no WITH_WGQUICK=no WITH_SYSTEMDUNITS=no wg >/dev/null 2>&1
   [ -f "$d/wg" ] || { echo "FAIL: wg did not build" >&2; return 1; }
   strip "$d/wg"; cp "$d/wg" wg
@@ -402,10 +424,19 @@ dropbear_() {
   # our hardening (no password auth, ed25519 only) as a tracked overlay, so the
   # security-relevant deltas from upstream defaults show up in a diff.
   cp dropbear.localoptions.h "$d/src/localoptions.h"
+  # every knob the header sets must still be a knob upstream knows. a dropbear
+  # bump that renames DROPBEAR_SVR_PASSWORD_AUTH would turn our #define into a
+  # no-op and ship password auth on the one listening service -- green. the
+  # busybox build reads its features back out of .config for the same reason.
+  local knob unknown=""
+  for knob in $(sed -n 's/^#define \(DROPBEAR_[A-Z0-9_]*\).*/\1/p' dropbear.localoptions.h); do
+    grep -q "^#define $knob\b" "$d/src/default_options.h" || unknown="$unknown $knob"
+  done
+  [ -z "$unknown" ] || { echo "FAIL: dropbear.localoptions.h sets knobs upstream $DBVER no longer has:$unknown" >&2; return 1; }
   ( cd "$d" && ./configure --disable-zlib --disable-lastlog --disable-utmp \
       --disable-utmpx --disable-wtmp --disable-wtmpx --disable-pututline \
       --disable-pututxline \
-      CC="gcc -specs=$specs" CFLAGS="-fPIE -Os -isystem $PWD/../sysroot/include" \
+      CC="gcc -specs=$specs" CFLAGS="$XCF" \
       >/dev/null 2>&1 ) || { echo "FAIL: dropbear configure failed" >&2; return 1; }
   # do NOT pass STATIC=1 -- it injects a plain -static that fights the specs
   # file's -static-pie and produces a fixed-load-address (ASLR-off) binary.
@@ -420,11 +451,10 @@ dropbear_() {
 cryptsetup_() {
   say "building cryptsetup $CSVER + its four libraries (musl static-pie)"
   local specs="$PWD/musl-static-pie.specs" root="$PWD"
-  # -ffile-prefix-map: json-c bakes __FILE__ into assert strings, which put the
-  # absolute build path inside the shipped cryptsetup -- two clean clones built
-  # different bytes and the reproducibility claim quietly broke. map the tree
-  # root to a fixed name so the binary is the same from any directory.
-  local cc="gcc -specs=$specs" cf="-fPIE -Os -isystem $root/sysroot/include -ffile-prefix-map=$root=xos"
+  # XCF carries -ffile-prefix-map: json-c bakes __FILE__ into assert strings,
+  # which put the absolute build path inside the shipped cryptsetup -- two
+  # clean clones built different bytes and reproducibility quietly broke.
+  local cc="gcc -specs=$specs" cf="$XCF"
   local dep="$root/src/cs-dep"
   rm -rf "$dep"; mkdir -p "$dep/lib" "$dep/include/json-c" "$dep/include/uuid"
 
@@ -499,7 +529,8 @@ abduco() {
   rm -f "$d/abduco"
   # -lutil for forkpty(). musl keeps forkpty in libc and ships an empty
   # libutil.a for compatibility, so this resolves and costs nothing.
-  gcc -specs="$specs" -fPIE -Os -isystem "$PWD/sysroot/include" \
+  # shellcheck disable=SC2086
+  gcc -specs="$specs" $XCF \
     -std=c99 -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
     -DVERSION="\"$ABDVER\"" -DNDEBUG -I"$d" \
     -o abduco "$d/abduco.c" -lutil || return 1
@@ -516,7 +547,7 @@ ii_() {
   [ -d "$d" ] || { echo "FAIL: ii source missing, run fetch" >&2; return 1; }
   make -C "$d" clean >/dev/null 2>&1 || true
   make -C "$d" CC="gcc -specs=$specs" \
-    CFLAGS="-fPIE -Os -isystem $PWD/sysroot/include" LDFLAGS="" >/dev/null 2>&1
+    CFLAGS="$XCF" LDFLAGS="" >/dev/null 2>&1
   [ -f "$d/ii" ] || { echo "FAIL: ii did not build" >&2; return 1; }
   strip "$d/ii"; cp "$d/ii" ii
   # ii exits non-zero when printing usage, and pipefail would read that as a
@@ -534,14 +565,15 @@ rootfs() {
   # names come from busybox itself, not our config list -- the two drift
   # (CONFIG_TEST1 is the applet named "["), and a missing applet makes
   # shell tests fail open rather than fail loud.
-  ./busybox --list > /tmp/xos-applets.$$ 2>/dev/null || {
-    echo "FAIL: busybox --list unavailable (enable the busybox applet)" >&2; return 1; }
-  [ -s /tmp/xos-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
+  local applets; applets=$(mktemp)
+  ./busybox --list > "$applets" 2>/dev/null || {
+    echo "FAIL: busybox --list unavailable (enable the busybox applet)" >&2; rm -f "$applets"; return 1; }
+  [ -s "$applets" ] || { echo "FAIL: empty applet list" >&2; rm -f "$applets"; return 1; }
   while read -r a; do
     ln -sf busybox "root/bin/$a"
-  done < /tmp/xos-applets.$$
-  grep -qx '\[' /tmp/xos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/xos-applets.$$; return 1; }
-  rm -f /tmp/xos-applets.$$
+  done < "$applets"
+  grep -qx '\[' "$applets" || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f "$applets"; return 1; }
+  rm -f "$applets"
   # every component is REQUIRED. these were `[ -f x ] && cp x` -- one missing
   # binary silently produced a smaller image that still passed every gate.
   # a build that ships less than it claims must fail, not shrink.
@@ -595,6 +627,10 @@ rootfs() {
   if [ -n "${XOS_SSH_KEY:-}" ]; then
     [ -f "$XOS_SSH_KEY" ] || { echo "FAIL: XOS_SSH_KEY=$XOS_SSH_KEY not found" >&2; return 1; }
     install -m 0600 "$XOS_SSH_KEY" root/etc/dropbear/authorized_keys
+    # init concatenates this with the p3 key file. a baked key with no final
+    # newline fused with the first p3 line into one unparseable key -- and
+    # rejected BOTH, locking the image key out. the newline is part of the key.
+    sed -i -e '$a\' root/etc/dropbear/authorized_keys
     echo "  baked $XOS_SSH_KEY -> etc/dropbear/authorized_keys"
   fi
   # sourced by every interactive ash (via $ENV). vi editing on by default --
@@ -784,7 +820,9 @@ dbx() {
   [ -f ovmf-vars.fd ] || { echo "FAIL: no ovmf-vars.fd -- run ./build.sh uki first" >&2; return 1; }
   [ -f revoked ] || { echo "FAIL: revoked missing -- it is tracked; do not delete it" >&2; return 1; }
   local args=() h rest n=0
-  while read -r h rest; do
+  # `|| [ -n "$h" ]`: read returns nonzero on a final line with no newline,
+  # and a hand-edited file ending that way would drop exactly one revocation.
+  while read -r h rest || [ -n "$h" ]; do
     case "$h" in ''|'#'*) continue ;; esac
     # a malformed line must stop the build. skipping it would silently drop a
     # revocation, and nothing downstream can tell that apart from success.
@@ -880,9 +918,17 @@ usb() {
   [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] || {
     echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
-  if lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null | has .; then
+  local mounts
+  mounts=$(lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null) \
+    || { echo "FAIL: lsblk could not report mountpoints for $dev -- refusing to guess" >&2; return 1; }
+  if printf '%s\n' "$mounts" | has .; then
     echo "FAIL: $dev (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
   [ -f stick.img ] || stick || return 1
+  # the gates, every time. a stick.img left behind by a gate-FAILED `all` (stick
+  # runs before size) used to flash straight through here; the only check on
+  # this path was a readback against a pin that the same failed run had
+  # regenerated. gates are stateless and cheap next to a wrong stick in the field.
+  size || { echo "FAIL: gates failed -- not writing $dev" >&2; return 1; }
 
   local dev_bytes img_bytes model
   dev_bytes=$(( $(cat "/sys/block/$n/size") * 512 ))
@@ -908,15 +954,15 @@ usb() {
   # wrote and prove nothing. compare the whole stick, then the p2 root region
   # against the pinned image digest.
   say "verifying written bytes"
-  local want_stick have_stick want_root have_root root_off
+  local want_stick have_stick want_root have_root
   want_stick=$(sha256sum < stick.img | awk '{print $1}')
   have_stick=$(dd if="$dev" bs=1M iflag=direct,count_bytes count="$img_bytes" status=none | sha256sum | awk '{print $1}')
   [ "$want_stick" = "$have_stick" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
-  root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
   want_root=$(awk '$1=="image"{print $2}' image.sha256)
+  [ -n "$want_root" ] || { echo "FAIL: image.sha256 carries no image digest -- run ./build.sh pin" >&2; return 1; }
   have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$(stat -c%s xos.img)" status=none | sha256sum | awk '{print $1}')
-  if [ -n "$want_root" ] && [ "$want_root" != "$have_root" ]; then
-    echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; fi
+  [ "$want_root" = "$have_root" ] \
+    || { echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; }
   sync
   printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
@@ -993,6 +1039,7 @@ toolchain() {
     mksquashfs -version 2>&1 | head -1
     veritysetup --version
     sha256sum musl-static-pie.specs | awk '{print $1}'
+    umask
   } | sha256sum | awk '{print $1}'
 }
 
@@ -1057,41 +1104,10 @@ TODO: write this entry by hand.
 
 # is TOK a legitimate flag cluster for the command documented by REF?
 # handles bundling (-rf = -r -f) and attached values (-f1 = -f with arg "1").
-# a flag counts as documented only if the ref EXPLAINS it on its own line --
-# not if it merely appears inside a usage cluster like [-rf]. a cluster tells
-# you a flag exists; it does not tell you what it does, and a question is only
-# answerable from a ref that says what the flag does.
-# busybox writes aliases as "-R,-r\tRecurse", so the flag may sit after a comma
-# rather than after the leading whitespace. matching only the first form called
-# `cp -r` undocumented when the ref documents it perfectly well.
-documented() {
-  grep -qE "^[[:space:]]+(-[^[:space:],]+,)*-$1([[:space:],=]|\[|$)" "$2" && return 0
-  # tar documents its mode letters bare ("c\tCreate"), because that is tar's own
-  # syntax; the dashed form works too. accept a lone letter on a flag line.
-  grep -qE "^[[:space:]]+$1[[:space:]]" "$2"
-}
-
-flagchk() {
-  local tok="${1#-}" ref="$2" i=0 c consumed=0
-  # whole-token match first: busybox has multi-char short flags in places
-  documented "$tok" "$ref" && return 0
-  while [ -n "$tok" ]; do
-    c="${tok%"${tok#?}"}"          # first character
-    if documented "$c" "$ref"; then
-      consumed=$((consumed + 1)); tok="${tok#?}"
-    else
-      # remainder is an attached argument -- fine iff a real flag came first
-      [ "$consumed" -gt 0 ] && return 0
-      return 1
-    fi
-  done
-  return 0
-}
-
 # gate roster -- every G-number that exists, in one place, so a silently
 # dropped gate is visible instead of hiding in a diff. most run in size()
 # below; G8 runs in fetch(), G9 lives in githooks/pre-commit (not this
-# script). G22 was never assigned -- skip on purpose, not a gap.
+# script).
 #   G1  image <= IMAGE_MAX
 #   G2  no dynamic loader (no INTERP segment on any ELF)
 #   G3  every ELF is PIE
@@ -1114,7 +1130,7 @@ flagchk() {
 #   G19 UKI + image <= IMAGE_MAX (the binding size gate)
 #   G20 shipped image is not revoked
 #   G21 revocation digest matches the signature
-#   G22 -- unassigned, on purpose
+#   G22 stack protector present in every shipped ELF
 #   G23 exactly one shell (busybox ash)
 #   G24 learn corpus covers the shipped surface exactly
 #   G25 learn selftest passes under the built busybox
@@ -1131,27 +1147,47 @@ flagchk() {
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=32   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=33   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
   local sz; sz=$(stat -c%s xos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
 
-  local elfs interp exec_type
+  # the ELF gates. `for f in $elfs` word-split paths and an empty root/ made
+  # every counter 0 -> ok, so: read paths line by line, and count the ELFs so
+  # an empty tree is a FAIL instead of a vacuous pass.
+  local elfs interp exec_type n_elf=0 rwe_stack=0 ssp_miss=0 f
   elfs=$(find root -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && echo "$1"' _ {} \; 2>/dev/null)
   interp=0; exec_type=0
-  local rwe_stack=0
-  for f in $elfs; do
-    readelf -l "$f" 2>/dev/null | grep -q INTERP && interp=$((interp+1))
-    readelf -h "$f" 2>/dev/null | grep -q 'Type:.*EXEC' && exec_type=$((exec_type+1))
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    n_elf=$((n_elf+1))
+    readelf -l "$f" 2>/dev/null | has INTERP && interp=$((interp+1))
+    readelf -h "$f" 2>/dev/null | has 'Type:.*EXEC' && exec_type=$((exec_type+1))
     # GNU_STACK marked RWE = executable stack (the noexecstack link flag failed).
-    # this one IS kernel-enforced, unlike RELRO in a static-pie binary.
-    readelf -lW "$f" 2>/dev/null | awk '/GNU_STACK/{print $(NF)}' | has RWE && rwe_stack=$((rwe_stack+1))
-  done
-  g "G2 no dynamic loader ($interp with INTERP)" "$([ "$interp" -eq 0 ] && echo ok || echo FAIL)"
-  g "G3 all ELF are PIE ($exec_type non-PIE)"    "$([ "$exec_type" -eq 0 ] && echo ok || echo FAIL)"
-  g "G16 no executable stack ($rwe_stack RWE)"   "$([ "$rwe_stack" -eq 0 ] && echo ok || echo FAIL)"
+    # this one IS kernel-enforced, unlike RELRO in a static-pie binary. the
+    # flags are the second-to-last column -- the last is the alignment, and
+    # reading it made this gate unable to fail for as long as it existed.
+    readelf -lW "$f" 2>/dev/null | awk '/GNU_STACK/{print $(NF-1)}' | has RWE && rwe_stack=$((rwe_stack+1))
+    # G22 -- the stack protector claim. musl's __stack_chk_fail carries this
+    # string and strip does not remove .rodata, so its absence means the
+    # binary was compiled without -fstack-protector: no canary, no check.
+    strings "$f" 2>/dev/null | has 'stack smashing detected' || ssp_miss=$((ssp_miss+1))
+  done <<< "$elfs"
+  # the executable-stack detector must be able to say RWE at all: link a
+  # deliberately bad object and ask. a detector that cannot fail is not one.
+  local g16d; g16d=$(mktemp -d)
+  printf 'int main(void){return 0;}\n' > "$g16d/x.c"
+  local g16_self=FAIL
+  if gcc -o "$g16d/x" "$g16d/x.c" -z execstack 2>/dev/null \
+     && readelf -lW "$g16d/x" | awk '/GNU_STACK/{print $(NF-1)}' | has RWE; then g16_self=ok; fi
+  rm -rf "$g16d"
+  g "G2 no dynamic loader ($interp with INTERP, $n_elf ELF)" "$([ "$interp" -eq 0 ] && [ "$n_elf" -gt 0 ] && echo ok || echo FAIL)"
+  g "G3 all ELF are PIE ($exec_type non-PIE)"    "$([ "$exec_type" -eq 0 ] && [ "$n_elf" -gt 0 ] && echo ok || echo FAIL)"
+  g "G16 no executable stack ($rwe_stack RWE, detector $g16_self)" \
+    "$([ "$rwe_stack" -eq 0 ] && [ "$n_elf" -gt 0 ] && [ "$g16_self" = ok ] && echo ok || echo FAIL)"
+  g "G22 stack protector in every ELF ($ssp_miss without)" "$([ "$ssp_miss" -eq 0 ] && [ "$n_elf" -gt 0 ] && echo ok || echo FAIL)"
 
   local suid ww
   suid=$(find root -type f \( -perm -4000 -o -perm -2000 \) | wc -l)
@@ -1170,9 +1206,15 @@ size() {
   g "G10 build clock pinned ($pinned)" \
     "$(strings busybox 2>/dev/null | has "BusyBox v.*$pinned" && echo ok || echo FAIL)"
 
-  # find, not ls: `ls nonexistent | wc -l` exits non-zero under pipefail and
-  # set -e then kills the whole gate run silently. this bit us four times.
-  local plain; plain=$(find keys -maxdepth 1 -name '*.key' 2>/dev/null | wc -l)
+  # by CONTENT, the way the pre-commit hook does it: a key is a file that says
+  # PRIVATE KEY inside, wherever it sits and whatever it is called. the old
+  # check was `keys/*.key` -- one directory, one extension -- so a decrypted
+  # copy left at the tree root during debugging passed as 0. src/ and root/
+  # are upstream and image trees (dropbear ships test keys); .git is history.
+  local plain
+  plain=$(grep -rlE 'BEGIN (RSA |EC |OPENSSH |ENCRYPTED |)PRIVATE KEY' . \
+            --exclude-dir=src --exclude-dir=root --exclude-dir=.git --exclude-dir=sysroot \
+            --exclude-dir=.worktrees 2>/dev/null | grep -c . || true)
   g "G11 no plaintext private key on disk ($plain)" "$([ "$plain" -eq 0 ] && echo ok || echo FAIL)"
 
   # G12 -- the image contains everything the manifest declares. component
@@ -1244,21 +1286,26 @@ size() {
   g "G21 revocation digest matches signature" \
     "$([ -n "$cur" ] && python3 pehash.py --verify xos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
 
-  g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
+  g "G7 kernel has no module loader" \
+    "$([ -f "src/linux-$KVER/.config" ] && ! grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo ok || echo FAIL)"
 
   # G14 -- the built kernel actually honours the config contract. kernel() checks
   # this at build time; re-checking here catches a stale prebuilt .config that
   # was never rebuilt after kernel.config changed.
-  local kc="src/linux-$KVER/.config" k_miss=0 k_bad=0 opt
-  if [ -f "$kc" ]; then
+  local kc="src/linux-$KVER/.config" k_miss=0 k_bad=0 k_want=0 opt
+  if [ -f "$kc" ] && [ -s kernel.config ]; then
     while read -r opt; do
       [ -n "$opt" ] || continue
+      k_want=$((k_want+1))
       grep -q "^$opt=y" "$kc" || { k_miss=$((k_miss+1)); printf '    config not enabled: %s\n' "$opt" >&2; }
-    done < <(grep -oP '^CONFIG_[A-Z0-9_]+(?==y$)' kernel.config)
+    done < <(grep -oP '^CONFIG_[A-Z0-9_]+(?==y\s*$)' kernel.config)
     while read -r opt; do
       [ -n "$opt" ] || continue
+      k_want=$((k_want+1))
       grep -q "^$opt=y" "$kc" && { k_bad=$((k_bad+1)); printf '    config still on: %s\n' "$opt" >&2; }
-    done < <(grep -oP '^CONFIG_[A-Z0-9_]+(?==n$)' kernel.config)
+    done < <(grep -oP '^CONFIG_[A-Z0-9_]+(?==n\s*$)' kernel.config)
+    # a kernel.config that parses to nothing is a contract with no clauses
+    [ "$k_want" -gt 0 ] || { k_miss=$((k_miss+1)); printf '    kernel.config declares no options\n' >&2; }
     # CONFIG_EXTRA_FIRMWARE bakes a vendor blob straight into bzImage, which
     # G18 (squashfs only) cannot see. it is a string option, so the =n leak
     # scan above skips it -- assert its absence explicitly.
@@ -1291,9 +1338,10 @@ size() {
 
   # G18 -- no firmware blobs in the image. r8169 pulls in FW_LOADER; if a blob
   # ever gets shipped it is unverified-by-vendor content on a verified system.
-  local fw
-  fw=$(unsquashfs -l rootfs.squashfs 2>/dev/null | grep -c 'squashfs-root/lib/firmware' || true)
-  g "G18 no firmware blobs in image ($fw)" "$([ "${fw:-0}" -eq 0 ] && echo ok || echo FAIL)"
+  local fw fw_list
+  fw_list=$(unsquashfs -l rootfs.squashfs 2>/dev/null) || fw_list=""
+  fw=$(printf '%s\n' "$fw_list" | grep -c 'squashfs-root/lib/firmware' || true)
+  g "G18 no firmware blobs in image ($fw)" "$([ -n "$fw_list" ] && [ "${fw:-0}" -eq 0 ] && echo ok || echo FAIL)"
 
   # G32 -- the fingerprint wordlist. init indexes it 1..256 by roothash byte;
   # a short, duplicated, or malformed list makes two images share words or
@@ -1314,10 +1362,10 @@ size() {
   # an interactive passphrase). this runs init's own parse bytes and asserts the
   # split; the structural checks pin the two consumers and the partition scan so
   # a future edit that swaps them fails here instead of on a stick in the field.
-  local g33=ok bb33 wgp33 t33=/tmp/xos-g33.$$ got33
+  local g33=ok bb33 wgp33 t33 got33
+  t33=$(mktemp -d)
   bb33=./busybox; [ -x "$bb33" ] || bb33=$(command -v busybox 2>/dev/null)
   wgp33=$(sed -n '/^[[:space:]]*wgcidr=/,/^[[:space:]]*case /p' init)
-  mkdir -p "$t33"
   _wg33() {   # $1 = Address value ('' for none), $2 = expected "wgcidr|wgip"
     if [ -n "$1" ]; then printf 'Address = %s\n' "$1" > "$t33/wg0.conf"; else : > "$t33/wg0.conf"; fi
     got33=$(STATE_DIR="$t33" "$bb33" ash -c "$wgp33"'; printf "%s|%s" "$wgcidr" "$wgip"' 2>/dev/null)
@@ -1361,16 +1409,16 @@ size() {
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.
   if [ -f stick.img ]; then
-    local s_ok=1 j pe pr root_off
+    local s_ok=1 j esp_uki
+    esp_uki=$(mktemp)
     j=$(sfdisk -J stick.img 2>/dev/null || true)
     printf '%s' "$j" | grep -qi "\"$PU_ESP\""  || { s_ok=0; printf '    esp PARTUUID absent\n' >&2; }
     printf '%s' "$j" | grep -qi "\"$PU_ROOT\"" || { s_ok=0; printf '    root PARTUUID absent\n' >&2; }
-    root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
     cmp -s -n "$(stat -c%s xos.img)" xos.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s xos.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
       || { s_ok=0; printf '    p2 region != xos.img\n' >&2; }
-    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/xos-esp-uki.$$ 2>/dev/null \
-      && cmp -s xos-signed.efi /tmp/xos-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != xos-signed.efi\n' >&2; }
-    rm -f /tmp/xos-esp-uki.$$
+    mcopy -o -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI "$esp_uki" 2>/dev/null \
+      && cmp -s xos-signed.efi "$esp_uki" || { s_ok=0; printf '    ESP UKI != xos-signed.efi\n' >&2; }
+    rm -f "$esp_uki"
     g "G17 stick.img coherent with artifacts" "$([ "$s_ok" -eq 1 ] && echo ok || echo FAIL)"
   else
     g "G17 stick.img coherent" FAIL
@@ -1387,15 +1435,29 @@ size() {
     printf '    no xos-signed.efi -- run ./build.sh uki\n' >&2
   fi
 
-  # G23 -- exactly one shell. two shell parsers used to ship (busybox ash for
-  # /bin/sh, bash purely as cmdchamp's interpreter). one parser is less to
-  # audit, and the survivor is the small one; this fails if bash comes back.
-  local shells sh_ok=1
-  shells=$(unsquashfs -l rootfs.squashfs 2>/dev/null | grep -cE 'squashfs-root/(bin|usr/bin)/(bash|dash|ksh|mksh|oksh|zsh)$' || true)
-  [ "${shells:-0}" -eq 0 ] || { sh_ok=0; printf '    a second shell is in the image\n' >&2; }
+  # G23 -- exactly one shell, by construction: every executable in the image
+  # is busybox, a busybox link, a dropbearmulti link, or a name in EXTRA_BINS.
+  # the old check was a list of six shell NAMES in two directories -- the same
+  # blocklist-of-past-mistakes the pre-commit hook explains it stopped using.
+  # a shell shipped as /bin/rc, or bash under /usr/local, passed it. an
+  # undeclared executable of any kind fails this one.
+  local sh_ok=1 undecl=0 x base
+  while IFS= read -r x; do
+    [ -n "$x" ] || continue
+    base=$(basename "$x")
+    case "$base" in busybox|dropbearmulti) continue ;; esac
+    case " $EXTRA_BINS " in *" $base "*) continue ;; esac
+    # a first-party script the manifest declares (init, the dhcp hook)
+    grep -qxF -- "${x#root/}" manifest && continue
+    if [ -L "$x" ]; then
+      case "$(readlink "$x")" in busybox|dropbearmulti) continue ;; esac
+    fi
+    undecl=$((undecl+1)); printf '    undeclared executable in image: %s\n' "$x" >&2
+  done <<< "$(find root \( -type f -o -type l \) -perm -0100 2>/dev/null)"
+  [ "$undecl" -eq 0 ] || sh_ok=0
   readlink root/bin/sh 2>/dev/null | grep -qx busybox \
     || { sh_ok=0; printf '    /bin/sh is not busybox\n' >&2; }
-  g "G23 exactly one shell (busybox ash)" "$([ "$sh_ok" -eq 1 ] && echo ok || echo FAIL)"
+  g "G23 exactly one shell ($undecl undeclared executables)" "$([ "$sh_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # G24 -- learn documents the system that actually ships, in both directions,
   # and the applet list is what was asked for. the third check closes a real
@@ -1523,7 +1585,7 @@ size() {
   # promised lockdown and no vsyscall page, the running kernel disagreed, and
   # nothing in the build noticed. that cost three red self-test sections and
   # an afternoon chasing them in the wrong place.
-  local kb_ok=1 kb_want kb_have
+  local kb_ok=1 kb_want kb_have kx_want kx_have
   if [ ! -f bzImage ] || [ ! -f bzImage.config.sha256 ]; then
     kb_ok=0; printf '    no bzImage or no config stamp -- run ./build.sh kernel\n' >&2
   else
@@ -1532,6 +1594,14 @@ size() {
     [ "$kb_want" = "$kb_have" ] || {
       kb_ok=0
       printf '    kernel.config has changed since bzImage was built -- rebuild the kernel\n' >&2; }
+    # the expanded line is the digest of what was really compiled. it was
+    # written and never read: a `scripts/config --enable` on the tree's own
+    # .config followed by `make` left kernel.config untouched and this green.
+    kx_want=$(sha256sum < "src/linux-$KVER/.config" 2>/dev/null | awk '{print $1}')
+    kx_have=$(awk '/^expanded/ {print $2}' bzImage.config.sha256)
+    [ -n "$kx_want" ] && [ "$kx_want" = "$kx_have" ] || {
+      kb_ok=0
+      printf '    the kernel tree .config is not the one bzImage was compiled from -- rebuild the kernel\n' >&2; }
   fi
   g "G28 bzImage was built from this kernel.config" \
     "$([ "$kb_ok" -eq 1 ] && echo ok || echo FAIL)"
@@ -1619,13 +1689,28 @@ addstate() {
   # tools addstate needs that a plain build does not -- check them here so it
   # fails with a clear message up front, never half way through partitioning.
   local t miss=""
-  for t in cryptsetup:cryptsetup mkfs.ext4:e2fsprogs partx:util-linux sfdisk:util-linux; do
+  for t in cryptsetup:cryptsetup mkfs.ext4:e2fsprogs partx:util-linux sfdisk:util-linux \
+           partprobe:parted lsblk:util-linux; do
     command -v "${t%%:*}" >/dev/null 2>&1 || miss="$miss ${t%%:*}(${t##*:})"
   done
   [ -z "$miss" ] || { echo "FAIL: addstate needs:$miss" >&2; return 1; }
+  # this rewrites a partition table and luksFormats: every guard usb() has,
+  # it has. it used to have one (removable), so a removable sd card of photos
+  # with two partitions qualified, with no prompt.
   local n; n=$(basename "$dev")
+  [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
     || { echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
+  local mounts
+  mounts=$(lsblk -nro MOUNTPOINTS "$dev" 2>/dev/null) \
+    || { echo "FAIL: lsblk could not report mountpoints for $dev -- refusing to guess" >&2; return 1; }
+  if printf '%s\n' "$mounts" | has .; then
+    echo "FAIL: $dev (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
+  # it must be an xos stick: p1 and p2 carry the fixed PARTUUIDs stick() wrote.
+  local ptable
+  ptable=$(sfdisk -J "$dev" 2>/dev/null) || { echo "FAIL: cannot read the partition table on $dev" >&2; return 1; }
+  printf '%s' "$ptable" | grep -qi "\"$PU_ESP\""  || { echo "FAIL: $dev p1 is not the xos ESP -- flash the image first" >&2; return 1; }
+  printf '%s' "$ptable" | grep -qi "\"$PU_ROOT\"" || { echo "FAIL: $dev p2 is not the xos root -- flash the image first" >&2; return 1; }
 
   # never reformat an existing p3. re-running this used to luksFormat whatever
   # third partition was already there and destroy everything on it, with no
@@ -1648,7 +1733,11 @@ addstate() {
     || { echo "FAIL: cannot read the partition table on $dev -- flash the image first" >&2; return 1; }
   [ -n "$p2end" ] || { echo "FAIL: no second partition on $dev" >&2; return 1; }
 
-  echo "  adding p3 to $dev in the free space after sector $p2end"
+  local model answer
+  model=$(cat "/sys/block/$n/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//')
+  echo "  target: $dev  model: ${model:-unknown}  -- p3 goes in the free space after sector $p2end"
+  read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
+  [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
   sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
 start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK

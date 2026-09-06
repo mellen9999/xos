@@ -33,7 +33,10 @@
  * caller-chosen instant. init's tls-time uses this to escape the chicken-and-
  * egg of a floored clock: a cert issued after the build date is "not yet
  * valid" at the floor, so init ladders candidate times until one lands inside
- * the chain's real validity window. Unset or malformed, the system clock rules.
+ * the chain's real validity window. Unset, the system clock rules. Malformed
+ * is a bug in the caller, and a bug in the clock the chain is checked against
+ * must not be papered over: refuse to run rather than validate at a time
+ * nobody chose.
  */
 static void
 set_verify_time(br_x509_minimal_context *xc)
@@ -44,9 +47,14 @@ set_verify_time(br_x509_minimal_context *xc)
 
 	if (!e || !*e)
 		return;
+	errno = 0;
 	t = strtoll(e, &end, 10);
-	if (*end || t < 0)
-		return;
+	/* 253402300799 is 9999-12-31T23:59:59Z: anything past it is not a time,
+	 * and the uint32_t day count below would wrap on it silently */
+	if (errno || *end || t < 0 || t > 253402300799LL) {
+		fprintf(stderr, "tlstunnel: XOS_TLS_TIME is not a unix time: %s\n", e);
+		exit(2);
+	}
 	/* BearSSL counts days from Jan 1, 0 AD; 1970-01-01 is day 719528 */
 	br_x509_minimal_set_time(xc, (uint32_t)(t / 86400 + 719528),
 	    (uint32_t)(t % 86400));
@@ -152,18 +160,21 @@ pump(br_ssl_client_context *cc, int tcp, int local)
 				do { n = write(tcp, buf, len); } while (n < 0 && errno == EINTR);
 				if (n <= 0) return 1;
 				br_ssl_engine_sendrec_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 			}
 			if (fds[i].fd == tcp && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_RECVREC)) {
 				buf = br_ssl_engine_recvrec_buf(&cc->eng, &len);
 				ssize_t n = read(tcp, buf, len);
-				if (n <= 0) { br_ssl_engine_close(&cc->eng); continue; }
+				if (n <= 0) { br_ssl_engine_close(&cc->eng); break; }
 				br_ssl_engine_recvrec_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 			}
 			if (fds[i].fd == local && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_SENDAPP)) {
 				buf = br_ssl_engine_sendapp_buf(&cc->eng, &len);
 				ssize_t n = read(local, buf, len);
-				if (n <= 0) { br_ssl_engine_close(&cc->eng); continue; }
+				if (n <= 0) { br_ssl_engine_close(&cc->eng); break; }
 				br_ssl_engine_sendapp_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 				br_ssl_engine_flush(&cc->eng, 0);
 			}
 			if (fds[i].fd == local && (re & POLLOUT) && (st & BR_SSL_RECVAPP)) {
@@ -172,6 +183,7 @@ pump(br_ssl_client_context *cc, int tcp, int local)
 				do { n = write(local, buf, len); } while (n < 0 && errno == EINTR);
 				if (n <= 0) return 1;
 				br_ssl_engine_recvapp_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 			}
 		}
 	}
@@ -228,18 +240,21 @@ pump_stdio(br_ssl_client_context *cc, int tcp)
 				do { n = write(tcp, buf, len); } while (n < 0 && errno == EINTR);
 				if (n <= 0) return 1;
 				br_ssl_engine_sendrec_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 			}
 			if (fds[i].fd == tcp && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_RECVREC)) {
 				buf = br_ssl_engine_recvrec_buf(&cc->eng, &len);
 				ssize_t n = read(tcp, buf, len);
-				if (n <= 0) { br_ssl_engine_close(&cc->eng); continue; }
+				if (n <= 0) { br_ssl_engine_close(&cc->eng); break; }
 				br_ssl_engine_recvrec_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 			}
 			if (fds[i].fd == 0 && (re & (POLLIN | POLLHUP)) && (st & BR_SSL_SENDAPP)) {
 				buf = br_ssl_engine_sendapp_buf(&cc->eng, &len);
 				ssize_t n = read(0, buf, len);
 				if (n <= 0) { br_ssl_engine_flush(&cc->eng, 0); continue; }
 				br_ssl_engine_sendapp_ack(&cc->eng, n);
+				st = br_ssl_engine_current_state(&cc->eng);
 				br_ssl_engine_flush(&cc->eng, 0);
 			}
 		}
