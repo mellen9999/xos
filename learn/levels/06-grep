@@ -137,7 +137,7 @@ hint: E turns on extended regex, so + doesn't need a backslash
 ---
 q: {match either @sev@ or @term@ in @log@ in one extended-regex pass|find lines in @log@ containing @sev@ or @term@, using one extended-regex command|search @log@ for @sev@ or @term@ with a single extended-regex pattern}
 a: grep -E '@sev@|@term@' @log@
-why: fixture-cost
+cmp: ref
 ref: grep
 teach: grep -E
 hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped
@@ -172,7 +172,7 @@ hint: -e is how you search for something starting with a dash
 ---
 q: {%find% lines of @log@ containing a run of whitespace, using the POSIX space character class instead of a literal space|search @log@ for whitespace using the [[:space:]] POSIX class rather than typing a space|match whitespace in @log@ with [[:space:]], a POSIX character class, instead of a literal space}
 a: grep '[[:space:]]' @log@
-why: fixture-cost
+cmp: ref
 ref: grep
 teach: grep
 hint: POSIX classes like [[:space:]], [[:digit:]] and [[:alpha:]] work inside brackets, portable across regex flavors

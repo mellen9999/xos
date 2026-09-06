@@ -7,6 +7,7 @@ Trace the route to HOST
 
 	-F	Set don't fragment bit
 	-I	Use ICMP ECHO instead of UDP datagrams
+	-4,-6	Force IP or IPv6 name resolution
 	-l	Display TTL value of the returned packet
 	-n	Print numeric addresses
 	-r	Bypass routing tables, send directly to HOST

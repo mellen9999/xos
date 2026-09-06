@@ -291,6 +291,12 @@ ls -X                           # sort by extension
 # ── recon applets: niche flags on tools drilled for their core use ──
 # ping6 and traceroute6 take the SAME flags as ping and traceroute, drilled in
 # the reachability level. teaching them twice teaches nothing new.
+# ping -4 / traceroute -4 are the default and -6 is the ping6/traceroute6
+# applet learn already teaches: a second spelling, not a second capability
+ping -4         # alias
+ping -6         # alias
+traceroute -4   # alias
+traceroute -6   # alias
 ping6 -A
 ping6 -c
 ping6 -i

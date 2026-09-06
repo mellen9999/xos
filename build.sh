@@ -1524,7 +1524,14 @@ size() {
       case " $EXTRA_BINS " in *" $r "*) continue ;; esac
       echo "$r"; done | grep -c . || true)
   [ "${miss_cmd:-0}" -eq 0 ] || { c_ok=0; printf '    %s ref(s) document nothing shipped\n' "$miss_cmd" >&2; }
-  g "G24 learn corpus covers the surface exactly" "$([ "$c_ok" -eq 1 ] && echo ok || echo FAIL)"
+  # ... and every ref still matches the binary's own --help flag for flag.
+  # seed() never overwrites a page, so without this a busybox bump that added
+  # a flag to an existing applet was invisible to G26 -- the claim that a bump
+  # stops the build held only for brand-new applets.
+  local rc_out
+  rc_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" NO_COLOR=1 ./busybox ash learn/learn refcheck 2>&1) \
+    || { c_ok=0; printf '%s\n' "$rc_out" | grep STALE | sed 's/^/    /' >&2; }
+  g "G24 learn corpus covers the surface exactly ($(printf '%s' "$rc_out" | sed -n 's/^learn: refcheck: //p' | tail -1))" "$([ "$c_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # G25/G26 -- the curriculum checks itself, using the shell that will run it.
   #

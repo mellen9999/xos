@@ -3,6 +3,7 @@ Usage: ping [OPTIONS] HOST
 
 Send ICMP ECHO_REQUESTs to HOST
 
+	-4,-6		Force IP or IPv6 name resolution
 	-c CNT		Send only CNT pings
 	-s SIZE		Send SIZE data bytes in packets (default 56)
 	-i SECS		Interval
