@@ -342,3 +342,44 @@ dbclient -N      # forward ports without a shell; -L teaches forwarding
 dbclient -R      # remote-to-local forward; -L teaches the idea
 dbclient -J      # proxy through a command, a jump-host nicety
 dbclient -f      # background after auth
+
+# ── usage-line flags ──
+# these surfaced when flags_of learned to read the Usage: line itself -- six
+# refs (od the worst) document flags nowhere else, and they had been invisible
+# to coverage since the start. each is retired on purpose or noted as a
+# future lesson.
+date -s          # sets the system clock; danger, and xos pins its own clock
+env -i           # clean-slate environment; worth a lesson one day
+flock -c         # run a shell string; the direct PROG form is taught
+hash -r          # drop the shell's command cache, a debugging one-off
+ifconfig -a      # legacy tool kept for compat; ip addr is the taught spelling
+learn -k         # learn's own keyword search; the menu teaches learn itself
+less -h          # backscroll cap, a tuning knob
+ln -t            # target-dir flag; ln TARGET DIR is the form taught
+losetup -a       # loop-device admin: root and real block devices only
+losetup -c       # ditto
+losetup -d       # ditto
+ls -C            # column layout knob; the default already columnates
+ls -c            # sort by ctime; -t mtime sort is the taught idea
+ls -u            # sort by atime; ditto
+nslookup -debug  # verbose resolver trace; needs live dns to mean anything
+nslookup -type   # query type selector; needs live dns to grade
+od -a            # legacy selector; od -t is the taught spelling
+od -b            # ditto
+od -c            # ditto
+od -d            # ditto
+od -f            # ditto
+od -h            # ditto
+od -i            # ditto
+od -l            # ditto
+od -o            # ditto
+od -s            # ditto
+od -x            # ditto
+od -j            # skip bytes before dumping; pairs with -N, worth a lesson one day
+od -S            # minimum string length, strings(1) territory
+od -v            # do not fold repeated lines
+od -w            # bytes per output line, a formatting knob
+route -host      # legacy tool kept for compat; ip route is the taught spelling
+route -net       # ditto
+stat -l          # long listing; -c FMT is the taught, scriptable form
+udhcpc -a        # arping duplicate check; udhcpc reconfigures the live nic

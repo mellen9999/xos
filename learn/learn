@@ -687,10 +687,48 @@ order() {
 
 # flags_of CMD -- the flags this build's own --help documents, one per line.
 # aliases are written "-R,-r", and tar documents bare mode letters, so both
-# shapes are split out here.
+# shapes are split out here. two sources, unioned: the indented option lines,
+# and the Usage: line itself -- six refs (od among them) document every flag
+# ONLY in the usage line, and a flag invisible here is a flag coverage can
+# never call a hole.
 flags_of() {
-	grep -oE '^[[:space:]]+(-[^[:space:],]+,)*-[^[:space:],=]+' "$REF/$(refname "$1")" 2>/dev/null |
-		grep -oE '\-[^[:space:],=]+' | sort -u
+	{
+		grep -oE '^[[:space:]]+(-[^[:space:],]+,)*-[^[:space:],=]+' "$REF/$(refname "$1")" 2>/dev/null |
+			grep -oE '\-[^[:space:],=]+'
+		usage_flags "$1"
+	} | sort -u
+}
+
+# usage_flags CMD -- the flags the Usage: block documents. busybox writes them
+# five ways: [--long], [-bundled], [-s VALUE], the word flags [-net|-host]
+# (route) and [-type=X]/[-debug] (nslookup), and placeholders like [-SIG] that
+# are not flags at all. the word-flag list is closed by hand: no lexical rule
+# separates the bundle -sxun from the word -host, so an unlisted word flag
+# splits into letters and surfaces as bogus holes -- loud, and the fix is one
+# entry here.
+usage_flags() {
+	sed -n '/^Usage:/,/^$/p' "$REF/$(refname "$1")" 2>/dev/null | awk '
+	{
+		gsub(/[][{}|]/, " ")
+		for (i = 1; i <= NF; i++) {
+			t = $i
+			if (t !~ /^-./ || t == "--") continue
+			sub(/=.*/, "", t)
+			if (t ~ /^--/) { print t; continue }
+			body = substr(t, 2)
+			# -SIG, -SIGNAL: "any signal here", not a flag
+			if (body ~ /^[A-Z][A-Z]+$/) continue
+			if (body == "net" || body == "host" || body == "debug" || body == "type") \
+				{ print t; continue }
+			# a bundle: one flag per character. the digit run 1-9 folds to
+			# the -1..9 range convention the indented corpus already uses.
+			if (index(body, "123456789")) { print "-1..9"; gsub(/123456789/, "", body) }
+			# losetup writes "-a: show status" and uniq "[-f,s,w N]" --
+			# punctuation rides along in the token, but is never a flag
+			gsub(/[,:]/, "", body)
+			while (body != "") { print "-" substr(body, 1, 1); body = substr(body, 2) }
+		}
+	}'
 }
 
 taught_set() {
