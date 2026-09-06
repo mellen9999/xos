@@ -34,7 +34,7 @@ umask 077
 # `grep -q xos.test /proc/cmdline` also matched xos.teststate and xos.testwg.
 CMDLINE=$(cat /proc/cmdline 2>/dev/null)
 cmdline_has() { case " $CMDLINE " in *" $1 "*) return 0 ;; esac; return 1; }
-cmdline_get() { printf '%s\n' "$CMDLINE" | sed -n "s/.*[ ^]$1=\([^ ]*\).*/\1/p" | head -1; }
+cmdline_get() { printf ' %s\n' "$CMDLINE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 
 # runtime sysctl hardening. write /proc/sys directly (no sysctl-applet dep).
 # a key whose feature is compiled out is simply absent -- that is already the
@@ -123,9 +123,10 @@ trap 'shutdown_ halt' USR1
 # the root is the dm target the signed cmdline named "vroot"; find it by that
 # name. this used to hard-code dm-0, and an empty answer silently read as
 # "not usb" -- tether off, boot-stick-first p3 ordering off, no message.
-tslave=""
+tslave=""; vrootdev=""
 for _d in /sys/block/dm-*; do
 	[ "$(cat "$_d/dm/name" 2>/dev/null)" = vroot ] || continue
+	vrootdev="/dev/${_d##*/}"
 	tslave=$(ls "$_d/slaves" 2>/dev/null | head -1); break
 done
 XOS_TETHER="no (not usb)"
@@ -441,7 +442,7 @@ if cmdline_has xos.test; then
 	# come from OUTSIDE -- a checksum stored inside the thing it describes
 	# proves nothing, which is exactly why the root hash lives on the signed
 	# kernel command line and not in the filesystem.
-	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 | grep . || echo none
+	printf 'rootfs-digest: '; sha256sum "${vrootdev:-/nonexistent}" 2>/dev/null | cut -d' ' -f1 | grep . || echo none
 	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
 	printf 'fingerprint: %s\n' "${fpw:-MISSING (BAD)}"
 	printf 'tether-armed: %s\n' "$XOS_TETHER"
