@@ -327,6 +327,7 @@ echo
 section "A9  write / exec containment"
 grep -q 'remount-rw: refused' <<< "$out" && ok "/ cannot be remounted rw"      || bad "/ was remounted rw"
 grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  || bad "a binary ran from /tmp"
+grep -q 'grader-privdrop: ok'  <<< "$out" && ok "learn's answer uid can neither read nor write the home" || bad "nobody can reach the operator's home"
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
 grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
 grep -q 'sysctls-hardened: yes' <<< "$out" && ok "every hardening sysctl took" || bad "a hardening sysctl is not at its value"
@@ -607,7 +608,9 @@ assert_complete "$b2" "A16 boot 2"
 # report NO change. the other half of the guarantee: a feature that cried
 # "changed" on every boot would be as useless as one that never noticed.
 b3=$(boot_state "$p3disk" -device qemu-xhci)
-grep -q 'recon: machine [0-9a-f]\{16\} is as you left it' <<< "$b3" \
+# ...but the baseline was NOT silently replaced by boot 2: nobody accepted the
+# change, so the alarm must repeat. it used to clear itself after one line.
+grep -q 'recon: MACHINE [0-9a-f]\{16\} still CHANGED since its baseline' <<< "$b3" \
 	&& ok "boot 3 saw identical hardware and said nothing changed" \
 	|| bad "recon cried 'changed' on an unchanged machine -- false alarms"
 grep -q 'ledger: boot 3 on this state' <<< "$b3" \
