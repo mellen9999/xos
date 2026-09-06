@@ -1065,6 +1065,16 @@ toolchain() {
 pin() {
   say "pinning the bytes this source produces"
   [ -f xos.img ] || { echo "FAIL: no xos.img -- build first" >&2; return 1; }
+  # a pin is a claim about COMMITTED source. one taken while a tracked file
+  # was modified pinned bytes no clone can rebuild -- repro caught exactly
+  # that once (a level file edited between rootfs and pin). refuse the tree
+  # until it is clean; untracked files are not part of the claim.
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+     && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "FAIL: tracked files are modified -- commit (or discard) before pinning:" >&2
+    git status --porcelain --untracked-files=no >&2
+    return 1
+  fi
   { echo "# the exact artifact this source builds. regenerate with ./build.sh pin."
     echo "# G13 compares against this. a mismatch on the SAME toolchain means the"
     echo "# image no longer corresponds to the source; on a different toolchain it"
