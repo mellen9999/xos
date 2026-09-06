@@ -31,7 +31,7 @@ UTLVER="${UTLVER:-2.42.2}"
 # and only ever on the wireguard interface.
 WGTVER="${WGTVER:-1.0.20260223}"
 DBVER="${DBVER:-2026.94}"
-# maintainer key fingerprints for the two upstreams whose signed releases we
+# maintainer key fingerprints for the six upstreams whose signed releases we
 # match (see SOURCES.md for how these were established -- each cross-checked
 # against at least two independent channels). the committed pubkeys in sigs/
 # are convenience copies; a swapped pubkey cannot satisfy these pins.
@@ -40,6 +40,7 @@ LVM_FPR=D501A478440AE2FD130A1BE8B9112431E509039F   # Marian Csontos (lvm2)
 LNX_FPR=647F28654894E3BD457199BE38DBBDC86092693E   # Greg Kroah-Hartman (linux stable)
 CS_FPR=2A2918243FDE46648D0686F9D9B0577BD93E98FC    # Milan Broz (cryptsetup)
 UTL_FPR=B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284   # Karel Zak (util-linux)
+BB_FPR=C9E9416F76E610DBD09D040F47B70C55ACC9965B    # Denys Vlasenko (busybox)
 # one cflags line for every first-party and upstream userland build. the
 # -ffile-prefix-map used to live only in cryptsetup_(), where a __FILE__ in an
 # assert string had already leaked the absolute build path into the image; a
@@ -197,6 +198,7 @@ fetch() {
   sigver "linux-$KVER.tar.xz" "sigs/linux-$KVER.tar.sign" sigs/linux-release-key.asc "$LNX_FPR" xz
   get "https://busybox.net/downloads/busybox-$BBVER.tar.bz2" \
       "busybox-$BBVER.tar.bz2" "busybox-$BBVER"
+  sigver "busybox-$BBVER.tar.bz2" "sigs/busybox-$BBVER.tar.bz2.sig" sigs/busybox-release-key.asc "$BB_FPR"
   # ii: suckless publishes no signature, so this pin is trust-on-first-use
   # over TLS only. see SOURCES.md -- it is weaker than the others on purpose.
   get "https://dl.suckless.org/tools/ii-$IIVER.tar.gz" \
@@ -1161,7 +1163,7 @@ TODO: write this entry by hand.
 #   G5  no world-writable files
 #   G6  cmdline root hash matches the built tree
 #   G7  kernel has no module loader
-#   G8  every source pinned + verified before extraction; lvm2 and dropbear
+#   G8  every source pinned + verified before extraction; six upstreams
 #       also matched to committed maintainer signatures    (fetch())
 #   G9  no build artifacts/keys committed                  (githooks/pre-commit)
 #   G10 build clock pinned (busybox banner matches SOURCE_DATE_EPOCH)
