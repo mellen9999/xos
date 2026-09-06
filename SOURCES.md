@@ -6,15 +6,15 @@ what that first sighting was anchored to. They are not equal:
 
 | source | anchor | strength |
 |---|---|---|
-| linux | sha256sums published by kernel.org, matched byte for byte | good -- an independent published list |
-| busybox | sha256 published by busybox.net, matched | good -- same |
+| linux | sha256sums published by kernel.org, matched byte for byte | good -- an independent published list. **a `.tar.sign` exists upstream and is not used** |
+| busybox | sha256 published by busybox.net, matched | good -- same. **a `.sig` exists upstream and is not used** |
 | bearssl | none available (bearssl.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | ii | none available (suckless publishes no .sig/.asc/.sha256) | **weakest -- trust-on-first-use over TLS only** |
 | abduco | none available (brain-dump.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
-| cryptsetup | sha256sums published by kernel.org, matched | good -- an independent published list |
-| util-linux | sha256sums published by kernel.org, matched | good -- same |
-| lvm2 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch | **best -- signed by the maintainer** |
-| popt | none available | **weakest -- trust-on-first-use over TLS only** |
+| cryptsetup | sha256sums published by kernel.org, matched | good -- an independent published list. **a `.tar.sign` exists upstream and is not used** |
+| util-linux | sha256sums published by kernel.org, matched | good -- same. **a `.tar.sign` exists upstream and is not used** |
+| lvm2 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch -- but **that key expired 2022-06-10 and the signature was made after it**, so gpg reports EXPKEYSIG, never GOODSIG | **downgraded -- signed by the right key, which was no longer current.** `build.sh` pins this state explicitly; a revoked key would fail the build |
+| popt | none available; served from osuosl, rpm.org's own mirror, because ftp.rpm.org offers only plain HTTP and no certificate valid for its name | **weakest -- trust-on-first-use over TLS.** the pin predates the move to TLS, so the *first* sighting it records was unauthenticated |
 | json-c | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
 | wireguard-tools | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
 | dropbear | official release tarball, maintainer PGP signature (Matt Johnston), matched against a committed key on every fetch | **best -- signed by the maintainer** |
@@ -22,6 +22,22 @@ what that first sighting was anchored to. They are not equal:
 Those pins protect against a *later* substitution, not against the tarball
 having been wrong when first fetched. That is a real gap and is recorded here
 rather than hidden behind a hash that looks as authoritative as the others.
+
+Four of the largest inputs -- linux, busybox, cryptsetup and util-linux -- do
+publish maintainer signatures beside the tarballs this build already fetches,
+and none of them is checked. "good" above means the digest was matched against
+an independently published list, which is real but weaker than a signature. The
+kernel is the largest and most privileged input in the build and rests on
+TLS-plus-first-sighting when a `.tar.sign` was one `curl` away. Closing that is
+four `sigver` calls and four keys in `sigs/`.
+
+What the reproducibility pin does **not** cover: `bzImage`, `xos.efi`,
+`xos-signed.efi`, and the systemd EFI stub that `ukify` embeds verbatim inside
+the signed UKI. `image.sha256` covers the userland root filesystem and stops
+there, so an independent verifier can reproduce the root and cannot check the
+thing the firmware actually executes. The toolchain fingerprint also omits
+musl's `libc.a` and the other objects linked into every shipped binary, so a
+fingerprint *match* does not imply an identical toolchain either.
 
 Note what dropping bash cost this table, and what refilled it. bash was the
 only entry anchored to a maintainer's PGP signature -- the strongest link here
