@@ -435,13 +435,20 @@ ta() {
 tls() {
   say "building bearssl + tlstunnel"
   local d="src/bearssl-$BSSLVER" specs="$PWD/musl-static-pie.specs"
-  [ -f "$d/build/libbearssl.a" ] || \
-    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
-      build/libbearssl.a >/dev/null 2>&1
-  [ -x "$d/build/brssl" ] || \
-    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
-      build/brssl >/dev/null 2>&1
+  # built every time, never reused. `[ -f x ] || make x` took whatever was
+  # already on disk -- and brssl is the program that GENERATES ta.h, so a
+  # planted brssl chooses the TLS trust anchors baked into the verity-covered,
+  # signed image. src/ is gitignored and nothing else in the repo ever inspects
+  # a build output under it. the busybox and abduco recipes already rm first.
+  rm -f "$d/build/libbearssl.a" "$d/build/brssl"
+  make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
+      build/libbearssl.a >/dev/null 2>&1 \
+    || { echo "FAIL: libbearssl.a did not build" >&2; return 1; }
+  make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
+      build/brssl >/dev/null 2>&1 \
+    || { echo "FAIL: brssl did not build" >&2; return 1; }
   [ -f "$d/build/libbearssl.a" ] || { echo "FAIL: libbearssl.a did not build" >&2; return 1; }
+  [ -x "$d/build/brssl" ] || { echo "FAIL: brssl did not build" >&2; return 1; }
   ta || return 1
   gcc -specs="$specs" -fPIE -Os -isystem "$PWD/sysroot/include" \
     -I"$d/inc" -I. -o tlstunnel tlstunnel.c "$d/build/libbearssl.a" || return 1
@@ -512,14 +519,14 @@ cryptsetup_() {
   ( cd "$d" && ./configure --enable-static_link --disable-selinux --disable-udev_sync \
       --disable-udev_rules --disable-readline --disable-nls --disable-shared \
       --with-cache=none --with-thin=none --with-vdo=none --with-writecache=none \
-      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -C libdm >/dev/null 2>&1 ) || true
+      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -C libdm >/dev/null 2>&1 ) || { echo "FAIL: a cryptsetup dependency did not build" >&2; return 1; }
   [ -f "$d/libdm/ioctl/libdevmapper.a" ] || { echo "FAIL: libdevmapper did not build" >&2; return 1; }
   cp "$d/libdm/ioctl/libdevmapper.a" "$dep/lib/"
   cp "$d/libdm/libdevmapper.h" "$dep/include/"
 
   d="src/popt-$POPTVER"
   ( cd "$d" && ./configure --disable-shared --enable-static --disable-nls \
-      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || true
+      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || { echo "FAIL: a cryptsetup dependency did not build" >&2; return 1; }
   [ -f "$d/src/.libs/libpopt.a" ] || { echo "FAIL: popt did not build" >&2; return 1; }
   cp "$d/src/.libs/libpopt.a" "$dep/lib/"; cp "$d/src/popt.h" "$dep/include/"
 
@@ -527,14 +534,14 @@ cryptsetup_() {
   ( cd "$d" && cmake -S . -B b -DCMAKE_C_COMPILER=gcc -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
       -DCMAKE_C_FLAGS="-specs=$specs $cf" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON \
       -DDISABLE_WERROR=ON -DBUILD_TESTING=OFF -DBUILD_APPS=OFF >/dev/null 2>&1 \
-    && cmake --build b -j"$JOBS" >/dev/null 2>&1 ) || true
+    && cmake --build b -j"$JOBS" >/dev/null 2>&1 ) || { echo "FAIL: a cryptsetup dependency did not build" >&2; return 1; }
   [ -f "$d/b/libjson-c.a" ] || { echo "FAIL: json-c did not build" >&2; return 1; }
   cp "$d/b/libjson-c.a" "$dep/lib/"; cp "$d"/*.h "$d"/b/*.h "$dep/include/json-c/" 2>/dev/null
 
   d="src/util-linux-$UTLVER"
   ( cd "$d" && ./configure --disable-all-programs --enable-libuuid --disable-shared \
       --enable-static --without-systemd --without-udev --disable-nls --disable-asciidoc \
-      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || true
+      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || { echo "FAIL: a cryptsetup dependency did not build" >&2; return 1; }
   [ -f "$d/.libs/libuuid.a" ] || { echo "FAIL: libuuid did not build" >&2; return 1; }
   cp "$d/.libs/libuuid.a" "$dep/lib/"; cp "$d/libuuid/src/uuid.h" "$dep/include/uuid/"
 
@@ -548,7 +555,7 @@ cryptsetup_() {
       JSON_C_CFLAGS="-I$dep/include/json-c" JSON_C_LIBS="-L$dep/lib -ljson-c" \
       UUID_CFLAGS="-I$dep/include" UUID_LIBS="-L$dep/lib -luuid" \
       POPT_LIBS="-L$dep/lib -lpopt" >/dev/null 2>&1 \
-    && make -j"$JOBS" >/dev/null 2>&1 ) || true
+    && make -j"$JOBS" >/dev/null 2>&1 ) || { echo "FAIL: a cryptsetup dependency did not build" >&2; return 1; }
   [ -f "$d/cryptsetup.static" ] || { echo "FAIL: cryptsetup did not build" >&2; return 1; }
   cp "$d/cryptsetup.static" cryptsetup; strip cryptsetup
   unset PKG_CONFIG_LIBDIR PKG_CONFIG_PATH
