@@ -133,7 +133,7 @@ hint: appends a symbol showing each entry's type
 ---
 q: %list% the current directory showing each file's inode number
 a: ls -i
-out: ^[0-9]+ [^ ]
+out: ^ *[0-9]+ [^ ]
 ref: ls
 teach: ls -i
 hint: the number a file is known by at the filesystem level, not its name
