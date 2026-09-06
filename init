@@ -95,6 +95,16 @@ if [ -n "$fprh" ] && [ -f /usr/share/xos/words ]; then
 fi
 [ -n "$fpw" ] || echo "fingerprint FAILED: no roothash or bad wordlist"
 
+# with secure boot off the firmware runs whatever is on the ESP, which is plain
+# FAT -- so the signature at the top of the chain is not being checked, and the
+# four words below are only as trustworthy as the image that printed them. the
+# kernel already knows; it just never said so where the operator would look.
+XOS_SECUREBOOT=unknown
+case "$(dmesg 2>/dev/null | grep -o 'Secure boot [a-z]*' | head -1)" in
+	"Secure boot enabled")  XOS_SECUREBOOT=enabled ;;
+	"Secure boot disabled") XOS_SECUREBOOT=disabled ;;
+esac
+
 # dead-man tether: the root is a RAM copy, so pulling the stick otherwise
 # changes nothing. if the device backing dm-0 sits on the usb bus, watch it;
 # the moment it vanishes, power off -- nothing to flush, nothing to save,
@@ -109,8 +119,23 @@ elif [ -n "$tslave" ]; then
 	*/usb*)
 		XOS_TETHER=yes
 		(
-			while [ -e "/sys/class/block/$tslave" ]; do sleep 2; done
+			# 2s is the detection latency, and it is the window in which the
+			# stick is out and the machine is still live and unlocked.
+			while [ -e "/sys/class/block/$tslave" ]; do sleep 1; done
 			echo "xos: boot stick removed -- powering off" > /dev/console
+			# the tether is sold as the amnesia mechanism, and `poweroff -f`
+			# alone leaves every secret live in DRAM for a cold-boot read.
+			# INIT_ON_FREE only zeroes pages as they are FREED, and these are
+			# live allocations at this moment. take down what has a key in it
+			# before cutting power: removing the dm-crypt mapping drops the
+			# volume key out of the kernel, and deleting wg0 drops the private
+			# key with the device. a full DRAM scrub needs a kernel-side path
+			# this cannot do from userspace -- partial, and much better than
+			# nothing.
+			umount "$STATE_DIR" 2>/dev/null
+			cryptsetup close xosstate 2>/dev/null
+			ip link del wg0 2>/dev/null
+			sync
 			poweroff -f
 		) &
 		;;
@@ -416,6 +441,7 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 | grep . || echo none
 	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
 	printf 'fingerprint: %s\n' "${fpw:-MISSING (BAD)}"
+	printf 'secureboot: %s\n' "$XOS_SECUREBOOT"
 	printf 'tether-armed: %s\n' "$XOS_TETHER"
 	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 | grep . || echo none
 	# p3 depends on all of these existing in the kernel. assert them rather than
@@ -868,6 +894,11 @@ banner() {
   every byte on this disk is covered by a hash tree
 
 BANNER
+	if [ "$XOS_SECUREBOOT" = disabled ]; then
+		printf '  !! secure boot is OFF -- the firmware did not check this image'\''s\n'
+		printf '     signature, so the words below prove only what this image says\n'
+		printf '     about itself. enroll your keys to make them mean anything.\n\n'
+	fi
 	[ -n "$fpw" ] && printf '  this image is: %s\n\n' "$fpw"
 }
 

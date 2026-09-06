@@ -705,6 +705,48 @@ scrub() {
 		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
 	fi
 }
+
+# forget -- clear what p3 has quietly accumulated about where you have been.
+# unlocking p3 turns on a per-machine hardware inventory, a timestamped unlock
+# count, and (because $HOME becomes p3) your whole shell history. that is the
+# opposite of the front-page promise, it has no retention limit, and until now
+# there was no way to clear it.
+forget() {
+	case "$HOME" in
+		/tmp/home) : ;;
+		*) echo "forget: \$HOME is not the state dir"; return 1 ;;
+	esac
+	if ! mountpoint -q "$HOME" 2>/dev/null && [ ! -d "$HOME/.xos" ]; then
+		echo "forget: nothing to clear -- p3 is not unlocked"
+		return 0
+	fi
+	echo "this clears, on the encrypted state partition:"
+	echo "  the recon baselines (every machine this stick has been plugged into)"
+	echo "  the boot ledger (the unlock count and the last unlock time)"
+	echo "  your shell history"
+	echo "it does NOT touch learn progress, wg0.conf, authorized_keys or the host key."
+	printf "type FORGET to confirm: "
+	read -r _c
+	[ "$_c" = FORGET ] || { echo "aborted"; return 1; }
+	rm -rf "$HOME/.xos/recon" 2>/dev/null
+	rm -f  "$HOME/.xos/ledger" "$HISTFILE" 2>/dev/null
+	sync
+	echo "forgotten. the ledger restarts at 1 on the next unlock -- which is"
+	echo "indistinguishable from a rollback, so note that you did this."
+}
+
+# netkill -- take the network down now. xos.nonet does this at boot but lives on
+# the signed cmdline, so flipping it costs a rebuild and a re-sign; this is the
+# same switch at runtime.
+netkill() {
+	local i
+	for i in $(ls /sys/class/net 2>/dev/null); do
+		[ "$i" = lo ] && continue
+		ip link set "$i" down 2>/dev/null
+	done
+	ip link del wg0 2>/dev/null
+	echo "every interface but lo is down, and the tunnel is gone."
+}
 SHRC
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
@@ -1157,6 +1199,86 @@ EOF
   printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
   echo "  stick's /xos-keys (db, KEK, then PK last). see README."
+}
+
+# verify DEV -- is this still my stick? answerable from a machine that is not
+# the suspect one, without booting it. every piece of this already lived inside
+# usb(), where it only ever ran at flash time: readback of the root region
+# against the pinned digest, the ESP's UKI against our own certificate, and the
+# fingerprint words the boot banner should speak. a stick you were handed back
+# is exactly when you want these, and there was no way to ask.
+verify() {
+  local dev="${1:-}"
+  [ -b "$dev" ] || { echo "usage: $0 verify /dev/sdX  (the whole stick)" >&2; return 1; }
+  local n; n=$(basename "$dev")
+  [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk" >&2; return 1; }
+  [ -f image.sha256 ] || { echo "FAIL: no image.sha256 to verify against" >&2; return 1; }
+  say "verifying $dev against this tree"
+  local bad=0
+
+  # 1. the root region, read with direct I/O so the page cache cannot answer
+  local want_root have_root root_bytes
+  want_root=$(awk '$1=="image"{print $2}' image.sha256)
+  root_bytes=$(stat -c%s xos.img 2>/dev/null)
+  if [ -n "$want_root" ] && [ -n "$root_bytes" ]; then
+    have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes \
+      count="$root_bytes" status=none 2>/dev/null | sha256sum | awk '{print $1}')
+    if [ "$want_root" = "$have_root" ]; then
+      echo "  root partition matches the pinned image digest"
+    else
+      echo "  ROOT PARTITION DOES NOT MATCH the pin" >&2
+      printf '    pinned %s\n    on disk %s\n' "${want_root:0:32}..." "${have_root:0:32}..." >&2
+      bad=1
+    fi
+  else
+    echo "  cannot check the root: no pinned digest or no xos.img" >&2; bad=1
+  fi
+
+  # 2. the UKI on the stick's own ESP, against our certificate
+  local t; t=$(mktemp -d) || return 1
+  if mcopy -n -i "$dev@@1M" ::/EFI/BOOT/BOOTX64.EFI "$t/uki.efi" 2>/dev/null; then
+    if sbverify --cert keys/db.crt "$t/uki.efi" >/dev/null 2>&1; then
+      echo "  the UKI on the ESP is signed by this tree's db key"
+    else
+      echo "  THE UKI ON THE ESP IS NOT SIGNED BY THIS TREE'S KEY" >&2; bad=1
+    fi
+    # and what it will actually say at boot
+    local rh w i b words=""
+    rh=$(objcopy -O binary --only-section=.cmdline "$t/uki.efi" /dev/stdout 2>/dev/null \
+      | tr -d '\0' | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2)
+    if [ -n "$rh" ] && [ -f overlay/usr/share/xos/words ]; then
+      i=1
+      while [ "$i" -le 8 ]; do
+        b=$(printf %s "$rh" | cut -c"$i-$((i+1))")
+        w=$(sed -n "$((0x$b + 1))p" overlay/usr/share/xos/words)
+        words="$words$w "; i=$((i+2))
+      done
+      printf '  it should say: this image is: %s\n' "${words% }"
+      [ "$rh" = "$(cat verity.roothash 2>/dev/null)" ] \
+        || { echo "  (note: that is NOT this tree's current image)" >&2; bad=1; }
+    fi
+  else
+    echo "  could not read BOOTX64.EFI off the ESP" >&2; bad=1
+  fi
+  rm -rf "$t"
+
+  # 3. is there a state partition, and is its header intact
+  local p3="${dev}3"; [ -b "$p3" ] || p3="${dev}p3"
+  if [ -b "$p3" ]; then
+    local cs=""
+    command -v cryptsetup >/dev/null 2>&1 && cs=cryptsetup
+    [ -z "$cs" ] && [ -x ./cryptsetup ] && cs=./cryptsetup
+    if [ -n "$cs" ] && "$cs" isLuks "$p3" 2>/dev/null; then
+      printf '  state partition present, LUKS header intact (%s)\n' "$("$cs" luksUUID "$p3" 2>/dev/null)"
+    else
+      echo "  a third partition exists but is not a readable LUKS volume" >&2; bad=1
+    fi
+  else
+    echo "  no state partition on this stick"
+  fi
+
+  [ "$bad" -eq 0 ] && printf '\n  \033[1;32mthis stick matches this tree\033[0m\n\n' \
+                   || { printf '\n  \033[1;31mthis stick does NOT match this tree\033[0m\n\n' >&2; return 1; }
 }
 
 verity() {
@@ -1802,7 +1924,10 @@ _f \"$1\"" 2>/dev/null || true; }
   # init and the dhcp hook only ever run on the stick.
   local g35=ok bb35 f35 e35
   bb35=./busybox; [ -x "$bb35" ] || bb35=$(command -v busybox 2>/dev/null)
-  for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script; do
+  # root/etc/shrc is first-party shell that SHIPS: $ENV points every interactive
+  # ash at it, and it defines scrub, forget and netkill. a syntax error there
+  # breaks every prompt on the stick, and nothing parsed it.
+  for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script root/etc/shrc; do
     e35=$("$bb35" ash -n "$f35" 2>&1) \
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
   done
@@ -2143,11 +2268,37 @@ SFDISK
   [ -b "$p3" ] || { echo "FAIL: p3 did not appear as ${dev}3 or ${dev}p3" >&2; return 1; }
 
   echo "  formatting p3 as LUKS2 with hmac-sha256 integrity -- you will be asked for a passphrase"
-  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 --label XOS-STATE "$p3" || return 1
+  # --integrity-no-wipe: without it cryptsetup zeroes the ENTIRE integrity area
+  # at format time, which on a 128 GB stick over usb 2 is hours, unannounced, on
+  # the path `install` offers immediately after flashing. note the asymmetry it
+  # fixes -- the selftest's own teststate format has always passed this flag, so
+  # the fast variant was the tested one and the slow variant was the one that
+  # shipped. unwritten integrity tags read as a mismatch until first written,
+  # and mkfs writes the filesystem area straight after, so the tradeoff is that
+  # stale unallocated blocks are not pre-authenticated -- which is what
+  # dm-integrity's own documentation recommends this flag for.
+  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 --integrity-no-wipe \
+    --label XOS-STATE "$p3" || return 1
   cryptsetup open "$p3" xosstate_setup || return 1
   make_ext4 /dev/mapper/xosstate_setup || { cryptsetup close xosstate_setup; return 1; }
   cryptsetup close xosstate_setup
+
+  # the header is the one part of p3 that no passphrase reconstructs: one bad
+  # block in it and the state is gone, correct passphrase or not. there was
+  # advice to back it up and no command that did -- and usb()'s "no longer fits"
+  # refusal points at exactly this. take it automatically, next to the keys.
+  local hb="keys/p3-header-$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y%m%d 2>/dev/null || echo backup).img"
+  if cryptsetup luksHeaderBackup "$p3" --header-backup-file "$hb" 2>/dev/null; then
+    chmod 600 "$hb"
+    printf '  header backed up to %s -- keep a copy OFF this stick\n' "$hb"
+    echo "  (restore with: cryptsetup luksHeaderRestore <p3> --header-backup-file $hb)"
+  else
+    echo "  WARNING: could not back up the LUKS header -- do it by hand:" >&2
+    echo "    cryptsetup luksHeaderBackup $p3 --header-backup-file <somewhere-safe>" >&2
+  fi
   echo "  done. p3 is encrypted + authenticated. xos will offer to unlock it at boot."
+  echo "  a forgotten passphrase means the state is gone: there is one keyslot and"
+  echo "  no recovery. add a second with: cryptsetup luksAddKey $p3"
 }
 
 # thin wrapper so the mkfs call sits behind a name (keeps blunt greps happy).
@@ -2308,7 +2459,7 @@ build_all() {
 
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb|lint|repro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|verify|pin|seed|size|boot|bootusb|lint|repro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|size|boot|bootusb|lint|repro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|verify <dev>|install <dev>|pin|seed|size|boot|bootusb|lint|repro|all}"; exit 1 ;;
 esac

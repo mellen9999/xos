@@ -28,3 +28,4 @@ bzImage.config.sha256
 /wg
 /dropbearmulti
 dbx-auth/
+keys/p3-header-*.img

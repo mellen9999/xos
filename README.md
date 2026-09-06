@@ -145,6 +145,11 @@ files. opening one that is not on the boot stick is announced on the console.
                                 image at etc/dropbear/authorized_keys (verity
                                 covers it) or dropped on p3
 
+to bake one in, point `XOS_SSH_KEY` at the public key file at build time:
+`XOS_SSH_KEY=~/.ssh/titan.pub ./build.sh all`. that key is then covered by the
+hash tree and the signature, which is the version an attacker holding the stick
+cannot replace -- a key on p3 can be swapped by anyone who can open p3.
+
 on the next unlock, init brings up `wg0`, generates the ssh host key on p3 if it
 is not there yet (a host key in the reproducible image would be a *published*
 private key), and starts dropbear bound to the tunnel. pubkey only -- password
@@ -322,7 +327,9 @@ fingerprint words -- a stick that says boot 44 when you left it at 47 was
 rolled back to an older copy of p3, and nothing else on it can tell you that.
 
 flash rots in a drawer, and verity only checks blocks it reads -- a stick can
-be half-dead and still boot. type `scrub` at the shell to read every covered
+be half-dead and still boot. `netkill` at the shell takes every interface down
+and deletes the tunnel -- `xos.nonet` does the same at boot, but it lives on the
+signed cmdline and so costs a rebuild. type `scrub` to read every covered
 byte now: a rotten block panics the machine on the spot (that is the alarm
 working), a clean pass means every byte still matches the signed hash tree.
 
