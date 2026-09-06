@@ -158,18 +158,21 @@ hint: status= controls dd's progress/summary output -- none silences it
 ---
 q: {split @log@ into pieces of 2 lines each|break @log@ into pieces of 2 lines apiece|use split to cut @log@ into 2-line chunks}
 a: split -l 2 @log@
+state: exists:xaa
 ref: split
 teach: split -l
 hint: -l counts lines per output piece, split's default unit
 ---
 q: {split @log@ into pieces of 100 bytes each|break @log@ into 100-byte pieces|use split to cut @log@ into chunks of 100 bytes}
 a: split -b 100 @log@
+state: exists:xaa
 ref: split
 teach: split -b
 hint: -b counts bytes per piece instead of lines
 ---
 q: {split @log@ using 3-character suffixes instead of 2|split @log@ but make the output suffixes 3 characters long instead of the default 2|when splitting @log@, widen the suffix length from 2 characters to 3}
 a: split -a 3 -l 2 @log@
+state: exists:xaaa
 ref: split
 teach: split -a
 hint: -a sets how many characters long the generated suffixes are

@@ -124,6 +124,57 @@ _fx_cfg() {
 # single component and so no longer contains a slash to match.
 _fx_dirs() { grep '/' | sed 's|/[^/]*$||' | sort -u; }
 
+# _le16/_le32 N -- N as 2 or 4 raw little-endian bytes. printf builds the
+# escape text (a string of literal backslash-digits), then a second printf
+# with %b walks it and emits the actual bytes -- the only way busybox printf
+# turns a computed byte value into output without a working %c for it.
+_le16() {
+	_n=$1
+	printf '%b' "$(printf '\\%03o\\%03o' "$(( _n & 255 ))" "$(( (_n>>8) & 255 ))")"
+}
+_le32() {
+	_n=$1
+	printf '%b' "$(printf '\\%03o\\%03o\\%03o\\%03o' \
+		"$(( _n & 255 ))" "$(( (_n>>8) & 255 ))" "$(( (_n>>16) & 255 ))" "$(( (_n>>24) & 255 ))")"
+}
+
+# _fx_crc_size FILE -- sets ZCRC/ZSIZE from FILE's own gzip trailer instead of
+# reimplementing crc32: a gzip stream always ends in 4 bytes of crc32 then 4
+# of length, and busybox's crc32 is the same one zip entries carry.
+_fx_crc_size() {
+	set -- $(gzip -c < "$1" | tail -c 8 | od -An -tu1)
+	ZCRC=$(( $1 + $2*256 + $3*65536 + $4*16777216 ))
+	ZSIZE=$(( $5 + $6*256 + $7*65536 + $8*16777216 ))
+}
+
+# _fx_zip OUT NAME FILE -- a one-entry, stored (uncompressed) pkzip archive.
+# busybox ships unzip but no zip to build against, so this writes the local
+# header, the file's raw bytes, the central directory and the end record by
+# hand -- the only fields that vary are name/size/crc, and those come off the
+# real file, so the archive round-trips through busybox unzip, GNU unzip and
+# python's zipfile alike.
+_fx_zip() {
+	_out=$1; _name=$2; _file=$3
+	_fx_crc_size "$_file"
+	_nlen=${#_name}
+	: > "$_out"
+	{
+		printf 'PK\003\004'; _le16 20; _le16 0; _le16 0; _le16 0; _le16 33
+		_le32 "$ZCRC"; _le32 "$ZSIZE"; _le32 "$ZSIZE"; _le16 "$_nlen"; _le16 0
+		printf '%s' "$_name"; cat "$_file"
+	} >> "$_out"
+	{
+		printf 'PK\001\002'; _le16 20; _le16 20; _le16 0; _le16 0; _le16 0; _le16 33
+		_le32 "$ZCRC"; _le32 "$ZSIZE"; _le32 "$ZSIZE"; _le16 "$_nlen"
+		_le16 0; _le16 0; _le16 0; _le16 0; _le32 0; _le32 0
+		printf '%s' "$_name"
+	} >> "$_out"
+	_cdsize=$(( 46 + _nlen ))
+	_cdoff=$(( 30 + _nlen + ZSIZE ))
+	{ printf 'PK\005\006'; _le16 0; _le16 0; _le16 1; _le16 1
+	  _le32 "$_cdsize"; _le32 "$_cdoff"; _le16 0; } >> "$_out"
+}
+
 sandbox_build() {
 	rm -rf "$SANDBOX" 2>/dev/null
 	mkdir -p "$SANDBOX" || return 1
@@ -185,6 +236,20 @@ sandbox_build() {
 	# a format string for hexdump -f -- a fixed name, referenced by name in
 	# the question that reads it, the same file every build.
 	printf '16/1 "%%02x " "\\n"\n' > fmt.txt
+
+	# archive.zip -- a fixed name so unzip lessons don't clash with a @txt@
+	# pool file this same tree already has (extracting over one, with no -o,
+	# would block on the overwrite prompt busybox unzip reads from stdin).
+	printf 'hello from the archive\n' > hello.txt
+	_fx_zip archive.zip hello.txt hello.txt
+
+	# names.txt -- tar -T reads archive member names from this, one per line;
+	# it has to hold real paths, unlike @txt@'s prose, so it is not a pool.
+	printf 'notes.txt\ntodo.txt\nreadme.txt\n' > names.txt
+
+	# link.txt -- the one symlink in the tree, for -L and -type l lessons.
+	# notes.txt always exists, so the link is never dangling.
+	ln -sf notes.txt link.txt
 
 	# a setuid file for the -perm -MODE lesson: "at least these bits" needs
 	# a bit actually set to find.

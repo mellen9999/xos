@@ -48,6 +48,7 @@ hint: a trailing dash with no end number means to the end of the line
 ---
 q: %show% fields 4 and 1 of @csv@, in that exact order -- not resorted to 1 then 4
 a: cut -D -d, -f4,1 @csv@
+out: 42,gateway
 ref: cut
 teach: cut -D
 hint: without -D, cut always prints selected fields back in ascending order; -D keeps them (and any duplicates) exactly as you listed them

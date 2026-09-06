@@ -45,12 +45,14 @@ hint: the error channel is number 2
 ---
 q: {run "ls @word@-missing" and throw its error message away entirely|run "ls @word@-missing", discarding its error message completely|run "ls @word@-missing" so its error message vanishes entirely}
 a: ls @word@-missing 2> /dev/null
+status: 1
 ref: ls
 teach: ls
 hint: /dev/null is the bit bucket -- everything written to it is discarded
 ---
 q: {run "ls @dir@ @word@-missing" sending both output and errors into all.txt|run "ls @dir@ @word@-missing", capturing both its output and errors in all.txt|run "ls @dir@ @word@-missing" so output and errors both land in all.txt}
 a: ls @dir@ @word@-missing > all.txt 2>&1
+state: exists:all.txt
 ref: ls
 teach: ls
 hint: redirect stdout first, then point stderr at wherever stdout now goes

@@ -70,18 +70,21 @@ hint: an ampersand backgrounds; $! holds the pid it was just given
 ---
 q: {exit the shell with status 0|end the shell with exit status 0|leave the shell, setting its exit status to 0}
 a: exit 0
+status: 0
 ref: exit
 teach: exit
 hint: exit takes the status as its argument; with none it reuses $?
 ---
 q: {exit the shell with status 3|end the shell with exit status 3|leave the shell, setting its exit status to 3}
 a: exit 3
+status: 3
 ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
 q: {invert an exit status -- succeed when grep finds nothing in @log@|flip a status so grep finding nothing counts as success in @log@|make "no match in @log@" read as success rather than failure}
 a: ! grep -q nonexistent @log@
+status: 0
 ref: grep
 teach: grep -q
 hint: a leading ! flips the status
@@ -119,6 +122,7 @@ hint: + turns an option off, the mirror of - turning it on
 ---
 q: %show% the shell's current option settings
 a: set -o
+out: errexit
 ref: set
 teach: set -o
 hint: -o with no name lists every option and whether it's on or off

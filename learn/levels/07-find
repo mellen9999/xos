@@ -102,6 +102,7 @@ hint: tests the permission bits directly, not the file extension
 ---
 q: %find% files under here with the exact permission mode 755
 a: find . -perm 755
+out: \.sh
 ref: find
 teach: find -perm
 hint: MODE alone means exactly this mode; -MODE means all these bits are set; +MODE means at least one is
@@ -154,7 +155,8 @@ teach: find -prune
 hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
 q: {stop at the first .log file found rather than walking the whole tree|find the first .log file and stop there, without walking the rest of the tree|find one .log file and quit immediately, not the whole tree}
-a: find . -name '*.log' -quit
+a: find . -name '*.log' -print -quit
+out: \.log
 ref: find
 teach: find -quit
 hint: -quit stops the walk as soon as something matches

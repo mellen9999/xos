@@ -13,60 +13,70 @@ brief: true, which is the opposite of what you asked. [ -n "$x" ] is correct.
 ---
 q: {test whether @txt@ exists|check that @txt@ is there|confirm @txt@ exists on disk}
 a: [ -e @txt@ ]
+status: 0
 ref: [
 teach: [ -e
 hint: -e is true for any kind of existing thing, file or directory
 ---
 q: {test whether @txt@ is a regular file|check that @txt@ is an ordinary file|confirm @txt@ is a regular file rather than a directory}
 a: [ -f @txt@ ]
+status: 0
 ref: [
 teach: [ -f
 hint: -f is true only for a regular file, not a directory or link
 ---
 q: {test whether @dir@ is a directory|check that @dir@ is actually a directory|confirm @dir@ names a directory}
 a: [ -d @dir@ ]
+status: 0
 ref: [
 teach: [ -d
 hint: -d is true only when the path is a directory
 ---
 q: {test whether @txt@ exists and is not empty|check that @txt@ is there and has content|confirm @txt@ both exists and isn't zero bytes}
 a: [ -s @txt@ ]
+status: 0
 ref: [
 teach: [ -s
 hint: -s checks existence AND that the size is greater than zero
 ---
 q: {test whether @txt@ is readable|check that you have read permission on @txt@|confirm @txt@ can be read}
 a: [ -r @txt@ ]
+status: 0
 ref: [
 teach: [ -r
 hint: -r checks the read permission bit, not just that the file exists
 ---
 q: {test whether @script@ is writable|check that you can write to @script@|confirm write permission on @script@}
 a: [ -w @script@ ]
+status: 0
 ref: [
 teach: [ -w
 hint: -w checks the write permission bit
 ---
 q: {test whether @script@ is executable|check that @script@ has the execute bit set|confirm @script@ can be run}
 a: [ -x @script@ ]
+status: 0
 ref: [
 teach: [ -x
 hint: -x checks the execute permission bit
 ---
-q: {test whether @txt@ is a symbolic link|check that @txt@ is a symlink rather than a real file|confirm @txt@ is a link, not the file itself}
-a: [ -L @txt@ ]
+q: {test whether link.txt is a symbolic link|check that link.txt is a symlink rather than a real file|confirm link.txt is a link, not the file itself}
+a: [ -L link.txt ]
+status: 0
 ref: [
 teach: [ -L
 hint: -L is true for a symlink even if what it points to is missing
 ---
 q: {test whether the variable @var@ is empty|check that @var@ holds nothing|confirm @var@ is empty}
 a: [ -z "$@var@" ]
+status: 0
 ref: [
 teach: [ -z
 hint: -z is true when the string's length is zero
 ---
 q: {test whether the variable @var@ is NOT empty|check that @var@ actually holds something|confirm @var@ is set to a nonempty value}
 a: [ -n "$@var@" ]
+status: 1
 ref: [
 teach: [ -n
 hint: -n is true when the string's length is nonzero

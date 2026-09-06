@@ -72,6 +72,7 @@ hint: same command as renaming -- the destination just happens to be a directory
 q: {move @txt@ to @dir@/, but never overwrite a file already there|move @txt@ into @dir@ without clobbering anything already there|relocate @txt@ to @dir@, refusing if the name is already taken}
 a: mv -n @txt@ @dir@/
 a: mv -n @txt@ @dir@
+state: exists:@dir@/@txt@
 ref: mv
 teach: mv -n
 hint: n for no-clobber, same idea as cp -n
@@ -93,6 +94,7 @@ hint: r for recursive -- required before rm will touch a directory's contents
 ---
 q: {delete @txt@ without complaining if it is already gone|remove @txt@ silently even if it doesn't exist|delete @txt@, staying quiet if it's already missing}
 a: rm -f @txt@
+state: gone:@txt@
 ref: rm
 teach: rm -f
 hint: f for force -- it also silences the "no such file" error

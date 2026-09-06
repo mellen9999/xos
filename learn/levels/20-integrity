@@ -50,6 +50,7 @@ hint: -c reads a hash file back and reports OK or FAILED per line
 ---
 q: {check sums.txt quietly, printing nothing unless something fails|use sha256sum -c -s so only failures produce output|verify sums.txt silently, staying quiet unless a hash mismatches}
 a: sha256sum *.log > sums.txt && sha256sum -c -s sums.txt
+status: 0
 ref: sha256sum
 teach: sha256sum -s
 hint: -s silences the OK lines, leaving output only for failures
@@ -70,6 +71,7 @@ hint: -c checks a saved hash file the same way it does for sha256sum
 ---
 q: {check a sha512 list for @txt@ without printing the successes|use sha512sum -c -s to verify @txt@'s hash silently|check @txt@'s sha512 hash file, staying quiet unless something fails}
 a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
+status: 0
 ref: sha512sum
 teach: sha512sum -s
 hint: -s keeps the successes quiet, same as with sha256sum
@@ -90,6 +92,7 @@ hint: -c verifies a sha1 hash file the same way as the other *sum tools
 ---
 q: {check a sha1 list for @txt@ silently|use sha1sum -c -s to verify @txt@'s hash without the OK noise|check @txt@'s sha1 hash file, staying quiet unless something fails}
 a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
+status: 0
 ref: sha1sum
 teach: sha1sum -s
 hint: -s suppresses the OK lines, showing only failures
@@ -110,6 +113,7 @@ hint: -c verifies an md5 hash file the same way as the other *sum tools
 ---
 q: {check an md5 list for @txt@ silently|use md5sum -c -s to verify @txt@'s hash without printing every OK|check @txt@'s md5 hash file, staying quiet unless something fails}
 a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
+status: 0
 ref: md5sum
 teach: md5sum -s
 hint: -s keeps the successes quiet, printing failures only
@@ -123,18 +127,23 @@ hint: cksum prints a checksum and the byte count together, unlike the *sum tools
 ---
 q: {are @txt@ and @txt2@ byte for byte identical|use cmp to check @txt@ against @txt2@ byte for byte|compare @txt@ and @txt2@ for an exact byte match}
 a: cmp @txt@ @txt2@
+out: differ
+status: 1
 ref: cmp
 teach: cmp
 hint: cmp reports the first byte and line where two files diverge
 ---
 q: {compare two files reporting only the exit status, printing nothing|use cmp -s so only the exit status reflects the comparison|check @txt@ against @txt2@ silently, exit status only}
 a: cmp -s @txt@ @txt2@
+status: 1
 ref: cmp
 teach: cmp -s
 hint: -s suppresses all output, leaving only the exit status to check
 ---
 q: %list% every differing byte between @txt@ and @txt2@, not just the first
 a: cmp -l @txt@ @txt2@
+out: ^[0-9]+ [0-9]+ [0-9]+
+status: 1
 ref: cmp
 teach: cmp -l
 hint: -l lists every differing byte position and value, not just the first
@@ -147,30 +156,40 @@ hint: -n limits the comparison to the first N bytes of each file
 ---
 q: %show% the differences between @txt@ and @txt2@ line by line
 a: diff @txt@ @txt2@
+out: ^---
+status: 1
 ref: diff
 teach: diff
 hint: diff's default output shows changed lines with < and > markers
 ---
 q: %show% the differences between @txt@ and @txt2@ in the unified format patches use
 a: diff -U 3 @txt@ @txt2@
+out: ^---
+status: 1
 ref: diff
 teach: diff -U
 hint: -U sets how many lines of context surround each change
 ---
 q: {report only WHETHER two files differ, not how|use diff -q to get a yes/no answer, not a line-by-line diff|check whether @txt@ and @txt2@ differ at all, without the details}
 a: diff -q @txt@ @txt2@
+out: differ
+status: 1
 ref: diff
 teach: diff -q
 hint: -q collapses the whole comparison down to a single differ/no-differ line
 ---
 q: {compare two files ignoring case|use diff -i so case differences don't count as changes|diff @txt@ and @txt2@ treating upper and lower case as equal}
 a: diff -i @txt@ @txt2@
+out: ^---
+status: 1
 ref: diff
 teach: diff -i
 hint: -i folds case before comparing, so Abc and abc count as equal
 ---
 q: {compare two files ignoring differences in whitespace|use diff -w so whitespace-only changes don't show up|diff @txt@ and @txt2@ while ignoring whitespace differences}
 a: diff -w @txt@ @txt2@
+out: ^---
+status: 1
 ref: diff
 teach: diff -w
 hint: -w treats runs of whitespace as equivalent, ignoring how much there is

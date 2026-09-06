@@ -198,6 +198,7 @@ hint: -d parses the string you give instead of reading the clock
 ---
 q: {parse 2024-03-01 using an explicit input format string, printing it as epoch seconds|parse the date 2024-03-01 with an input format you specify, converting it to epoch seconds|interpret 2024-03-01 using a format you name explicitly, and print the result as epoch seconds}
 a: date -D "%Y-%m-%d" -d 2024-03-01 +%s
+out: ^[0-9]{10}$
 ref: date
 teach: date -D
 hint: -D names the format of the input date, paired with -d
@@ -246,6 +247,7 @@ hint: tty with no arguments prints the path of your controlling terminal
 ---
 q: {test whether this is a terminal at all, silently|silently check whether this session is attached to a terminal|find out, with no output, whether stdin is a terminal}
 a: tty -s
+status: 1
 ref: tty
 teach: tty -s
 hint: -s suppresses output, useful only for its exit status
@@ -303,6 +305,7 @@ hint: -t hides watch's own header/title line
 ---
 q: {wait two seconds and then continue|pause for two seconds before continuing|block for two seconds, then carry on}
 a: sleep 2
+status: 0
 ref: sleep
 teach: sleep
 hint: sleep takes a number of seconds and blocks until they pass
