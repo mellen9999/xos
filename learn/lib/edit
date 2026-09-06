@@ -38,6 +38,43 @@ _ed_draw() {   # $1 prompt  $2 L  $3 R
 	printf '%s' "$SYNC_END"
 }
 
+# open the reference panel below the input line and leave the cursor back on
+# that line. $TMP/panel holds the rendered page.
+#
+# the whole trick is that the rows are scrolled into existence BEFORE the
+# cursor is saved: print the block's height in newlines, walk back up the same
+# number, and there is now guaranteed to be that much room below, whether or
+# not the terminal had to scroll to give it. that makes DECSC/DECRC exact for a
+# page of any height, which is what lets the second Tab fold it away cleanly.
+# a page taller than the screen is truncated rather than allowed to scroll --
+# the tail names the command to run for the whole thing.
+_ed_panel_open() {
+	local _pl _max _more=0 _blk _i _rows
+	[ -s "$TMP/panel" ] || return 1
+	_rows=$(stty size 2>/dev/null | cut -d' ' -f1)
+	[ "$_rows" -ge 10 ] 2>/dev/null || _rows=$E_ROWS
+	_pl=$(awk 'END { print NR }' "$TMP/panel" 2>/dev/null)
+	[ -n "$_pl" ] || _pl=0
+	[ "$_pl" -gt 0 ] || return 1
+	# a ref page already rules itself off top and bottom, so this adds no rules
+	# of its own -- it would only double them. leave room for the question, the
+	# hint line and the input line above.
+	_max=$((_rows - 4))
+	[ "$_max" -lt 3 ] && _max=3
+	if [ "$_pl" -gt "$_max" ]; then _more=$((_pl - _max)); _pl=$_max; fi
+	_blk=$_pl
+	[ "$_more" -gt 0 ] && _blk=$((_blk + 1))
+
+	_i=$_blk
+	while [ "$_i" -gt 0 ]; do printf '\n'; _i=$((_i - 1)); done
+	printf '\033[%dA\0337\n' "$_blk"
+	head -n "$_pl" "$TMP/panel" 2>/dev/null
+	[ "$_more" -gt 0 ] && printf '  %s... %d more -- run `learn %s` for the whole page%s' \
+		"$D" "$_more" "${Q_REF:-}" "$N"
+	printf '\0338'
+	return 0
+}
+
 # last char of a string, via expansion only
 _ed_last() { _r=${1#"${1%?}"}; }
 # first char of a string
@@ -102,12 +139,15 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			[ -n "$L" ] && L="${L%?}"
 			;;
 		"$E_TAB")
-			# Tab: the reference panel, without abandoning what you typed; a
-			# second Tab folds it away. the cursor is saved (DECSC) before the
-			# panel prints, so restore + erase-below puts the screen back
-			# exactly -- sound only while nothing scrolled, so the fold is
-			# armed only when the panel is known to fit under the cursor; a
-			# page too tall keeps the old scroll-past behaviour.
+			# Tab opens the reference under the input line, ruled off above and
+			# below; Tab again folds it back to just the line and the question.
+			# the fold is DECSC/DECRC plus erase-below, which is only sound
+			# while the panel has not scrolled the saved position away -- so
+			# rather than REFUSING to fold a tall page, _ed_panel_open makes the
+			# room first. it used to refuse: any page over E_ROWS-12 lines took
+			# the other branch and was simply cat'd again on every press, which
+			# is not a toggle. real pages run 8-33 lines, so on a 24-row console
+			# that was most of them -- ls, grep, find, sed, sort, tar included.
 			# learn mode only, same as typing man; the clock modes get nothing.
 			if [ "${MODE:-}" = learn ] && command -v ref_panel >/dev/null; then
 				if [ -n "$_panel" ]; then
@@ -115,14 +155,7 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 					_panel=
 				else
 					ref_panel "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)" > "$TMP/panel" 2>/dev/null
-					_pl=$(awk 'END { print NR }' "$TMP/panel" 2>/dev/null)
-					if [ "${_pl:-999}" -lt $((E_ROWS - 12)) ] 2>/dev/null; then
-						printf '\0337\n'; _panel=1
-					else
-						printf '\n'
-					fi
-					cat "$TMP/panel" 2>/dev/null
-					printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+					_ed_panel_open && _panel=1
 				fi
 			fi
 			;;
