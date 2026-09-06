@@ -165,7 +165,10 @@ rm -f /tmp/xos-a1.img
 echo
 section "A2  clean stick -- must boot, and root must be unwritable"
 out=$(boot_img stick.img)
-grep -qi 'secure boot is enabled' <<< "$out" && ok "secure boot was enforcing during the run" || bad "secure boot not enabled"
+# the kernel's own verdict (arch/x86 setup.c, from boot_params.secure_boot),
+# not the efi stub's console line: since 6.18 the stub logs at notice level
+# by default and its "UEFI Secure Boot is enabled" info line no longer prints.
+grep -q 'Secure boot enabled' <<< "$out" && ok "secure boot was enforcing during the run" || bad "secure boot not enabled"
 grep -q 'write-to-root: refused' <<< "$out" && ok "write to / returned EROFS" || bad "root was writable"
 grep -q 'busybox-runs: yes'      <<< "$out" && ok "userland actually executes"  || bad "userland did not run"
 grep -q 'rootfs-type: squashfs' <<< "$out" && ok "root is mounted as squashfs" || bad "root filesystem type is not squashfs"
@@ -339,7 +342,7 @@ section "A10  boot the stick over emulated USB (the real hardware path)"
 o10=$(boot_usb stick.img)
 if grep -q XOS-TEST-BEGIN <<< "$o10"; then
 	ok "booted from usb-storage via dm-mod.waitfor"
-	grep -qi 'secure boot is enabled' <<< "$o10" && ok "secure boot enforcing over USB" || bad "secure boot not enabled over USB"
+	grep -q 'Secure boot enabled' <<< "$o10" && ok "secure boot enforcing over USB" || bad "secure boot not enabled over USB"
 	grep -q 'write-to-root: refused'  <<< "$o10" && ok "root unwritable over USB"       || bad "root writable over USB"
 	grep -qF "fingerprint: $want_fp" <<< "$o10" \
 		&& ok "same fingerprint words over usb -- stable per image, per boot path" \
