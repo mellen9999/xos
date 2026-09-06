@@ -66,6 +66,10 @@ GPT_DISK=56524c00-0000-4000-8000-000000000000
 PU_ESP=56524c00-0000-4001-8000-000000000001
 PU_ROOT=56524c00-0000-4002-8000-000000000002
 PU_STATE=56524c00-0000-4003-8000-000000000003
+# how many trust anchors the tls client is allowed to carry. one root, on
+# purpose -- a normal distro trusts ~150, any one of which can issue for any
+# name. moving this number is a deliberate act.
+TA_EXPECTED=1
 # spelled as the GUID, not sfdisk's `8309` shorthand: the shorthand is rejected
 # outright when a whole table is written at once ("Failed to add #3 partition:
 # Invalid argument"), which would have left an updated stick with no p3 entry.
@@ -367,7 +371,19 @@ ta() {
   # shellcheck disable=SC2086
   "$d/build/brssl" ta $pems > ta.h || return 1
   local n; n=$(grep -oE 'TAs_NUM[[:space:]]+[0-9]+' ta.h | grep -oE '[0-9]+$')
-  [ "${n:-0}" -gt 0 ] || { echo "FAIL: ta.h has no anchors" >&2; return 1; }
+  # pinned, not just non-zero. "this trusts one root" is the claim; -gt 0 was
+  # equally happy at two or forty, so a stray trust/*.pem would ship silently.
+  [ "${n:-0}" = "$TA_EXPECTED" ] || {
+    echo "FAIL: expected $TA_EXPECTED trust anchor(s), ta.h has ${n:-0}." >&2
+    echo "  add or remove a trust/*.pem deliberately, and move TA_EXPECTED with it." >&2
+    return 1; }
+  # brssl accepts a non-CA leaf as an anchor -- that means "trust this exact
+  # end-entity key", which is narrower than a CA but still a directly trusted
+  # key, and it says nothing while doing it.
+  local nca; nca=$(grep -c 'BR_X509_TA_CA' ta.h || true)
+  [ "${nca:-0}" = "$n" ] || {
+    echo "FAIL: $((n - nca)) of $n trust anchors are not CAs -- a leaf certificate" >&2
+    echo "  was compiled in as an anchor. check trust/." >&2; return 1; }
   printf '  %s trust anchor(s) compiled in:\n' "$n"
   local f; for f in $pems; do printf '    %s\n' "$(openssl x509 -in "$f" -noout -subject | sed 's/^subject=//')"; done
 }

@@ -19,11 +19,17 @@ import sys
 
 def _regions(b):
     """(spans_to_hash, cert_offset, cert_size) per the authenticode spec."""
+    if len(b) < 0x40:
+        raise ValueError("too short to be a PE image")
     if b[:2] != b"MZ":
         raise ValueError("not a PE image (no MZ)")
     pe = struct.unpack_from("<I", b, 0x3C)[0]
     if b[pe:pe + 4] != b"PE\0\0":
         raise ValueError("not a PE image (no PE signature)")
+    # every unpack below reaches to at least pe+24+112+40; check once here so a
+    # truncated image gets a diagnosis instead of a struct.error traceback.
+    if pe + 24 + 176 > len(b):
+        raise ValueError("truncated PE header")
 
     nsections = struct.unpack_from("<H", b, pe + 6)[0]
     opt_size = struct.unpack_from("<H", b, pe + 20)[0]
@@ -40,6 +46,20 @@ def _regions(b):
     cert_dd = dd + 4 * 8                      # data directory entry 4
     size_of_headers = struct.unpack_from("<I", b, opt + 60)[0]
     cert_off, cert_size = struct.unpack_from("<II", b, cert_dd)
+    # the certificate table is excluded from the hash, so its declared size
+    # decides how much of the file IS hashed -- and it was taken on faith. an
+    # inflated cert_size silently drops real content out of the digest, and a
+    # size past the end made `tail` negative, at which point the guard below
+    # dropped the trailing span entirely rather than complaining. three
+    # different digests for one file, all exit 0. authenticode puts the table
+    # at the very end, so demand exactly that.
+    if cert_size:
+        if cert_off < size_of_headers or cert_off + cert_size != len(b):
+            raise ValueError(
+                "certificate table (off %d size %d) is not the tail of the "
+                "%d-byte file" % (cert_off, cert_size, len(b)))
+    elif cert_off:
+        raise ValueError("certificate table offset set with zero size")
 
     # headers, with the checksum and the cert-table entry cut out
     spans = [(0, checksum),
@@ -79,30 +99,74 @@ def pe_hash(path):
     return h.hexdigest()
 
 
+def _cert_der(b, off, size):
+    """the first WIN_CERTIFICATE's DER, using its own dwLength."""
+    # the data-directory size covers the whole table -- 8-byte alignment padding
+    # and any further WIN_CERTIFICATE entries included. the first certificate's
+    # real length is dwLength, and reading to the directory size instead handed
+    # back the DER plus its padding.
+    if size < 8 or off + size > len(b):
+        raise ValueError("certificate table out of range")
+    dwlen = struct.unpack_from("<I", b, off)[0]
+    if dwlen < 8 or dwlen > size:
+        raise ValueError("bad WIN_CERTIFICATE length %d" % dwlen)
+    return b[off + 8:off + dwlen]
+
+
 def extract_sig(path, out):
     b = open(path, "rb").read()
     _, off, size = _regions(b)
     if not size:
         raise ValueError("image carries no signature")
     # WIN_CERTIFICATE: dwLength(4) wRevision(2) wCertificateType(2), then DER
-    open(out, "wb").write(b[off + 8:off + size])
+    open(out, "wb").write(_cert_der(b, off, size))
+
+
+# DER for the sha-256 algorithm OID, 2.16.840.1.101.3.4.2.1
+_SHA256_OID = bytes.fromhex("0609608648016503040201")
 
 
 def verify(path):
     """assert this hasher agrees with the signature already on the image.
 
-    sbsign signed the authenticode digest, so that digest sits verbatim inside
-    the PKCS#7 blob. if our number is not in there, our number is wrong.
+    sbsign signed the authenticode digest, so that digest sits inside the
+    PKCS#7 blob, in the DigestInfo of the SpcIndirectDataContent. read it out
+    of that structure and compare.
+
+    this used to be `if bytes.fromhex(want) not in der` -- a substring search.
+    the certificate table is BY DEFINITION excluded from the authenticode hash,
+    so those bytes are free space the image's author controls: make the hasher
+    compute a digest of your choosing (lie about NumberOfSections), then write
+    that digest anywhere in the blob, and the check passes. it was asking the
+    image to vouch for itself. that is fine for an image we just built and
+    worthless for `./build.sh revoke` on anyone else's -- which is the only
+    caller that ever sees a foreign image, and the whole reason this exists.
     """
     b = open(path, "rb").read()
     _, off, size = _regions(b)
     if not size:
         raise ValueError("image carries no signature to check against")
-    der = b[off + 8:off + size]
+    der = _cert_der(b, off, size)
     want = pe_hash(path)
-    if bytes.fromhex(want) not in der:
-        raise ValueError("computed digest %s is absent from the image's own "
-                         "signature -- the hasher is wrong" % want)
+
+    # DigestInfo ::= SEQUENCE { AlgorithmIdentifier, OCTET STRING }. the OID
+    # also appears in the signerInfo's digestAlgorithm, where no OCTET STRING
+    # follows it -- so look for the 32-byte one close behind, and require that
+    # exactly one such digest exists.
+    found = []
+    i = der.find(_SHA256_OID)
+    while i != -1:
+        j = der.find(b"\x04\x20", i, i + 16)
+        if j != -1:
+            found.append(der[j + 2:j + 34])
+        i = der.find(_SHA256_OID, i + 1)
+    if len(found) != 1:
+        raise ValueError("expected exactly one sha-256 DigestInfo in the "
+                         "signature, found %d" % len(found))
+    if found[0] != bytes.fromhex(want):
+        raise ValueError("computed digest %s does not match the one the image "
+                         "was signed over (%s) -- the hasher is wrong"
+                         % (want, found[0].hex()))
     return want
 
 
@@ -116,5 +180,8 @@ if __name__ == "__main__":
             print(pe_hash(sys.argv[1]))
         else:
             sys.exit("usage: pehash.py IMAGE | --verify IMAGE | --sig IMAGE OUT.der")
-    except (OSError, ValueError) as e:
+    # struct.error is not a ValueError, so a truncated image used to come out as
+    # a traceback rather than a diagnosis -- on exactly the inputs where a clear
+    # message matters most.
+    except (OSError, ValueError, struct.error) as e:
         sys.exit("pehash: %s" % e)
