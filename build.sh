@@ -1028,6 +1028,15 @@ usb() {
   # partprobe that failed, a device replugged a second ago, a container -- took
   # the full-overwrite path and ate the LUKS header anyway. the table is the
   # authority; the node is a convenience.
+  # the update path rewrites the WHOLE table from a three-line script, so any
+  # partition past p3 would be erased without a word -- the same class of bug as
+  # the p3 one this whole path exists to fix, one partition further out. count
+  # first and refuse rather than silently dropping an entry nobody declared.
+  local nparts
+  nparts=$(partx -g -o NR "$dev" 2>/dev/null | grep -c . || true)
+  [ "${nparts:-0}" -le 3 ] || {
+    echo "FAIL: $dev has $nparts partitions -- this writer only knows how to carry" >&2
+    echo "  p3 across an update, and rewriting the table would erase the rest." >&2; return 1; }
   read -r p3_start p3_size p3_type p3_uuid p3_name < <(
     partx -g -o START,SECTORS,TYPE,UUID,NAME -n 3:3 "$dev" 2>/dev/null) || true
   if [ -n "$p3_start" ]; then
@@ -1048,8 +1057,18 @@ usb() {
     # remember WHICH luks volume it is. isLuks alone only proves something
     # luks-shaped is there afterwards -- a header rewritten with a different key
     # answers yes to that just as happily.
-    if command -v cryptsetup >/dev/null 2>&1 && [ -b "$p3_dev" ]; then
-      p3_luks=$(cryptsetup luksUUID "$p3_dev" 2>/dev/null || true)
+    # the repo builds its own static-PIE ./cryptsetup, which `command -v` never
+    # finds -- so on a host with no system cryptsetup the one assertion this
+    # path exists to make was skipped in silence, under a "done -- carries a
+    # verified xos" banner.
+    local cs=""
+    command -v cryptsetup >/dev/null 2>&1 && cs=cryptsetup
+    [ -z "$cs" ] && [ -x ./cryptsetup ] && cs=./cryptsetup
+    [ -n "$cs" ] || {
+      echo "FAIL: no cryptsetup (system or ./cryptsetup) -- refusing to write over a" >&2
+      echo "  stick with a state partition without being able to prove it survived." >&2; return 1; }
+    if [ -b "$p3_dev" ]; then
+      p3_luks=$("$cs" luksUUID "$p3_dev" 2>/dev/null || true)
     fi
   fi
 
@@ -1126,7 +1145,7 @@ EOF
     # something luks-shaped.
     if [ -n "$p3_luks" ]; then
       local now_luks
-      now_luks=$(cryptsetup luksUUID "$p3_dev" 2>/dev/null || true)
+      now_luks=$("$cs" luksUUID "$p3_dev" 2>/dev/null || true)
       [ "$now_luks" = "$p3_luks" ] \
         || { echo "FAIL: p3 is no longer the same LUKS volume ($p3_luks -> ${now_luks:-gone})" >&2; return 1; }
       echo "  p3 preserved -- same LUKS volume ($p3_luks), entry intact"
@@ -1719,7 +1738,7 @@ size() {
     'usb() no longer reads the existing p3 entry from the partition table'
   _g36has '"$new_p2_end_s" -le "$p3_start"' \
     'usb() no longer refuses a root that would overlap p3'
-  _g36has 'cryptsetup luksUUID "$p3_dev"' \
+  _g36has 'luksUUID "$p3_dev"' \
     'usb() no longer records which luks volume p3 is, so it cannot prove it survived'
   g "G36 state partition starts past the image writer" "$g36"
 
