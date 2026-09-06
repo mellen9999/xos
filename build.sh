@@ -1452,9 +1452,13 @@ size() {
   # so a question that teaches a flag this build compiled out fails here.
   # busybox decides what to be from argv[0], so `busybox -c ...` is not a
   # shell -- it needs a name. give it one that lives for the length of the run.
+  # PATH leads with root/bin (the image's own applet links): without it, every
+  # command an answer runs resolves to the HOST's GNU tools, and a busybox
+  # flag difference sails through green. the host stays as fallback for the
+  # few non-applet binaries the corpus mentions.
   local st_out st_ok=1 lsh
   lsh=$(mktemp -d); ln -sf "$PWD/busybox" "$lsh/sh"
-  st_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  st_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn selftest 2>&1) || st_ok=0
   printf '%s\n' "$st_out" | grep -v '^learn: ' >&2 || true
@@ -1466,7 +1470,7 @@ size() {
   # only checkable because the program surface is fixed at build time. a
   # busybox bump that adds a flag lands in neither set and stops the build.
   local cv_out cv_ok=1
-  cv_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  cv_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn coverage 2>&1) || cv_ok=0
   local cv_t cv_s cv_u
@@ -1498,6 +1502,7 @@ size() {
   local ch_out ch_ok=1
   ch_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
+           PATH="$PWD/root/bin:$PATH" \
            ./busybox ash learn/learn challenge check 2>&1) || ch_ok=0
   printf '%s\n' "$ch_out" | grep -v '^learn: ' >&2 || true
   g "G29 $(printf '%s' "$ch_out" | sed -n 's/^learn: //p' | tail -1)" \
