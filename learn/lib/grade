@@ -66,7 +66,7 @@ unsafe() {
 			split("rm mv cp ln chmod chown tee touch mkdir rmdir dd shred truncate", w, " ")
 			for (i in w) writer[w[i]] = 1
 			split("mkfs mke2fs mkdosfs mkswap swapon swapoff cryptsetup fdisk losetup" \
-			      " mount umount blockdev sync halt reboot poweroff udhcpc dropbearkey", b, " ")
+			      " umount blockdev sync halt reboot poweroff udhcpc dropbearkey", b, " ")
 			for (i in b) banned[b[i]] = 1
 			# signal senders reach live processes; only their -l listing form
 			# (read-only: names and numbers) may run
@@ -92,6 +92,10 @@ unsafe() {
 					cmd = tok
 					if (banned[cmd])                    { print "y"; exit }
 					if (sig[cmd] && t[i+1] != "-l")     { print "y"; exit }
+					# bare mount only lists; give it any argument and it
+					# rearranges the live tree
+					if (cmd == "mount" && t[i+1] != "" && t[i+1] !~ /^(\||;|&&|\|\|)$/) \
+						{ print "y"; exit }
 					continue
 				}
 
@@ -130,16 +134,19 @@ run_answer() {
 
 # check_state SPEC -- did the answer leave the tree in the right shape?
 # `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
-# point. three forms, which between them cover every mutating command xos has:
+# point. four forms, which between them cover every mutating command xos has:
 #   exists:PATH        the path is there afterwards
 #   gone:PATH          the path is not
 #   match:PATH:ERE     the path is there and its contents match
+#   mode:PATH:OCTAL    the path is there and carries exactly these bits
 check_state() {
 	case "$1" in
 		exists:*) [ -e "$SANDBOX/${1#exists:}" ] ;;
 		gone:*)   [ ! -e "$SANDBOX/${1#gone:}" ] ;;
 		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
 		          [ -e "$SANDBOX/$_p" ] && grep -qE -- "$_e" "$SANDBOX/$_p" 2>/dev/null ;;
+		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _m=${_r#*:}
+		          [ "$(stat -c %a "$SANDBOX/$_p" 2>/dev/null)" = "$_m" ] ;;
 		*)        return 1 ;;
 	esac
 }
@@ -147,6 +154,7 @@ check_state() {
 # correct GIVEN -- $Q_ANSWERS holds the listed answers, one per line.
 # $Q_OUT, when set, is an ERE the answer's real output must match.
 # $Q_STATE, when set, is what the tree must look like afterwards.
+# $Q_STATUS, when set, is the exit code the answer must leave behind.
 correct() {
 	_given=$(printf '%s\n' "$1" | norm)
 	[ -n "$_given" ] || return 1
@@ -166,7 +174,8 @@ correct() {
 	# `wc -l f`, `wc -l < f`, `cat f | wc -l` all use wc. grammar questions
 	# (Q_REF is the shell itself) have no single command to require, so they
 	# fall back to their listed forms.
-	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || [ "${Q_CMP:-}" = ref ] || return 1
+	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || [ -n "${Q_STATUS:-}" ] \
+		|| [ "${Q_CMP:-}" = ref ] || return 1
 	[ "${SANDBOX_OK:-0}" = 1 ] || return 1
 	printf '%s\n' "$1" | unsafe && return 1
 	case "${Q_REF:-}" in
@@ -174,9 +183,13 @@ correct() {
 		*) printf '%s\n' "$1" | answer_cmds | grep -qxF -- "$Q_REF" || return 1 ;;
 	esac
 
-	_got=$(run_answer "$1"); SANDBOX_DIRTY=1
-	[ -z "${Q_OUT:-}" ]   || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1
-	[ -z "${Q_STATE:-}" ] || check_state "$Q_STATE" || return 1
+	_got=$(run_answer "$1"); _rc=$?; SANDBOX_DIRTY=1
+	[ -z "${Q_OUT:-}" ]    || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1
+	[ -z "${Q_STATE:-}" ]  || check_state "$Q_STATE" || return 1
+	# status: judges the exit code -- the only observable a bare [ ... ] or
+	# grep -q has. run_answer surfaces the answer's own status because the
+	# subshell ends with it.
+	[ -z "${Q_STATUS:-}" ] || [ "$_rc" = "$Q_STATUS" ] || return 1
 
 	# cmp: ref -- the strictest tier, for questions whose out: shape alone is
 	# gameable: `grep -c WARN` prints the same ^[0-9]+$ shape as the

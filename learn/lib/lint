@@ -8,8 +8,8 @@
 #                   design (no hints under the clock).
 #   single-phrasing levels only. missions and chains are fixed narrative,
 #                   one voice on purpose.
-#   ungraded        levels and missions: a block with no out:/state:/cmp:
-#                   falls back to string-matching its listed answers -- the
+#   ungraded        levels and missions: a block with no out:/state:/cmp:/
+#                   status: falls back to string-matching its listed answers -- the
 #                   listed-answer-quiz failure grade's notes warn about.
 #                   chains are always reference-graded, never ungraded.
 #   unnamed-token   any @token@ an answer needs that neither the question,
@@ -44,7 +44,7 @@ lint() {
 		FNR == 1 { flushblk() }
 		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; q = ""; next }
 		inblk && /^hint:/ { hashint = 1 }
-		inblk && /^(out|state|cmp):/ { graded = 1 }
+		inblk && /^(out|state|cmp|status):/ { graded = 1 }
 		inblk && /^q: / && q == "" { q = $0 }
 		inblk && /^(q|setup|hint):/ { toks($0, qtok) }
 		inblk && /^a: / { toks($0, atok) }
