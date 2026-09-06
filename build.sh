@@ -1186,6 +1186,19 @@ toolchain() {
     mksquashfs -version 2>&1 | head -1
     veritysetup --version
     sha256sum musl-static-pie.specs | awk '{print $1}'
+    # musl is host-provided and links into EVERY shipped binary, so a musl
+    # package bump changes every byte of the image while four version strings
+    # stay put -- G13 then fails and blames the source. digest the objects, not
+    # a version.
+    for _m in /usr/lib/musl/lib/libc.a /usr/lib/musl/lib/rcrt1.o \
+              /usr/lib/musl/lib/crti.o /usr/lib/musl/lib/crtn.o; do
+      [ -f "$_m" ] && sha256sum "$_m" | awk '{print $1}'
+    done
+    # the systemd stub is ring-0 code that runs before the kernel, INSIDE the
+    # db signature, and it was covered by nothing at all.
+    [ -f "$STUB" ] && sha256sum "$STUB" | awk '{print $1}'
+    ukify --version 2>/dev/null | head -1
+    sbsign --version 2>/dev/null | head -1
   } | sha256sum | awk '{print $1}'
 }
 
@@ -1199,6 +1212,12 @@ pin() {
     printf 'image     %s\n'   "$(sha256sum < xos.img      | awk '{print $1}')"
     printf 'squashfs  %s\n'   "$(sha256sum < rootfs.squashfs | awk '{print $1}')"
     printf 'roothash  %s\n'   "$(cat verity.roothash)"
+    # the kernel was outside every pin, and it is 82% of the size budget. the
+    # reproducibility claim covered the userland and stopped there, so nobody
+    # outside the builder could check that the thing the firmware executes
+    # corresponds to the source at all.
+    [ -f bzImage ] && printf 'bzImage   %s\n' "$(sha256sum < bzImage | awk '{print $1}')"
+    [ -f "$STUB" ] && printf 'stub      %s\n' "$(sha256sum < "$STUB" | awk '{print $1}')"
     printf 'toolchain %s\n'   "$(toolchain)"
   } > image.sha256
   cat image.sha256
@@ -1470,8 +1489,14 @@ size() {
       # check the squashfs and roothash digests too -- pin() records both, so a
       # mismatch localises drift (filesystem vs verity padding/tree), and stops
       # either recorded line from being decoration nothing ever reads.
+      local want_bz have_bz
+      want_bz=$(awk '$1=="bzImage"{print $2}' image.sha256)
+      have_bz=$(sha256sum < bzImage 2>/dev/null | awk '{print $1}')
       g "G13 image matches committed digest" \
-        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] && echo ok || echo FAIL)"
+        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] \
+           && [ -n "$want_bz" ] && [ "$want_bz" = "$have_bz" ] && echo ok || echo FAIL)"
+      [ "$want_bz" = "$have_bz" ] || \
+        printf '    bzImage pinned %s\n    bzImage built  %s\n' "${want_bz:0:32}..." "${have_bz:0:32}..." >&2
       [ "$want_img" = "$have_img" ] || \
         printf '    image pinned %s\n    image built  %s\n' "${want_img:0:32}..." "${have_img:0:32}..." >&2
       [ "$want_sq" = "$have_sq" ] || \
