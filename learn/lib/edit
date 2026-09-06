@@ -17,6 +17,10 @@
 
 E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
 E_TAB=$(printf '\011'); E_EOT=$(printf '\004')
+# screen height, for the Tab panel's fold-away: erasing back up is only sound
+# while nothing scrolled, so the panel must be known to fit below the cursor.
+E_ROWS=$(stty size 2>/dev/null | cut -d' ' -f1)
+[ "$E_ROWS" -ge 10 ] 2>/dev/null || E_ROWS=24
 # history lives beside cards/passed -- persistent when $STATE is (p3 up),
 # tmpfs when it is not -- so the EXIT trap wiping $TMP never touches it.
 EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
@@ -40,7 +44,7 @@ _ed_last() { _r=${1#"${1%?}"}; }
 _ed_first() { _r=${1%"${1#?}"}; }
 
 read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
-	local prompt="${1:-}" L="" R="" mode=insert c c2 c3 _r _pc _quit=
+	local prompt="${1:-}" L="" R="" mode=insert c c2 c3 _r _pc _quit= _panel= _pl
 	if [ ! -t 0 ]; then
 		IFS= read -r REPLY_LINE || return 1
 		return 0
@@ -98,13 +102,28 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			[ -n "$L" ] && L="${L%?}"
 			;;
 		"$E_TAB")
-			# Tab: the reference panel, without abandoning what you typed --
-			# the page scrolls past, the question and your line are reprinted.
+			# Tab: the reference panel, without abandoning what you typed; a
+			# second Tab folds it away. the cursor is saved (DECSC) before the
+			# panel prints, so restore + erase-below puts the screen back
+			# exactly -- sound only while nothing scrolled, so the fold is
+			# armed only when the panel is known to fit under the cursor; a
+			# page too tall keeps the old scroll-past behaviour.
 			# learn mode only, same as typing man; the clock modes get nothing.
 			if [ "${MODE:-}" = learn ] && command -v ref_panel >/dev/null; then
-				printf '\n'
-				ref_panel "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)"
-				printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+				if [ -n "$_panel" ]; then
+					printf '\0338\033[J'
+					_panel=
+				else
+					ref_panel "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)" > "$TMP/panel" 2>/dev/null
+					_pl=$(awk 'END { print NR }' "$TMP/panel" 2>/dev/null)
+					if [ "${_pl:-999}" -lt $((E_ROWS - 12)) ] 2>/dev/null; then
+						printf '\0337\n'; _panel=1
+					else
+						printf '\n'
+					fi
+					cat "$TMP/panel" 2>/dev/null
+					printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+				fi
 			fi
 			;;
 		*)

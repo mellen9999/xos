@@ -58,17 +58,47 @@ ref() {
 	# a framed, tab-aligned page -- the raw file is busybox --help with hard tabs
 	# that render at whatever tabstop the terminal happens to use. this pins the
 	# flag column to one width and wraps the whole thing in rules, top and bottom.
-	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" '
+	#
+	# the page is ABRIDGED to the taught surface: a flag row no level claims in
+	# a teach: line is dropped, and short-flag bundles in the usage line are cut
+	# down to the taught letters. the raw corpus stays complete -- coverage and
+	# selftest read the files, not this view -- so the ledger keeps its meaning
+	# while the learner sees only what the curriculum asks of them.
+	_tf=$(awk -v c="$1" '$1 == c { print $2 }' "$(taught_all)" | tr '\n' ' ')
+	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" -v taught=" $_tf" '
 		function rl(   i,s){ s=""; for(i=0;i<cols;i++) s=s"-"; return D s N }
-		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
+		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r == s ? s "  " : r }
+		function tt(f){ sub(/\[.*/,"",f)
+			if (index(taught, " " f " ") > 0) return 1
+			return (f ~ /^-[0-9]$/ && index(taught, " -1..9 ") > 0) }
+		function row_ok(f,   n,i,a){ n=split(f,a,/[, ]+/)
+			for(i=1;i<=n;i++){ gsub(/[,:]$/,"",a[i]); if(a[i] != "" && tt(a[i])) return 1 }
+			return 0 }
+		# the usage line over the taught surface: a self-contained short-flag
+		# bundle keeps only taught letters, a lone [--long] keeps or goes whole.
+		# anything structured (a flag with its VALUE, alternates) passes through
+		# untouched -- better a spare token than a mangled grammar.
+		function fusage(s,   out,n,i,t,u,body,keep,j,ch,tk){
+			n=split(s,tk," "); out=""
+			for(i=1;i<=n;i++){ t=tk[i]
+				if (t ~ /^\[--[A-Za-z0-9=-]+\]$/){ u=t; gsub(/[][]/,"",u); sub(/=.*/,"",u)
+					if(tt(u)) out=out " " t; else hid=1; continue }
+				if (t ~ /^\[-[A-Za-z0-9]+\]$/){ body=t; gsub(/[][]/,"",body); sub(/^-/,"",body); keep=""
+					for(j=1;j<=length(body);j++){ ch=substr(body,j,1); if(tt("-" ch)) keep=keep ch }
+					if(keep != "") out=out " [-" keep "]"; else hid=1
+					continue }
+				out=out " " t
+			}
+			return substr(out,2) }
 		{ line[NR]=$0 }
 		END {
-			# measure the flag column across every tab-led row
+			# measure the flag column across every KEPT tab-led row
 			maxw=0
 			for(i=2;i<=NR;i++){
 				l=line[i]; if(l !~ /^\t/) continue
 				sub(/^\t+/,"",l)
 				if(match(l,/\t+/)) l=substr(l,1,RSTART-1)
+				if(!row_ok(l)) continue
 				if(length(l)>maxw) maxw=length(l)
 			}
 			if(maxw>18) maxw=18
@@ -77,26 +107,31 @@ ref() {
 			print rl()
 			printf "  %s%s%s\n", B W, line[1], N          # command name
 			for(i=2;i<=NR;i++) if(line[i] ~ /^Usage:/){
-				printf "  %susage:%s %s\n", D, N, substr(line[i],8); break }
+				printf "  %susage:%s %s\n", D, N, fusage(substr(line[i],8)); break }
 			print rl()
 
-			started=0
+			started=0; blank=0
 			for(i=2;i<=NR;i++){
 				l=line[i]
 				if(l ~ /^Usage:/) continue
-				if(l==""){ if(started) print ""; continue }   # no leading blank
-				started=1
+				if(l==""){ blank=1; continue }   # emitted only before a kept line
 				if(l ~ /^\t/){                                 # a flag / example row
 					sub(/^\t+/,"",l)
 					if(match(l,/\t+/)){ f=substr(l,1,RSTART-1); d=substr(l,RSTART+RLENGTH) }
 					else { f=l; d="" }
+					if(!row_ok(f)){ hid=1; continue }
+					if(started && blank) print ""
+					started=1; blank=0
 					if(d=="") printf "  %s%s%s\n", C, f, N
 					else      printf "  %s%s%s%s\n", C, pad(f,col), N, d
 				} else {                                       # prose
+					if(started && blank) print ""
+					started=1; blank=0
 					printf "  %s%s%s\n", D, l, N
 				}
 			}
 			print rl()
+			if(hid) printf "  %sabridged to what the curriculum drills -- %s --help has it all%s\n", D, line[1], N
 		}' "$REF/$_r"
 }
 
@@ -738,6 +773,16 @@ taught_set() {
 	done | sort -u
 }
 
+# taught_all -- every "cmd flag" pair the levels claim, normalised (an inline
+# argument like -I[SPEC] collapses to -I) and cached for the process. two
+# readers, one file: the reference renderer shows exactly this set, and
+# selftest holds every listed answer inside it -- which together are the
+# promise that a page always answers the question in front of you.
+taught_all() {
+	[ -s "$TMP/taughtall" ] || taught_set | sed 's/\(-[A-Za-z0-9]*\)\[[^ ]*/\1/' > "$TMP/taughtall"
+	printf '%s\n' "$TMP/taughtall"
+}
+
 skip_set() {
 	[ -f "$ROOT/skip" ] || return 0
 	sed 's/#.*//' "$ROOT/skip" | awk 'NF >= 2 { print $1, $2 }' | sort -u
@@ -759,6 +804,11 @@ coverage() {
 		done
 	done
 
+	# a pair both taught and skipped is one flag ruled on twice, in opposite
+	# directions. the ledger holds exactly one ruling each, or it holds none.
+	local both; both=$(comm -12 "$TMP/taught" "$TMP/skipped")
+	[ -z "$both" ] || { printf '%s\n' "$both" | sed 's/^/  taught AND skipped: /' >&2; }
+
 	# grep -c prints 0 AND exits non-zero on no match, so `|| echo 0` fired as
 	# well and this held "0\n0" -- which every numeric test then choked on.
 	local holes; holes=$(awk 'END { print NR }' "$TMP/holes")
@@ -773,7 +823,7 @@ coverage() {
 	rule
 	note "learn coverage -v lists the holes. learn/skip is where a flag is"
 	note "retired on purpose, with the reason written down."
-	[ "$holes" -eq 0 ]
+	[ "$holes" -eq 0 ] && [ -z "$both" ]
 }
 
 # ---- selftest -------------------------------------------------------------
@@ -854,6 +904,34 @@ flag_ok() {
 	return 0
 }
 
+# taught_has CMD FLAG -- is this exact flag claimed by some teach: line?
+taught_has() {
+	set -- "$1" "${2%%[*}"
+	grep -qxF -- "$1 $2" "$(taught_all)" && return 0
+	# a single digit is covered by a taught -1..9 compression range
+	case "$2" in -[0-9]) grep -qxF -- "$1 -1..9" "$(taught_all)" ;; *) return 1 ;; esac
+}
+
+# flag_taught CMD TOKEN -- the teach-side twin of flag_ok: same three shapes
+# (plain, bundle, attached value), judged against the taught set instead of
+# the corpus. what this admits is what the abridged page shows, so an answer
+# that fails here is an answer the reference panel could not have coached.
+flag_taught() {
+	local cmd=$1 tok=$2 rest c seen=0
+	taught_has "$cmd" "$tok" && return 0
+	case "$tok" in --*) return 1 ;; esac
+
+	rest=${tok#-}
+	while [ -n "$rest" ]; do
+		c=${rest%"${rest#?}"}
+		if taught_has "$cmd" "-$c" || taught_has "$cmd" "$c"; then seen=1; rest=${rest#?}
+		elif [ "$seen" = 1 ]; then return 0   # the tail is an attached value
+		else return 1
+		fi
+	done
+	return 0
+}
+
 # answer_flags -- every "cmd flag" pair an answer actually uses, attributed to
 # the command it belongs to.
 #
@@ -871,7 +949,7 @@ answer_flags() {
 		function popn() { while (nclose-- > 0 && depth > 0) cmd = stack[depth--]; nclose = 0 }
 		BEGIN {
 			while ((getline c < cl) > 0) known[c] = 1
-			split("env timeout xargs nohup setsid watch flock sh ash chroot", w, " ")
+			split("env timeout xargs nohup setsid watch flock sh ash chroot dbclient", w, " ")
 			for (i in w) wrapper[w[i]] = 1
 		}
 		{
@@ -959,9 +1037,14 @@ st_block() {
 	# ships beside it. without this, a question can quietly depend on a
 	# flag this build compiled out -- which is the one promise the whole
 	# curriculum rests on: nothing is asked that the docs cannot answer.
+	# ...and TAUGHT by some level's teach: line. the reference page is abridged
+	# to the taught set, so an answer leaning on an untaught flag is an answer
+	# the panel cannot coach -- the learner would be graded on a flag the
+	# curriculum never shows them.
 	printf '%s\n' "$Q_ANSWERS" | answer_flags | while read -r ac af; do
 		[ -f "$REF/$ac" ] || continue
 		flag_ok "$ac" "$af" || echo "FAIL $lbl: answer uses $ac $af, undocumented in ref/$ac"
+		flag_taught "$ac" "$af" || echo "FAIL $lbl: answer uses $ac $af, untaught -- the abridged page hides it"
 	done > "$TMP/fl.$$" 2>&1
 	if [ -s "$TMP/fl.$$" ]; then cat "$TMP/fl.$$" >&2; bad=$((bad + $(grep -c . "$TMP/fl.$$"))); fi
 	rm -f "$TMP/fl.$$"
@@ -1226,7 +1309,7 @@ usage() {
 
 	at a question: type your answer with full vi editing -- Esc for normal
 	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
-	?  hint    Tab or man  the reference    skip  reveal
+	?  hint    Tab or man  the reference (Tab again folds it)    skip  reveal
 	quit, :q, normal-mode q, or Ctrl-D all leave.
 	EOF
 }

@@ -8,12 +8,14 @@
 #
 # format:  <command> <flag>   # reason
 #
-# the reasons collapse to five kinds:
+# the reasons collapse to six kinds:
 #   alias      -- a second spelling of a flag we already teach
 #   verbose    -- output chattiness, no new capability
 #   compat     -- accepted for other implementations, no-op or near enough
 #   absent     -- the feature it drives is not compiled into this build
 #   danger     -- works, but has no place in a drill that runs your answer
+#   lookup     -- real and occasionally useful, but not worth keeping in your
+#                 head; the page hides it and --help answers it when needed
 
 # ── chattiness and confirmation: real, but nothing to learn ──
 chmod -c        # verbose
@@ -383,3 +385,192 @@ route -host      # legacy tool kept for compat; ip route is the taught spelling
 route -net       # ditto
 stat -l          # long listing; -c FMT is the taught, scriptable form
 udhcpc -a        # arping duplicate check; udhcpc reconfigures the live nic
+
+# ── the 2026-09 simplification: real flags, not by-heart flags ──
+# a sixth kind, lookup: genuinely works, occasionally useful, and exactly
+# what --help is for. drilling it would cost attention the everyday flags
+# need. the curriculum keeps the muscle-memory set; these wait in the docs.
+[ -a             # compat
+[ -o             # compat
+abduco -e        # lookup
+abduco -n        # lookup
+abduco -r        # lookup
+arp -A           # lookup
+arp -D           # lookup
+arp -H           # lookup
+arp -i           # lookup
+arp -v           # verbose
+arping -A        # lookup
+arping -b        # lookup
+arping -f        # lookup
+arping -q        # lookup
+arping -s        # lookup
+arping -U        # lookup
+arping -w        # lookup
+awk -e           # compat
+base64 -w        # lookup
+basename -a      # lookup
+basename -s      # lookup
+blockdev --getbsz # lookup
+cat -b           # lookup
+cmp -l           # lookup
+cmp -n           # lookup
+command -p       # lookup
+command -V       # alias
+cryptsetup --batch-mode # lookup
+cryptsetup --cipher # lookup
+cryptsetup --integrity # lookup
+cryptsetup --key-size # lookup
+cryptsetup --pbkdf # lookup
+cryptsetup --readonly # lookup
+cryptsetup --verbose # verbose
+cut -b           # lookup
+cut -D           # compat
+cut -O           # compat
+cut -s           # lookup
+date -D          # lookup
+date -r          # lookup
+date -R          # lookup
+df -a            # lookup
+df -B            # lookup
+df -m            # lookup
+df -t            # lookup
+dmesg -n         # lookup
+dmesg -r         # lookup
+dmesg -s         # lookup
+du -b            # lookup
+du -c            # lookup
+du -k            # lookup
+du -m            # lookup
+env -0           # lookup
+env -u           # lookup
+free -b          # lookup
+free -k          # lookup
+free -m          # lookup
+ftpget -c        # lookup
+ftpget -P        # lookup
+ftpput -P        # lookup
+grep -e          # lookup
+grep -f          # lookup
+grep -L          # lookup
+grep -m          # lookup
+grep -s          # lookup
+grep -x          # lookup
+hexdump -b       # lookup
+hexdump -c       # lookup
+hexdump -d       # lookup
+hexdump -e       # lookup
+hexdump -f       # lookup
+hexdump -o       # lookup
+hexdump -v       # lookup
+hexdump -x       # lookup
+hostname -d      # lookup
+hostname -i      # lookup
+id -r            # lookup
+ii -f            # lookup
+ii -i            # lookup
+ipcalc -s        # lookup
+killall -l       # alias
+logger -p        # lookup
+logger -s        # lookup
+ls -F            # lookup
+ls -n            # lookup
+ls -p            # lookup
+ls -s            # lookup
+ls -x            # lookup
+lspci -m         # lookup
+md5sum -s        # lookup
+sha1sum -s       # lookup
+sha256sum -s     # lookup
+sha512sum -s     # lookup
+microcom -t      # lookup
+mkdir -m         # lookup
+mke2fs -m        # lookup
+mkfifo -m        # lookup
+mktemp -q        # lookup
+mktemp -u        # lookup
+netstat -e       # lookup
+netstat -w       # lookup
+netstat -W       # lookup
+netstat -x       # lookup
+nproc --all      # lookup
+od -A            # lookup
+od -N            # lookup
+od -t            # lookup
+pgrep -a         # lookup
+pgrep -n         # lookup
+pgrep -o         # lookup
+pgrep -P         # lookup
+pgrep -v         # lookup
+pgrep -x         # lookup
+pidof -s         # lookup
+ping -A          # lookup
+ping -i          # lookup
+ping -p          # lookup
+ping -q          # lookup
+ping -s          # lookup
+ping -t          # lookup
+ping -W          # lookup
+ps -T            # lookup
+readlink -n      # lookup
+rmdir -p         # lookup
+route -A         # lookup
+route -e         # lookup
+sed -f           # lookup
+sed -r           # alias
+seq -s           # lookup
+seq -w           # lookup
+sort -c          # lookup
+sort -f          # lookup
+sort -i          # lookup
+split -a         # lookup
+stat -f          # lookup
+stat -L          # lookup
+stat -t          # lookup
+strings -o       # alias
+stty -g          # lookup
+sync -d          # lookup
+telnet -a        # lookup
+telnet -l        # lookup
+tftp -b          # lookup
+timeout -k       # lookup
+timeout -s       # lookup
+traceroute -f    # lookup
+traceroute -F    # lookup
+traceroute -i    # lookup
+traceroute -l    # lookup
+traceroute -p    # lookup
+traceroute -q    # lookup
+traceroute -r    # lookup
+traceroute -s    # lookup
+traceroute -t    # lookup
+traceroute -v    # verbose
+traceroute -w    # lookup
+traceroute -z    # lookup
+udhcpc -f        # lookup
+udhcpc -n        # lookup
+udhcpc -q        # lookup
+udhcpc -R        # lookup
+udhcpc -s        # lookup
+udhcpc -t        # lookup
+udhcpc -T        # lookup
+ulimit -f        # lookup
+uname -i         # lookup
+uname -o         # lookup
+uname -p         # lookup
+uname -v         # lookup
+uniq -i          # lookup
+uniq -w          # lookup
+watch -t         # lookup
+wc -L            # lookup
+wget -o          # lookup
+wget -P          # lookup
+wget --post-file # lookup
+wget --no-check-certificate # lookup
+wget -T          # lookup
+wget -U          # lookup
+xargs -a         # lookup
+xargs -E         # lookup
+xargs -p         # lookup
+xargs -s         # lookup
+xargs -t         # lookup
