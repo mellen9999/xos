@@ -213,7 +213,7 @@ dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
 mac2=$(grep -oP 'mac-uplink: \K[0-9a-f:]{17}' <<< "$out" | head -1)
 grep -q 'mac-randomized: yes' <<< "$out" && ok "uplink mac was randomized away from hardware" || bad "uplink still wears its hardware mac"
 [ -n "$mac2" ] && [ "$mac2" != "52:54:00:12:34:56" ] && ok "mac is not the qemu default" || bad "mac is still the qemu default"
-b1m=$((16#${mac2:0:2}))
+b1m=0; [ -n "$mac2" ] && b1m=$((16#${mac2:0:2}))
 [ $((b1m & 2)) -ne 0 ] && [ $((b1m & 1)) -eq 0 ] && ok "locally-administered unicast bits correct" || bad "mac bit math wrong"
 # fingerprint words, recomputed from the two sources OUTSIDE the booted
 # system -- the tree wordlist and the roothash this run just built.
