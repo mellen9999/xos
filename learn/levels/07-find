@@ -114,15 +114,15 @@ ref: find
 teach: find -perm
 hint: a dash before the mode means all its bits must be set -- the file can have others too
 ---
-q: %find% files under here owned by user @user@
-a: find . -user @user@
+q: %find% files under here owned by the user nobody
+a: find . -user nobody
 cmp: ref
 ref: find
 teach: find -user
 hint: matches the file's owner, not who's running find
 ---
-q: %find% files under here belonging to group @user@
-a: find . -group @user@
+q: %find% files under here belonging to the group nobody
+a: find . -group nobody
 cmp: ref
 ref: find
 teach: find -group
