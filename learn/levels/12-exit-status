@@ -40,9 +40,9 @@ ref: grep
 teach: grep -q
 hint: || runs its right side only when the left side fails
 ---
-q: %show% found if @sev@ is in @log@, and missing if it is not, in one line
-a: grep -q @sev@ @log@ && echo found || echo missing
-why: fixture-cost
+q: %show% found if @needle@ is in @log@, and missing if it is not, in one line
+a: grep -q @needle@ @log@ && echo found || echo missing
+cmp: ref
 ref: grep
 teach: grep -q
 hint: chain && and || together to cover both outcomes in one line

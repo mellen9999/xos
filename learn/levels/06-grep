@@ -135,9 +135,9 @@ ref: grep
 teach: grep -E
 hint: E turns on extended regex, so + doesn't need a backslash
 ---
-q: {match either @sev@ or @term@ in @log@ in one extended-regex pass|find lines in @log@ containing @sev@ or @term@, using one extended-regex command|search @log@ for @sev@ or @term@ with a single extended-regex pattern}
-a: grep -E '@sev@|@term@' @log@
-why: fixture-cost
+q: {match either @needle@ or @term@ in @log@ in one extended-regex pass|find lines in @log@ containing @needle@ or @term@, using one extended-regex command|search @log@ for @needle@ or @term@ with a single extended-regex pattern}
+a: grep -E '@needle@|@term@' @log@
+cmp: ref
 ref: grep
 teach: grep -E
 hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped

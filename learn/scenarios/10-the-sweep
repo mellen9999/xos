@@ -85,7 +85,7 @@ setup: the only name the system answers to as superuser; a hidden second uid-0 i
 setup: a whole extra root hiding in plain sight in the passwd database.
 q: print every account whose uid is 0
 a: awk -F: '$3==0 {print $1}' /etc/passwd
-out: root
+cmp: ref
 ref: awk
 teach: awk -F
 hint: field 3 is the uid; field 1 is the name
@@ -96,7 +96,7 @@ setup: the read-only root, so there is no writable hook to plant. The way you
 setup: confirm it is to look at what is actually running.
 q: list every process with its pid, its parent's pid, and its command
 a: ps -o pid,ppid,comm
-out: PPID
+out: ^PID +PPID +COMMAND
 ref: ps
 teach: ps -o
 hint: the parent pid is the tell -- a shell whose parent is a network tool

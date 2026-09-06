@@ -148,13 +148,6 @@ ref: route
 teach: route -e
 hint: -e adds the extra fields netstat-style output shows
 ---
-q: %show% routes for a named address family
-a: route -A inet
-why: primitive-cost
-ref: route
-teach: route -A
-hint: -A takes the address family name, inet for ipv4
----
 q: %show% the arp cache
 a: arp
 out: \) at .*\[
@@ -168,13 +161,6 @@ why: live-net
 ref: arp
 teach: arp -n
 hint: -n skips resolving hostnames for each entry
----
-q: %show% all arp entries including incomplete ones
-a: arp -a
-why: primitive-cost
-ref: arp
-teach: arp -a
-hint: -a includes entries still waiting to resolve
 ---
 q: {delete the arp entry for @ip@|remove the arp entry for @ip@|drop @ip@ from the arp cache}
 a: arp -d @ip@
@@ -196,27 +182,6 @@ cmp: ref
 ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface
----
-q: %show% the arp cache verbosely
-a: arp -v
-why: primitive-cost
-ref: arp
-teach: arp -v
-hint: -v adds detail arp normally leaves out
----
-q: %show% arp entries of a given hardware type
-a: arp -H ether
-why: primitive-cost
-ref: arp
-teach: arp -H
-hint: -H filters by hardware type, ether being the common case
----
-q: {use a named address family for arp|tell arp which address family to use|restrict arp to a named address family}
-a: arp -A inet
-why: primitive-cost
-ref: arp
-teach: arp -A
-hint: -A picks the address family, same idea as route -A
 ---
 q: {publish an arp entry for @ip@ on @iface@, on behalf of another host|answer arp requests for @ip@ out of @iface@, on another host's behalf|publish a proxy arp entry for @ip@ out of @iface@}
 a: arp -D @iface@ -s @ip@
