@@ -389,3 +389,11 @@ route -host      # legacy tool kept for compat; ip route is the taught spelling
 route -net       # ditto
 stat -l          # long listing; -c FMT is the taught, scriptable form
 udhcpc -a        # arping duplicate check; udhcpc reconfigures the live nic
+
+# ── busybox 1.38.0: the flags a bump added to applets already taught ──
+# refcheck (G24) stopped the build on these; each is a lookup, not by-heart
+cut --output-delimiter   # output separator knob; -d is the taught half
+fdisk -s                 # print sizes and exit; blockdev/lsblk territory
+fdisk -T                 # force dos over a hybrid gpt; one-off recovery knob
+fdisk -t                 # partition type selector at creation; not drilled
+watch -x                 # exec instead of sh -c; quoting nuance, look it up
