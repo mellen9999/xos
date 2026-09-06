@@ -11,7 +11,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     || git config core.hooksPath githooks 2>/dev/null || true
 fi
 
-KVER="${KVER:-6.12.43}"
+KVER="${KVER:-6.12.108}"
 BBVER="${BBVER:-1.37.0}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
@@ -21,16 +21,16 @@ ABDVER="${ABDVER:-0.6}"
 # trust surface it has ever taken -- recorded in SOURCES.md rather than waved
 # through. the kernel crypto backend (AF_ALG) is what avoids a fifth: no
 # openssl, no gcrypt, no nettle.
-CSVER="${CSVER:-2.7.5}"
-LVMVER="${LVMVER:-2.03.27}"
+CSVER="${CSVER:-2.8.7}"
+LVMVER="${LVMVER:-2.03.42}"
 POPTVER="${POPTVER:-1.19}"
-JSONCVER="${JSONCVER:-0.18-20240915}"
-UTLVER="${UTLVER:-2.40.2}"
+JSONCVER="${JSONCVER:-0.19-20260627}"
+UTLVER="${UTLVER:-2.42.2}"
 # phase 4, remote access: wireguard userland + dropbear ssh. wireguard is in the
 # kernel; wg only configures it. dropbear is the one listening service xos runs,
 # and only ever on the wireguard interface.
-WGTVER="${WGTVER:-1.0.20210914}"
-DBVER="${DBVER:-2024.86}"
+WGTVER="${WGTVER:-1.0.20260223}"
+DBVER="${DBVER:-2026.94}"
 # maintainer key fingerprints for the two upstreams whose signed releases we
 # match (see SOURCES.md for how these were established -- each cross-checked
 # against at least two independent channels). the committed pubkeys in sigs/
@@ -85,8 +85,8 @@ STICK_ESP_MIB=64
 # artifact can be checked against its source instead of trusted. this is also
 # xos.epoch, the security floor init refuses to boot before -- so it is a
 # PINNED LITERAL, never `date +%s`, and gets bumped + repinned periodically
-# (G30 fails the build once it goes stale). 2026-09-04 00:00:00 UTC.
-export SOURCE_DATE_EPOCH=1788480000
+# (G30 fails the build once it goes stale). 2026-09-06 00:00:00 UTC.
+export SOURCE_DATE_EPOCH=1788652800
 # busybox renders its banner timestamp in LOCAL time, so without a pinned TZ
 # the same source builds differently in a different timezone.
 export TZ=UTC
@@ -125,8 +125,9 @@ deps() {
   # musl is linked into every binary but is NOT built from source here -- it is
   # host-provided. SOURCES.md records this honestly; the build must have it.
   [ -f /usr/lib/musl/lib/rcrt1.o ] || miss+=("/usr/lib/musl/lib/rcrt1.o (musl)")
-  lsblk -nro MOUNTPOINTS /dev/null >/dev/null 2>&1 \
-    || [ "$(lsblk -nro MOUNTPOINTS / 2>/dev/null | grep -c .)" -gt 0 ] \
+  # the mounted-disk guard in usb()/addstate() reads this column; an lsblk
+  # without it prints nothing and the guard would pass on a mounted stick.
+  lsblk -nro MOUNTPOINTS >/dev/null 2>&1 \
     || miss+=("lsblk with MOUNTPOINTS column (util-linux >= 2.37)")
   [ -f "$STUB" ]      || miss+=("$STUB (systemd)")
   [ -f "$OVMF_CODE" ] || miss+=("$OVMF_CODE (edk2-ovmf)")
@@ -194,7 +195,7 @@ fetch() {
   # cryptsetup and util-linux; the other three are trust-on-first-use. see
   # SOURCES.md, which records which is which rather than letting one digest
   # list look as authoritative as another.
-  get "https://cdn.kernel.org/pub/linux/utils/cryptsetup/v2.7/cryptsetup-$CSVER.tar.xz" \
+  get "https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${CSVER%.*}/cryptsetup-$CSVER.tar.xz" \
       "cryptsetup-$CSVER.tar.xz" "cryptsetup-$CSVER"
   get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
       "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
@@ -203,7 +204,7 @@ fetch() {
       "popt-$POPTVER.tar.gz" "popt-$POPTVER"
   get "https://github.com/json-c/json-c/archive/refs/tags/json-c-$JSONCVER.tar.gz" \
       "json-c-$JSONCVER.tar.gz" "json-c-json-c-$JSONCVER"
-  get "https://cdn.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-$UTLVER.tar.xz" \
+  get "https://cdn.kernel.org/pub/linux/utils/util-linux/v${UTLVER%.*}/util-linux-$UTLVER.tar.xz" \
       "util-linux-$UTLVER.tar.xz" "util-linux-$UTLVER"
   # wireguard-tools: git.zx2c4.com publishes no per-release signature; the
   # github mirror tag is trust-on-first-use over TLS.
@@ -404,10 +405,13 @@ wg_() {
   local d="src/wireguard-tools-$WGTVER/src" specs="$PWD/musl-static-pie.specs"
   [ -d "$d" ] || { echo "FAIL: wireguard-tools source missing, run fetch" >&2; return 1; }
   make -C "$d" clean >/dev/null 2>&1 || true
-  # RUNSTATEDIR is normally set by the makefile's own CFLAGS; supplying our
-  # own CFLAGS drops it, so define it back or the socket path will not compile.
+  # RUNSTATEDIR and the bundled uapi headers are normally added by the
+  # makefile's own CFLAGS; supplying ours drops both, so put them back. the
+  # bundled linux/wireguard.h goes FIRST: wg is written against the newest
+  # netlink attributes and only sends the ones the operator's conf uses, so
+  # it must see its own header, not the older one in the 6.12 sysroot.
   make -C "$d" CC="gcc -specs=$specs" \
-    CFLAGS="$XCF -DRUNSTATEDIR='\"/run\"'" \
+    CFLAGS="-isystem $PWD/$d/uapi/linux $XCF -DRUNSTATEDIR='\"/run\"'" \
     LDFLAGS="" WITH_BASHCOMPLETION=no WITH_WGQUICK=no WITH_SYSTEMDUNITS=no wg >/dev/null 2>&1
   [ -f "$d/wg" ] || { echo "FAIL: wg did not build" >&2; return 1; }
   strip "$d/wg"; cp "$d/wg" wg
@@ -501,6 +505,7 @@ cryptsetup_() {
       --with-crypto_backend=kernel --disable-ssh-token --disable-external-tokens \
       --disable-selinux --disable-nls --disable-blkid --disable-udev \
       --disable-veritysetup --disable-integritysetup --disable-asciidoc \
+      --disable-hw-opal \
       CC="$cc" CFLAGS="$cf -I$dep/include" LDFLAGS="-L$dep/lib" \
       DEVMAPPER_CFLAGS="-I$dep/include" DEVMAPPER_LIBS="-L$dep/lib -ldevmapper" \
       JSON_C_CFLAGS="-I$dep/include/json-c" JSON_C_LIBS="-L$dep/lib -ljson-c" \
@@ -617,8 +622,12 @@ rootfs() {
   chmod +x root/init
   echo 'xos' > root/etc/hostname
   # without /etc/passwd, anything calling getpwuid() fails -- ii did exactly that
-  printf 'root:x:0:0:root:/tmp/home:/bin/sh\n' > root/etc/passwd
-  printf 'root:x:0:\n' > root/etc/group
+  # nobody: the uid learn drops to before it runs an answer. root is the only
+  # human; this account owns nothing, logs in nowhere, and exists so that
+  # plain file permissions -- not a denylist of command names -- are what
+  # stand between a learner's typo and the encrypted state partition.
+  printf 'root:x:0:0:root:/tmp/home:/bin/sh\nnobody:x:65534:65534:nobody:/:/bin/false\n' > root/etc/passwd
+  printf 'root:x:0:\nnobody:x:65534:\n' > root/etc/group
   # ssh: the dir where a baked authorized_keys lives (verity-covered). empty by
   # default. set XOS_SSH_KEY=path/to/key.pub to bake a public key in here so
   # remote login works on first boot without any p3 -- baking it into the
@@ -652,6 +661,16 @@ scrub() {
 	else
 		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
 	fi
+}
+# recon reports a changed machine on every boot until a human says this is
+# the machine now. that is this: the reported inventory becomes the baseline.
+recon_accept() {
+	local f n=0
+	for f in /tmp/home/recon/*.new; do
+		[ -f "$f" ] || continue
+		mv "$f" "${f%.new}" && sync && n=$((n + 1)) && echo "accepted: machine ${f##*/recon/} is the baseline now"
+	done
+	[ "$n" -gt 0 ] || echo "nothing to accept -- no machine is reported as changed"
 }
 SHRC
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
@@ -1170,10 +1189,12 @@ size() {
     # flags are the second-to-last column -- the last is the alignment, and
     # reading it made this gate unable to fail for as long as it existed.
     readelf -lW "$f" 2>/dev/null | awk '/GNU_STACK/{print $(NF-1)}' | has RWE && rwe_stack=$((rwe_stack+1))
-    # G22 -- the stack protector claim. musl's __stack_chk_fail carries this
-    # string and strip does not remove .rodata, so its absence means the
-    # binary was compiled without -fstack-protector: no canary, no check.
-    strings "$f" 2>/dev/null | has 'stack smashing detected' || ssp_miss=$((ssp_miss+1))
+    # G22 -- the stack protector claim. a protected function loads the canary
+    # from the TLS slot (%fs:0x28 on x86_64) in its prologue; a binary with no
+    # such load anywhere was compiled without -fstack-protector. musl prints
+    # no message on a canary failure (it just crashes), so the code is the
+    # only evidence there is.
+    [ "$(objdump -d "$f" 2>/dev/null | grep -c '%fs:0x28')" -gt 0 ] || ssp_miss=$((ssp_miss+1))
   done <<< "$elfs"
   # the executable-stack detector must be able to say RWE at all: link a
   # deliberately bad object and ask. a detector that cannot fail is not one.
@@ -1450,7 +1471,11 @@ size() {
     # a first-party script the manifest declares (init, the dhcp hook)
     grep -qxF -- "${x#root/}" manifest && continue
     if [ -L "$x" ]; then
-      case "$(readlink "$x")" in busybox|dropbearmulti) continue ;; esac
+      # a link is judged by its target: the applet links point at busybox
+      # or dropbearmulti; /etc/resolv.conf and /run point into the tmpfs
+      # (nothing executable lives there). anything else is an executable
+      # under a name nobody declared.
+      case "$(readlink "$x")" in busybox|dropbearmulti|/tmp/*) continue ;; esac
     fi
     undecl=$((undecl+1)); printf '    undeclared executable in image: %s\n' "$x" >&2
   done <<< "$(find root \( -type f -o -type l \) -perm -0100 2>/dev/null)"
