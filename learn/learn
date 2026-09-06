@@ -87,9 +87,36 @@ ref() {
 					for(j=1;j<=length(body);j++){ ch=substr(body,j,1); if(tt("-" ch)) keep=keep ch }
 					if(keep != "") out=out " [-" keep "]"; else hid=1
 					continue }
+				# [-w WIDTH] -- a flag and its value, two tokens. untaught, the
+				# pair goes together; taught, it passes through together.
+				if (t ~ /^\[-[A-Za-z0-9]$/ && i < n && tk[i+1] ~ /\]$/ && tk[i+1] !~ /^-/){
+					if (tt(substr(t, 2))) out=out " " t " " tk[i+1]; else hid=1
+					i++; continue }
 				out=out " " t
 			}
 			return substr(out,2) }
+		# a run of flag rows renders as a grid: two columns when at least six
+		# rows all fit half the width, one otherwise. column-major -- read
+		# down, then over -- and computed from measured widths at render
+		# time, never baked into the data where an edit could shear it.
+		function cellv(i){ return (length(ff[i]) >= col ? length(ff[i]) + 2 : col) + length(dd[i]) }
+		function cell(i){ return sprintf("%s%s%s%s", C, pad(ff[i], col), N, dd[i]) }
+		function flushf(   n,half,two,rows,r,padn,s){
+			n = nf; nf = 0
+			if (n == 0) return
+			half = int((cols - 4) / 2)
+			two = (n >= 6)
+			for (r = 1; r <= n && two; r++) if (cellv(r) > half - 2) two = 0
+			if (!two) { for (r = 1; r <= n; r++) printf "  %s\n", cell(r); return }
+			rows = int((n + 1) / 2)
+			for (r = 1; r <= rows; r++) {
+				if (r + rows <= n) {
+					padn = half - cellv(r); s = ""
+					while (padn-- > 0) s = s " "
+					printf "  %s%s  %s\n", cell(r), s, cell(r + rows)
+				} else printf "  %s\n", cell(r)
+			}
+		}
 		{ line[NR]=$0 }
 		END {
 			# measure the flag column across every KEPT tab-led row
@@ -110,11 +137,11 @@ ref() {
 				printf "  %susage:%s %s\n", D, N, fusage(substr(line[i],8)); break }
 			print rl()
 
-			started=0; blank=0
+			started=0; blank=0; nf=0
 			for(i=2;i<=NR;i++){
 				l=line[i]
 				if(l ~ /^Usage:/) continue
-				if(l==""){ blank=1; continue }   # emitted only before a kept line
+				if(l==""){ flushf(); blank=1; continue }   # emitted only before a kept line
 				if(l ~ /^\t/){                                 # a flag / example row
 					sub(/^\t+/,"",l)
 					if(match(l,/\t+/)){ f=substr(l,1,RSTART-1); d=substr(l,RSTART+RLENGTH) }
@@ -122,14 +149,15 @@ ref() {
 					if(!row_ok(f)){ hid=1; continue }
 					if(started && blank) print ""
 					started=1; blank=0
-					if(d=="") printf "  %s%s%s\n", C, f, N
-					else      printf "  %s%s%s%s\n", C, pad(f,col), N, d
+					nf++; ff[nf]=f; dd[nf]=d
 				} else {                                       # prose
+					flushf()
 					if(started && blank) print ""
 					started=1; blank=0
 					printf "  %s%s%s\n", D, l, N
 				}
 			}
+			flushf()
 			print rl()
 			if(hid) printf "  %sabridged to what the curriculum drills -- %s --help has it all%s\n", D, line[1], N
 		}' "$REF/$_r"
@@ -188,6 +216,42 @@ level_briefed()    { mkdir -p "$STATE" 2>/dev/null || :
                      { cat "$BRIEFED" 2>/dev/null; echo "$1"; } | sort -u > "$TMP/briefed" \
                        && cp "$TMP/briefed" "$BRIEFED" 2>/dev/null || :; }
 level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
+
+# flag_gloss CMD FLAG -- the description column of the corpus row documenting
+# this flag, first match wins. feeds the brief's moves table.
+flag_gloss() {
+	awk -F'\t' -v fl="${2%%[*}" '
+		$0 !~ /^\t/ { next }
+		{
+			split($2, w, /[ ,]/)
+			for (i in w) { t = w[i]; sub(/\[.*/, "", t)
+				if (t == fl) for (j = 3; j <= NF; j++) if ($j != "") { print $j; exit } }
+		}' "$REF/$(refname "$1")" 2>/dev/null | head -1
+}
+
+# level_moves ID -- the level distilled: every flag its questions claim, one
+# line each, glossed from the corpus. generated, so it cannot drift from the
+# questions the way a hand-written cheat block would.
+level_moves() {
+	sed -n 's/^teach: \{0,1\}//p' "$(level_path "$1")" | while read -r _mc _mr; do
+		[ -n "$_mr" ] || continue
+		for _mf in $_mr; do printf '%s %s\n' "$_mc" "$_mf"; done
+	done | sort -u | while read -r _mc _mf; do
+		printf '  %s%-10s%-8s%s %s\n' "$C" "$_mc" "${_mf%%[*}" "$N" "$(flag_gloss "$_mc" "$_mf")"
+	done
+}
+
+# the brief screen: the teaching paragraph, then the moves. one screen, shown
+# once (and again on `learn brief <n>`).
+brief_show() {
+	hdr "$(level_field "$1" name)" "level ${1%%-*}  $(level_nq "$1") questions"
+	level_field "$1" brief | say
+	_mv=$(level_moves "$1")
+	[ -n "$_mv" ] || return 0
+	echo
+	printf '  %sthe moves%s\n' "$D" "$N"
+	printf '%s\n' "$_mv"
+}
 
 # blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
 # from block INDEX of any question file -- the levels and the challenge chains
@@ -391,8 +455,7 @@ run_level() {
 	# a resume is the questions, not the lecture. `learn brief <n>` reprints it.
 	if ! level_is_briefed "$id"; then
 		cls
-		hdr "$lname" "level ${id%%-*}  ${nq} questions"
-		level_field "$id" brief | say
+		brief_show "$id"
 		level_briefed "$id"
 		pause_card || return 2
 	fi
@@ -1255,6 +1318,26 @@ selftest() {
 	[ "$bad" -eq 0 ]
 }
 
+# ---- keys -----------------------------------------------------------------
+
+# the editor's keymap, and the two lines that give you the same editor in any
+# readline shell. the drill teaches vi at the prompt; this is how it follows
+# you home. kept in step with lib/edit by hand -- the table IS the contract.
+keys() {
+	hdr "the editor" "vi at the answer line"
+	printf '  %sinsert mode%s   type; %sEsc%s drops to normal mode (prompt turns red)\n' "$W" "$N" "$C" "$N"
+	printf '  %snormal mode%s   %si a A I%s insert   %sh l w e b 0 $%s move   %sx X s r ~%s edit\n' \
+		"$W" "$N" "$C" "$N" "$C" "$N" "$C" "$N"
+	printf '                %sdw db dd D d$ d0%s delete   %scw cc C%s change   %sp P%s paste\n' \
+		"$C" "$N" "$C" "$N" "$C" "$N"
+	printf '  %sanywhere%s      %sup/down%s history   %sTab%s reference (again folds)   %sCtrl-D q%s quit\n' \
+		"$W" "$N" "$C" "$N" "$C" "$N" "$C" "$N"
+	rule
+	note "the same editor in your real shell, wherever you land:"
+	printf '\n  %sset -o vi%s                  .profile -- busybox ash, any POSIX shell\n' "$C" "$N"
+	printf '  %sset editing-mode vi%s        ~/.inputrc -- bash and readline shells\n\n' "$C" "$N"
+}
+
 # ---- session summary ------------------------------------------------------
 
 # shown when a session of questions ends -- a run you can try to beat. only
@@ -1305,6 +1388,7 @@ usage() {
 	learn autopsy [file]  your own shell history, held up to the curriculum
 	learn explain <line>  every command's summary plus the shell syntax in it
 	learn stats           what you have mastered
+	learn keys            the editor's keymap, and how to take it home
 	learn reset           forget all progress
 
 	at a question: type your answer with full vi editing -- Esc for normal
@@ -1403,11 +1487,11 @@ case "${1:-}" in
 	ref)      shift; ref "$@" ;;
 	brief)    shift; _id=$(level_ids | grep "^0*${1:-}-" | head -1)
 	          [ -n "$_id" ] || die "usage: learn brief <n>"
-	          hdr "$(level_field "$_id" name)" "level ${_id%%-*}"
-	          level_field "$_id" brief | say ;;
+	          brief_show "$_id" ;;
 	-k)       shift; search "$@" ;;
 	list)     surface ;;
 	stats)    stats ;;
+	keys)     keys ;;
 	selftest) selftest ;;
 	daily)    daily; session_summary ;;
 	place)    place; session_summary ;;
