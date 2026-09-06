@@ -350,7 +350,7 @@ sizes are the stripped static-pie binaries; anchors are in SOURCES.md.
 | part | does | why this one, not the usual one |
 |---|---|---|
 | linux 6.12 lts, from `tinyconfig` | the kernel | every driver is opt-in, so "no driver can see your disks" is a config line, not a promise. a distro kernel turns on five thousand things nobody asked for |
-| busybox | the userland and the one shell (ash), ~180 applets in one 700 KB binary | one parser to audit instead of bash + coreutils + util-linux, and its `--help` is a per-build corpus `learn` is generated from |
+| busybox 1.38 | the userland and the one shell (ash), ~180 applets in one 700 KB binary | one parser to audit instead of bash + coreutils + util-linux, and its `--help` is a per-build corpus `learn` is generated from |
 | bearssl + `tlstunnel.c` | tls with the trust set compiled in | openssl is ten times the code and reads a ca directory at runtime; bearssl is small, allocation-free, and takes a fixed anchor list |
 | ii | irc, as files in a directory | no ncurses, no scripting language, 11 KB of source |
 | abduco | detach and reattach a session | tmux/screen multiplex and carry terminfo; the framebuffer vts are the multiplexer, this only has to keep one session alive |

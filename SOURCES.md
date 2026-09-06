@@ -7,7 +7,7 @@ what that first sighting was anchored to. They are not equal:
 | source | anchor | strength |
 |---|---|---|
 | linux 6.12.108 | sha256sums.asc published by kernel.org, matched byte for byte (downloaded and compared locally -- never transcribed from a summary) | good -- an independent published list |
-| busybox 1.37.0 | sha256 published by busybox.net, matched | good -- same |
+| busybox 1.38.0 | sha256 published by busybox.net, matched | good -- same |
 | bearssl | none available (bearssl.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | ii | none available (suckless publishes no .sig/.asc/.sha256) | **weakest -- trust-on-first-use over TLS only** |
 | abduco | none available (brain-dump.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |

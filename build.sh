@@ -12,7 +12,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 KVER="${KVER:-6.12.108}"
-BBVER="${BBVER:-1.37.0}"
+BBVER="${BBVER:-1.38.0}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
 ABDVER="${ABDVER:-0.6}"

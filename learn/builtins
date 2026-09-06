@@ -9,7 +9,7 @@
 # G24 now derives the truth from two places that cannot both be wrong: the
 # builtin table in the pinned ash.c, filtered by what the BUILT binary reports
 # for `type NAME`. this file must equal that set exactly, in both directions.
-. : [ alias bg break cd chdir command continue echo eval exec exit
+. : [ alias bg break cd command continue echo eval exec exit
 export false fg getopts hash history jobs kill let local printf pwd
 read readonly return set shift test times trap true type ulimit umask
 unalias unset wait
