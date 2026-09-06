@@ -1889,7 +1889,7 @@ _f \"$1\"" 2>/dev/null || true; }
   # few non-applet binaries the corpus mentions.
   local st_out st_ok=1 lsh
   lsh=$(mktemp -d); ln -sf "$PWD/busybox" "$lsh/sh"
-  st_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  st_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_ROOTBIN="$PWD/root/bin" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn selftest 2>&1) || st_ok=0
   printf '%s\n' "$st_out" | grep -v '^learn: ' >&2 || true
@@ -1901,7 +1901,7 @@ _f \"$1\"" 2>/dev/null || true; }
   # only checkable because the program surface is fixed at build time. a
   # busybox bump that adds a flag lands in neither set and stops the build.
   local cv_out cv_ok=1
-  cv_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  cv_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_ROOTBIN="$PWD/root/bin" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn coverage 2>&1) || cv_ok=0
   local cv_t cv_s cv_u
@@ -1918,7 +1918,7 @@ _f \"$1\"" 2>/dev/null || true; }
   # violations the first time it ran -- awk and cut used three levels before
   # they were taught, and printf used in four.
   local or_out or_ok=1
-  or_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  or_out=$(LEARN_ROOT="$PWD/learn" LEARN_ROOTBIN="$PWD/root/bin" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn order 2>&1) || or_ok=0
   printf '%s\n' "$or_out" | grep -v '^learn: ' >&2 || true
@@ -1931,7 +1931,7 @@ _f \"$1\"" 2>/dev/null || true; }
   # taught by then. this is what makes "a challenge track that stops getting
   # harder" a build failure instead of a slow disappointment.
   local ch_out ch_ok=1
-  ch_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  ch_out=$(LEARN_ROOT="$PWD/learn" LEARN_ROOTBIN="$PWD/root/bin" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            PATH="$PWD/root/bin:$PATH" \
            ./busybox ash learn/learn challenge check 2>&1) || ch_ok=0

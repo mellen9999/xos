@@ -25,6 +25,9 @@ ROOT="${LEARN_ROOT:-/usr/share/learn}"
 REF="$ROOT/ref"
 LEVELS="$ROOT/levels"
 SHELLBIN="${LEARN_SH:-/bin/sh}"
+# where the image's own applets live, for telling "xos ships this" apart from
+# "the build host happens to have it".
+LEARN_ROOTBIN="${LEARN_ROOTBIN:-/bin}"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/learn"
 TMP="${TMPDIR:-/tmp}/learn.$$"
 
@@ -1092,6 +1095,44 @@ st_block() {
 	# ref must be a command we ship
 	if [ -n "$Q_REF" ] && [ ! -f "$REF/$Q_REF" ]; then
 		echo "FAIL $lbl: ref '$Q_REF' is not a shipped command" >&2; bad=$((bad+1))
+	fi
+
+	# and so must every command the ANSWER invokes. this was checked for ref:
+	# and teach: and never for a:, while the gate runs with the host PATH
+	# appended -- so an answer calling python3, curl or gcc executed against the
+	# build machine's own binary, graded correct, and shipped to a system where
+	# the command does not exist. "the build fails on a learn answer invoking a
+	# command xos does not ship" is a documented guarantee; this is it.
+	# only for blocks whose answer is actually RUN. a conceptual question's
+	# answer is prose ("the write-protect switch"), and answer_cmds would read
+	# every word of it as a command.
+	if [ -n "$Q_OUT" ] || [ -n "$Q_STATE" ] || [ -n "$Q_STATUS" ]; then
+	# answer_cmds is a best-effort tokenizer built for the explain panel, so it
+	# also yields filenames, globs and shell keywords. the failure this must
+	# catch is narrow and precise: a token that names a REAL EXECUTABLE the host
+	# has and xos does not -- python3, curl, gcc. those are the ones the host
+	# PATH fallback silently satisfies. a filename or a keyword resolves to no
+	# binary at all, so it never reaches the test.
+	_ac_bad=$(printf '%s\n' "$Q_ANSWERS" | answer_cmds | awk 'NF' | sort -u | while read -r _c; do
+		case "$_c" in
+			*[!a-z0-9_.-]*|"") continue ;;                      # not a bare command name
+		esac
+		# shell keywords resolve through `command -v` in ash and are not
+		# commands anyone ships; builtins come from learn/builtins, which G24
+		# derives from the built binary rather than a hand-kept list.
+		case " for while until if then else elif fi do done case esac in select function time " in
+			*" $_c "*) continue ;;
+		esac
+		grep -qx -- "$_c" "$ROOT/builtins" 2>/dev/null && continue
+		[ -f "$REF/$(refname "$_c")" ] && continue              # documented: shipped
+		[ -x "$LEARN_ROOTBIN/$_c" ] && continue                 # in the image's bin
+		command -v "$_c" >/dev/null 2>&1 || continue            # not a binary at all
+		printf '%s ' "$_c"
+	done)
+	if [ -n "$_ac_bad" ]; then
+		echo "FAIL $lbl: answer invokes command(s) xos does not ship: $_ac_bad" >&2
+		bad=$((bad+1))
+	fi
 	fi
 
 	# every listed answer must be accepted
