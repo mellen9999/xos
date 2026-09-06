@@ -12,7 +12,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=19
+EXPECTED_SECTIONS=20
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -50,6 +50,14 @@ bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # a check quietly not evaluated is the exact failure this harness exists to
 # catch everywhere else.
 skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
+# a skip was counted and reported but never enforced: the verdict is
+# `[ "$fail" -eq 0 ]`, and a skipped section still calls section(), so
+# EXPECTED_SECTIONS saw nothing wrong either. missing host tooling could
+# silently drop A11 (the whole revocation story), A18 (the dead-man tether) and
+# A19 (every opt-out knob and the real state_open) -- about 23 assertions -- and
+# still print a green run. an environmental skip (no network) is tolerated; a
+# missing-tool skip is a failed run.
+required_skip() { printf '  \033[1;31mSKIP-FAIL\033[0m  %s\n' "$1"; skip=$((skip+1)); fail=$((fail+1)); }
 
 # init prints XOS-TEST-END once the whole probe block finished and
 # XOS-TEST-DONE once the console supervisor is up too -- the same
@@ -214,11 +222,26 @@ dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
 mac2=$(grep -oP 'mac-uplink: \K[0-9a-f:]{17}' <<< "$out" | head -1)
 grep -q 'mac-randomized: yes' <<< "$out" && ok "uplink mac was randomized away from hardware" || bad "uplink still wears its hardware mac"
 [ -n "$mac2" ] && [ "$mac2" != "52:54:00:12:34:56" ] && ok "mac is not the qemu default" || bad "mac is still the qemu default"
-b1m=$((16#${mac2:0:2}))
+# an empty $mac2 makes this `$((16#))` -- an invalid integer constant -- and the
+# next line then dereferences an unset b1m under set -u, which KILLS the harness
+# mid-A2. A3..A19 never run, the summary never prints, and the EXPECTED_SECTIONS
+# truncation guard (the one defence against exactly that) never executes either.
+# init prints "mac-uplink: none" whenever no global v4 address exists, so this is
+# a slow dhcp lease away.
+if [ ${#mac2} -ne 17 ]; then
+	bad "no uplink mac reported -- cannot check the LA/unicast bits"
+	b1m=2   # keeps the arithmetic below well-formed; the verdict is already recorded
+else
+	b1m=$((16#${mac2:0:2}))
+fi
 [ $((b1m & 2)) -ne 0 ] && [ $((b1m & 1)) -eq 0 ] && ok "locally-administered unicast bits correct" || bad "mac bit math wrong"
 # fingerprint words, recomputed from the two sources OUTSIDE the booted
 # system -- the tree wordlist and the roothash this run just built.
-rh18=$(cat verity.roothash); want_fp=""
+# an empty roothash makes $((16#)) invalid, the expansion collapses to
+# `sed -n "p"`, and want_fp becomes the entire wordlist -- a multi-kilobyte
+# failure message. fail closed and legibly instead.
+[ -s verity.roothash ] || bad "no verity.roothash -- cannot derive the fingerprint words"
+rh18=$(cat verity.roothash 2>/dev/null); want_fp=""
 for i in 0 2 4 6; do want_fp="$want_fp $(sed -n "$((16#${rh18:$i:2} + 1))p" overlay/usr/share/xos/words)"; done
 want_fp="${want_fp# }"
 grep -qF "fingerprint: $want_fp" <<< "$out" \
@@ -251,13 +274,28 @@ sbverify --cert keys/db.crt /tmp/xos-a4.efi >/dev/null 2>&1 \
 cp stick.img /tmp/xos-a4.img
 mcopy -o -i /tmp/xos-a4.img@@1M /tmp/xos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
 o4=$(boot_refused /tmp/xos-a4.img)
-grep -q XOS-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware refused the tampered image"
+# absence is not refusal: a qemu that never started, a missing OVMF, or an
+# expired poll all produce an empty log and used to score this a pass. A3 and
+# A11 both get this right; A4 was the only refusal check in the file without a
+# positive refusal string.
+if grep -q XOS-TEST-BEGIN <<< "$o4"; then
+	bad "tampered UKI booted"
+elif grep -qiE 'access denied|security violation' <<< "$o4"; then
+	ok "firmware refused the tampered image"
+else
+	bad "tampered image did not boot, but secure boot never said it refused it"
+fi
 rm -f /tmp/xos-a4.efi /tmp/xos-a4.img
 
 echo
 section "A5  no dynamic loader to preload into"
-if [ -z "$(find root -name 'ld-musl-*' -o -name 'ld-linux*' 2>/dev/null)" ]; then
-	ok "no ld-musl/ld-linux in the image (LD_PRELOAD has nothing to load)"
+# `find` on a missing directory prints nothing (the error is swallowed), and
+# empty output scored a pass -- so renaming the staging tree would leave this
+# green forever having inspected no image at all.
+if [ ! -d root ]; then
+	bad "root/ staging tree missing -- A5 inspected nothing"
+elif [ -z "$(find root -name 'ld-musl-*' -o -name 'ld-linux*' 2>/dev/null)" ]; then
+	ok "no ld-musl/ld-linux in the image ($(find root -type f | wc -l) files checked; LD_PRELOAD has nothing to load)"
 else
 	bad "a dynamic loader is present"
 fi
@@ -323,7 +361,13 @@ grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  |
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
 grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
 grep -q 'sysctls-hardened: yes' <<< "$out" && ok "every hardening sysctl took" || bad "a hardening sysctl is not at its value"
-grep -q 'sysctl FAILED'       <<< "$out" && bad "a sysctl write failed at boot" || ok "no sysctl write failed"
+if grep -q 'sysctl FAILED' <<< "$out"; then
+	bad "a sysctl write failed at boot"
+elif grep -q 'sysctls-hardened:' <<< "$out"; then
+	ok "no sysctl write failed"
+else
+	bad "the sysctl probes did not report at all"
+fi
 
 echo
 section "A10  boot the stick over emulated USB (the real hardware path)"
@@ -353,7 +397,7 @@ stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
 if ! R=$(./build.sh ramkeys); then
 	skipped "no stub or unlocked key -- A11 not evaluated (ramkeys failed)"
 elif [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A11 not evaluated"
+	required_skip "no stub or unlocked key -- A11 (revocation) not evaluated"
 else
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.rel=old" \
 		--stub="$stub" --output=/tmp/xos-a11.efi >/dev/null 2>&1
@@ -409,9 +453,15 @@ if [ "${refs:-0}" -gt 0 ] && [ "${refs:-0}" = "${runs:-x}" ]; then
 else
 	bad "learn corpus unreadable at runtime (refs=${refs:-?} listed=${runs:-?})"
 fi
-grep -q 'learn-ref-ls: MISSING' <<< "$out" \
-	&& bad "learn ref ls returned nothing -- the manpage substitute is empty" \
-	|| ok "learn ref resolves an entry at runtime"
+# positive form: an absent probe used to score a pass, so renaming the key in
+# init would have retired this check with nothing to show for it.
+if grep -q 'learn-ref-ls: MISSING' <<< "$out"; then
+	bad "learn ref ls returned nothing -- the manpage substitute is empty"
+elif grep -qE 'learn-ref-ls: [^ ]' <<< "$out"; then
+	ok "learn ref resolves an entry at runtime"
+else
+	bad "the learn-ref-ls probe did not report at all"
+fi
 les=$(grep -oP 'learn-levels: \K[0-9]+' <<< "$out" | head -1)
 pls=$(grep -oP 'learn-pools: \K[0-9]+' <<< "$out" | head -1)
 [ "${les:-0}" -gt 0 ] && ok "curriculum present in the image ($les levels)" \
@@ -461,8 +511,15 @@ grep -q 'console-device-ok: yes' <<< "$out" \
 	&& ok "the console supervisor runs with a real device" \
 	|| bad "the console got an empty device -- it would error-loop on real hardware"
 # PID 1 used to BE the shell, so a shell exiting was a kernel panic.
-grep -q 'Kernel panic' <<< "$out" && bad "the boot panicked" \
-	|| ok "PID 1 survived every console session"
+# an absence check is right here, but pair it with proof the boot happened at
+# all -- otherwise a run that never booted "survives every console session".
+if grep -q 'Kernel panic' <<< "$out"; then
+	bad "the boot panicked"
+elif grep -q 'XOS-TEST-DONE' <<< "$out"; then
+	ok "PID 1 survived every console session"
+else
+	bad "no panic, but the boot never reached XOS-TEST-DONE either"
+fi
 
 echo
 section "A14  state can be encrypted AND authenticated"
@@ -652,12 +709,18 @@ section "A18  yank the boot stick -- the machine must die"
 # keeps init alive after the probe block (A18 owns this boot's lifetime), then
 # hot-remove the usb device the way a hand does and assert the poweroff.
 if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A18 not evaluated"
+	required_skip "no stub or unlocked key -- A18 (dead-man tether) not evaluated"
 else
+	# unchecked, these two failures left /tmp/xos-a18.img carrying the ORDINARY
+	# test UKI -- no xos.testtether, so init runs its own `poweroff -f` at the end
+	# of the probe block, qemu exits on its own, and the assertion below credited
+	# that to the yank.
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testtether" \
-		--stub="$stub" --output=/tmp/xos-a18.efi >/dev/null 2>&1
+		--stub="$stub" --output=/tmp/xos-a18.efi >/dev/null 2>&1 \
+		|| bad "A18: ukify could not build the tether UKI"
 	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a18-signed.efi /tmp/xos-a18.efi >/dev/null 2>&1
+		--output /tmp/xos-a18-signed.efi /tmp/xos-a18.efi >/dev/null 2>&1 \
+		|| bad "A18: sbsign could not sign the tether UKI"
 	cp stick.img /tmp/xos-a18.img
 	mcopy -o -i /tmp/xos-a18.img@@1M /tmp/xos-a18-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	a18log=/tmp/xos-a18.log; a18qmp=/tmp/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
@@ -688,8 +751,12 @@ PY
 			|| bad "no removal message -- the tether never fired"
 		if kill -0 "$qpid" 2>/dev/null; then
 			bad "machine still running ${t}s after the stick was pulled"; kill "$qpid" 2>/dev/null
-		else
+		elif grep -q 'boot stick removed -- powering off' "$a18log" 2>/dev/null; then
 			ok "machine powered off within ${t}s of the yank"
+		else
+			# qemu is gone, but not because the tether fired -- the guest's own
+			# poweroff, a panic, or the 360s timeout all end it too.
+			bad "the vm died within ${t}s but never said the stick was pulled"
 		fi
 	fi
 	wait "$qpid" 2>/dev/null
@@ -707,7 +774,7 @@ section "A19  every opt-out knob holds, and the state prompt is real"
 # must make it not. A16's whole-disk vdb has no partition attr, so the real
 # scan never sees it -- this is the only place the production path runs.
 if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A19 not evaluated"
+	required_skip "no stub or unlocked key -- A19 (opt-out knobs, real state_open) not evaluated"
 else
 	ukify build --linux=bzImage \
 		--cmdline="$(cat cmdline.txt) xos.nonet xos.realmac xos.notether xos.nostate" \
@@ -840,9 +907,16 @@ else
 
 	a19log=/tmp/xos-a19-typed.log
 	boot_typed /tmp/xos-a19p.img "$a19e" testpass "$a19log"
-	grep -aq 'state unlocked' "$a19log" \
-		&& ok "typed passphrase: the real state_open opened and mounted p3" \
-		|| bad "the production unlock did not accept a typed passphrase"
+	# 'state unlocked' alone is a PREFIX of init's failure line, "state unlocked
+	# but the filesystem would not mount -- p3 is damaged". the crown-jewel
+	# assertion of this harness scored that a pass.
+	if grep -aq 'would not mount' "$a19log"; then
+		bad "p3 unlocked but the filesystem would not mount -- p3 is damaged"
+	elif grep -aq 'state unlocked -- ' "$a19log"; then
+		ok "typed passphrase: the real state_open opened and mounted p3"
+	else
+		bad "the production unlock did not accept a typed passphrase"
+	fi
 	grep -aq 'ledger: boot 2 on this state' "$a19log" \
 		&& ok "the production boot counted in the same ledger" \
 		|| bad "ledger did not carry from the provision boot to the real unlock"
@@ -871,6 +945,45 @@ else
 		|| bad "wrong passphrase was not refused loudly"
 
 	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks" "$a19log"
+fi
+
+echo
+section "A20  a UKI signed by SOMEONE ELSE'S key -- firmware must refuse it"
+# the README's central claim is "the firmware refuses to run that image unless
+# it's signed by a key you hold". A3 covers unsigned, A4 covers tampered, A11
+# covers superseded -- but the attacker-with-their-own-key case, which is the
+# one the claim is actually about, had no assertion anywhere. a validly signed
+# image whose signature chains to a key the firmware does not know must be
+# refused exactly as an unsigned one is.
+if ! command -v openssl >/dev/null 2>&1 || ! command -v sbsign >/dev/null 2>&1 || [ ! -f xos.efi ]; then
+	required_skip "no openssl/sbsign or no xos.efi -- A20 (foreign-key refusal) not evaluated"
+else
+	fkey=/tmp/xos-a20.key; fcrt=/tmp/xos-a20.crt
+	rm -f "$fkey" "$fcrt" /tmp/xos-a20-signed.efi /tmp/xos-a20.img
+	if openssl req -x509 -newkey rsa:2048 -nodes -keyout "$fkey" -out "$fcrt" \
+		-days 2 -subj '/CN=xos selftest foreign key' >/dev/null 2>&1 \
+	   && sbsign --key "$fkey" --cert "$fcrt" \
+		--output /tmp/xos-a20-signed.efi xos.efi >/dev/null 2>&1; then
+		# it must be a REAL signature -- otherwise this degenerates into A3.
+		if sbverify --cert "$fcrt" /tmp/xos-a20-signed.efi >/dev/null 2>&1; then
+			ok "the foreign-signed image carries a valid signature under its own key"
+		else
+			bad "could not produce a validly foreign-signed image -- A20 proves nothing"
+		fi
+		cp stick.img /tmp/xos-a20.img
+		mcopy -o -i /tmp/xos-a20.img@@1M /tmp/xos-a20-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+		o20=$(boot_refused /tmp/xos-a20.img)
+		if grep -q XOS-TEST-BEGIN <<< "$o20"; then
+			bad "an image signed by a key we do not hold BOOTED"
+		elif grep -qiE 'access denied|security violation' <<< "$o20"; then
+			ok "firmware refused an image signed by a key it does not know"
+		else
+			bad "the foreign-signed image did not boot, but secure boot never said it refused it"
+		fi
+	else
+		bad "A20: could not generate or sign with a throwaway key"
+	fi
+	rm -f "$fkey" "$fcrt" /tmp/xos-a20-signed.efi /tmp/xos-a20.img
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
