@@ -1,7 +1,10 @@
-# lint -- the authoring ledger: reported, never gated. hint coverage,
-# wording variety, execution-grading reach and prompt completeness are
-# judgment calls, and a hard gate on them would breed filler. the numbers
-# print beside the gates so drift is visible instead of silent.
+# lint -- the authoring ledger: reported here, never gated here. hint
+# coverage, wording variety, execution-grading reach and prompt completeness
+# are judgment calls, and a hard gate on them would breed filler. the numbers
+# print beside the gates so drift is visible instead of silent. the one
+# adjacent hard rule lives in selftest: an ungraded block must say why
+# (see the reason list below), so "ungraded" always means "decided", never
+# "forgotten".
 #
 # scope rules, so each number means one thing:
 #   hintless        levels and missions. gauntlet stages are hintless by
@@ -15,6 +18,18 @@
 #   unnamed-token   any @token@ an answer needs that neither the question,
 #                   its setup, nor its hint mentions: the learner cannot
 #                   derive it from what is on screen.
+#
+# an ungraded block carries a why: line naming the reason it stays on string
+# matching -- selftest fails any that has neither a grading field nor a why:.
+# the closed reason list (unknown kinds fail selftest too, so the ledger
+# cannot rot into prose):
+#   live-net        needs a network, a resolver, or a peer
+#   live-hw         reads hardware, the kernel log, or the live machine
+#   root            needs root or real block devices
+#   interactive     an editor, pager, multiplexer, or stdin conversation
+#   conceptual      a one-word knowledge answer; string match IS the grader
+#   fixture-cost    gradable in principle; the fixture is not worth its weight
+#   primitive-cost  gradable in principle; the grader feature is not worth its weight
 lint() {
 	awk -v verbose="${1:-}" '
 		function cls(f) {
@@ -34,7 +49,7 @@ lint() {
 			k = cls(bf)
 			if (!hashint && k != "chain") { nohint++; fh[bf]++ }
 			if (k == "lvl" && q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[bf]++ }
-			if (!graded && k != "chain") { nograde++; fg[bf]++ }
+			if (!graded && k != "chain") { nograde++; fg[bf]++; if (haswhy) explained++ }
 			for (t in atok) if (!(t in qtok)) { nounnamed++; fu[bf]++; break }
 			inblk = 0; delete atok; delete qtok
 		}
@@ -42,8 +57,9 @@ lint() {
 		# advanced FILENAME, so flushing by FILENAME charges each file
 		# closing block to the next file in the glob
 		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; q = ""; next }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; q = ""; next }
 		inblk && /^hint:/ { hashint = 1 }
+		inblk && /^why:/  { haswhy = 1 }
 		inblk && /^(out|state|cmp|status):/ { graded = 1 }
 		inblk && /^q: / && q == "" { q = $0 }
 		inblk && /^(q|setup|hint):/ { toks($0, qtok) }
@@ -56,8 +72,8 @@ lint() {
 					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d unnamed-token\n", \
 						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fu[f] + 0
 				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded, %d with an unnamed token\n", \
-				total, nohint, novary, nograde, nounnamed
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d with an unnamed token\n", \
+				total, nohint, novary, nograde, explained + 0, nounnamed
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }

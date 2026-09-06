@@ -915,7 +915,7 @@ answer_flags() {
 # with Q_* filled and the raw block in $TMP/blk; increments the caller's bad
 # count (ash locals scope dynamically, so selftest's is visible here).
 st_block() {
-	local lbl=$1 a got flag
+	local lbl=$1 a got flag rc w
 
 	[ -n "$Q_ANSWERS" ] || { echo "FAIL $lbl: no answer" >&2; bad=$((bad+1)); }
 
