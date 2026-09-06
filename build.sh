@@ -623,7 +623,16 @@ rootfs() {
 set -o vi
 scrub() {
 	echo "reading every verity-covered byte -- a rotten block panics the machine, and that is the alarm working"
-	if dd if=/dev/dm-0 of=/dev/null bs=1M 2>/dev/null; then
+	# drop the page cache first, or this reads RAM and proves nothing about the
+	# flash. the root is 1.6 MB and the boot itself pulls most of it into cache,
+	# so a stick with decayed cells reported "scrub clean" without a single read
+	# reaching the NAND. dropping caches also evicts the backing partition, so
+	# dm-verity re-reads its hash tree from the media too. O_DIRECT on top where
+	# the device supports it; the plain read after a drop still hits the media,
+	# so the fallback cannot turn an unsupported flag into a false alarm.
+	sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
+	if dd if=/dev/dm-0 of=/dev/null bs=1M iflag=direct 2>/dev/null \
+	   || dd if=/dev/dm-0 of=/dev/null bs=1M 2>/dev/null; then
 		echo "scrub clean: every byte on this stick still matches the signed hash tree"
 	else
 		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
@@ -1226,10 +1235,11 @@ flagchk() {
 #   G34 signed UKI's embedded roothash matches the tree             (new)
 #   G35 first-party scripts parse under the shipped ash             (new)
 #   G36 state partition starts past every byte the image writer writes (new)
+#   G37 recon identifies the machine, not the firmware running on it  (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=33   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=34   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1473,6 +1483,18 @@ size() {
   grep -q 'for p in /sys/class/block/\*/partition' init  || { g33=FAIL; printf '    state_open no longer scans */partition\n' >&2; }
   grep -q 'for dev in \$cands' init                      || { g33=FAIL; printf '    state_open no longer tries every candidate\n' >&2; }
   grep -q 'wg setconf wg0 /tmp/wgset.conf' init          || { g33=FAIL; printf '    setconf fed the raw conf -- Address= lines make strict wg error out\n' >&2; }
+  # wg matches config keys with strncasecmp, so a case-SENSITIVE allowlist
+  # deletes a perfectly valid `privatekey = ...` line and setconf still exits 0.
+  grep -qF "grep -Ei '^[ " init                          || { g33=FAIL; printf '    wg allowlist is no longer case-insensitive -- a lowercase PrivateKey would be dropped\n' >&2; }
+  # and setconf exiting 0 does not mean the tunnel can work: HAS_PRIVATE_KEY is
+  # set unconditionally, and a peerless device passes config_read_finish.
+  grep -qF '&& wg_ready; then' init                      || { g33=FAIL; printf '    wg bring-up no longer verifies the interface it just configured\n' >&2; }
+  grep -qF 'wg show wg0 public-key' init                 || { g33=FAIL; printf '    wg_ready no longer checks a private key was installed\n' >&2; }
+  grep -qF 'wg show wg0 peers' init                      || { g33=FAIL; printf '    wg_ready no longer checks a peer exists\n' >&2; }
+  # cat joins bytes: a baked authorized_keys with no trailing newline swallowed
+  # the operator's p3 key into its comment field.
+  grep -qF 'awk 1 /etc/dropbear/authorized_keys' init    || { g33=FAIL; printf '    authorized_keys assembled with cat again -- a missing newline eats the p3 key\n' >&2; }
+  grep -qF '_hostkey=0' init                             || { g33=FAIL; printf '    ssh host-key creation failure is unhandled again -- dropbear would crash-loop silently\n' >&2; }
   g "G33 init remote-access logic (real ash)" "$g33"
 
   # G36 -- the encrypted state partition must begin past every byte the image
@@ -1510,6 +1532,45 @@ size() {
   grep -q 'cryptsetup isLuks "\$p3_dev"' build.sh \
     || { g36=FAIL; printf '    usb() no longer proves p3 survived the write\n' >&2; }
   g "G36 state partition starts past the image writer" "$g36"
+
+  # G37 -- recon must identify the MACHINE, never the firmware on it. the
+  # identity hash covered every `dmi ` line, bios_version and bios_date
+  # included, so a bios reflash -- the first example the readme gives of what
+  # recon catches -- changed the identity, missed the baseline entirely, and
+  # printed "first visit ... baseline recorded". the alarm stayed silent for
+  # the one event it exists to announce. this runs init's own identity lines
+  # through the image's ash over two inventories that differ only in firmware
+  # and asserts they land on the SAME baseline, then pins the atomic writes
+  # that keep the ledger from being lost to a power cut mid-write.
+  local g37=ok bb37 id37 t37=/tmp/xos-g37.$$ a37 b37
+  bb37=./busybox; [ -x "$bb37" ] || bb37=$(command -v busybox 2>/dev/null)
+  id37=$(sed -n '/^[[:space:]]*local idpat=/,/^[[:space:]]*else mid=/p' init)
+  if [ -z "$id37" ]; then
+    g37=FAIL; printf '    recon identity lines not found -- cannot check the firmware split\n' >&2
+  else
+    mkdir -p "$t37"
+    printf 'dmi sys_vendor ACME\ndmi product_name X1\ndmi board_name B1\ndmi bios_version 1.00\ndmi bios_date 01/01/2020\ncpu Some CPU\n' > "$t37/v1"
+    printf 'dmi sys_vendor ACME\ndmi product_name X1\ndmi board_name B1\ndmi bios_version 9.99\ndmi bios_date 09/09/2026\ncpu Some CPU\n' > "$t37/v2"
+    # the lines use `local`, so they have to run inside a function
+    _id37() { "$bb37" ash -c "_f() {
+now=\"\$1\"
+$id37
+printf %s \"\$mid\"
+}
+_f \"$1\"" 2>/dev/null || true; }
+    a37=$(_id37 "$t37/v1")
+    b37=$(_id37 "$t37/v2")
+    rm -rf "$t37"
+    if [ -z "$a37" ]; then
+      g37=FAIL; printf '    recon identity produced no id at all\n' >&2
+    elif [ "$a37" != "$b37" ]; then
+      g37=FAIL
+      printf '    a bios reflash changes the machine id (%s -> %s) -- recon would say "first visit", not "CHANGED"\n' "$a37" "$b37" >&2
+    fi
+  fi
+  grep -qF 'mv "$old.new" "$old"' init || { g37=FAIL; printf '    recon baseline written in place again -- a power cut leaves it truncated\n' >&2; }
+  grep -qF 'mv "$f.new" "$f"' init     || { g37=FAIL; printf '    ledger written in place again -- a power cut resets the rollback counter\n' >&2; }
+  g "G37 recon identifies the machine, not its firmware" "$g37"
 
   # G34 -- the signed UKI's EMBEDDED roothash must match the tree. G6 pins
   # cmdline.txt (a file) to verity.roothash (a file), and G17 pins the ESP to

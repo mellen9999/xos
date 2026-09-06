@@ -30,7 +30,12 @@ mount -t tmpfs -o nosuid,nodev,noexec none /tmp
 # one source of truth for the hardening sysctls: the setter below applies them,
 # and the xos.test probe re-reads this same list to prove every one took (a
 # deleted or silently-failed line is otherwise invisible).
-HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/icmp_echo_ignore_broadcasts=1"
+# send_redirects is the odd one out: IN_DEV_TX_REDIRECTS is an ORCONF (see
+# include/linux/inetdevice.h), so conf/all is OR'd with the per-device value and
+# writing 0 to `all` can never turn it off. conf/default is applied to every
+# interface created after it, and this list runs before any link comes up, so
+# the `default` entry is the one that actually does the work.
+HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/default/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/default/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/icmp_echo_ignore_broadcasts=1"
 for kv in $HARDEN_SYSCTLS
 do
   p=/proc/sys/${kv%=*}; v=${kv#*=}
@@ -146,10 +151,18 @@ if ! grep -q xos.nonet /proc/cmdline; then
 			# down. failure is loud but not fatal: the iface comes up on
 			# its hardware mac (degraded privacy, not a dead network) and
 			# the mac-randomized probe makes it visible.
+			# the marker records that this iface is DONE, so it is written only
+			# on success. writing it first meant one transient refusal -- a
+			# usbnet driver briefly busy as the link settles -- marked the
+			# interface finished forever, and the retry this loop exists to
+			# provide never happened: the burned-in address stayed for the boot.
 			if ! grep -q xos.realmac /proc/cmdline && [ ! -f "/tmp/mac.$dev" ]; then
-				cat "/sys/class/net/$dev/address" > "/tmp/mac.$dev" 2>/dev/null
-				ip link set dev "$dev" address "$(randmac)" 2>/dev/null \
-					|| echo "mac randomization FAILED: $dev"
+				_oldmac=$(cat "/sys/class/net/$dev/address" 2>/dev/null)
+				if ip link set dev "$dev" address "$(randmac)" 2>/dev/null; then
+					printf '%s\n' "$_oldmac" > "/tmp/mac.$dev" 2>/dev/null
+				else
+					echo "mac randomization FAILED: $dev"
+				fi
 			fi
 			ip link set "$dev" up 2>/dev/null
 			[ "$(cat /sys/class/net/"$dev"/carrier 2>/dev/null)" = 1 ] || continue
@@ -251,15 +264,30 @@ recon_inv() {
 	printf 'cpus %s\n' "$(nproc)"
 }
 recon_check() { # $1 = root of the unlocked state filesystem
-	local dir="$1/recon" now=/tmp/recon.now mid old
+	local dir="$1/.xos/recon" now=/tmp/recon.now mid old
+	# these used to sit in the root of $HOME, where an `rm -rf ~/*` wiped the
+	# rollback detector and the next boot looked exactly like a fresh p3 --
+	# which is also what a rollback looks like. out of the way, and migrated so
+	# an existing stick keeps its history rather than silently starting over.
+	if [ -d "$1/recon" ] && [ ! -d "$dir" ]; then
+		mkdir -p "$1/.xos" && mv "$1/recon" "$dir" 2>/dev/null
+	fi
 	recon_inv > "$now" 2>/dev/null
 	if ! [ -s "$now" ]; then
 		printf '  recon FAILED: empty inventory\n' > /dev/console; rm -f "$now"; return
 	fi
-	# machine identity = the dmi block; a machine with no dmi at all falls
-	# back to its cpu lines rather than colliding every such machine into
-	# the hash of nothing.
-	if grep -q '^dmi ' "$now"; then mid=$(grep '^dmi ' "$now" | sha256sum | cut -c1-16)
+	# machine identity = the fields that name the MACHINE, never the firmware
+	# running on it. hashing the whole dmi block (bios_version and bios_date
+	# included) meant a bios reflash changed the identity, so the baseline was
+	# looked up under a name that did not exist yet and the console printed
+	# "first visit -- baseline recorded". a reflashed bios is the first example
+	# the readme gives of what this exists to catch, and it was the one case it
+	# could not see. the bios_* lines stay in the diffed body, so a reflash now
+	# lands on the same baseline and prints as a change. a machine with no dmi
+	# at all falls back to its cpu lines rather than colliding every such
+	# machine into the hash of nothing.
+	local idpat='^dmi (sys_vendor|product_name|product_version|board_name) '
+	if grep -qE "$idpat" "$now"; then mid=$(grep -E "$idpat" "$now" | sha256sum | cut -c1-16)
 	else mid=$(grep '^cpu' "$now" | sha256sum | cut -c1-16); fi
 	old="$dir/$mid"
 	if [ ! -f "$old" ]; then
@@ -284,7 +312,11 @@ recon_check() { # $1 = root of the unlocked state filesystem
 # nothing else on it will tell you that. a corrupt or non-numeric ledger is
 # called out, never silently reset to a clean-looking count.
 ledger_note() { # $1 = root of the unlocked state filesystem
-	local f="$1/ledger" n=0 last=""
+	local f="$1/.xos/ledger" n=0 last=""
+	mkdir -p "$1/.xos" 2>/dev/null
+	# same move as the recon baselines, with the same migration: losing this
+	# file to a tidy-up is indistinguishable from a p3 rollback.
+	[ -f "$1/ledger" ] && [ ! -f "$f" ] && mv "$1/ledger" "$f" 2>/dev/null
 	if [ -f "$f" ]; then
 		n=$(cut -d' ' -f1 "$f" 2>/dev/null)
 		last=$(cut -d' ' -f2 "$f" 2>/dev/null)
@@ -337,12 +369,17 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
 	# re-read every hardening sysctl (not just the two above) against the same
 	# list the setter used -- catches a dropped or silently-failed line.
-	printf 'sysctls-hardened: '; _sb=0
+	# an absent key is the safe state (the feature is compiled out), but the
+	# setter and this check used to skip it identically, so a key that VANISHED
+	# from the kernel was counted as "took" and folded into a green "yes". name
+	# the skips instead of hiding them.
+	printf 'sysctls-hardened: '; _sb=0; _sk=""
 	for kv in $HARDEN_SYSCTLS; do
-		_p=/proc/sys/${kv%=*}; [ -e "$_p" ] || continue
+		_p=/proc/sys/${kv%=*}
+		if [ ! -e "$_p" ]; then _sk="$_sk ${kv%=*}"; continue; fi
 		[ "$(cat "$_p" 2>/dev/null)" = "${kv#*=}" ] || _sb=$((_sb + 1))
 	done
-	[ "$_sb" = 0 ] && echo yes || echo "no ($_sb wrong) (BAD)"
+	[ "$_sb" = 0 ] && echo "yes (absent:${_sk:- none})" || echo "no ($_sb wrong) (BAD)"
 	# both heap paths zeroed: alloc (INIT_ON_ALLOC) and free (INIT_ON_FREE).
 	# probes run as root, so dmesg_restrict does not bite here.
 	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 | grep . || echo "MISSING (BAD)"
@@ -494,11 +531,18 @@ if grep -q xos.test /proc/cmdline; then
 			if printf 'testpass' | cryptsetup open --key-file - "$tsdev" ts >/dev/null 2>&1; then
 				echo ok
 				mkdir -p /tmp/ts
-				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
-				printf 'teststate-prior-marker: '; [ -f /tmp/ts/marker ] && cat /tmp/ts/marker || echo NONE
-				recon_check /tmp/ts
-				ledger_note /tmp/ts
-				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+				# checked: /tmp/ts was just made on tmpfs, so an unchecked mount
+				# failure sent the ledger and the baseline to RAM and every probe
+				# below reported success for a disk that got nothing.
+				printf 'teststate-mount: '
+				if mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null; then
+					echo ok
+					printf 'teststate-prior-marker: '; [ -f /tmp/ts/marker ] && cat /tmp/ts/marker || echo NONE
+					recon_check /tmp/ts
+					ledger_note /tmp/ts
+					umount /tmp/ts 2>/dev/null
+				else echo FAILED; fi
+				cryptsetup close ts 2>/dev/null
 			else echo FAILED; fi
 		else
 			printf 'teststate-phase: provision\n'
@@ -510,17 +554,23 @@ if grep -q xos.test /proc/cmdline; then
 			if printf 'testpass' | cryptsetup open --key-file - "$tsdev" ts >/dev/null 2>&1; then
 				if mke2fs -F /dev/mapper/ts >/dev/null 2>&1; then echo ok; else echo FAILED; fi
 				mkdir -p /tmp/ts
-				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
+				printf 'teststate-mount: '
+				if mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null; then
+				echo ok
 				printf 'teststate-write: '; if echo "survived-a-reboot" > /tmp/ts/marker; then sync; echo ok; else echo FAILED; fi
 				# an operator-style wireguard config (Address INCLUDED -- that is
 				# how a human writes one) so a later production boot of this same
 				# disk exercises the real unlock -> wg -> ssh chain end to end.
+				# a [Peer] too: a conf without one still makes `wg setconf` exit
+				# 0, so a peerless conf here would have let the rig certify a
+				# tunnel that could never handshake.
 				if command -v wg >/dev/null 2>&1; then
 					wg genkey > /tmp/tswg.key 2>/dev/null
-					printf '[Interface]\nPrivateKey = %s\nAddress = 10.9.0.2/32\n' \
-						"$(cat /tmp/tswg.key)" > /tmp/ts/wg0.conf
+					wg genkey 2>/dev/null | wg pubkey > /tmp/tspeer.pub 2>/dev/null
+					printf '[Interface]\nPrivateKey = %s\nAddress = 10.9.0.2/32\n[Peer]\nPublicKey = %s\nAllowedIPs = 10.9.0.0/24\nEndpoint = 10.9.0.1:51820\n' \
+						"$(cat /tmp/tswg.key)" "$(cat /tmp/tspeer.pub)" > /tmp/ts/wg0.conf
 					chmod 600 /tmp/ts/wg0.conf
-					rm -f /tmp/tswg.key
+					rm -f /tmp/tswg.key /tmp/tspeer.pub
 					# and an operator key on p3, so the later production boot
 					# has something to authorize -- the image ships none.
 					dropbearkey -t ed25519 -f /tmp/tsak >/dev/null 2>&1
@@ -530,7 +580,9 @@ if grep -q xos.test /proc/cmdline; then
 				fi
 				recon_check /tmp/ts
 				ledger_note /tmp/ts
-				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+				umount /tmp/ts 2>/dev/null
+				else echo FAILED; fi
+				cryptsetup close ts 2>/dev/null
 			else echo FAILED; fi
 		fi
 	fi
@@ -601,6 +653,26 @@ umask 077
 # blocks on the prompt, and BEFORE the consoles so the session that starts sees
 # the persistent home.
 STATE_DIR=/tmp/home
+# `wg setconf` returning 0 does not mean the tunnel can work. config_read_init
+# sets WGDEVICE_HAS_PRIVATE_KEY unconditionally, so a conf with no usable
+# PrivateKey installs a ZEROED key and still exits 0; and the only completeness
+# check is "every [Peer] has a PublicKey", so a conf with no peer at all passes
+# too. either way the console printed "wireguard up" and "ssh listening" for an
+# interface that can never complete a handshake -- from 500 km away, with no way
+# back in. ask the kernel what it actually ended up with instead.
+wg_ready() {
+	local pk peers
+	pk=$(wg show wg0 public-key 2>/dev/null)
+	peers=$(wg show wg0 peers 2>/dev/null)
+	case "$pk" in ''|'(none)')
+		printf '  wg0 has no private key -- check the PrivateKey line in wg0.conf\n' > /dev/console
+		return 1 ;;
+	esac
+	[ -n "$peers" ] || {
+		printf '  wg0 has no peer -- check the [Peer] section in wg0.conf\n' > /dev/console
+		return 1; }
+	return 0
+}
 state_open() {
 	grep -q xos.nostate /proc/cmdline && return 1
 	command -v cryptsetup >/dev/null 2>&1 || return 1
@@ -711,24 +783,41 @@ if state_open; then
 		# owns (an allowlist: a denylist breaks again on the next wg-quick key,
 		# Table=, PostUp=, ...) in a tmpfs copy; the original on p3 stays as
 		# written.
-		grep -E '^[ 	]*(\[|PrivateKey|ListenPort|FwMark|PublicKey|PresharedKey|AllowedIPs|Endpoint|PersistentKeepalive)' \
+		# -i, because wg matches keys with strncasecmp (see config.c get_value)
+		# and strips whitespace before parsing, so `privatekey = ...` is a
+		# perfectly valid conf that a case-SENSITIVE allowlist silently deletes.
+		grep -Ei '^[ 	]*(\[|PrivateKey|ListenPort|FwMark|PublicKey|PresharedKey|AllowedIPs|Endpoint|PersistentKeepalive)' \
 			"$STATE_DIR/wg0.conf" > /tmp/wgset.conf
 		chmod 600 /tmp/wgset.conf
 		if ip link add wg0 type wireguard 2>/dev/null \
 		   && wg setconf wg0 /tmp/wgset.conf 2>/dev/null \
 		   && [ -n "$wgip" ] \
 		   && ip addr add "$wgcidr" dev wg0 2>/dev/null \
-		   && ip link set wg0 up 2>/dev/null; then
+		   && ip link set wg0 up 2>/dev/null \
+		   && wg_ready; then
 			printf '  wireguard up on wg0 (%s)\n' "$wgcidr" > /dev/console
-			# host key on p3, made once
-			[ -f "$STATE_DIR/ssh_host_key" ] || dropbearkey -t ed25519 -f "$STATE_DIR/ssh_host_key" >/dev/null 2>&1
+			# host key on p3, made once. the exit status used to be discarded:
+			# a full or read-only p3 meant no key, dropbear exited instantly with
+			# "No hostkeys available", the supervision loop respawned it forever
+			# behind a console line that said ssh was listening, and the failure
+			# was never printed because both are redirected to /dev/null.
+			_hostkey=1
+			if [ ! -f "$STATE_DIR/ssh_host_key" ] \
+			   && ! dropbearkey -t ed25519 -f "$STATE_DIR/ssh_host_key" >/dev/null 2>&1; then
+				printf '  ssh host key could not be written to p3 -- ssh not started\n' > /dev/console
+				_hostkey=0
+			fi
 			# authorize BOTH keys: the one baked into the verity-covered image (a
 			# safety net that a writable-p3 key must never be able to lock out) and
 			# any key the operator added on p3. either file may be absent.
+			# `awk 1`, not `cat`: cat joins bytes, so a baked file with no trailing
+			# newline glued the p3 key onto the end of the baked one -- still a
+			# valid single line, with the operator's second key swallowed whole
+			# into a comment field. awk terminates every record it prints.
 			mkdir -p "$HOME/.ssh"
-			cat /etc/dropbear/authorized_keys "$STATE_DIR/authorized_keys" 2>/dev/null > "$HOME/.ssh/authorized_keys"
+			awk 1 /etc/dropbear/authorized_keys "$STATE_DIR/authorized_keys" 2>/dev/null > "$HOME/.ssh/authorized_keys"
 			chmod 600 "$HOME/.ssh/authorized_keys"
-			if [ -s "$HOME/.ssh/authorized_keys" ]; then
+			if [ "$_hostkey" = 1 ] && [ -s "$HOME/.ssh/authorized_keys" ]; then
 				# supervise it like the consoles: the remote shell is the only
 				# way back in, and you cannot reboot a machine whose ssh has died
 				# from across a tunnel. -F keeps dropbear in the foreground so
@@ -741,8 +830,16 @@ if state_open; then
 				    if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then _fail=$((_fail + 1)); else _fail=0; fi
 				    [ "$_fail" -ge 5 ] && sleep 30 || sleep 1
 				  done ) &
-				printf '  ssh listening on the tunnel only (%s:22), pubkey only\n' "$wgip" > /dev/console
-			else
+				# report what is observed, not what was intended: this line used
+				# to print the moment the supervisor was backgrounded, so it
+				# claimed success for a dropbear that had already died.
+				sleep 1
+				if netstat -ltn 2>/dev/null | grep -q "$wgip:22"; then
+					printf '  ssh listening on the tunnel only (%s:22), pubkey only\n' "$wgip" > /dev/console
+				else
+					printf '  ssh did NOT come up on %s:22 -- check the host key and wg0\n' "$wgip" > /dev/console
+				fi
+			elif [ "$_hostkey" = 1 ]; then
 				printf '  no authorized_keys -- ssh not started (add one to enable)\n' > /dev/console
 			fi
 		else
@@ -782,6 +879,13 @@ console_loop() {
 	# power off before the console is ever set up. the console-health probe
 	# below now exercises this path.
 	_dev=$1; _fail=0
+	# decided once, outside the loop. as `A || B` the fallback fired on ANY
+	# nonzero exit of the session shell -- `exit 1`, or a bare `exit` after a
+	# failed command -- and respawned a shell with no setsid and no cttyhack:
+	# no controlling terminal, so no job control and no pty, which is the exact
+	# breakage this pair exists to prevent.
+	if command -v setsid >/dev/null 2>&1 && command -v cttyhack >/dev/null 2>&1
+	then _wrap="setsid cttyhack"; else _wrap=""; fi
 	# health beacon (bounded -- single line, overwritten): proves this loop is
 	# running with a real device, which the empty-$_dev bug made impossible.
 	[ -n "$_dev" ] && printf '%s\n' "$_dev" > /tmp/console.up 2>/dev/null
@@ -790,8 +894,8 @@ console_loop() {
 		banner > "$_dev" 2>/dev/null
 		# $_dev is a tty, not a regular file: rx+tx on one line is the point, not a hazard
 		# shellcheck disable=SC2094
-		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1 \
-			|| /bin/sh <>"$_dev" >"$_dev" 2>&1
+		# shellcheck disable=SC2086
+		$_wrap /bin/sh <>"$_dev" >"$_dev" 2>&1
 		# a console nothing is attached to returns EOF instantly and would
 		# respawn forever. this machine may be passive-cooled; back off instead.
 		if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then

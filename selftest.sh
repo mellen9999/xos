@@ -570,6 +570,13 @@ if grep -q 'teststate-phase: provision' <<< "$b1" \
 else
 	bad "boot 1 did not provision p3"
 fi
+# the mount used to be unchecked, and /tmp/ts is on tmpfs -- so a failed mount
+# sent the marker, the ledger and the baseline to RAM while every probe below
+# still said ok. assert the mount itself, or the three assertions around it
+# prove nothing about the disk.
+grep -q 'teststate-mount: ok' <<< "$b1" \
+	&& ok "boot 1 mounted p3 (not the tmpfs underneath it)" \
+	|| bad "boot 1 did not mount p3 -- everything after this went to RAM"
 grep -q 'recon: first visit to machine' <<< "$b1" \
 	&& ok "boot 1 recorded a recon baseline for this machine" \
 	|| bad "recon did not record a baseline on first visit"
@@ -579,6 +586,9 @@ assert_complete "$b1" "A16 boot 1"
 # new hardware; a machine that grew a device since your last visit is
 # exactly what recon exists to notice.
 b2=$(boot_state "$p3disk" -device qemu-xhci)
+grep -q 'teststate-mount: ok' <<< "$b2" \
+	&& ok "boot 2 mounted p3" \
+	|| bad "boot 2 did not mount p3 -- the marker read below means nothing"
 grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
 	&& ok "boot 2 read the marker back -- state survived the power cycle" \
 	|| bad "the marker did not survive the reboot"
@@ -836,11 +846,17 @@ else
 	grep -aq 'ledger: boot 2 on this state' "$a19log" \
 		&& ok "the production boot counted in the same ledger" \
 		|| bad "ledger did not carry from the provision boot to the real unlock"
+	# this line now prints only after wg_ready has asked the kernel what wg0
+	# actually ended up with -- a private key it will admit to, and at least one
+	# peer. `wg setconf` exits 0 for a conf with neither, so before that check
+	# this assertion certified a tunnel that could never handshake. the conf the
+	# provision boot plants carries a [Peer] for the same reason.
 	grep -aq 'wireguard up on wg0 (10.9.0.2/32)' "$a19log" \
-		&& ok "wireguard came up from an operator-style conf (Address included)" \
-		|| bad "the real wg path did not bring the tunnel up"
+		&& ok "wireguard came up with a key and a peer, from an operator-style conf" \
+		|| bad "the real wg path did not bring a usable tunnel up"
+	# and this one is printed after a netstat check, not on intent
 	grep -aq 'ssh listening on the tunnel only (10.9.0.2:22)' "$a19log" \
-		&& ok "dropbear bound to the tunnel address, nothing else" \
+		&& ok "dropbear is observed bound to the tunnel address, nothing else" \
 		|| bad "ssh did not come up on the tunnel"
 	grep -aq 'note: state opened on /dev/vdb1, not the boot stick' "$a19log" \
 		&& ok "off-stick state is announced (boot-disk-first ordering held)" \
