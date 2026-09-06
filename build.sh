@@ -1129,7 +1129,7 @@ verity() {
   # rest of the hardening is compiled in (lockdown, kstack offset, slab), which
   # is stronger than a cmdline flag -- there is no runtime knob left to flip.
   local dev="PARTUUID=$PU_ROOT"
-  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 xos.epoch=%s console=tty0 console=ttyS0,115200%s\n' \
+  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 efi=disable_early_pci_dma page_alloc.shuffle=1 random.trust_cpu=1 xos.epoch=%s console=tty0 console=ttyS0,115200%s\n' \
     "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$SOURCE_DATE_EPOCH" "$testflag" > cmdline.txt
 
   printf '  xos.img: %d bytes  root hash: %s
@@ -1502,7 +1502,7 @@ size() {
   if [ "$uki_cmd_ok" -ne 1 ]; then
     c15=$((c15+1)); printf '    no .cmdline section in xos-signed.efi -- cannot check what actually boots\n' >&2
   fi
-  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
+  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'efi=disable_early_pci_dma' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
     printf '%s' "$uki_cmd" | grep -qF "$want15" || { c15=$((c15+1)); printf '    signed cmdline missing: %s\n' "$want15" >&2; }
   done
   # ...and assert NO param is present that would neuter the compiled-in
@@ -1511,7 +1511,11 @@ size() {
   # switching the protection off, and the cmdline is signed, so it must be
   # caught here before it ships inside the signature.
   local c15b=0 deny15
-  for deny15 in 'mitigations=off' 'init_on_alloc=0' 'init_on_free=0' 'nokaslr' 'lockdown=none' 'nosmep' 'nosmap' 'nopti' 'no_hash_pointers' 'page_alloc.shuffle=0' 'random.trust_cpu=0'; do
+  for deny15 in 'mitigations=off' 'init_on_alloc=0' 'init_on_free=0' 'nokaslr' 'lockdown=none' \
+                 'nosmep' 'nosmap' 'nopti' 'no_hash_pointers' 'page_alloc.shuffle=0' 'random.trust_cpu=0' \
+                 'lsm=' 'vsyscall=emulate' 'pti=off' 'spectre_v2=off' 'spec_store_bypass_disable=off' \
+                 'tsx=on' 'debugfs=on' 'norandmaps' 'noexec=off' 'efivar_ssdt=' \
+                 'iommu=off' 'intel_iommu=off' 'iommu.passthrough=1'; do
     printf '%s' "$uki_cmd" | grep -qF "$deny15" && { c15b=$((c15b+1)); printf '    signed cmdline FORBIDDEN: %s\n' "$deny15" >&2; }
   done
   g "G15 cmdline hardening params ($c15 missing, $c15b forbidden)" \
