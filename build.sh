@@ -11,6 +11,15 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     || git config core.hooksPath githooks 2>/dev/null || true
 fi
 
+# reproducibility inputs that are otherwise inherited from whoever is building.
+# cp carries working-tree modes into the squashfs, so a builder with umask 077
+# produces different permission bits, a different rootfs.squashfs and a
+# different image.sha256 -- with no diagnostic, because the toolchain
+# fingerprint does not cover it either. locale is pinned for the same reason
+# TZ is: sort order leaking into a generated file would be silent.
+umask 022
+export LC_ALL=C
+
 KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
 IIVER="${IIVER:-2.0}"
@@ -118,7 +127,7 @@ deps() {
              mksquashfs:squashfs-tools unsquashfs:squashfs-tools \
              veritysetup:cryptsetup sbsign:sbsigntools sbverify:sbsigntools \
              ukify:systemd virt-fw-vars:python-virt-firmware \
-             mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux partx:util-linux \
+             cmake:cmake mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux partx:util-linux \
              wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base; do
     command -v "${cmd%%:*}" >/dev/null 2>&1 || miss+=("${cmd%%:*} (${cmd##*:})")
   done
@@ -153,18 +162,41 @@ get() {
 # digest pin (G8) already stops later substitution; this anchors what the
 # first sighting WAS to the maintainer's key instead of trust-on-first-use.
 # gpg is host-optional: absence skips loudly, the digest pin still holds.
-sigver() { # $1 tarball  $2 committed .asc  $3 committed pubkey  $4 pinned fingerprint
+# $1 tarball  $2 committed .asc  $3 committed pubkey  $4 pinned fingerprint
+# $5 expected key state: "good" (key valid) or "expired" (signature good, key
+#    past its expiry -- a deliberate, recorded downgrade for that one source)
+#
+# VALIDSIG alone was the whole test, and gpg emits VALIDSIG for EXPKEYSIG and
+# REVKEYSIG too -- "the signature is good, but the key is expired / REVOKED".
+# so a maintainer key that got compromised and revoked would have kept passing
+# this check forever, on the tarball that becomes the binary which unlocks p3.
+# GOODSIG is the only status that means good AND the key is valid.
+#
+# $5 is pinned per source rather than inferred, so the state cannot quietly
+# drift: an expired key that later becomes a revoked one fails the build.
+sigver() {
   command -v gpg >/dev/null 2>&1 || {
     printf '  %s: gpg not installed -- signature not checked (digest pin still enforced)\n' "$1"; return 0; }
-  local gh; gh=$(mktemp -d) || return 1
+  local gh st want="${5:-good}"; gh=$(mktemp -d) || return 1
   gpg -q --homedir "$gh" --import "$3" 2>/dev/null
-  # VALIDSIG + the pinned fingerprint: a swapped pubkey file cannot satisfy this.
-  if gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | grep -q "VALIDSIG $4"; then
+  st=$(gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null)
+  rm -rf "$gh"
+  # a revoked key is never acceptable, whatever the pin says
+  if printf '%s\n' "$st" | has "^\[GNUPG:\] REVKEYSIG"; then
+    echo "FAIL: $1 was signed with a REVOKED key -- refusing" >&2; return 1
+  fi
+  printf '%s\n' "$st" | has "^\[GNUPG:\] VALIDSIG $4" || {
+    echo "FAIL: $1 does not match the committed maintainer signature" >&2; return 1; }
+  if printf '%s\n' "$st" | has "^\[GNUPG:\] GOODSIG"; then
+    [ "$want" = good ] || {
+      echo "FAIL: $1 expected key state '$want' but the key is now valid -- re-pin it as good" >&2; return 1; }
     printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)"
-    rm -rf "$gh"
+  elif printf '%s\n' "$st" | has "^\[GNUPG:\] EXPKEYSIG"; then
+    [ "$want" = expired ] || {
+      echo "FAIL: $1 signed with an EXPIRED key and that is not the recorded state" >&2; return 1; }
+    printf '  %s: signature good, but the maintainer key is EXPIRED (recorded downgrade)\n' "$1"
   else
-    rm -rf "$gh"
-    echo "FAIL: $1 does not match the committed maintainer signature" >&2; return 1
+    echo "FAIL: $1 signature is neither GOODSIG nor a recorded EXPKEYSIG" >&2; return 1
   fi
 }
 
@@ -195,8 +227,20 @@ fetch() {
       "cryptsetup-$CSVER.tar.xz" "cryptsetup-$CSVER"
   get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
       "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
-  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR"
-  get "http://ftp.rpm.org/popt/releases/popt-1.x/popt-$POPTVER.tar.gz" \
+  # 'expired': Marian Csontos's key expired 2022-06-10 and the 2024-10-02
+  # signature was made after that. upstream has not extended it -- the copy on
+  # keyserver.ubuntu.com is expired too -- so this is upstream's state, not a
+  # stale local file. recorded rather than hidden: the signature still proves
+  # the tarball came from that key, it no longer proves the key was still
+  # current. if it ever becomes REVKEYSIG the build fails.
+  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR" expired
+  # osuosl, not ftp.rpm.org: rpm.org's own host serves popt over plain HTTP and
+  # presents no certificate valid for that name, so the digest now pinned in
+  # sources.sha256 was originally established over a channel with no transport
+  # authentication at all -- it faithfully records whatever a path-adjacent
+  # attacker chose to serve that day. osuosl is rpm.org's own mirror, speaks
+  # real TLS, and serves these exact bytes (checked against the pin).
+  get "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-$POPTVER.tar.gz" \
       "popt-$POPTVER.tar.gz" "popt-$POPTVER"
   get "https://github.com/json-c/json-c/archive/refs/tags/json-c-$JSONCVER.tar.gz" \
       "json-c-$JSONCVER.tar.gz" "json-c-json-c-$JSONCVER"
@@ -211,7 +255,7 @@ fetch() {
   # covers, and dropbear is the one listening service.
   get "https://matt.ucc.asn.au/dropbear/releases/dropbear-$DBVER.tar.bz2" \
       "dropbear-$DBVER.tar.bz2" "dropbear-$DBVER"
-  sigver "dropbear-$DBVER.tar.bz2" "sigs/dropbear-$DBVER.tar.bz2.asc" sigs/dropbear-release-key.asc "$DB_FPR"
+  sigver "dropbear-$DBVER.tar.bz2" "sigs/dropbear-$DBVER.tar.bz2.asc" sigs/dropbear-release-key.asc "$DB_FPR" good
   # bearssl: also no upstream signature -- see SOURCES.md
   get "https://bearssl.org/bearssl-$BSSLVER.tar.gz" \
       "bearssl-$BSSLVER.tar.gz" "bearssl-$BSSLVER"
@@ -1281,10 +1325,11 @@ flagchk() {
 #   G37 recon identifies the machine, not the firmware running on it  (new)
 size() {
   say "gates"
-  local bad=0 ran=0
+  local bad=0 ran=0 skipped=0
   local EXPECTED_GATES=34   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
-' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
+' "$1" "$2"; ran=$((ran+1))
+        case "$2" in ok) ;; SKIP) skipped=$((skipped+1)) ;; *) bad=1 ;; esac; }
 
   local sz; sz=$(stat -c%s xos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
@@ -1414,7 +1459,11 @@ size() {
     have_rh=$(cat verity.roothash 2>/dev/null)
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
-      g "G13 reproducible (toolchain differs, not checked)" ok
+      # this printed `ok`. a gate that reports success for a check it did not
+      # run is the one thing this file refuses everywhere else -- and it is the
+      # gate binding artifact to source, so an innocent gcc bump turned the
+      # reproducibility guarantee green-and-empty for every build after it.
+      g "G13 reproducible (toolchain differs -- NOT CHECKED)" SKIP
       printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
       printf '    so a byte mismatch here would prove nothing. rebuild is unverified.\n' >&2
     else
@@ -1925,6 +1974,7 @@ _f \"$1\"" 2>/dev/null || true; }
   # kernel is 82% of the budget; the userland is the small part.
   local whole_sz=$sz
   [ -f xos-signed.efi ] && whole_sz=$(( $(stat -c%s xos-signed.efi) + sz ))
+  [ "$skipped" -gt 0 ] && printf '\033[1;33m  %d gate(s) SKIPPED -- that is not the same as passing\033[0m\n' "$skipped"
   [ "$bad" -eq 0 ] && printf '\033[1;32m  all gates green -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
                         "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))" \
                    || { printf '\033[1;31m  GATES FAILED\033[0m\n\n'; return 1; }
@@ -2147,7 +2197,10 @@ repro() {
   d=$(mktemp -d /tmp/xos-repro.XXXXXX) || return 1
   git clone -q --depth 1 "file://$PWD" "$d/tree" || { rm -rf "$d"; return 1; }
   mkdir -p "$d/tree/src"
-  cp src/*.tar.* "$d/tree/src/" 2>/dev/null
+  # *.tgz too: LVM2 is the one tarball that does not match *.tar.*, so it was
+  # silently re-downloaded on every repro run -- the opposite of "stay off the
+  # network", and it made an offline repro look like a reproducibility failure.
+  cp src/*.tar.* src/*.tgz "$d/tree/src/" 2>/dev/null
   if ! ( cd "$d/tree" && ./build.sh deps && ./build.sh fetch && ./build.sh kernel \
       && ./build.sh headers && ./build.sh busybox && ./build.sh tls && ./build.sh ii_ \
       && ./build.sh abduco && ./build.sh cryptsetup_ && ./build.sh wg_ \
@@ -2178,6 +2231,11 @@ build_all() {
   # and G11 stays green. a sealed tree short-circuits keys() and skips this.
   if [ -f keys/db.key ]; then seal; fi
   uki; stick; size; lint
+  # uki() unlocks the signing keys into tmpfs and nothing put them back. a full
+  # build finished with the plaintext PK/KEK/db sitting in /dev/shm until the
+  # next reboot, while G11 printed "no plaintext private key on disk" in the
+  # same run.
+  lock
 }
 
 case "${1:-all}" in

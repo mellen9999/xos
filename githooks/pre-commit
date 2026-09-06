@@ -25,12 +25,37 @@ done <<< "$staged"
 # committed binaries, because none of them are called *.img.
 while read -r f; do
 	[ -z "$f" ] && continue
+	# a gitlink (submodule) has no blob to show: magic comes back empty, no case
+	# matches, and the content then arrives at clone time from a url nothing here
+	# ever inspected. refuse it outright.
+	if [ "$(git ls-files --stage -- "$f" 2>/dev/null | cut -c1-6)" = "160000" ]; then
+		say "refusing to commit a submodule/gitlink: $f"; continue
+	fi
 	magic=$(git show ":$f" 2>/dev/null | head -c4 | od -An -tx1 | tr -d ' \n')
 	case "$magic" in
 		7f454c46)          say "refusing to commit a compiled ELF binary: $f" ;;
 		68737173|73717368) say "refusing to commit a squashfs image: $f" ;;
 		4d5a*)             say "refusing to commit a PE/EFI executable: $f" ;;
+		# a magic list is permanently one archiver behind: every one of these
+		# walked straight through, and a compressed ELF is still an ELF.
+		1f8b*)             say "refusing to commit gzip-compressed data: $f" ;;
+		fd377a58)          say "refusing to commit xz-compressed data: $f" ;;
+		425a68*)           say "refusing to commit bzip2-compressed data: $f" ;;
+		28b52ffd)          say "refusing to commit zstd-compressed data: $f" ;;
+		213c6172)          say "refusing to commit an ar/static-library archive: $f" ;;
+		30373037)          say "refusing to commit a cpio archive: $f" ;;
 	esac
+	# tar keeps its magic at offset 257, past the four bytes read above -- so a
+	# squashfs inside a tarball committed cleanly.
+	if [ "$(git show ":$f" 2>/dev/null | dd bs=1 skip=257 count=5 status=none)" = "ustar" ]; then
+		say "refusing to commit a tar archive: $f"
+	fi
+	# and the backstop, because the list above will go stale too: this repo is
+	# text. anything big and not valid utf-8 is not source.
+	if ! git show ":$f" 2>/dev/null | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+		sz=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
+		[ "${sz:-0}" -gt 65536 ] && say "refusing to commit a large non-text blob ($sz bytes): $f"
+	fi
 done <<< "$staged"
 
 # a PEM can be a public certificate (trust/ holds those on purpose) or a
@@ -39,10 +64,17 @@ done <<< "$staged"
 # telltale name at all.
 while read -r f; do
 	[ -z "$f" ] && continue
-	[ -f "$f" ] || continue
-	if git show ":$f" 2>/dev/null | grep -qE 'BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY'; then
-		say "refusing to commit a file containing a PRIVATE KEY: $f"
-	fi
+	# NO `[ -f "$f" ] || continue` here. that tested the WORKING TREE while
+	# everything else in this hook reads the INDEX -- so a key that was staged
+	# and then deleted from disk was skipped entirely and committed clean. the
+	# operator who pastes a key into a scratch file, `git add -A`, then `rm`s
+	# the file believing that undoes it, is exactly the person this rule is for.
+	# `git show ":$f"` already fails safely for anything not in the index.
+	n=$(git show ":$f" 2>/dev/null | grep -cE 'BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY' || true)
+	# grep -c, not grep -q: -q exits at the first match and SIGPIPEs `git show`,
+	# which under pipefail reads as failure -- so a private key in a file large
+	# enough to still be streaming was ALLOWED through.
+	[ "${n:-0}" -gt 0 ] && say "refusing to commit a file containing a PRIVATE KEY: $f"
 done <<< "$staged"
 
 # G1 -- if an image exists, it must be under the cap declared in build.sh
