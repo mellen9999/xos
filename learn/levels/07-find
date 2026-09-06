@@ -18,91 +18,91 @@ brief: number of the last thing".
 ---
 q: %list% every file and directory under the current directory
 a: find .
-out: \.
+cmp: ref
 ref: find
 teach: find
 hint: just find and a starting point -- no predicates means everything matches
 ---
 q: %find% every file under here whose name ends in .log
 a: find . -name '*.log'
-out: \.log
+cmp: ref
 ref: find
 teach: find -name
 hint: -name matches the glob against just the filename
 ---
 q: %find% every .LOG or .log under here, ignoring case in the name
 a: find . -iname '*.log'
-out: \.log
+cmp: ref
 ref: find
 teach: find -iname
 hint: i for case-insensitive, same idea as grep -i
 ---
 q: %find% only regular files under here, no directories
 a: find . -type f
-out: .
+cmp: ref
 ref: find
 teach: find -type
 hint: f is a regular file, d a directory, l a symlink
 ---
 q: %find% only the directories under here
 a: find . -type d
-out: \.
+cmp: ref
 ref: find
 teach: find -type
 hint: d for directory, same flag family as -type f
 ---
 q: %find% files under here but do not descend more than one level
 a: find . -maxdepth 1
-out: \.
+cmp: ref
 ref: find
 teach: find -maxdepth
 hint: -maxdepth caps how far down find will go
 ---
 q: %find% entries under here at least 2 levels deep
 a: find . -mindepth 2
-out: .
+cmp: ref
 ref: find
 teach: find -mindepth
 hint: -mindepth is the floor, -maxdepth is the ceiling
 ---
 q: %find% files under here larger than 1 kilobyte
 a: find . -type f -size +1k
-out: .
+cmp: ref
 ref: find
 teach: find -size
 hint: + means "more than", - means "less than", plain means "exactly"
 ---
 q: %find% empty files or directories under here
 a: find . -empty
-out: .
+cmp: ref
 ref: find
 teach: find -empty
 hint: matches files with zero bytes or directories with nothing in them
 ---
 q: %find% files under here modified in the last day
 a: find . -type f -mtime -1
-out: .
+cmp: ref
 ref: find
 teach: find -mtime
 hint: -1 means "less than one day ago"
 ---
 q: %find% files under here modified in the last 30 minutes
 a: find . -type f -mmin -30
-out: .
+cmp: ref
 ref: find
 teach: find -mmin
 hint: -mmin is -mtime's minutes cousin
 ---
 q: %find% files under here that are executable
 a: find . -type f -executable
-out: \.sh
+cmp: ref
 ref: find
 teach: find -executable
 hint: tests the permission bits directly, not the file extension
 ---
 q: %find% files under here with the exact permission mode 755
 a: find . -perm 755
-out: \.sh
+cmp: ref
 ref: find
 teach: find -perm
 hint: MODE alone means exactly this mode; -MODE means all these bits are set; +MODE means at least one is
@@ -116,14 +116,14 @@ hint: a dash before the mode means all its bits must be set -- the file can have
 ---
 q: %find% files under here owned by user @user@
 a: find . -user @user@
-why: fixture-cost
+cmp: ref
 ref: find
 teach: find -user
 hint: matches the file's owner, not who's running find
 ---
 q: %find% files under here belonging to group @user@
 a: find . -group @user@
-why: fixture-cost
+cmp: ref
 ref: find
 teach: find -group
 hint: same idea as -user, but for the owning group
@@ -137,70 +137,70 @@ hint: -o is OR; without it, predicates are ANDed together
 ---
 q: %find% files under here that are NOT .log files
 a: find . -type f ! -name '*.log'
-out: .
+cmp: ref
 ref: find
 teach: find -name
 hint: ! negates whatever predicate follows it
 ---
 q: %find% files whose path contains the word src
 a: find . -path '*src*'
-out: src
+cmp: ref
 ref: find
 teach: find -path
 hint: -path matches the whole path, not just the filename like -name does
 ---
 q: %find% .log files under here but do not descend into the logs directory
 a: find . -name logs -prune -o -name '*.log' -print
-out: \.log
+cmp: ref
 ref: find
 teach: find -prune
 hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
 q: {stop at the first .log file found rather than walking the whole tree|find the first .log file and stop there, without walking the rest of the tree|find one .log file and quit immediately, not the whole tree}
 a: find . -name '*.log' -print -quit
-out: \.log
+cmp: ref
 ref: find
 teach: find -quit
 hint: -quit stops the walk as soon as something matches
 ---
 q: %find% every .log file and run wc -l on each one, one process per file
 a: find . -name '*.log' -exec wc -l {} \;
-out: [0-9]
+cmp: ref
 ref: find
 teach: find -exec
 hint: {} is the filename, and the ; ends the command -- escape it from the shell
 ---
 q: %find% every .log file and pass them all to one wc -l instead of one each
 a: find . -name '*.log' -exec wc -l {} +
-out: [0-9]
+cmp: ref
 ref: find
 teach: find -exec
 hint: ending with + batches the results; ending with \; forks per file
 ---
 q: %find% files under here without crossing into another filesystem
 a: find . -xdev
-out: \.
+cmp: ref
 ref: find
 teach: find -xdev
 hint: stops find from crossing into a mounted filesystem
 ---
 q: %find% files under here following symlinks rather than listing them
 a: find -L . -type f
-out: .
+cmp: ref
 ref: find
 teach: find -L
 hint: makes find follow symlinks and describe what they point to
 ---
 q: %list% every file under here in depth-first order, contents before the directory
 a: find . -depth
-out: \.
+cmp: ref
 ref: find
 teach: find -depth
 hint: flips the walk order -- normally a directory prints before its contents
 ---
 q: %find% every .log file and print the names separated by NUL rather than newline
 a: find . -name '*.log' -print0
-out: .
+cmp: ref
 ref: find
 teach: find -print0
 hint: this is what you pipe into xargs -0 when filenames may contain spaces

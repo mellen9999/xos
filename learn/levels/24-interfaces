@@ -10,28 +10,28 @@ brief: Every one of them takes show, add and del.
 ---
 q: %show% every interface and its addresses
 a: ip addr
-out: .
+out: inet [0-9]
 ref: ip
 teach: ip
 hint: ip addr with no filter lists every interface and its addresses
 ---
 q: %show% addresses one per line, in a form that is easy to cut up
 a: ip -o addr
-out: .
+out: ^[0-9]+:.*inet
 ref: ip
 teach: ip
 hint: -o (oneline) puts each address on its own line for easy parsing
 ---
 q: %show% only ipv4 addresses
 a: ip -4 addr
-out: .
+why: live-hw
 ref: ip
 teach: ip
 hint: -4 filters ip's output down to ipv4 only
 ---
 q: %show% the links, without their addresses
 a: ip link
-out: .
+cmp: ref
 ref: ip
 teach: ip
 hint: ip link shows interfaces themselves, not the addresses on them
@@ -66,7 +66,7 @@ hint: addr del is the mirror of addr add
 ---
 q: %show% the routing table
 a: ip route
-out: .
+cmp: ref
 ref: ip
 teach: ip
 hint: ip route with no filter lists the whole table
@@ -101,7 +101,7 @@ hint: ip neigh is ip's own view of the arp table
 ---
 q: %show% just the interface names, one per line
 a: ip -o link | cut -d: -f2
-out: .
+cmp: ref
 ref: ip
 teach: ip
 hint: -o lines them up so cut can grab just the name field
@@ -115,7 +115,7 @@ hint: ifconfig with no arguments lists every interface, the pre-ip tool
 ---
 q: %show% @iface@ specifically, the old way
 a: ifconfig @iface@
-out: .
+why: live-hw
 ref: ifconfig
 teach: ifconfig
 hint: name one interface and ifconfig shows only it
@@ -129,49 +129,49 @@ hint: ifconfig combines address and up into one command, unlike ip's two steps
 ---
 q: %show% the routing table the old way
 a: route
-out: .
+cmp: ref
 ref: route
 teach: route
 hint: route with no arguments is ifconfig's routing counterpart
 ---
 q: %show% routes without resolving names to make it fast
 a: route -n
-out: .
+cmp: ref
 ref: route
 teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
 q: %show% route table entries with extended fields
 a: route -e
-out: .
+cmp: ref
 ref: route
 teach: route -e
 hint: -e adds the extra fields netstat-style output shows
 ---
 q: %show% routes for a named address family
 a: route -A inet
-out: .
+why: primitive-cost
 ref: route
 teach: route -A
 hint: -A takes the address family name, inet for ipv4
 ---
 q: %show% the arp cache
 a: arp
-out: .
+out: \) at .*\[
 ref: arp
 teach: arp
 hint: arp with no arguments lists the whole cache
 ---
 q: %show% the arp cache numerically, without resolving names
 a: arp -n
-out: .
+why: live-net
 ref: arp
 teach: arp -n
 hint: -n skips resolving hostnames for each entry
 ---
 q: %show% all arp entries including incomplete ones
 a: arp -a
-out: .
+why: primitive-cost
 ref: arp
 teach: arp -a
 hint: -a includes entries still waiting to resolve
@@ -192,28 +192,28 @@ hint: -s pins an ip to a mac address by hand
 ---
 q: %show% arp entries for @iface@ only
 a: arp -i @iface@
-out: .
+cmp: ref
 ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface
 ---
 q: %show% the arp cache verbosely
 a: arp -v
-out: .
+why: primitive-cost
 ref: arp
 teach: arp -v
 hint: -v adds detail arp normally leaves out
 ---
 q: %show% arp entries of a given hardware type
 a: arp -H ether
-out: .
+why: primitive-cost
 ref: arp
 teach: arp -H
 hint: -H filters by hardware type, ether being the common case
 ---
 q: {use a named address family for arp|tell arp which address family to use|restrict arp to a named address family}
 a: arp -A inet
-out: .
+why: primitive-cost
 ref: arp
 teach: arp -A
 hint: -A picks the address family, same idea as route -A

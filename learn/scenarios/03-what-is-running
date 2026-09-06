@@ -8,7 +8,7 @@ q: count the running processes, excluding the header line
 a: ps | tail -n +2 | wc -l
 a: ps | grep -v PID | wc -l
 a: ps | awk 'NR>1' | wc -l
-out: ^[0-9]+$
+why: live-hw
 ref: ps
 hint: drop line 1 before you count what is left
 ---

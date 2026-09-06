@@ -11,21 +11,21 @@ brief: reads them back. Use that pair by default and the problem never arises.
 ---
 q: %find% every .log file and count the lines of each, using xargs
 a: find . -name '*.log' | xargs wc -l
-out: [0-9]
+cmp: ref
 ref: xargs
 teach: xargs
 hint: xargs turns lines of stdin into arguments appended to the command
 ---
 q: {do the same, safely, for filenames that might contain spaces|repeat that, but safe for filenames with spaces in them|redo it in a way that survives filenames containing spaces}
 a: find . -name '*.log' -print0 | xargs -0 wc -l
-out: [0-9]
+cmp: ref
 ref: xargs
 teach: xargs -0
 hint: NUL is the one byte a filename cannot contain
 ---
 q: {pass exactly one argument per command invocation|use xargs -n 1 to run the command once per input line|split the input so each invocation gets exactly one argument}
 a: ls | xargs -n 1 echo
-out: .
+cmp: ref
 ref: xargs
 teach: xargs -n
 hint: -n caps how many arguments go into each invocation
@@ -39,7 +39,7 @@ hint: -I defines a placeholder that gets replaced with each input item
 ---
 q: %show% each command before running it
 a: ls | xargs -t echo
-out: .
+cmp: ref
 ref: xargs
 teach: xargs -t
 hint: -t prints the command line to stderr before running it
@@ -53,14 +53,14 @@ hint: without -r, an empty input still runs the command once with no arguments
 ---
 q: {stop reading input at the word STOP|use xargs -E STOP to cut off input the moment STOP appears|make xargs ignore everything from STOP onward}
 a: printf 'a b STOP c' | xargs -E STOP echo
-out: ^a b$
+cmp: ref
 ref: xargs
 teach: xargs -E
 hint: -E names a string that, once seen, ends input reading right there
 ---
 q: {run at most 2 commands at the same time|use xargs -P 2 to run two invocations in parallel|cap concurrent xargs invocations at 2}
 a: ls | xargs -P 2 -n 1 echo
-out: .
+why: primitive-cost
 ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
@@ -81,7 +81,7 @@ hint: -a reads the argument list from a file instead of stdin
 ---
 q: {keep each command line under 100 bytes, splitting into more invocations|use xargs -s 100 to cap each command line's length|limit each invocation's command line to 100 bytes}
 a: ls | xargs -s 100 echo
-out: .
+cmp: ref
 ref: xargs
 teach: xargs -s
 hint: -s caps the total length of each generated command line
@@ -95,21 +95,21 @@ hint: basename strips everything up through the last slash
 ---
 q: {strip @txt@'s directory and its .txt suffix|use basename on @txt@ with a suffix argument to drop .txt too|reduce @txt@ down to its name with .txt also removed}
 a: basename @txt@ .txt
-out: .
+cmp: ref
 ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
 q: {strip @txt@'s .txt suffix using the explicit flag rather than a second argument|use basename -s .txt on @txt@ instead of passing the suffix as a bare argument|strip .txt off @txt@ using the -s flag form}
 a: basename -s .txt @txt@
-out: .
+cmp: ref
 ref: basename
 teach: basename -s
 hint: -s is the explicit-flag form of the same suffix stripping
 ---
 q: {take the basename of several paths at once|use basename -a to process @txt@ and @log@ together|run basename over multiple paths in a single call}
 a: basename -a @txt@ @log@
-out: .
+cmp: ref
 ref: basename
 teach: basename -a
 hint: -a lets you hand basename several paths in one call
@@ -123,14 +123,14 @@ hint: dirname is basename's mirror -- it keeps the directory and drops the name
 ---
 q: {resolve @txt@ to its full absolute path|use realpath to turn @txt@ into an absolute path|find the absolute path realpath resolves @txt@ to}
 a: realpath @txt@
-out: ^/
+cmp: ref
 ref: realpath
 teach: realpath
 hint: realpath resolves any relative pieces and symlinks along the way
 ---
 q: {follow a symlink to whatever it finally points at|use readlink -f to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
 a: readlink -f @txt@
-out: ^/
+cmp: ref
 ref: readlink
 teach: readlink -f
 hint: -f follows every link in the chain, not just the first one
@@ -144,14 +144,14 @@ hint: -n suppresses the trailing newline readlink would otherwise print
 ---
 q: {where does the command sed live|use which to find the path sed resolves to|ask which where sed lives on disk}
 a: which sed
-out: sed
+cmp: ref
 ref: which
 teach: which
 hint: which searches PATH and reports the file it would run
 ---
 q: {is sed a builtin, a file, or a function|ask type to classify what sed actually is|use type to find out what kind of command sed is}
 a: type sed
-out: sed
+cmp: ref
 ref: type
 teach: type
 hint: type reports whether a name is a builtin, a file, a function or an alias
@@ -165,7 +165,7 @@ hint: hash remembers a command's location so future lookups skip the PATH search
 ---
 q: {check whether sed is available, the portable way|use command -v to check for sed portably, across shells|test whether sed exists using the POSIX-portable command -v}
 a: command -v sed
-out: sed
+cmp: ref
 ref: command
 teach: command -v
 hint: -v prints the resolved command, or nothing if it isn't found

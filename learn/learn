@@ -32,7 +32,14 @@ die() { echo "learn: $*" >&2; exit 1; }
 [ -d "$REF" ] || die "no corpus at $REF"
 
 mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
-trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
+# the INT/TERM handlers EXIT. the old one only removed $TMP and let the script
+# run on -- every block load after a ctrl-c failed, every remaining question
+# was graded wrong against a blank reveal. the tty is put back too: a kill
+# mid-keystroke leaves it in the editor's raw read.
+cleanup() { rm -rf "$TMP" "${SANDBOX:-}" 2>/dev/null; }
+trap cleanup EXIT
+trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
+trap 'cleanup; trap - EXIT; exit 143' TERM
 
 for _l in ui ctx grade fixtures cards coach chal edit scenarios autopsy explain lint; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
@@ -113,10 +120,14 @@ search() {
 
 level_ids()   { ls -1 "$LEVELS" 2>/dev/null | sort; }
 level_path()  { echo "$LEVELS/$1"; }
-level_field() { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$(level_path "$1")"; }
 
-# how many question blocks a level holds
-level_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$(level_path "$1")"; }
+# the two shapes every corpus file shares -- a header of `key: value` lines
+# and `---`-separated blocks -- read in one place. levels, scenarios and the
+# chain file all go through these.
+blk_field() { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$1" 2>/dev/null; }   # FILE KEY
+blocks_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$1" 2>/dev/null; } # FILE
+level_field() { blk_field "$(level_path "$1")" "$2"; }
+level_nq()    { blocks_nq "$(level_path "$1")"; }
 
 # level id as a plain number. ids are zero-padded ("08-cutting"), and ash reads
 # a leading zero in $(( )) as octal -- $((08)) is a FATAL arithmetic error, not
@@ -130,9 +141,16 @@ boss_limit() { echo $(( 30 + $(level_num "$1") / 3 )); }
 # the passed ledger -- which bosses have actually fallen. the gauntlet gate
 # reads ONLY this file: a boss-fall is the one thing that may ever write it.
 PASSED="$STATE/passed"
-level_passed()    { mkdir -p "$STATE" 2>/dev/null || :
-                    { cat "$PASSED" 2>/dev/null; echo "$1"; } | sort -u > "$TMP/passed" \
-                      && cp "$TMP/passed" "$PASSED" 2>/dev/null || :; }
+# every ledger write is a same-directory rename: `cp` into place was a
+# truncate followed by a write, and the tether can cut power between them --
+# a half-written passed file re-locks the gauntlet with no message.
+_ledger_add() { # FILE ID
+	mkdir -p "$STATE" 2>/dev/null || return 0
+	{ cat "$1" 2>/dev/null; echo "$2"; } | sort -u > "$1.tmp.$$" 2>/dev/null \
+		&& mv "$1.tmp.$$" "$1" 2>/dev/null || rm -f "$1.tmp.$$" 2>/dev/null
+	return 0
+}
+level_passed()    { _ledger_add "$PASSED" "$1"; }
 level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
 
 # the placed ledger -- levels a placement run skipped past. resume treats
@@ -140,18 +158,14 @@ level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
 # not: a placement guess is not a boss fought, so it must never unlock the
 # endgame the way a real fall does.
 PLACED="$STATE/placed"
-level_placed()    { mkdir -p "$STATE" 2>/dev/null || :
-                    { cat "$PLACED" 2>/dev/null; echo "$1"; } | sort -u > "$TMP/placed" \
-                      && cp "$TMP/placed" "$PLACED" 2>/dev/null || :; }
+level_placed()    { _ledger_add "$PLACED" "$1"; }
 level_is_placed() { grep -qxF -- "$1" "$PLACED" 2>/dev/null; }
 
 # the briefed ledger -- a level's brief is a teaching paragraph, worth reading
 # once. after that it is a wall of text between you and the questions, so every
 # later run prints only the one-line header and drops you straight in.
 BRIEFED="$STATE/briefed"
-level_briefed()    { mkdir -p "$STATE" 2>/dev/null || :
-                     { cat "$BRIEFED" 2>/dev/null; echo "$1"; } | sort -u > "$TMP/briefed" \
-                       && cp "$TMP/briefed" "$BRIEFED" 2>/dev/null || :; }
+level_briefed()    { _ledger_add "$BRIEFED" "$1"; }
 level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
 
 # blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
@@ -205,7 +219,12 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 
 	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
-	[ "$MODE" = learn ] && note "? hint · tab reference · skip reveals · quit leaves -- answers really run"
+	if [ "$MODE" = learn ]; then
+		# the vi level asks for :q and q -- there they are answers, and the
+		# trainer's own quit moves to :qa
+		if [ "${Q_REF:-}" = vi ]; then note "? hint · tab reference · skip reveals · :qa leaves -- :q and q are answers here"
+		else note "? hint · tab reference · skip reveals · quit leaves -- answers really run"; fi
+	fi
 
 	while :; do
 		if [ "$MODE" = boss ]; then
@@ -230,7 +249,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			input="$REPLY_LINE"
 		fi
 		case "$input" in
-			quit|:q)  return 2 ;;
+			quit|:qa) return 2 ;;
+			:q)       [ "${Q_REF:-}" = vi ] || return 2 ;;
 			'')       continue ;;
 			'?'|hint)
 				if [ "$MODE" != learn ]; then
@@ -303,9 +323,11 @@ shuffle_n() {
 boss_round() {
 	local id=$1 bname nq n right=0 asked=0 rc
 	bname=$(level_field "$id" boss)
-	[ -n "$bname" ] || return 0
 	nq=$(level_nq "$id")
-	[ "$nq" -ge 5 ] || return 0
+	# returning 0 here marked the level passed with no boss fought, and a
+	# passed level counts toward the gauntlet unlock. loud instead.
+	[ -n "$bname" ] || die "level $id has no boss: line"
+	[ "$nq" -ge 5 ] || die "level $id has $nq questions -- a boss draws 5"
 
 	BOSS_LIMIT=$(boss_limit "$id")
 
@@ -457,7 +479,10 @@ review() {
 		k=$((k + 1))
 		cls
 		statusbar "review" "weakest first" "$k" "$nc" ""
-		ask "$path" "$idx"; rc=$?
+		# a level card is asked by its level ID, which is what ask() keys on.
+		# passing the file path keyed a second, absolute-path card that stats
+		# never counted and the next review could not resolve.
+		if [ "$lvl" = scn ]; then ask "$path" "$idx"; else ask "$lvl" "$idx"; fi; rc=$?
 		[ "$rc" = 2 ] && return 0
 		pause_card || return 0
 	done 3< "$TMP/rev"
@@ -550,9 +575,12 @@ daily() {
 stats() {
 	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
 	local id n m sn sm
+	# mastered cards per level in one pass, not one awk over the file per level
+	awk -F'\t' '$2 == 2 { split($1, p, "/"); c[p[1]]++ } END { for (k in c) print k, c[k] }' \
+		"$CARDS" 2>/dev/null > "$TMP/mastered"
 	for id in $(level_ids); do
 		n=$(level_nq "$id")
-		m=$(awk -F'\t' -v p="$id/" '$1 ~ "^" p && $2 == 2' "$CARDS" 2>/dev/null | grep -c . || echo 0)
+		m=$(awk -v id="$id" '$1 == id { print $2 }' "$TMP/mastered"); m=${m:-0}
 		printf '  %s%-28s%s %s%s/%s%s\n' "$W" "$(level_field "$id" name)" "$N" \
 			"$([ "$m" = "$n" ] && echo "$G" || echo "$D")" "$m" "$n" "$N"
 	done
@@ -571,29 +599,7 @@ stats() {
 # answer_cmds -- every command an answer invokes, one per line. same boundary
 # rules as answer_flags: a pipe, a list separator, $( ) or a wrapper starts a
 # new command.
-answer_cmds() {
-	sed "s/['\"]//g" | awk '
-		function popn() { while (nclose-- > 0 && depth > 0) cmd = stack[depth--]; nclose = 0 }
-		{
-			cmd = ""; depth = 0; nclose = 0; n = split($0, t, /[ \t]+/)
-			for (i = 1; i <= n; i++) {
-				tok = t[i]
-				while (sub(/^[("`]*\$\(/, "", tok) || sub(/^[("`]*`/, "", tok)) { stack[++depth] = cmd; cmd = "" }
-				nclose = gsub(/[)`]+$/, "", tok)
-				gsub(/^["]+|["]+$/, "", tok)
-				if (tok == "")                                         { popn(); continue }
-				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; popn(); continue }
-				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in)$/) { cmd = ""; popn(); continue }
-				if (tok == "-exec" || tok == "-ok")                    { cmd = ""; popn(); continue }
-				if (tok ~ /^[0-9]?[<>]+$/)                             { popn(); continue }
-				if (cmd == "") {
-					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) { cmd = tok; print tok }
-					popn(); continue
-				}
-				popn()
-			}
-		}'
-}
+answer_cmds() { _answer_walk cmds; }
 
 # order_syntax FILE... -- the construct half of the order contract: a level
 # may only REQUIRE shell syntax that it, or an earlier file in the list,
@@ -732,7 +738,10 @@ usage_flags() {
 }
 
 taught_set() {
-	sed -n 's/^teach: \{0,1\}//p' "$LEVELS"/* 2>/dev/null | while read -r cmd rest; do
+	# missions carry teach: lines too; they used to be invisible here, so a
+	# flag taught only in a mission read as an untaught hole (or, worse, a
+	# flag taught nowhere else stayed green because a level double-taught it)
+	sed -n 's/^teach: \{0,1\}//p' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null | while read -r cmd rest; do
 		[ -n "$rest" ] || continue
 		for f in $rest; do printf '%s %s\n' "$cmd" "$f"; done
 	done | sort -u
@@ -865,9 +874,15 @@ flag_ok() {
 #   a wrapper (env, timeout, sh)  the command it is about to run follows it
 # the wrapper case needs to know what IS a command, so the ref listing is fed
 # in and consulted -- `timeout 5 wc -l` must skip the 5 and land on wc.
-answer_flags() {
+answer_flags() { _answer_walk flags | sort -u; }
+
+# _answer_walk MODE -- the one tokenizer. mode=cmds prints every command the
+# line invokes; mode=flags prints "cmd flag" for every flag, attributed to the
+# command it belongs to. one walker, because the boundary rules are the whole
+# difficulty and two copies of them drifted.
+_answer_walk() {
 	ls -1 "$REF" > "$TMP/cmds" 2>/dev/null
-	sed "s/['\"]//g" | awk -v cl="$TMP/cmds" '
+	sed "s/['\"]//g" | awk -v cl="$TMP/cmds" -v mode="$1" '
 		function popn() { while (nclose-- > 0 && depth > 0) cmd = stack[depth--]; nclose = 0 }
 		BEGIN {
 			while ((getline c < cl) > 0) known[c] = 1
@@ -892,23 +907,24 @@ answer_flags() {
 				if (tok == "")                                      { popn(); continue }
 				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; popn(); continue }
 				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in)$/) { cmd = ""; popn(); continue }
-				if (tok == "-exec" || tok == "-ok")   { print cmd, tok; cmd = ""; popn(); continue }
+				if (tok == "-exec" || tok == "-ok")   { if (mode == "flags") print cmd, tok; cmd = ""; popn(); continue }
 				if (tok ~ /^[0-9]?[<>]+$/)                          { popn(); continue }
 				if (cmd == "") {
-					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) cmd = tok
+					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) { cmd = tok; if (mode == "cmds") print tok }
 					popn(); continue
 				}
 				if (tok !~ /^-./) {
-					if (wrapper[cmd] && known[tok]) cmd = tok
+					if (wrapper[cmd] && known[tok]) { cmd = tok; if (mode == "cmds") print tok }
 					popn(); continue
 				}
+				if (mode == "cmds")                                 { popn(); continue }
 				if (tok ~ /^-[0-9]+$/)                              { popn(); continue }
 				# chmod takes a symbolic MODE beginning with a dash: chmod -x f
 				if (cmd == "chmod" && tok ~ /^-[rwxXstugoa]+$/)     { popn(); continue }
 				print cmd, tok
 				popn()
 			}
-		}' | sort -u
+		}'
 }
 
 # st_block LABEL -- every check one loaded question block must pass. called
@@ -936,6 +952,22 @@ st_block() {
 			esac
 		fi ;;
 	esac
+
+	# a weak out: -- fewer than four literal characters once the regex
+	# metacharacters are gone -- is matched by the bare command, or by any
+	# number at all, as readily as by the flag the question teaches (bare
+	# `mktemp` passed -d/-u/-q graded `^/`; `grep -c WARN` passed an ERROR
+	# count graded `^[0-9]+$`). it counted as graded and asserted nothing.
+	# state:/cmp:/status: make a block strong whatever its out: says.
+	if ! grep -qE '^(state|cmp|status):' "$TMP/blk" && grep -q '^out: ' "$TMP/blk"; then
+		# an out: that strips to NOTHING (`.`, `\.`) is the weakest of all --
+		# the presence test is on the line, never on what is left of it
+		w=$(sed -n 's/^out: //p' "$TMP/blk" | head -1 | tr -d '^$[]()*+?.|\\{}')
+		if [ "${#w}" -lt 4 ]; then
+			echo "FAIL $lbl: weak out: '$w' -- the bare command matches it too; use cmp: ref, state:, status:, or a pattern the flag alone produces" >&2
+			bad=$((bad+1))
+		fi
+	fi
 
 	# unrendered placeholder: a @name@ with no pool behind it
 	case "$Q_PROMPT$Q_ANSWERS" in
@@ -1007,13 +1039,15 @@ st_block() {
 	# (or a right answer could be marked wrong), and every listed
 	# answer must print it (or a listed phrasing would be rejected).
 	if [ "${Q_CMP:-}" = ref ]; then
-		a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+		# every answer runs in its graded (normalised) form, as correct() runs it
+		a=$(printf '%s\n' "$Q_ANSWERS" | head -1 | norm)
 		got=$(run_answer "$a"); SANDBOX_DIRTY=1
 		[ "$(run_answer "$a")" = "$got" ] \
 		  || { echo "FAIL $lbl: cmp:ref but '$a' is not deterministic" >&2; bad=$((bad+1)); }
 		SANDBOX_DIRTY=1
 		printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
 			[ -n "$a" ] || continue
+			a=$(printf '%s\n' "$a" | norm)
 			[ "$(run_answer "$a")" = "$got" ] \
 			  || echo "FAIL $lbl: cmp:ref but '$a' prints something else"
 		done > "$TMP/cr.$$" 2>&1
@@ -1044,6 +1078,10 @@ selftest() {
 		# of real state.
 		boss_limit "$id" 2>/dev/null | grep -qE '^[0-9]+$' \
 			|| { echo "FAIL $id: boss_limit is not a number" >&2; bad=$((bad+1)); }
+		[ -n "$(level_field "$id" boss)" ] \
+			|| { echo "FAIL $id: no boss: line -- run_level would die here" >&2; bad=$((bad+1)); }
+		[ "$nq" -ge 5 ] \
+			|| { echo "FAIL $id: $nq questions -- a boss draws 5" >&2; bad=$((bad+1)); }
 		if [ -n "$(level_field "$id" boss)" ] && [ "$nq" -ge 5 ]; then
 			( CARDS="$TMP/bosscards"; SESSION_SEEN="$TMP/bosssession"
 			  : > "$CARDS"; : > "$SESSION_SEEN"
@@ -1147,6 +1185,16 @@ selftest() {
 	y	tee \$HOME/.profile
 	y	cp a \${HOME}/b
 	y	echo x > "\$HOME/y"
+	y	cd \$HOME && rm -rf *
+	y	cd ~ && rm -rf *
+	y	sh -c "rm -rf ~"
+	y	find / -delete
+	y	sed -i s/a/b/ ~/.ssh/authorized_keys
+	y	xargs rm /etc/x
+	y	timeout 5 rm -rf /tmp/home
+	n	find . -name *.tmp -delete
+	n	sed -i s/a/b/ notes.txt
+	n	cd logs && wc -l app.log
 	n	kill -l
 	n	killall -l
 	n	mount
@@ -1156,6 +1204,15 @@ selftest() {
 	n	cat /proc/cmdline
 	n	echo hi > out.txt
 	EOF
+
+	# the grader must build its own sandbox: it used to test a flag only this
+	# selftest ever set, so in play tier 2 never ran. a fresh process with no
+	# build behind it must accept an unlisted-but-correct answer.
+	( SANDBOX_OK=0; FX_BUILT=""
+	  q_load 05-counting 1 || exit 1
+	  a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+	  correct "$a" ) \
+		|| { echo "FAIL grade: correct() does not build its own sandbox" >&2; bad=$((bad+1)); }
 
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
@@ -1260,13 +1317,14 @@ _mi_off() { printf '   %s%s   %-10s %s%s\n' "$D" "$1" "$2" "$3" "$N"; }
 # series of commands you retype. non-interactive callers never reach it.
 menu() {
 	local k p t id unlocked=1
-	t=$(level_ids | grep -c .)
+	level_ids > "$TMP/ids"
+	t=$(grep -c . "$TMP/ids")
 	while :; do
-		# recount each loop: a boss fought from the menu can unlock the gauntlet
-		p=0; unlocked=1
-		for id in $(level_ids); do
-			if level_is_passed "$id"; then p=$((p + 1)); else unlocked=0; fi
-		done
+		# recount each loop: a boss fought from the menu can unlock the gauntlet.
+		# one awk, not a grep per level on every keypress.
+		p=$(awk 'NR == FNR { ids[$1] = 1; next } ($1 in ids) { c++ } END { print c + 0 }' \
+			"$TMP/ids" "$PASSED" 2>/dev/null); p=${p:-0}
+		[ "$p" -eq "$t" ] && unlocked=1 || unlocked=0
 
 		cls
 		hdr "learn" "the shell, one card at a time"
@@ -1284,7 +1342,7 @@ menu() {
 		else _mi_off m missions "locked until a level unlocks one"; fi
 		_mi s stats     "what you have mastered"
 		_mi a autopsy   "your own shell history, held up to the curriculum"
-		_mi_off h help    "usage and every command, printed"
+		_mi h help      "usage and every command, printed"
 		_mi q quit      ""
 		rule
 		printf '  %schoose%s ' "$D" "$N"
@@ -1353,7 +1411,18 @@ case "${1:-}" in
 	          session_summary ;;
 	autopsy)  shift; autopsy "$@" ;;
 	explain)  shift; explain "$@" ;;
-	reset)    rm -f "$CARDS" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" 2>/dev/null; ok "progress cleared" ;;
+	reset)    shift
+	          # everything, including the answer history -- and never on a
+	          # slip of the finger: it is one letter from `review`.
+	          if [ "${1:-}" = --yes ]; then _ok=1
+	          elif [ -t 0 ]; then
+	          	printf '  %serase all progress -- cards, passed levels, answer history? [y/N]%s ' "$W" "$N"
+	          	IFS= read -r _ok 2>/dev/null; case "$_ok" in y|Y|yes) _ok=1 ;; *) _ok=0 ;; esac
+	          else _ok=0; fi
+	          if [ "$_ok" = 1 ]; then
+	          	rm -f "$CARDS" "$CARDS.lock" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" "$EDIT_HIST" 2>/dev/null
+	          	ok "progress cleared"
+	          else note "nothing erased (learn reset --yes skips the question)"; fi ;;
 	-h|--help|help) usage ;;
 	[0-9]*)   _id=$(level_ids | grep "^0*$1-" | head -1)
 	          [ -n "$_id" ] || die "no level $1"

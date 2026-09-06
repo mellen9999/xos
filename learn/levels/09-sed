@@ -15,14 +15,14 @@ brief: edit only if the copy landed.
 ---
 q: {replace the first @old@ on each line of @cfg@ with @new@|swap the first @old@ for @new@ on every line of @cfg@|change the first occurrence of @old@ per line to @new@ in @cfg@}
 a: sed 's/@old@/@new@/' @cfg@
-out: .
+cmp: ref
 ref: sed
 teach: sed
 hint: s/pattern/replacement/ -- no trailing g means only the first match per line
 ---
 q: {replace EVERY @old@ on every line of @cfg@ with @new@|replace every occurrence of @old@ with @new@ throughout @cfg@|swap every @old@ for @new@ on every line of @cfg@}
 a: sed 's/@old@/@new@/g' @cfg@
-out: .
+cmp: ref
 ref: sed
 teach: sed
 hint: the g goes after the final slash
@@ -30,7 +30,7 @@ hint: the g goes after the final slash
 q: {replace @old@ with @new@ in @cfg@, ignoring case|replace @old@ with @new@ in @cfg@, matching case-insensitively|swap @old@ for @new@ in @cfg@ without caring about case}
 a: sed 's/@old@/@new@/gi' @cfg@
 a: sed 's/@old@/@new@/Ig' @cfg@
-out: .
+cmp: ref
 ref: sed
 teach: sed
 hint: i (or I) after the slashes makes the match case-insensitive
@@ -44,7 +44,7 @@ hint: -n suppresses the automatic print, so only what you p yourself appears
 ---
 q: %show% lines 2 through 4 of @log@
 a: sed -n '2,4p' @log@
-out: .
+cmp: ref
 ref: sed
 teach: sed -n
 hint: same p as line 3, but a range with a comma before it
@@ -58,7 +58,7 @@ hint: a pattern in slashes acts as the address, selecting lines that match
 ---
 q: {delete every line of @log@ mentioning @sev@|remove any line of @log@ that mentions @sev@|drop every @sev@ line from @log@}
 a: sed '/@sev@/d' @log@
-out: .
+cmp: ref
 ref: sed
 teach: sed
 hint: d deletes the whole line the pattern matched, not just the text
@@ -114,7 +114,7 @@ hint: -r and -E are the same flag; -E is the portable spelling
 ---
 q: {swap the first two comma-separated fields of @csv@|reverse the order of the first two comma-separated fields in @csv@|exchange @csv@'s first two comma-separated fields}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@
-out: .
+cmp: ref
 ref: sed
 teach: sed -E
 hint: capture each field in a group, then reorder them with \1 and \2
@@ -135,14 +135,14 @@ hint: $ means "the last line"
 ---
 q: %show% every line of @log@ from the first @sev@ to the end
 a: sed -n '/@sev@/,$p' @log@
-out: .
+cmp: ref
 ref: sed
 teach: sed -n
 hint: a pattern address and $ together mean from the first match to the end
 ---
 q: {replace @old@ with @new@ in @cfg@ using a sed script held in a file rather than typed on the command line|run sed on @cfg@ using a script file instead of an inline expression, swapping @old@ for @new@|apply a sed script stored in a file to @cfg@, replacing @old@ with @new@}
 a: printf 's/@old@/@new@/g\n' > s.sed && sed -f s.sed @cfg@
-out: .
+cmp: ref
 ref: sed
 teach: sed -f
 hint: -f takes a filename holding the script, like -e takes it inline

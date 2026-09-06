@@ -50,6 +50,12 @@ lint() {
 			if (!hashint && k != "chain") { nohint++; fh[bf]++ }
 			if (k == "lvl" && q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[bf]++ }
 			if (!graded && k != "chain") { nograde++; fg[bf]++; if (haswhy) explained++ }
+			# an out: with fewer than four literal characters once the regex
+			# metacharacters are gone (. ^/ Mem [0-9] ^[0-9]+$) is matched by
+			# the bare command, or by any count, as often as by the flag the
+			# question teaches; it counts as graded and asserts nothing.
+			# state:/cmp:/status: make a block strong whatever its out: says.
+			if (weak && !strong && k != "chain") { nweak++; fw2[bf]++ }
 			for (t in atok) if (!(t in qtok)) { nounnamed++; fu[bf]++; break }
 			inblk = 0; delete atok; delete qtok
 		}
@@ -57,10 +63,12 @@ lint() {
 		# advanced FILENAME, so flushing by FILENAME charges each file
 		# closing block to the next file in the glob
 		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; q = ""; next }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; weak = 0; strong = 0; q = ""; next }
 		inblk && /^hint:/ { hashint = 1 }
 		inblk && /^why:/  { haswhy = 1 }
 		inblk && /^(out|state|cmp|status):/ { graded = 1 }
+		inblk && /^(state|cmp|status):/ { strong = 1 }
+		inblk && /^out: / { o = $0; sub(/^out: /, "", o); gsub(/[][^$()*+?.|\\{}]/, "", o); if (length(o) < 4) weak = 1 }
 		inblk && /^q: / && q == "" { q = $0 }
 		inblk && /^(q|setup|hint):/ { toks($0, qtok) }
 		inblk && /^a: / { toks($0, atok) }
@@ -69,11 +77,11 @@ lint() {
 			if (verbose == "-v")
 				for (f in ft) {
 					n = split(f, p, "/")
-					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d unnamed-token\n", \
-						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fu[f] + 0
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0
 				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d with an unnamed token\n", \
-				total, nohint, novary, nograde, explained + 0, nounnamed
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token\n", \
+				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }

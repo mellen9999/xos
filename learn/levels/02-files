@@ -230,28 +230,28 @@ hint: -m sets permissions at creation, same as mkdir -m
 ---
 q: %make% a temporary file with a name nothing else will collide with
 a: mktemp
-out: ^/
+why: primitive-cost
 ref: mktemp
 teach: mktemp
 hint: generates and creates a uniquely-named file, then prints its path
 ---
 q: %make% a temporary directory rather than a file
 a: mktemp -d
-out: ^/
+why: primitive-cost
 ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
 ---
 q: %make% a temporary name without actually creating anything
 a: mktemp -u
-out: ^/
+why: primitive-cost
 ref: mktemp
 teach: mktemp -u
 hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
 ---
 q: %make% a temporary file, staying silent if it cannot
 a: mktemp -q
-out: ^/
+why: primitive-cost
 ref: mktemp
 teach: mktemp -q
 hint: q suppresses the error message on failure

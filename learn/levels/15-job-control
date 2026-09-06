@@ -20,7 +20,7 @@ hint: an ampersand at the end
 ---
 q: {run "sleep 2" in the background and print the pid it was given|background sleep 2, then print the pid it got|start sleep 2 in the background and show its pid}
 a: sleep 2 & echo $!
-out: ^[0-9]+$
+out: ^[1-9][0-9]*$
 ref: sleep
 teach: sleep
 hint: $! holds the pid of whatever you just backgrounded
@@ -153,14 +153,14 @@ hint: -1 is the signal number for HUP, same as -HUP
 ---
 q: %show% every resource limit this shell is under
 a: ulimit -a
-out: .
+cmp: ref
 ref: ulimit
 teach: ulimit -a
 hint: -a prints every limit at once instead of just one
 ---
 q: %show% the maximum file size this shell may create
 a: ulimit -f
-out: .
+cmp: ref
 ref: ulimit
 teach: ulimit -f
 hint: -f reports the max file size a process may write, in blocks

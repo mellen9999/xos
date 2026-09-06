@@ -51,8 +51,8 @@ $name	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value
 ( )	\(	runs the commands in a fresh subshell -- variables set inside do not survive it
 { }	\{ 	runs the commands in the current shell, grouped as one
 &	&	run the command in the background and carry on
-[...]	\[[^] ]*\]	a character class in a filename pattern, e.g. [0-9]
-*	\*	wildcard: any run of characters when matching filenames
-?	\?	wildcard: any single character when matching filenames
+[...]	\[[^] ]*\]	a character class -- one character from the set, e.g. [0-9] -- in a filename glob or a regex alike
+*	\*	unquoted: any run of characters in a filename. inside a grep/sed/awk pattern: zero or more of what precedes it
+?	\?	unquoted: any single character in a filename. inside a grep -E pattern: zero or one of what precedes it
 ~	~	your home directory
 -	(^|[[:space:]])-([[:space:]]|$)	a lone - means read stdin, by convention

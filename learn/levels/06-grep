@@ -29,7 +29,7 @@ hint: i for case-insensitive
 ---
 q: {%show% every line of @log@ that does NOT contain @sev@|which lines of @log@ are missing @sev@?|drop the @sev@ lines from @log@ and show the rest}
 a: grep -v @sev@ @log@
-out: .
+cmp: ref
 ref: grep
 teach: grep -v
 hint: v for invert
@@ -52,21 +52,21 @@ hint: n prefixes each match with its line number
 ---
 q: {search every file under here for @term@, recursively|%find% @term@ anywhere in the tree below you|grep the whole directory tree for @term@}
 a: grep -r @term@ .
-out: .
+cmp: ref
 ref: grep
 teach: grep -r
 hint: r walks into subdirectories; the dot is where it starts
 ---
 q: %list% only the NAMES of files under here that contain @term@
 a: grep -rl @term@ .
-out: .
+cmp: ref
 ref: grep
 teach: grep -l
 hint: l switches grep from printing lines to printing filenames
 ---
 q: %list% the files under here that do NOT contain @term@
 a: grep -rL @term@ .
-out: .
+cmp: ref
 ref: grep
 teach: grep -L
 hint: capital L is the opposite of -l -- files with NO match
@@ -137,14 +137,14 @@ hint: E turns on extended regex, so + doesn't need a backslash
 ---
 q: {match either @sev@ or @term@ in @log@ in one extended-regex pass|find lines in @log@ containing @sev@ or @term@, using one extended-regex command|search @log@ for @sev@ or @term@ with a single extended-regex pattern}
 a: grep -E '@sev@|@term@' @log@
-out: .
+why: fixture-cost
 ref: grep
 teach: grep -E
 hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped
 ---
 q: {check quietly whether @log@ mentions @sev@ -- no output, just an exit status|silently check whether @sev@ appears in @log@, using only the exit status|test whether @log@ contains @sev@ without printing anything}
 a: grep -q @sev@ @log@
-why: fixture-cost
+status: 0
 ref: grep
 teach: grep -q
 hint: this is the form you use inside an if
@@ -158,7 +158,7 @@ hint: s silences the "no such file" complaints, built into grep itself
 ---
 q: {search @log@ using each line of @txt@ as a separate pattern|search @log@ against a whole list of patterns, one per line of @txt@|search @log@ for anything matching a line from @txt@}
 a: grep -f @txt@ @log@
-why: fixture-cost
+cmp: ref
 ref: grep
 teach: grep -f
 hint: f reads patterns from a file instead of the command line, one per line
@@ -172,7 +172,7 @@ hint: -e is how you search for something starting with a dash
 ---
 q: {%find% lines of @log@ containing a run of whitespace, using the POSIX space character class instead of a literal space|search @log@ for whitespace using the [[:space:]] POSIX class rather than typing a space|match whitespace in @log@ with [[:space:]], a POSIX character class, instead of a literal space}
 a: grep '[[:space:]]' @log@
-out: .
+why: fixture-cost
 ref: grep
 teach: grep
 hint: POSIX classes like [[:space:]], [[:digit:]] and [[:alpha:]] work inside brackets, portable across regex flavors

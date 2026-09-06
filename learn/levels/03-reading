@@ -17,21 +17,21 @@ hint: no flags -- cat just dumps the whole file to the screen
 ---
 q: %show% @txt@ with every line numbered
 a: cat -n @txt@
-out: ^ *1
+cmp: ref
 ref: cat
 teach: cat -n
 hint: n numbers every line, including blanks
 ---
 q: %show% @txt@ numbering only the lines that are not blank
 a: cat -b @txt@
-out: ^ *1
+cmp: ref
 ref: cat
 teach: cat -b
 hint: like -n but skips numbering blank lines
 ---
 q: %show% @cfg@ with a $ marking the end of every line
 a: cat -e @cfg@
-out: \$$
+cmp: ref
 ref: cat
 teach: cat -e
 hint: cat calls this "End each line with $"
@@ -68,7 +68,7 @@ hint: ten is what tail does with no arguments, same as head
 q: %show% the last @n3@ lines of @log@
 a: tail -n @n3@ @log@
 a: tail -@n3@ @log@
-out: .
+cmp: ref
 ref: tail
 teach: tail -n
 hint: -n takes a count, same syntax as head -n
@@ -146,7 +146,7 @@ hint: capital I makes searches ignore case
 ---
 q: %show% the last 20 bytes of @log@ rather than the last lines
 a: tail -c 20 @log@
-out: .
+cmp: ref
 ref: tail
 teach: tail -c
 hint: c for characters/bytes, same idea as head -c
@@ -160,7 +160,7 @@ hint: capital F reopens the name; lowercase f holds the old file open forever
 ---
 q: %show% the byte offset of every string found in @bin@
 a: strings -o @bin@
-out: [0-9]
+cmp: ref
 ref: strings
 teach: strings -o
 hint: o prints the offset before every string found

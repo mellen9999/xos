@@ -30,3 +30,6 @@ ipcalc ping6 traceroute6 microcom hexedit killall logger
 # making filesystems: xos could image and read disks but not format one, which
 # is half a tool. mke2fs also lets xos provision its own p3 state partition.
 mke2fs mkdosfs
+# least privilege: learn runs every answer as nobody through this, so a typo
+# in a lesson meets file permissions instead of the encrypted state partition.
+setuidgid

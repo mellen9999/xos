@@ -13,7 +13,7 @@ brief: $NAME expands to a variable's value -- $HOME is where you live.
 ---
 q: {print|show} the directory you are currently in
 a: pwd
-out: ^/
+cmp: ref
 ref: pwd
 teach: pwd
 hint: print working directory
@@ -27,7 +27,7 @@ hint: two letters
 ---
 q: %list% the current directory, including names that start with a dot
 a: ls -a
-out: ^\.$|^\.\.$
+cmp: ref
 ref: ls
 teach: ls -a
 hint: the flag ls describes as "Include names starting with ."
@@ -51,7 +51,7 @@ hint: two flags -- long format, and the one ls calls "Human readable"
 q: %list% the current directory {newest first|sorted by modification time}
 a: ls -lt
 a: ls -t
-out: .
+why: fixture-cost
 ref: ls
 teach: ls -t
 hint: sort by time
@@ -81,7 +81,7 @@ q: %show% the value of your HOME directory using the HOME variable
 a: echo $HOME
 a: echo "$HOME"
 a: echo ${HOME}
-out: ^/
+cmp: ref
 ref: echo
 teach: echo
 hint: a dollar sign in front of the name
@@ -112,7 +112,7 @@ hint: cd with no argument already means home
 ---
 q: %list% the current directory showing hidden names but not . and ..
 a: ls -A
-out: .
+why: fixture-cost
 ref: ls
 teach: ls -A
 hint: like -a, but leaves out . and ..
@@ -126,14 +126,14 @@ hint: stops ls from descending into the directory
 ---
 q: %list% the current directory marking directories with a slash and executables with a star
 a: ls -F
-out: /
+cmp: ref
 ref: ls
 teach: ls -F
 hint: appends a symbol showing each entry's type
 ---
 q: %list% the current directory showing each file's inode number
 a: ls -i
-out: ^[0-9]
+out: ^ *[0-9]+ [^ ]
 ref: ls
 teach: ls -i
 hint: the number a file is known by at the filesystem level, not its name
@@ -147,42 +147,42 @@ hint: n modifies -l to print ids as numbers instead of names
 ---
 q: %list% marking only directories with a trailing slash
 a: ls -p
-out: /
+cmp: ref
 ref: ls
 teach: ls -p
 hint: like -F but only marks directories, nothing else
 ---
 q: %list% the current directory in reverse order
 a: ls -r
-out: .
+cmp: ref
 ref: ls
 teach: ls -r
 hint: reverses whatever order ls would otherwise use
 ---
 q: %list% everything under @dir@ recursively
 a: ls -R @dir@
-out: .
+cmp: ref
 ref: ls
 teach: ls -R
 hint: capital R -- lowercase r reverses order instead
 ---
 q: %list% the current directory largest file first
 a: ls -S
-out: .
+cmp: ref
 ref: ls
 teach: ls -S
 hint: sorts by size instead of name
 ---
 q: %list% showing the block size each file occupies
 a: ls -s
-out: [0-9]
+cmp: ref
 ref: ls
 teach: ls -s
 hint: shows size in blocks, not bytes -- pair with -h for human units
 ---
 q: %list% the current directory across the screen in columns
 a: ls -x
-out: .
+cmp: ref
 ref: ls
 teach: ls -x
 hint: same columns as default, but fills across a row before dropping down

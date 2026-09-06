@@ -83,7 +83,7 @@ hint: -n is true when the string's length is nonzero
 ---
 q: %show% yes if @txt@ exists
 a: [ -f @txt@ ] && echo yes
-out: ^yes$
+cmp: ref
 ref: [
 teach: [ -f
 hint: -f is true only for a regular file
@@ -97,7 +97,7 @@ hint: || only runs echo when the test in front of it fails
 ---
 q: {use test rather than brackets to check that @dir@ is a directory, printing ok|check @dir@ is a directory with the test command instead of [ ], printing ok|run test -d on @dir@, printing ok, without using square brackets}
 a: test -d @dir@ && echo ok
-out: ^ok$
+cmp: ref
 ref: test
 teach: test -d
 hint: test and [ are the same command; test just skips the closing bracket

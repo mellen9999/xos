@@ -14,8 +14,8 @@ SCENARIOS="$ROOT/scenarios"
 
 scenario_ids() { ls -1 "$SCENARIOS" 2>/dev/null | sort; }
 scn_path()     { echo "$SCENARIOS/$1"; }
-scn_nq()       { awk '/^---$/ { c++ } END { print c + 0 }' "$(scn_path "$1")" 2>/dev/null; }
-scn_field()    { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$(scn_path "$1")"; }
+scn_nq()       { blocks_nq "$(scn_path "$1")"; }
+scn_field()    { blk_field "$(scn_path "$1")" "$2"; }
 scn_after()    { scn_field "$1" after | head -1; }
 
 # unlocked when the level named in after: has fallen (or there is no gate)

@@ -12,23 +12,16 @@ brief:
 brief: The other specials: $$ this shell's pid, $! the last background pid,
 brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
 ---
-q: {run true, then print its exit status|run the true command, then show what $? became|execute true, then print its exit status}
-a: true; echo $?
-out: ^0$
-ref: sh
-teach: sh
-hint: $? holds the exit status of the immediately preceding command
----
 q: {run false and then show its exit status|run the false command and check what $? becomes|execute false, then print its exit code}
 a: false; echo $?
-out: ^1$
+cmp: ref
 ref: false
 teach: false
 hint: false always exits 1; it has no other job
 ---
 q: {run true and confirm its exit status is zero|run true and verify $? comes back 0|execute true, then check its exit code is zero}
 a: true; echo $?
-out: ^0$
+cmp: ref
 ref: true
 teach: true
 hint: true always exits 0, no matter what
@@ -49,21 +42,21 @@ hint: || runs its right side only when the left side fails
 ---
 q: %show% found if @sev@ is in @log@, and missing if it is not, in one line
 a: grep -q @sev@ @log@ && echo found || echo missing
-out: ^found$
+why: fixture-cost
 ref: grep
 teach: grep -q
 hint: chain && and || together to cover both outcomes in one line
 ---
 q: %show% this shell's own process id
 a: echo $$
-out: ^[0-9]+$
+out: ^[1-9][0-9]*$
 ref: sh
 teach: sh
 hint: $$ is this shell's own pid, fixed for its whole lifetime
 ---
 q: {start sleep 1 in the background and print the pid it was given|background sleep 1, then print its pid|run sleep 1 as a background job and show what pid it got}
 a: sleep 1 & echo $!
-out: ^[0-9]+$
+out: ^[1-9][0-9]*$
 ref: sleep
 teach: sleep
 hint: an ampersand backgrounds; $! holds the pid it was just given

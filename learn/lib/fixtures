@@ -12,7 +12,24 @@
 # with a string buried in it. the counts change with every roll, so an answer
 # has to compute them -- there is no constant to memorise.
 
-SANDBOX="${LEARN_SANDBOX:-$TMP/sandbox}"
+# privilege drop. on the image learn runs as root -- the only user -- so an
+# answer that reached outside the sandbox could write p3, a block device,
+# /proc/sys, or signal a process. the fence in grade catches the obvious
+# shapes, but it is a denylist over a full shell and can never be complete.
+# containment is by construction instead: when running as root and setuidgid
+# ships, the sandbox is created by and owned by `nobody`, and every answer
+# runs as nobody with HOME and TMPDIR inside it. plain file permissions then
+# refuse everything root owns. on the build host (G25 runs as a normal user)
+# there is nothing to drop and the tree is already that user's own.
+DROP=""
+if [ "$(id -u 2>/dev/null)" = 0 ] && command -v setuidgid >/dev/null 2>&1 \
+   && id nobody >/dev/null 2>&1; then
+	DROP="setuidgid nobody"
+fi
+# under the drop the tree cannot live inside $TMP (root's, 0700): it gets its
+# own directory in the sticky tmpfs, made by nobody so nobody owns it.
+if [ -n "$DROP" ]; then SANDBOX="${LEARN_SANDBOX:-${TMPDIR:-/tmp}/learn-sb.$$}"
+else                    SANDBOX="${LEARN_SANDBOX:-$TMP/sandbox}"; fi
 SANDBOX_OK=0
 FX_BUILT=""
 
@@ -175,7 +192,23 @@ _fx_zip() {
 	  _le32 "$_cdsize"; _le32 "$_cdoff"; _le16 0; } >> "$_out"
 }
 
+# sandbox_build -- (re)make the tree for the current roll. under the drop
+# the filling runs as nobody in a child shell (so every byte is nobody's);
+# the state flags are the parent's and are set here, after success.
 sandbox_build() {
+	if [ -n "$DROP" ]; then
+		rm -rf "$SANDBOX" 2>/dev/null
+		POOLS="$POOLS" SANDBOX="$SANDBOX" FX_SEED="${FX_SEED:-0}" \
+			$DROP "$SHELLBIN" -c 'DROP=""; . "$1"; _sandbox_fill' _ "$ROOT/lib/fixtures" || return 1
+	else
+		_sandbox_fill || return 1
+	fi
+	SANDBOX_OK=1
+	SANDBOX_DIRTY=0
+	FX_BUILT="${FX_SEED:-0}"
+}
+
+_sandbox_fill() {
 	rm -rf "$SANDBOX" 2>/dev/null
 	mkdir -p "$SANDBOX" || return 1
 	cd "$SANDBOX" || return 1
@@ -267,9 +300,6 @@ sandbox_build() {
 	done
 	cd - >/dev/null 2>&1 || :
 	[ -z "$missing" ] || { echo "learn: sandbox missing:$missing" >&2; return 1; }
-	SANDBOX_OK=1
-	SANDBOX_DIRTY=0
-	FX_BUILT="${FX_SEED:-0}"
 }
 
 # rebuild when an answer changed something, or when the roll moved on and the

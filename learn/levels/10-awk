@@ -21,7 +21,7 @@ hint: $3 is the third field; fields split on whitespace by default
 ---
 q: %show% the last field of every line in @log@
 a: awk '{print $NF}' @log@
-out: .
+cmp: ref
 ref: awk
 teach: awk
 hint: NF is the number of fields, so $NF is the last one
@@ -57,7 +57,7 @@ hint: a pattern with no action means "print the line"
 ---
 q: %show% the second field of the lines of @log@ mentioning @sev@
 a: awk '/@sev@/ {print $2}' @log@
-out: [0-9]
+cmp: ref
 ref: awk
 teach: awk
 hint: the pattern filters which lines run the action
@@ -86,14 +86,14 @@ hint: s starts at zero (uninitialized) and accumulates with +=
 ---
 q: %show% the largest value in the fourth column of @csv@
 a: awk -F, 'NR > 1 && $4 > m {m = $4} END {print m}' @csv@
-out: ^42$
+cmp: ref
 ref: awk
 teach: awk
 hint: m starts at zero (uninitialized) and gets replaced whenever a bigger value shows up
 ---
 q: %count% how many times each @sev@ level appears in @log@
 a: awk '{c[$3]++} END {for (k in c) print k, c[k]}' @log@
-out: [0-9]
+cmp: ref
 ref: awk
 teach: awk
 hint: awk arrays are maps -- c[$3]++ counts per distinct value
@@ -114,7 +114,7 @@ hint: a bare condition with no action still means print
 ---
 q: %show% rows of @csv@ whose count field is above 10
 a: awk -F, 'NR > 1 && $4 > 10' @csv@
-out: 42
+cmp: ref
 ref: awk
 teach: awk
 hint: && combines two conditions -- both must be true
@@ -142,7 +142,7 @@ hint: OFS is the output field separator
 ---
 q: %show% the number of fields on each line of @csv@
 a: awk -F, '{print NF}' @csv@
-out: ^4$
+cmp: ref
 ref: awk
 teach: awk
 hint: NF is the field count for the current line
@@ -164,7 +164,7 @@ hint: ~ tests a field against a regex; !~ is its negation
 ---
 q: %list% each @sev@ level in @log@ by how often it occurs, most frequent first
 a: awk '{print $3}' @log@ | sort | uniq -c | sort -rn
-out: [0-9]
+cmp: ref
 ref: uniq
 teach: uniq -c
 hint: extract the column, sort it, count it, then sort the counts numerically
