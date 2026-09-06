@@ -211,6 +211,9 @@ the build fails, loudly, on any of:
 - a documented command that no lesson introduces
 - a documented flag that no lesson teaches and `learn/skip` does not retire --
   including flags the `--help` usage line is the only place to mention
+- a reference page that no longer matches the shipped binary's own `--help`
+  flag for flag (seeding never overwrites a page, so without this a busybox
+  bump that added a flag to an existing applet was invisible to the gate above)
 - a `learn` question graded by claims its own answer does not make true when
   executed (its printed output, exit status, or the files and modes it leaves)
 - an ungraded `learn` question with no written reason -- every block either

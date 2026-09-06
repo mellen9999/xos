@@ -747,6 +747,27 @@ taught_set() {
 	done | sort -u
 }
 
+# refcheck -- the committed ref pages still describe the binary that ships.
+# seed() fills gaps and never overwrites a page (fifteen are improved by
+# hand), so a busybox bump that adds a flag to an EXISTING applet changed
+# nothing in learn/ref and G26 saw nothing to rule on -- "a bump stops the
+# build" was only true of new applets. this reads every applet's live --help
+# through the same flags_of the corpus is measured with and fails on any
+# flag the binary documents that its page does not.
+refcheck() {
+	local a live bad=0 n=0 missing
+	mkdir -p "$TMP/live"
+	for a in $(busybox --list 2>/dev/null | sort); do
+		[ -f "$REF/$(refname "$a")" ] || continue
+		n=$((n + 1))
+		{ busybox "$a" --help 2>&1 || true; } | sed -n '/^Usage:/,$p' > "$TMP/live/$(refname "$a")"
+		missing=$( { (REF="$TMP/live"; flags_of "$a"); flags_of "$a"; flags_of "$a"; } | sort | uniq -u | tr '\n' ' ')
+		[ -z "$missing" ] || { bad=$((bad + 1)); printf 'STALE %s: --help documents %s-- not in learn/ref/%s (re-seed by hand)\n' "$a" "$missing" "$a"; }
+	done
+	printf 'learn: refcheck: %d pages checked against the shipped binary, %d stale\n' "$n" "$bad"
+	[ "$bad" -eq 0 ]
+}
+
 skip_set() {
 	[ -f "$ROOT/skip" ] || return 0
 	sed 's/#.*//' "$ROOT/skip" | awk 'NF >= 2 { print $1, $2 }' | sort -u
@@ -1396,6 +1417,7 @@ case "${1:-}" in
 	          	*)     challenge ;;
 	          esac ;;
 	coverage) shift; coverage "${1:--q}" ;;
+	refcheck) refcheck ;;
 	order)    order ;;
 	review)   shift; review "${1:-20}"; session_summary ;;
 	scenario) shift
