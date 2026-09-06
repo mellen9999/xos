@@ -30,16 +30,19 @@ lint() {
 		}
 		function flushblk(   k, t) {
 			if (!inblk) return
-			total++; ft[FILENAME]++
-			k = cls(FILENAME)
-			if (!hashint && k != "chain") { nohint++; fh[FILENAME]++ }
-			if (k == "lvl" && q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[FILENAME]++ }
-			if (!graded && k != "chain") { nograde++; fg[FILENAME]++ }
-			for (t in atok) if (!(t in qtok)) { nounnamed++; fu[FILENAME]++; break }
+			total++; ft[bf]++
+			k = cls(bf)
+			if (!hashint && k != "chain") { nohint++; fh[bf]++ }
+			if (k == "lvl" && q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[bf]++ }
+			if (!graded && k != "chain") { nograde++; fg[bf]++ }
+			for (t in atok) if (!(t in qtok)) { nounnamed++; fu[bf]++; break }
 			inblk = 0; delete atok; delete qtok
 		}
+		# bf pins the block to the file it came from: at FNR==1 awk has already
+		# advanced FILENAME, so flushing by FILENAME charges each file
+		# closing block to the next file in the glob
 		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; hashint = 0; graded = 0; q = ""; next }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; q = ""; next }
 		inblk && /^hint:/ { hashint = 1 }
 		inblk && /^(out|state|cmp):/ { graded = 1 }
 		inblk && /^q: / && q == "" { q = $0 }

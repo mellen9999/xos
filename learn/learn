@@ -1059,6 +1059,38 @@ selftest() {
 	EOF
 	[ "$hits" -ge 6 ] || { echo "FAIL syntax battery went dark ($hits lines matched)" >&2; bad=$((bad+1)); }
 
+	# the unsafe() fence is what makes execution grading survivable: prove it
+	# refuses what must never run and still admits what the lessons teach.
+	# both directions matter -- an over-eager fence silently downgrades honest
+	# answers to string matching.
+	while IFS= read -r a; do
+		want=${a%%	*}; a=${a#*	}
+		if [ "$want" = y ]; then
+			printf '%s\n' "$a" | unsafe \
+				|| { echo "FAIL unsafe: would run: $a" >&2; bad=$((bad+1)); }
+		else
+			printf '%s\n' "$a" | unsafe \
+				&& { echo "FAIL unsafe: refuses to run: $a" >&2; bad=$((bad+1)); }
+		fi
+	done <<-EOF
+	y	mke2fs /dev/mapper/state
+	y	cryptsetup luksFormat /dev/sda3
+	y	kill -9 12345
+	y	pkill -f httpd
+	y	ip link set eth0 down
+	y	udhcpc -i eth0
+	y	echo x > \$HOME/y
+	y	tee \$HOME/.profile
+	y	cp a \${HOME}/b
+	y	echo x > "\$HOME/y"
+	n	kill -l
+	n	killall -l
+	n	ip addr | grep -c inet
+	n	rm x.txt
+	n	cat /proc/cmdline
+	n	echo hi > out.txt
+	EOF
+
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
 	# survival -- the subshell turns a fatal ash error into a caught failure.
