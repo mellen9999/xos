@@ -886,7 +886,18 @@ dbx() {
   fi
   virt-fw-vars --input ovmf-vars.fd --output ovmf-vars.fd "${args[@]}" >/dev/null 2>&1 \
     || { echo "FAIL: could not enroll dbx into ovmf-vars.fd" >&2; return 1; }
-  printf '  dbx: %d image(s) revoked in firmware\n' "$n"
+  # ovmf-vars.fd is the QEMU firmware's nvram. enrolling there revokes an image
+  # on the dev rig and nowhere else -- there was no artifact a real machine
+  # could ever enrol, so `./build.sh revoke` did nothing at all to the product
+  # while the readme said the firmware would refuse the old image. emit the
+  # variable update a firmware KeyTool or sbctl can actually apply, and ship it
+  # on the stick beside the keys.
+  rm -rf dbx-auth; mkdir -p dbx-auth
+  virt-fw-vars --input ovmf-vars.fd --output-auth dbx-auth >/dev/null 2>&1 \
+    || { echo "FAIL: could not export an enrollable dbx" >&2; return 1; }
+  [ -s dbx-auth/dbx.auth ] \
+    || { echo "FAIL: dbx-auth/dbx.auth is empty -- nothing a real machine could enrol" >&2; return 1; }
+  printf '  dbx: %d image(s) revoked -- qemu firmware, and dbx-auth/dbx.auth for real hardware\n' "$n"
 }
 
 revoke() {
@@ -952,6 +963,12 @@ EOF
   mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/xos-keys
   mcopy -pm -i esp.part xos-signed.efi ::/EFI/BOOT/BOOTX64.EFI
   mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/xos-keys/
+  # the revocation list travels with the stick, or it is not enforceable on any
+  # machine but the dev rig.
+  if [ -s dbx-auth/dbx.auth ]; then
+    touch -d "@$SOURCE_DATE_EPOCH" dbx-auth/dbx.auth
+    mcopy -pm -i esp.part dbx-auth/dbx.auth ::/xos-keys/
+  fi
   dd if=esp.part    of=stick.img bs=1M seek=1                     conv=notrunc status=none
   dd if=xos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
   rm -f esp.part

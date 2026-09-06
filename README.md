@@ -159,6 +159,9 @@ signing key (db) under `keys/`, and the public halves land on the stick under
 2. enroll from the stick: `db.der`, then `KEK.der`, then `PK.der` last --
    enrolling the PK exits setup mode and turns enforcement on. (a firmware
    KeyTool, or `sbctl` from another OS, works too.)
+3. if you have revoked anything, enroll `dbx.auth` from the same directory
+   **before** the PK. it is only written once `revoked` has an entry, and
+   without it the revocation list exists on the build machine and nowhere else.
 
 there is no shim and no MOK: you hold the only key, on purpose.
 
@@ -332,10 +335,16 @@ hash. every gate in this repo goes green. nothing above notices, because there
 was nothing above to notice: verified boot has no idea what "current" means.
 
 `revoked` is the answer. it lists the authenticode digest of every image that
-must never boot again; `./build.sh revoke IMAGE` appends one, and `dbx` enrolls
-the list into firmware alongside the db key. after that the firmware refuses
-the old image with `Access Denied`, at exactly the same place it refuses an
-unsigned one.
+must never boot again; `./build.sh revoke IMAGE` appends one. after that the
+firmware refuses the old image with `Access Denied`, at exactly the same place
+it refuses an unsigned one.
+
+that enforcement is not automatic, and it used to be less automatic than this
+section implied: `dbx` enrolled the list into `ovmf-vars.fd`, the qemu
+firmware's nvram, which revokes the image on the dev rig and on no other
+machine. the build now also writes `dbx-auth/dbx.auth` and ships it in the
+stick's `/xos-keys/`, and you enroll it in your firmware the same way you
+enroll the keys. a revocation you never enroll is a line in a text file.
 
 two things guard the guard, because a revocation that silently matches nothing
 is indistinguishable from one that works:
