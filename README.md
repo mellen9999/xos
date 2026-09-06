@@ -406,7 +406,8 @@ where your command died -- what it printed against what was wanted, the line
 count at every pipeline stage, and the exact flags between you and the nearest
 accepted answer. every level ends with a named boss -- five questions, thirty seconds each,
 no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
-where the last boss fell, `learn review` re-asks the weakest cards first,
+where the last boss fell -- and inside a level, at the card you stopped on, with the
+score you had. `learn review` re-asks the weakest cards first,
 `learn daily` is the same ten questions for everyone on a date, and
 `learn place` climbs the curriculum one question per rung so a first run can
 skip what you already know. `learn challenge` is the endgame, unlocked when
