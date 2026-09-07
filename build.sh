@@ -1250,10 +1250,11 @@ TODO: write this entry by hand.
 #   G34 signed UKI's embedded roothash matches the tree             (new)
 #   G35 first-party scripts parse under the shipped ash             (new)
 #   G36 learn reaches its prompt on a silent terminal, under that ash (new)
+#   G37 the between-cards pause takes one keypress and gives the tty back
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=34   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=35   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1558,6 +1559,41 @@ while time.time() < end:                  # answer nothing, ever
 os.kill(pid, 9); sys.exit(1)
 G36
   g "G36 learn starts on a terminal that answers nothing" "$g36"
+
+  # G37 -- the between-cards pause takes ONE keypress and gives the terminal
+  # back. it reads a bare key under -icanon, the same corner that hung the
+  # UTF-8 probe: busybox ash ignores VMIN/VTIME, so a read shaped even slightly
+  # wrong blocks for a newline that never comes. every card screen sits behind
+  # this, so a hang here is a hang everywhere.
+  local g37=FAIL
+  python3 - "$bb35" <<'G37' >/dev/null 2>&1 && g37=ok
+import os, pty, select, sys, time
+bb = sys.argv[1]
+env = dict(os.environ, LEARN_ROOT=os.getcwd() + "/learn", TERM="xterm-256color")
+sh = 'ROOT="$LEARN_ROOT"; . "$ROOT/lib/ui"; pause_card; echo "RC=$?"'
+for key, want in ((b"\r", "RC=0"), (b"q", "RC=2"), (b"\x04", "RC=2")):
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execve(bb, [bb, "ash", "-c", sh], env)
+    time.sleep(1)                          # let the prompt settle, then one key
+    os.write(fd, key)
+    out, end = b"", time.time() + 10
+    while time.time() < end:
+        r, _, _ = select.select([fd], [], [], 0.2)
+        if r:
+            try: c = os.read(fd, 65536)
+            except OSError: break
+            if not c: break
+            out += c
+        try:
+            if os.waitpid(pid, os.WNOHANG)[0]: break
+        except ChildProcessError: break
+    else:
+        os.kill(pid, 9); sys.exit(1)       # never returned: it hung
+    if want.encode() not in out: sys.exit(1)
+sys.exit(0)
+G37
+  g "G37 the card pause answers one keypress" "$g37"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.

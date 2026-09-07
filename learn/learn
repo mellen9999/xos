@@ -359,7 +359,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			[ "$S_STREAK" -gt "$S_BEST" ] && S_BEST=$S_STREAK
 			_stk=""
 			[ "$S_STREAK" -ge 3 ] && _stk="  ${Y}${S_STREAK} in a row${N}"
-			ok "right${tier:+  ${D}tier $tier${N}}$_stk"
+			ok "correct${tier:+  ${D}tier $tier${N}}$_stk"
 			# five straight lights the banner; it burns until a miss
 			[ "$S_STREAK" -eq 5 ] && printf '  %s on fire -- five straight %s\n' "$V$Y" "$N"
 			[ "$MODE" = learn ] && coach_right "$input"
@@ -667,7 +667,7 @@ daily() {
 	MODE=learn
 	[ "$rc" = 2 ] && return 0
 	rule
-	printf '  %sdaily %s%s  %s\n' "$B" "$day" "$N" "$([ "$rc" = 0 ] && echo right || echo wrong)"
+	printf '  %sdaily %s%s  %s\n' "$B" "$day" "$N" "$([ "$rc" = 0 ] && echo correct || echo wrong)"
 }
 
 # ---- stats ----------------------------------------------------------------
@@ -1528,7 +1528,7 @@ session_summary() {
 	mins=$((secs / 60))
 	echo
 	rule
-	printf '  %ssession%s  %s%d right%s  %s%d wrong%s  best streak %s%d%s' \
+	printf '  %ssession%s  %s%d correct%s  %s%d wrong%s  best streak %s%d%s' \
 		"$B" "$N" "$G" "$S_RIGHT" "$N" "$R" "$S_WRONG" "$N" "$Y" "$S_BEST" "$N"
 	[ "$mins" -gt 0 ] && printf '  %s%dm%s' "$D" "$mins" "$N"
 	echo
@@ -1543,7 +1543,7 @@ session_summary() {
 # ---- dispatch -------------------------------------------------------------
 
 MODE=learn
-# session stats -- the game layer. streak is consecutive right; the summary at
+# session stats -- the game layer. streak is consecutive correct; the summary at
 # the end turns a study session into a run you can beat next time.
 S_RIGHT=0; S_WRONG=0; S_STREAK=0; S_BEST=0; S_START=$(date +%s 2>/dev/null || echo 0)
 cards_init

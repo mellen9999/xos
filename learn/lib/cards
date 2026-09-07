@@ -1,7 +1,7 @@
 # cards -- what you know, and when you last proved it.
 #
 # every distinct prompt is a card with a tier: 0 unseen, 1 learning, 2 mastered.
-# right promotes one tier, wrong demotes one. a card promotes at most once per
+# correct promotes one tier, wrong demotes one. a card promotes at most once per
 # session, so mastery costs two sittings and cannot be farmed in one.
 #
 # a card unseen for 30 days decays a tier. that is the difference between a

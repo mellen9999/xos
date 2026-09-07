@@ -3,7 +3,7 @@
 # colour is a courtesy, never information: every state it marks is also marked
 # by a character, so NO_COLOR and a dumb terminal lose nothing.
 #
-#   R wrong   G right   Y the answer   U a heading   M a banner
+#   R wrong   G correct   Y the answer   U a heading   M a banner
 #   C what you type -- flags, operators, keys
 #   W a name or a value        D the frame, and everything quiet
 #
@@ -122,6 +122,11 @@ else
 	BAR_F='#' BAR_E='-' SEP='  '
 fi
 
+# Ctrl-D. under -icanon the terminal stops turning it into end-of-file and
+# hands it over as a byte like any other, so the one place that reads a bare
+# keypress has to recognise it -- the help screen says Ctrl-D leaves.
+EOT=$(printf '\004')
+
 # a literal newline. $(printf '\n') cannot produce one -- command substitution
 # strips them -- so it is written out.
 NL='
@@ -230,12 +235,26 @@ statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 	rule
 }
 
-# between cards: wait for Enter, or quit. non-interactive returns at once so
-# nothing automated ever hangs here.
+# between cards: one keypress moves on, q leaves. the prompt names only the
+# key you came here to press -- q is there for whoever reaches for it, and a
+# card screen is not the place to advertise the exit.
+#
+# -icanon rather than raw: it gives the single character without waiting for a
+# newline, and it KEEPS isig, so Ctrl-C still interrupts instead of arriving as
+# a byte that reads like any other key. the terminal is put back either way.
+# non-interactive returns at once so nothing automated ever hangs here.
 pause_card() {
 	[ -t 0 ] || return 0
-	printf '\n  %s[enter] next%squit%s ' "$D" "$SEP" "$N"
-	IFS= read -r _pc 2>/dev/null || { echo; return 2; }
-	case "$_pc" in quit) return 2 ;; esac
+	printf '\n  %s[enter] next%s ' "$D" "$N"
+	_pc_tty=$(stty -g 2>/dev/null) || _pc_tty=
+	if [ -n "$_pc_tty" ] && stty -icanon -echo 2>/dev/null; then
+		IFS= read -r -n 1 _pc 2>/dev/null || _pc=q
+		stty "$_pc_tty" 2>/dev/null
+		echo
+	else
+		IFS= read -r _pc 2>/dev/null || _pc=q
+	fi
+	unset _pc_tty
+	case "$_pc" in q|Q|quit|"$EOT") return 2 ;; esac
 	return 0
 }
