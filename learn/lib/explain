@@ -117,18 +117,29 @@ examples_cached() {
 		function flush2(   i) {
 			# verbatim: a listed answer is already the exact line the grader
 			# accepts, braces and all. an awk program is not an alternation.
-			if (r != "") for (i = 1; i <= n; i++) print r "\t" A[i]
+			# the third field is where the answer came from, so the card can
+			# refuse to show the very question it is open on top of.
+			if (r != "") for (i = 1; i <= n; i++) print r "\t" A[i] "\t" base ":" idx
 			n = 0; r = ""
 		}
-		FNR == 1 { flush2() }
-		/^---/    { flush2(); next }
+		FNR == 1 { if (NR > 1) flush2(); idx = 0; base = FILENAME; sub(/.*\//, "", base) }
+		/^---/    { flush2(); idx++; next }
 		/^a: /    { l = $0; sub(/^a: /, "", l); A[++n] = l; next }
 		/^ref: /  { r = $2 }
 		END       { flush2() }
 		' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
 		| sed -f "$TMP/examples.sed" \
 		| grep -v '@[a-z0-9][a-z0-9]*@' \
-		| sort -u > "$TMP/examples.all"
+		| sort -u \
+		| awk -F'\t' '
+			# an answer two different blocks both list cannot be shown as an
+			# example of either: whichever card is open, it would be handing
+			# over the line the learner is being asked to type
+			{ line[NR] = $0; seen[$2]++ }
+			END { for (i = 1; i <= NR; i++) {
+				split(line[i], f, "\t")
+				if (seen[f[2]] == 1) print line[i]
+			} }' > "$TMP/examples.all"
 	}
 	cat "$TMP/examples.all"
 }
@@ -137,9 +148,10 @@ examples_cached() {
 # to the question on screen. shortest first, and no two examples leading with
 # the same flag, so two rows show two different things.
 ref_examples() {
-	local out
-	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v w="${COLS:-80}" -v C="$C" -v N="$N" '
-		$1 == c && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
+	local out src=${3:-${Q_SRC:-}}
+	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v w="${COLS:-80}" \
+	                            -v C="$C" -v N="$N" '
+		$1 == c && $3 != src && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
 		END {
 			# the fullest line that still fits a row, not the shortest: a real
 			# invocation with its arguments teaches more than a bare command

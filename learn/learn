@@ -238,6 +238,9 @@ blk_load() {
 	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$1" > "$blk"
 
 	Q_ID="$2"
+	# which block this is, in the same shape the example index uses: a card
+	# must never offer the answer on screen as an "example" of the command
+	Q_SRC="${1##*/}:$2"
 	Q_TPL=$(sed -n 's/^q: \{0,1\}//p' "$blk")
 	Q_PROMPT=$(printf '%s\n' "$Q_TPL" | render "$seed")
 	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
@@ -1428,6 +1431,15 @@ c' 20)" = 3 ] || exit 1
 	  examples_cached | grep -q '@[a-z0-9][a-z0-9]*@' && exit 1
 	  # and an awk program keeps its braces: they are code, not a choice
 	  examples_cached | grep -q "awk '{print" || exit 1
+	  # the block index an example carries is the one blk_load addresses, so a
+	  # card can refuse its own answer. prove it on a real block, both ways.
+	  own=$(examples_cached | awk -F"\t" '$1 == "tar" { print $3; exit }')
+	  line=$(examples_cached | awk -F"\t" '$1 == "tar" { print $2; exit }')
+	  ref_examples tar "" ""     | grep -qF "$line" || exit 1
+	  ref_examples tar "" "$own" | grep -qF "$line" && exit 1
+	  # and no example is claimed by two blocks, or the card would hand over
+	  # the answer to whichever of them the learner is sitting on
+	  [ -z "$(examples_cached | cut -f2 | sort | uniq -d)" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL ref_card/ref_examples: budget, taught-only or example pick" >&2; bad=$((bad+1)); }
 
