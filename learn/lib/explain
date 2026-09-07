@@ -109,7 +109,13 @@ examples_cached() {
 		# pool) has no entry, so any line still holding one is dropped: a
 		# literal @needle@ on a card would read as a typo in the trainer.
 		{ token_pools | while read -r _t _p; do
-			_v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | head -1)
+			# the roll draws @x@ and @x2@ from one pool and guarantees they
+			# differ; settle them on the first two values, or an example reads
+			# "cp -i config.ini config.ini"
+			case "$_t" in
+				*2) _v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | sed -n 2p) ;;
+				*)  _v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | head -1) ;;
+			esac
 			[ -n "$_v" ] && printf 's|@%s@|%s|g\n' "$_t" "$_v"
 		  done
 		  printf 's|@n@|3|g\ns|@n3@|5|g\n'; } > "$TMP/examples.sed"
