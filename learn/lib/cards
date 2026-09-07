@@ -31,8 +31,14 @@ cards_init() {
 # cut power between the two) and under a lock (two consoles each running
 # learn used to rewrite the whole file from their own copy, last one wins).
 # flock is a shipped applet; where it is missing the rename alone still holds.
-_cards_lock()   { exec 8>>"$CARDS.lock" 2>/dev/null && flock -x 8 2>/dev/null; :; }
-_cards_unlock() { flock -u 8 2>/dev/null; exec 8>&- 2>/dev/null; :; }
+#
+# the braces are load-bearing: a redirection on a bare `exec` applies to the
+# SHELL, permanently. `exec 8>>f 2>/dev/null` sent this process's stderr to
+# /dev/null for the rest of its life -- every die, every selftest FAIL line,
+# gone from the first lock onward, leaving a bad count with no reason beside
+# it. inside a group the redirection lasts only as long as the group.
+_cards_lock()   { { exec 8>>"$CARDS.lock"; } 2>/dev/null && flock -x 8 2>/dev/null; :; }
+_cards_unlock() { flock -u 8 2>/dev/null; { exec 8>&-; } 2>/dev/null; :; }
 
 # a card is keyed by the TEMPLATE, not the rendered prompt. the roll changes
 # the filenames every time; what you are learning is the shape of the question,
