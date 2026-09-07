@@ -1325,6 +1325,32 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
 
+	# the tab panel's row count. closing the panel climbs back over exactly
+	# this many rows, so an off-by-one here reprints the answer line on top of
+	# the question -- and nothing else in the trainer would notice.
+	rows() { printf '%s' "$1" | _ed_panel_fit "$2" 99 '' x | head -1; }
+	( [ "$(rows 'a
+b
+c' 20)" = 3 ] || exit 1
+	  [ "$(rows '
+
+' 20)" = 2 ] || exit 1                        # blank lines still fill a row
+	  [ "$(rows "$(printf '%20s' '')" 20)" = 1 ] || exit 1   # exactly full: one row
+	  [ "$(rows "$(printf '%21s' '')" 20)" = 2 ] || exit 1   # one over: two
+	  [ "$(rows "$(printf '%40s' '')" 20)" = 2 ] || exit 1   # exactly two
+	  [ "$(rows "$(printf '%41s' '')" 20)" = 3 ] || exit 1
+	  # colour takes no cells: the same twenty characters, painted
+	  [ "$(rows "$E_ESC[36m$(printf '%20s' '')$E_ESC[0m" 20)" = 1 ] || exit 1
+	  # too tall: cut to the budget, and the cut says how much it took. narrow
+	  # on purpose -- the marker itself wraps to two rows here, which is the
+	  # case a flat one-row reservation for it gets wrong.
+	  cut=$(printf 'l%s\n' 1 2 3 4 5 6 7 8 9 10 | _ed_panel_fit 20 5 '' ls)
+	  [ "$(printf '%s' "$cut" | head -1)" = 5 ] || exit 1
+	  [ "$(printf '%s\n' "$cut" | sed 1d | grep -c '')" = 4 ] || exit 1
+	  [ "$(printf '%s' "$cut" | tail -1)" = "7 more lines -- learn ref ls" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_panel_fit: panel row count or cut" >&2; bad=$((bad+1)); }
+
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
 	# survival -- the subshell turns a fatal ash error into a caught failure.
@@ -1394,7 +1420,7 @@ usage() {
 
 	at a question: type your answer with full vi editing -- Esc for normal
 	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
-	?  hint    Tab or man  the reference    skip  reveal
+	?  hint    Tab  the reference, Tab again to close    skip  reveal
 	quit, :q, normal-mode q, or Ctrl-D all leave.
 	EOF
 }
