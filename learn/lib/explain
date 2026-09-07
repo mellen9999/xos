@@ -98,7 +98,7 @@ _prows() {
 # the answers the corpus itself teaches for a command, cached once per process:
 # real lines, already graded, so an example can never drift from what the
 # trainer accepts. templated answers are skipped -- @txt@ is not something to
-# type. built from the levels and the missions both.
+# type. built from the levels, the missions and the gauntlet alike.
 examples_cached() {
 	[ -s "$TMP/examples.all" ] || {
 		# a sed script that fills every @token@ with the first value of its own
@@ -130,7 +130,7 @@ examples_cached() {
 		/^a: /    { l = $0; sub(/^a: /, "", l); A[++n] = l; next }
 		/^ref: /  { r = $2 }
 		END       { flush2() }
-		' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null \
+		' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
 		| sed -f "$TMP/examples.sed" \
 		| sort -u > "$TMP/examples.all"
 	}
