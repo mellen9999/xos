@@ -254,7 +254,7 @@ q_load() {
 # ---- the question loop ----------------------------------------------------
 
 ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
-	local key tier input tries=0 revealed=0
+	local key tier input tries=0 revealed=0 _said
 	q_load "$1" "$2" || return 1
 	ED_OPEN=                  # every question starts with no panel open
 	# a meta reply (?, blank, the man/tab words) re-asks the same line: wipe its
@@ -270,13 +270,23 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		*)              key=$(card_key "$1" "$2" "$Q_TPL") ;;
 	esac
 
-	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
+	# the rows this block spends, counted as they are printed rather than
+	# guessed at: the panel opens under the answer line and gets whatever is
+	# left, so a question with a long setup must shrink the panel, not run it
+	# off the bottom of the screen.
+	Q_ROWS=3                  # status bar, its rule, the answer line itself
+	if [ -n "$Q_SETUP" ]; then
+		_said=$(printf '%s\n' "$Q_SETUP" | say)
+		printf '%s\n\n' "$_said"
+		Q_ROWS=$(( Q_ROWS + 1 + $(printf '%s\n' "$_said" | _prows "${COLS:-80}") ))
+	fi
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+	Q_ROWS=$(( Q_ROWS + (2 + ${#Q_PROMPT}) / ${COLS:-80} + 1 ))
 	# the two panels you can open at a card: ? for the hint, Tab for the
 	# reference, either key again closes it. there is no skip -- two misses
 	# reveal the answer, and a card you don't know is a card worth missing.
 	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- in help, not here.
-	[ "$MODE" = learn ] && note "? hint · tab ref"
+	[ "$MODE" = learn ] && { note "? hint · tab ref"; Q_ROWS=$(( Q_ROWS + 1 )); }
 
 	while :; do
 		if [ "$MODE" = boss ]; then

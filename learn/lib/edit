@@ -150,11 +150,12 @@ _ed_panel_load() {
 		|| { ED_PANEL= ED_PANEL_ROWS=0 ED_OPEN=; return 0; }
 	lrows=$(( (2 + ${#L} + ${#R}) / w + 1 ))
 	# what is left of the screen under the answer line, once the block above it
-	# has its own: a status bar, the question, the affordance line and the blank
-	# a setup blurb sometimes adds -- eight rows covers that with one to spare
-	# for the answer line taking a row while the panel is open. getting it wrong
-	# costs the question its place on the screen, never the redraw its footing.
-	max=$(( ${TERM_LINES:-24} - lrows - 8 ))
+	# has taken its own. ask() counts those rows as it prints them (Q_ROWS) --
+	# guessing at a flat number let a question with a long setup push the panel
+	# off the bottom. one row is held back for the miss line a wrong answer
+	# prints under it. getting this wrong costs the question its place on the
+	# screen, never the redraw its footing.
+	max=$(( ${TERM_LINES:-24} - lrows - ${Q_ROWS:-6} - 2 ))
 	[ "$max" -ge 3 ] || max=3
 	# one region, two sources: Tab fills it with the reference, ? with the hint.
 	# opening one closes the other, and neither ever scrolls the question off the
