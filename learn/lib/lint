@@ -170,3 +170,37 @@ qwidth_over() {
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
 }
+
+# ---- cmp: ref against a moving target -------------------------------------
+#
+# cmp: ref grades by running the first listed answer and comparing the
+# learner's output to it. that is only sound when the two runs see the same
+# world. reading the image's own files is fine -- they are read-only and
+# identical on every boot -- but a command whose output changes between two
+# consecutive runs makes the gate fail at random, on a busy machine, hours
+# after the change that "caused" it. this has bitten twice: a mount-option
+# question that raced another process mounting something, and a socket list.
+#
+# cmpref_moving -- prints every cmp: ref block whose answer cannot repeat.
+cmpref_moving() {
+	awk '
+		function flush(   a) {
+			if (inblk && cmp && ans != "") {
+				a = ans
+				# commands that report what the machine is doing right now
+				if (a ~ /(^|[ |;&(])(netstat|ps|top|free|uptime|date|dmesg|pgrep|pidof|lsof|fuser)([ |;&)]|$)/)
+					printf "  %s: cmp: ref over live state -- %s\n", bf, a
+				# /proc/mounts is only steady if the answer pins one mount;
+				# scanning every row races anything that mounts or unmounts
+				else if (a ~ /\/proc\/mounts/ && a !~ /\$2[ ]*==[ ]*"\/"/ && a !~ /" \/ "/)
+					printf "  %s: cmp: ref over every mount -- %s\n", bf, a
+			}
+			inblk = 0; cmp = 0; ans = ""
+		}
+		FNR == 1 { flush() }
+		/^---$/  { flush(); inblk = 1; bf = FILENAME; next }
+		inblk && /^cmp: ref/ { cmp = 1 }
+		inblk && /^a: / && ans == "" { ans = $0; sub(/^a: /, "", ans) }
+		END { flush() }
+	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
+}

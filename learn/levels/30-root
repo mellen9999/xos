@@ -81,7 +81,7 @@ setup: And nothing writable may be executable, or the read-only root is a
 setup: formality.
 q: %show% every writable filesystem and whether it is mounted noexec
 a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
-cmp: ref
+why: live-hw
 ref: awk
 teach: awk
 hint: $4 ~ /rw/ matches writable filesystems by their mount options

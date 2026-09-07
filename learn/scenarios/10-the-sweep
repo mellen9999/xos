@@ -14,7 +14,7 @@ setup: listener you put there: dropbear, bound to the wireguard address alone.
 setup: Anything listening on 0.0.0.0 or a public port is not yours.
 q: list every listening tcp socket and the program holding it open
 a: netstat -tlnp
-cmp: ref
+why: live-net
 ref: netstat
 teach: netstat -t
 teach: netstat -l
@@ -168,7 +168,7 @@ setup: kernel cannot be reached. One line to state the verdict: the machine is
 setup: running the code you signed, and nothing is listening for anyone else.
 q: the root device with its options, and nothing waiting on the network
 a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
-cmp: ref
+why: live-net
 ref: awk
 teach: awk
 hint: two facts in one breath -- the root is yours, the ports are quiet
