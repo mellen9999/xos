@@ -67,6 +67,25 @@ explain_syntax() {
 	return $(( 1 - found ))
 }
 
+# _ref_rows FILE -- the page with every flag row tab-separated. busybox writes
+# most of them as "\t-n N\tdescription", but a dozen use a plain space instead
+# ("-k N[,M] Sort by Nth field"), and a renderer that trusts the tab prints
+# those as one long flag and lands the next column ragged. the split: the flag,
+# then any following word carrying no lowercase letter (CMD, ARG, N[,M], +, ;)
+# belongs to it -- the description starts at the first real word.
+_ref_rows() {
+	awk '
+		/^\t/ && $0 !~ /\t.*\t/ {
+			l = $0; sub(/^\t+/, "", l)
+			n = split(l, t, " "); f = t[1]; i = 2
+			while (i <= n && t[i] !~ /[a-z]/) { f = f " " t[i]; i++ }
+			d = ""
+			for (; i <= n; i++) d = d (d == "" ? "" : " ") t[i]
+			print "\t" f (d == "" ? "" : "\t" d); next
+		}
+		{ print }' "$1"
+}
+
 # _prows WIDTH -- display rows the text on stdin takes at WIDTH, colour codes
 # not counted. the panel budget is in rows, and a line that wraps costs two.
 _prows() {
@@ -130,6 +149,7 @@ ref_card() {
 	r=$(refname "$1")
 	[ -f "$REF/$r" ] || return 1
 	taught=$(taught_cached | awk -v c="$1" '$1 == c { printf " %s", $2 }')
+	_ref_rows "$REF/$r" |
 	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
 	    -v vs="$(vs_of "$1")" -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
@@ -204,7 +224,7 @@ ref_card() {
 		}
 		function foot(k, c, D, N) {
 			printf "  %s%d more flag%s -- learn ref %s%s\n", D, k, k == 1 ? "" : "s", c, N
-		}' "$REF/$r"
+		}'
 }
 
 # ref_panel_text ANSWER -- the tab/man panel: what the command is, the shell

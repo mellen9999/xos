@@ -71,6 +71,7 @@ ref() {
 	# a framed, tab-aligned page -- the raw file is busybox --help with hard tabs
 	# that render at whatever tabstop the terminal happens to use. this pins the
 	# flag column to one width and wraps the whole thing in rules, top and bottom.
+	_ref_rows "$REF/$_r" |
 	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" \
 	    -v vs="$(vs_of "$1")" '
 		function rl(   i,s){ s=""; for(i=0;i<cols;i++) s=s"-"; return D s N }
@@ -112,7 +113,7 @@ ref() {
 				}
 			}
 			print rl()
-		}' "$REF/$_r"
+		}'
 }
 
 surface() { ls -1 "$REF" 2>/dev/null | sed 's/^dot$/./' | sort; }
