@@ -266,12 +266,10 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 
 	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
-	if [ "$MODE" = learn ]; then
-		# the vi level asks for :q and q -- there they are answers, and the
-		# trainer's own quit moves to :qa
-		if [ "${Q_REF:-}" = vi ]; then note "? hint · tab ref · skip · :qa quits (:q, q are answers)"
-		else note "? hint · tab ref · skip · quit"; fi
-	fi
+	# one line for every card: q, :q and :qa are all answers somewhere in the
+	# curriculum, so none of them may quit. leaving is the typed word `quit`,
+	# or Ctrl-C / Ctrl-D -- three things that are never an answer.
+	[ "$MODE" = learn ] && note "? hint · tab ref · skip · quit"
 
 	while :; do
 		if [ "$MODE" = boss ]; then
@@ -296,8 +294,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			input="$REPLY_LINE"
 		fi
 		case "$input" in
-			quit|:qa) return 2 ;;
-			:q)       [ "${Q_REF:-}" = vi ] || return 2 ;;
+			quit)     return 2 ;;
 			'')       continue ;;
 			'?'|hint)
 				if [ "$MODE" != learn ]; then
@@ -1421,7 +1418,7 @@ usage() {
 	at a question: type your answer with full vi editing -- Esc for normal
 	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
 	?  hint    Tab  the reference, Tab again to close    skip  reveal
-	quit, :q, normal-mode q, or Ctrl-D all leave.
+	type quit, or press Ctrl-C / Ctrl-D, to leave.
 	EOF
 }
 

@@ -132,8 +132,8 @@ statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 # nothing automated ever hangs here.
 pause_card() {
 	[ -t 0 ] || return 0
-	printf '\n  %s[enter] next  %s·%s  quit%s ' "$D" "$D" "$D" "$N"
+	printf '\n  %s[enter] next %s·%s quit%s ' "$D" "$D" "$D" "$N"
 	IFS= read -r _pc 2>/dev/null || { echo; return 2; }
-	case "$_pc" in quit|:q) return 2 ;; esac
+	case "$_pc" in quit) return 2 ;; esac
 	return 0
 }
