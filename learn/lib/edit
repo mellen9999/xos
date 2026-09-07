@@ -39,7 +39,7 @@ ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
 # ED_OPEN names the panel the learner has open (ref | hint | empty). it outlives
 # the meta round-trips within one question, so a hint or reference stays up while
 # you keep typing; ED_ROWS_USED is how many rows the finished line took, so the
-# caller can wipe a ?/skip echo instead of letting it walk the prompt downscreen.
+# caller can wipe a ?/Tab echo instead of letting it walk the prompt downscreen.
 ED_OPEN= ED_ROWS_USED=0
 
 # redraw: reprint the line after the prompt, clear to end, park the cursor. the
@@ -216,7 +216,7 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	_ed_leave() {
 		local _w=${TERM_COLS:-80}; [ "$_w" -gt 0 ] 2>/dev/null || _w=80
 		# how many rows the finished line occupied: a caller re-asking after a
-		# ?/skip/blank submit climbs back over exactly these and clears, so the
+		# ?/Tab/blank submit climbs back over exactly these and clears, so the
 		# echo does not push the prompt a line downscreen every time.
 		ED_ROWS_USED=$(( (2 + ${#L} + ${#R}) / _w + 1 ))
 		ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0

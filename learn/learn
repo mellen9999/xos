@@ -272,11 +272,11 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 
 	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
-	# the two panels you can open at a card (? for the hint, Tab for the
-	# reference, either key again closes it), then the one word that passes it.
-	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- documented in help,
-	# never an answer, and not a per-card affordance worth the width here.
-	[ "$MODE" = learn ] && note "? hint · tab ref · skip"
+	# the two panels you can open at a card: ? for the hint, Tab for the
+	# reference, either key again closes it. there is no skip -- two misses
+	# reveal the answer, and a card you don't know is a card worth missing.
+	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- in help, not here.
+	[ "$MODE" = learn ] && note "? hint · tab ref"
 
 	while :; do
 		if [ "$MODE" = boss ]; then
@@ -326,17 +326,6 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 					ref_panel "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				fi
 				continue ;;
-			skip)
-				if [ "$MODE" = boss ]; then
-					# a free reveal at zero time cost is not a boss round --
-					# skip just costs the question, same as any other wrong
-					card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
-					no "no skipping a boss. that's the question, unanswered."
-					return 1
-				fi
-				card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
-				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
-				return 1 ;;
 		esac
 
 		if correct "$input"; then
@@ -364,7 +353,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 			return 1
 		fi
-		no "not that. one more try (or 'skip')."
+		no "not that. one more try."
 	done
 }
 
@@ -1444,7 +1433,7 @@ usage() {
 
 	at a question: type your answer with full vi editing -- Esc for normal
 	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
-	?  hint    Tab  the reference, Tab again to close    skip  reveal
+	?  hint    Tab  the reference, Tab again to close
 	type quit, or press Ctrl-C / Ctrl-D, to leave.
 	EOF
 }
