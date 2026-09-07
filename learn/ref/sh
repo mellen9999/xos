@@ -14,23 +14,26 @@ installed -- there is no second parser to fall back to or to be surprised by.
 
 The grammar you will actually use:
 
-	name=value		assign; no spaces around the =
-	$name  ${name}		expand it
-	"$name"			expand it as ONE word, spaces and all
-	${name:-default}	its value, or default if unset or empty
-	${#name}		how many characters long it is
-	$(cmd)			run cmd, become its output
+	NAME=VALUE		assign; no spaces around the =
+	$NAME  ${NAME}		expand it
+	"$NAME"			expand it as ONE word, spaces and all
+	${NAME:-DEFAULT}	its value, or DEFAULT if unset or empty
+	${#NAME}		how many characters long it is
+	$(CMD)			run CMD, become its output
 	$((2 + 3))		arithmetic
-	cmd1 | cmd2		wire stdout into stdin
-	cmd > f  >> f  < f	redirect out, append, in
-	cmd 2> f  cmd > f 2>&1	errors only; both, in that order
-	cmd1 && cmd2		run cmd2 only if cmd1 succeeded
-	cmd1 || cmd2		run cmd2 only if cmd1 failed
-	cmd &			run in the background
+	CMD1 | CMD2		wire stdout into stdin
+	CMD > FILE		redirect stdout to FILE, replacing it
+	CMD >> FILE		append instead, keeping what is there
+	CMD < FILE		read stdin from FILE
+	CMD 2> FILE		errors (fd 2) only
+	CMD > FILE 2>&1		both channels, in that order
+	CMD1 && CMD2		run CMD2 only if CMD1 succeeded
+	CMD1 || CMD2		run CMD2 only if CMD1 failed
+	CMD &			run in the background
 	$?  $$  $!  $#  $@  $0	status, pid, bg pid, argc, args, own name
 
 What ash deliberately does NOT have, because bash is not installed: arrays,
-associative arrays, process substitution <(cmd), here-strings <<<, and
+associative arrays, process substitution <(CMD), here-strings <<<, and
 [[ ]]. Use [ ] and a pipe. Every one of those omissions is a parser feature
 that has carried a vulnerability at some point.
 

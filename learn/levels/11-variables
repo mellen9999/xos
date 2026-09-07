@@ -1,19 +1,19 @@
 name: variables
 boss: $VARIABLE
 flavor: I hold what you've forgotten.
-syntax: ;, name=, ${#name}, ${name:-x}, ${name}, $(cmd)
-brief: A variable is name=value, with no spaces around the =. You read it back
-brief: with $name. Command substitution $(cmd) runs a command and becomes its
+syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME}, $(CMD)
+brief: A variable is NAME=VALUE, with no spaces around the =. You read it back
+brief: with $NAME. Command substitution $(CMD) runs a command and becomes its
 brief: output, which is how you get a number out of wc and into a comparison.
 brief:
 brief: Quote your expansions. "$x" is one word even when the value has spaces;
 brief: $x is however many words the value happens to split into. Nearly every
 brief: shell script bug that survives review is a missing pair of quotes.
 brief:
-brief: ${name} is the same expansion with braces around it -- they let you glue
+brief: ${NAME} is the same expansion with braces around it -- they let you glue
 brief: text right after a variable without the shell reading it as part of the
-brief: name. ${#name} gives its length, ${name:-x} substitutes x only when
-brief: name is unset or empty.
+brief: name. ${#NAME} gives its length, ${NAME:-WORD} substitutes WORD only
+brief: when NAME is unset or empty.
 brief:
 brief: ; runs the next command regardless of what the last one did. && only
 brief: runs it if the last one succeeded -- the difference matters the moment
@@ -31,7 +31,7 @@ a: @var@=@word@; echo $@var@
 out: @word@
 ref: echo
 teach: echo
-hint: $name (or ${name}) is how you read a variable back
+hint: $NAME (or ${NAME}) is how you read a variable back
 ---
 q: {grab the current timestamp into a variable called @tvar@ so you can reuse it|save right-now's date and time in @tvar@ before it changes|stash the current timestamp in @tvar@ for later}
 a: @tvar@=$(date)

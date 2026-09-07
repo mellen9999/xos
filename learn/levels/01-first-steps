@@ -1,7 +1,7 @@
 name: first steps
 boss: n00b
 flavor: You don't know where you are yet.
-syntax: $name
+syntax: $NAME
 brief: Three commands answer "where am I, and what is here". pwd prints the
 brief: directory you are standing in. ls lists what it contains. cd moves you.
 brief: Everything else in this system is those three plus a filter.

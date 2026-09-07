@@ -31,7 +31,7 @@ arith	\$\(\(	$((...)) evaluates arithmetic, e.g. $((2 + 3))
 |	\|	pipe: wire this command stdout into the next command stdin
 ;	;	run one command then the next, no matter what
 --	(^|[[:space:]])--([[:space:]]|$)	end of options -- everything after is a literal argument, even one that starts with -
-name=	^[A-Za-z_][A-Za-z0-9_]*=	name=value sets a variable, no spaces around the =
+NAME=	^[A-Za-z_][A-Za-z0-9_]*=	NAME=VALUE sets a variable, no spaces around the =
 $?	\$\?	exit status of the last command -- 0 means success
 $$	\$\$	the process id of this shell
 $!	\$!	the process id of the last command started with &
@@ -40,13 +40,13 @@ $@	\$@	all positional parameters, each kept as its own word
 $*	\$\*	all positional parameters joined into one word
 $0	\$0	the name the script or shell was invoked as
 $1..$9	\$[1-9]	a positional parameter -- $1 is the first argument
-${#name}	\$\{#	the length of a variable in characters: ${#name}
-${name:-x}	\$\{[A-Za-z_][A-Za-z0-9_]*:-	a variable value, or a default if it is unset/empty: ${name:-x}
-${name#%}	\$\{[A-Za-z_][A-Za-z0-9_]*[#%]	strip a prefix (#) or suffix (%) off a variable: ${f%.log}
-${name}	\$\{	expand a variable; braces let you glue text right after it
-$(cmd)	\$\(	command substitution: run a command and become its output
-`cmd`	`	command substitution, the older form of $(...)
-$name	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value
+${#NAME}	\$\{#	the length of a variable in characters: ${#NAME}
+${NAME:-WORD}	\$\{[A-Za-z_][A-Za-z0-9_]*:-	a variable value, or WORD if it is unset/empty: ${NAME:-WORD}
+${NAME#%}	\$\{[A-Za-z_][A-Za-z0-9_]*[#%]	strip a prefix (#) or suffix (%) off a variable: ${NAME%.log}
+${NAME}	\$\{	expand a variable; braces let you glue text right after it
+$(CMD)	\$\(	command substitution: run a command and become its output
+`CMD`	`	command substitution, the older form of $(...)
+$NAME	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value
 !	!	negate: flips success and failure -- runs if the command failed
 ( )	\(	runs the commands in a fresh subshell -- variables set inside do not survive it
 { }	\{ 	runs the commands in the current shell, grouped as one

@@ -7,6 +7,13 @@
 
 SYNTAX="$ROOT/syntax"
 
+# the panel's left column -- command names above, syntax labels below, one
+# column through both. as wide as the widest label the table actually holds:
+# it was five copies of a hardcoded 9, and the first label to outgrow that
+# sheared the column on every row it appeared in.
+EXP_W=$(awk -F'\t' 'substr($1,1,1)!="#" && NF>1 && length($1)>w{w=length($1)} END{print w+0}' "$SYNTAX" 2>/dev/null)
+[ "${EXP_W:-0}" -ge 1 ] 2>/dev/null || EXP_W=9
+
 # explain_syntax LINE -- print a gloss for each shell construct the line uses,
 # longest form first. single-quoted spans (awk and sed scripts) are stripped
 # first, so an awk $1 or $NF or a sed \1 inside a script is never mistaken for a
@@ -45,22 +52,22 @@ explain_syntax() {
 	tab=$(printf '\t')
 
 	case "$1" in
-		*\'*) printf "  %s%-9s%s %s\n" "$C" "'...'" "$N" \
+		*\'*) printf "  %s%-${EXP_W}s%s %s\n" "$C" "'...'" "$N" \
 			"everything inside is literal -- no expansion, no splitting"; found=1 ;;
 	esac
 	case "$1" in
-		*\"*) printf '  %s%-9s%s %s\n' "$C" '"..."' "$N" \
+		*\"*) printf "  %s%-${EXP_W}s%s %s\n" "$C" '"..."' "$N" \
 			'groups into one word but $expansions still happen'; found=1 ;;
 	esac
 	case "$1" in
-		*\\*) printf '  %s%-9s%s %s\n' "$C" '\' "$N" \
+		*\\*) printf "  %s%-${EXP_W}s%s %s\n" "$C" '\' "$N" \
 			"protects the next character"; found=1 ;;
 	esac
 
 	while IFS="$tab" read -r label gloss; do
 		[ -n "$label" ] || continue
 		found=1
-		printf '  %s%-9s%s %s\n' "$C" "$label" "$N" "$gloss"
+		printf "  %s%-${EXP_W}s%s %s\n" "$C" "$label" "$N" "$gloss"
 	done <<-EOF
 	$(_syn_scan "$1")
 	EOF
@@ -307,11 +314,11 @@ ref_panel_text() {
 # shell syntax holding them together. `learn <cmd>` still prints a full page;
 # this reads a whole pipeline at once.
 explain() {
-	[ $# -ge 1 ] || die "usage: learn explain '<command line>'"
+	[ $# -ge 1 ] || die "usage: learn explain 'COMMAND LINE'"
 	local line="$*" c r
 	printf '%s\n' "$line" | answer_cmds | awk 'NF' | sort -u | while read -r c; do
 		r=$(refname "$c")
-		[ -f "$REF/$r" ] && printf '  %s%-9s%s %s\n' "$W" "$c" "$N" "$(sed -n '2p' "$REF/$r")"
+		[ -f "$REF/$r" ] && printf "  %s%-${EXP_W}s%s %s\n" "$W" "$c" "$N" "$(sed -n '2p' "$REF/$r")"
 	done
 	echo
 	printf '  %sshell syntax%s\n' "$U" "$N"

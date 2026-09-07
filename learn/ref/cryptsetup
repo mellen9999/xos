@@ -1,5 +1,5 @@
 cryptsetup
-Usage: cryptsetup <action> [options] <device> [name]
+Usage: cryptsetup ACTION [OPTIONS] DEVICE [NAME]
 
 Set up encrypted block devices. On xos this is what p3 -- the state
 partition -- is built with, and it is the only way anything survives a

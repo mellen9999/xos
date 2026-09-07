@@ -8,8 +8,8 @@ The ssh CLIENT. Connect out from xos to another machine.
 	-l USER		remote username
 	-J CMD		proxy through a command
 	-N		do not run a command (just forward ports)
-	-L l:h:p	forward a local port to a remote host:port
-	-R l:h:p	forward a remote port back to a local host:port
+	-L LPORT:HOST:PORT	forward a local port to a remote host:port
+	-R RPORT:HOST:PORT	forward a remote port back to a local host:port
 	-f		background after authenticating
 
 	dbclient -i /state/id root@10.9.0.1

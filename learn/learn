@@ -61,7 +61,7 @@ refname() { [ "$1" = "." ] && echo dot || echo "$1"; }
 vs_of() { awk -F'\t' -v c="$1" '$1 == c { print $2; exit }' "$VS" 2>/dev/null; }
 
 ref() {
-	[ $# -ge 1 ] || die "usage: learn ref <command>"
+	[ $# -ge 1 ] || die "usage: learn ref COMMAND"
 	_r=$(refname "$1")
 	if [ ! -f "$REF/$_r" ]; then
 		echo "learn: no entry for '$1'" >&2
@@ -119,7 +119,7 @@ ref() {
 surface() { ls -1 "$REF" 2>/dev/null | sed 's/^dot$/./' | sort; }
 
 search() {
-	[ $# -ge 1 ] || die "usage: learn -k <keyword>"
+	[ $# -ge 1 ] || die "usage: learn -k KEYWORD"
 	grep -rl -i -- "$1" "$REF" 2>/dev/null | sed "s|^$REF/||" | sort | while read -r c; do
 		printf '  %-14s %s\n' "$c" "$(sed -n '2p' "$REF/$c" 2>/dev/null)"
 	done
@@ -547,7 +547,7 @@ victory() {
 	  no reason to trust.
 
 	    learn stats    what you kept, not what you passed once
-	    learn <n>      any level again. the questions are generated, so
+	    learn N        any level again. the questions are generated, so
 	                   they will not be the ones you memorised
 	EOF
 	echo
@@ -1286,6 +1286,17 @@ selftest() {
 	EOF
 	[ "$hits" -ge 6 ] || { echo "FAIL syntax battery went dark ($hits lines matched)" >&2; bad=$((bad+1)); }
 
+	# every label a level DECLARES must be a row in the table. order_syntax
+	# only ever asks whether a required construct was declared, so a label
+	# renamed in the table and missed in a header declares nothing and says
+	# nothing -- until the day a question needs it.
+	local undecl
+	cut -f1 "$SYNTAX" | grep -v '^#' > "$TMP/synlab"
+	undecl=$(sed -n 's/^syntax: *//p' "$LEVELS"/* | tr ',' '\n' \
+		| sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u \
+		| grep -vxF -f "$TMP/synlab" || true)
+	[ -z "$undecl" ] || { echo "FAIL syntax: declared but not in the table: $(echo $undecl)" >&2; bad=$((bad+1)); }
+
 	# the unsafe() fence is what makes execution grading survivable: prove it
 	# refuses what must never run and still admits what the lessons teach.
 	# both directions matter -- an over-eager fence silently downgrades honest
@@ -1542,19 +1553,19 @@ ctx_init
 usage() {
 	cat <<-EOF
 	learn                 the main menu (or resumes, when piped)
-	learn <n>             practice level n
-	learn brief <n>       reprint level n's teaching brief
-	learn ref <cmd>       the reference entry for a command
-	learn <cmd>           same, shorthand
-	learn -k <word>       search the corpus
+	learn N               practice level N
+	learn brief N         reprint level N's teaching brief
+	learn ref CMD         the reference entry for a command
+	learn CMD             same, shorthand
+	learn -k WORD         search the corpus
 	learn list            every command xos ships
 	learn place           placement: skip past the levels you already know
-	learn review [n]      re-ask your weakest cards, weakest first
+	learn review [N]      re-ask your weakest cards, weakest first
 	learn daily           today's one -- a hard card under the clock, same everywhere
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
-	learn scenario [name] missions -- narrative pipelines, or the list of unlocked ones
-	learn autopsy [file]  your own shell history, held up to the curriculum
-	learn explain <line>  every command's summary plus the shell syntax in it
+	learn scenario [NAME] missions -- narrative pipelines, or the list of unlocked ones
+	learn autopsy [FILE]  your own shell history, held up to the curriculum
+	learn explain LINE    every command's summary plus the shell syntax in it
 	learn stats           what you have mastered
 	learn reset           forget all progress
 
@@ -1654,7 +1665,7 @@ case "${1:-}" in
 	          session_summary ;;
 	ref)      shift; ref "$@" ;;
 	brief)    shift; _id=$(level_ids | grep "^0*${1:-}-" | head -1)
-	          [ -n "$_id" ] || die "usage: learn brief <n>"
+	          [ -n "$_id" ] || die "usage: learn brief N"
 	          hdr "$(level_field "$_id" name)" "level ${_id%%-*}"
 	          level_field "$_id" brief | say ;;
 	-k)       shift; search "$@" ;;

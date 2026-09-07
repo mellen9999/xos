@@ -1,5 +1,5 @@
 learn
-Usage: learn [ref CMD | -k WORD | list | progress | reset]
+Usage: learn [N | ref CMD | -k WORD | list | stats | reset]
 
 This program. Teaches the xos command surface from nothing to fluent,
 in order, and never asks a question it has not already given you the
@@ -10,7 +10,7 @@ material to answer.
 	learn ls		same thing, shorthand
 	learn -k pipe		search every entry for a word
 	learn list		every documented command
-	learn progress		how far along you are
+	learn stats		how far along you are
 	learn reset		start the curriculum over
 
 Inside a question: ? prints the reference, hint gives a nudge, skip
