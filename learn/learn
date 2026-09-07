@@ -269,8 +269,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	if [ "$MODE" = learn ]; then
 		# the vi level asks for :q and q -- there they are answers, and the
 		# trainer's own quit moves to :qa
-		if [ "${Q_REF:-}" = vi ]; then note "? hint · tab reference · skip reveals · :qa leaves -- :q and q are answers here"
-		else note "? hint · tab reference · skip reveals · quit leaves -- answers really run"; fi
+		if [ "${Q_REF:-}" = vi ]; then note "? hint · tab ref · skip · :qa quits (:q, q are answers)"
+		else note "? hint · tab ref · skip · quit"; fi
 	fi
 
 	while :; do
@@ -1467,19 +1467,19 @@ menu() {
 		hdr "learn" "the shell, one card at a time"
 		printf '  '; bar "$p" "$t" 20; printf ' %s%s/%s levels beaten%s\n\n' "$D" "$p" "$t" "$N"
 
-		_mi c continue  "resume where you left off"
-		_mi p practice  "drill any level by number"
-		_mi r review    "your weakest cards, first"
-		_mi d daily     "today's ten, the same for everyone"
-		if [ "$unlocked" = 1 ]; then _mi g gauntlet "the endgame -- 30s a stage, one life"
-		else _mi_off g gauntlet "locked until every boss has fallen"; fi
-		_mi x placement "skip past what you already know"
-		_mi f find      "look up any command's reference"
-		if scenarios_any_unlocked; then _mi m missions "narrative pipelines, on real machine state"
+		_mi c continue  "where you left off"
+		_mi p practice  "any level by number"
+		_mi r review    "weakest cards first"
+		_mi d daily     "today's ten, same for all"
+		if [ "$unlocked" = 1 ]; then _mi g gauntlet "30s a stage, one life"
+		else _mi_off g gauntlet "locked until every boss falls"; fi
+		_mi x placement "skip what you know"
+		_mi f find      "any command's reference"
+		if scenarios_any_unlocked; then _mi m missions "pipelines on real machine state"
 		else _mi_off m missions "locked until a level unlocks one"; fi
-		_mi s stats     "what you have mastered"
-		_mi a autopsy   "your own shell history, held up to the curriculum"
-		_mi h help      "usage and every command, printed"
+		_mi s stats     "what you've mastered"
+		_mi a autopsy   "your shell history vs the curriculum"
+		_mi h help      "usage and every command"
 		_mi q quit      ""
 		rule
 		printf '  %schoose%s ' "$D" "$N"
