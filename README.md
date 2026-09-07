@@ -135,7 +135,12 @@ by hand; `learn` teaches the whole flow end to end.
 
 `./build.sh all` generates a platform key (PK), key-exchange key (KEK) and
 signing key (db) under `keys/`, and the public halves land on the stick under
-`/xos-keys/`. to turn secure boot on:
+`/xos-keys/`. the private halves are then encrypted with a passphrase it asks
+you for, and every later build asks for that passphrase to sign. `./build.sh
+reseal` changes it (old first, then new); `XOS_KEYPASS` and `XOS_NEWKEYPASS`
+stand in for the prompts when nobody is at the keyboard. `keys/` is gitignored,
+so the keyset and its passphrase are yours and never leave your machine -- and
+a second clone or git worktree starts with neither. to turn secure boot on:
 
 1. in your firmware setup, clear the existing keys / enter setup mode.
 2. enroll from the stick: `db.der`, then `KEK.der`, then `PK.der` last --

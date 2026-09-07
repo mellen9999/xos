@@ -759,6 +759,13 @@ keys() {
       openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der" || exit 1
     done ) || { echo "FAIL: key generation failed" >&2; return 1; }
   echo "  PK/KEK/db written to keys/ (gitignored, xos-only -- never your host's)"
+  # loud, because the quiet version of this costs a boot. keys/ is gitignored,
+  # so a fresh clone AND every new git worktree starts without one and mints
+  # its own here -- and an image signed by a keyset the firmware has never
+  # heard of does not boot, with nothing in the build saying why.
+  echo "  NOTE: this is a NEW keyset, not the one another clone or worktree holds."
+  echo "        an image signed with it boots only on firmware enrolled to it."
+  echo "        copy keys/ across first if you meant to sign with an existing one."
 }
 
 seal() {
