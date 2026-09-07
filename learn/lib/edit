@@ -142,7 +142,7 @@ _ed_panel_fit() {   # $1 width  $2 max rows  $3 marker prefix  $4 marker suffix
 # screen takes it off again. one place paints, so the panel and the cursor can
 # never disagree about where the line ends.
 _ed_panel_load() {
-	local fit lrows max w=${TERM_COLS:-80} src suf
+	local fit lrows max w=${TERM_COLS:-80} src suf frame
 	ED_LROWS=0        # nothing painted yet: the redraw must draw it in full
 	# closed, or a clock mode that has no panel at all: leave the region empty
 	# and the redraw's clear-to-end-of-screen takes whatever was there off.
@@ -157,6 +157,12 @@ _ed_panel_load() {
 	# screen, never the redraw its footing.
 	max=$(( ${TERM_LINES:-24} - lrows - ${Q_ROWS:-6} - 2 ))
 	[ "$max" -ge 3 ] || max=3
+	# the frame: a rule directly under the answer line and another under the
+	# last row, so the panel is a bounded thing rather than text that starts
+	# where the line happens to stop. the two rules come out of the page's own
+	# budget -- below five rows there is not enough left to frame anything, so
+	# the panel goes bare rather than spending two of its three rows on edges.
+	if [ "$max" -ge 5 ]; then frame=1; max=$(( max - 2 )); else frame=; fi
 	# one region, two sources: Tab fills it with the reference, ? with the hint.
 	# opening one closes the other, and neither ever scrolls the question off the
 	# top the way a printed note does -- the redraw owns the region absolutely.
@@ -176,6 +182,14 @@ _ed_panel_load() {
 	ED_PANEL=${fit#*"$NL"}
 	[ -n "$ED_PANEL" ] || { ED_PANEL_ROWS=0; return 0; }
 	ED_PANEL_ROWS=${fit%%"$NL"*}
+	# the rules are added after the fit, not before it: fed through the fitter
+	# they would be cut like any other row, and the bottom edge would land
+	# above the "N more lines" marker instead of under it. PANEL_RULE cannot
+	# wrap, so each is exactly the one row added here.
+	if [ -n "$frame" ]; then
+		ED_PANEL="$PANEL_RULE$NL$ED_PANEL$NL$PANEL_RULE"
+		ED_PANEL_ROWS=$(( ED_PANEL_ROWS + 2 ))
+	fi
 	return 0
 }
 
