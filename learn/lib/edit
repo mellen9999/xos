@@ -30,13 +30,17 @@ EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
 # yank survives across questions. must exist before the first p/P: under
 # set -u an unset read crashes the lesson mid-question.
 YANK=
+# the reference panel, when Tab has opened it: the rendered page and the number
+# of terminal rows it fills. empty means closed. globals for the same reason
+# YANK is one -- set -u, and the redraw and the toggle both read them.
+ED_PANEL= ED_PANEL_ROWS=0
 
 # redraw: reprint the line after the prompt, clear to end, park the cursor. the
 # whole repaint is wrapped in one synchronised-output frame so a remote terminal
 # never shows a half-drawn line mid-keystroke.
 _ED_ROW=0
 _ed_draw() {   # $1 prompt  $2 L  $3 R   (the prompt is 2 cells wide: "$ ")
-	local _w=${COLS:-80} _p _t _prow _erow
+	local _w=${TERM_COLS:-80} _p _t _prow _erow
 	[ "$_w" -gt 0 ] 2>/dev/null || _w=80
 	_p=$(( 2 + ${#2} ))            # cell index of the cursor (0-based)
 	_t=$(( 2 + ${#2} + ${#3} ))    # cells the whole line occupies
@@ -65,8 +69,83 @@ _ed_last() { _r=${1#"${1%?}"}; }
 # first char of a string
 _ed_first() { _r=${1%"${1#?}"}; }
 
-read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
-	local prompt="${1:-}" L="" R="" mode=insert c c2 c3 _r _pc _quit=
+# fit a rendered page into the rows the panel is allowed: prints the row count
+# it ends up filling, then the text. a page longer than that is cut and the cut
+# is named -- "12 more lines -- learn ref ls" -- because a reference that
+# quietly stops three flags short of the one you needed is worse than no panel.
+#
+# rows, not lines: colour escapes take up no cells and a line wider than the
+# terminal wraps onto further ones. get that count wrong and closing the panel
+# climbs to the wrong row and eats the question. one awk, once per open --
+# never per keystroke.
+_ed_panel_fit() {   # $1 width  $2 max rows  $3 marker prefix  $4 marker suffix
+	awk -v w="$1" -v max="$2" -v pre="$3" -v post="$4" -v e="$E_ESC" '
+		function rw(s,   t, n) {
+			t = s; gsub(e "\\[[0-9;?]*[A-Za-z]", "", t); n = length(t)
+			return int((n > 0 ? n - 1 : 0) / w) + 1
+		}
+		{ l[NR] = $0; r[NR] = rw($0); tot += r[NR] }
+		END {
+			if (tot <= max) {
+				print tot
+				for (i = 1; i <= NR; i++) print l[i]
+				exit
+			}
+			# the rows the marker needs are reserved before the cut, measured
+			# on the widest number it could carry -- reserving a flat one row
+			# let a marker that wrapped push the panel a row past its budget,
+			# and a panel a row taller than it claims closes onto the question.
+			mr = rw(sprintf("%s%d more lines -- learn ref %s", pre, NR, post))
+			used = 0; out = ""
+			for (i = 1; i <= NR; i++) {
+				if (used + r[i] + mr > max) break
+				out = out l[i] "\n"; used += r[i]
+			}
+			m = sprintf("%s%d more lines -- learn ref %s", pre, NR - i + 1, post)
+			print used + rw(m)
+			printf "%s%s\n", out, m
+		}'
+}
+
+# Tab: the reference opens ABOVE the answer line, and Tab again takes it away.
+# the question, what you have typed and the cursor all stay where they are.
+#
+# above, not below, is the whole trick: only the rows from the answer line down
+# are ever repainted, so the panel costs nothing per keystroke and the terminal
+# scrolls old text off the top by itself instead of us doing cursor arithmetic
+# across a scroll. closing climbs back over a known number of rows, which only
+# works while those rows are still on screen -- so a page too tall for the room
+# is cut to fit and says so, rather than scrolling the question away and taking
+# the climb with it.
+_ed_panel_toggle() {
+	local p fit lrows max w=${TERM_COLS:-80}
+	if [ -n "$ED_PANEL" ]; then
+		printf '\033[%dA\r\033[J' $(( _ED_ROW + ED_PANEL_ROWS ))
+		ED_PANEL= ED_PANEL_ROWS=0 _ED_ROW=0
+		return 0
+	fi
+	[ "${MODE:-}" = learn ] || return 0
+	command -v ref_panel_text >/dev/null || return 0
+	lrows=$(( (2 + ${#L} + ${#R}) / w + 1 ))
+	# what is left of the screen once the answer line and the block above it
+	# have theirs: a status bar, the question, the hint line, and the blank a
+	# setup blurb sometimes adds -- eight rows covers all of it with one to
+	# spare for the answer line growing a row while the panel is open.
+	max=$(( ${TERM_LINES:-24} - lrows - 8 ))
+	[ "$max" -ge 3 ] || max=3
+	fit=$(ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)" \
+		| _ed_panel_fit "$w" "$max" "  $D" "${Q_REF:-}$N")
+	# the row count is the first line; the panel is the rest
+	p=${fit#*"$NL"}
+	[ -n "$p" ] || return 0
+	[ "$_ED_ROW" -gt 0 ] && printf '\033[%dA' "$_ED_ROW"
+	printf '\r\033[J%s\n' "$p"
+	ED_PANEL=$p ED_PANEL_ROWS=${fit%%"$NL"*} _ED_ROW=0
+	return 0
+}
+
+read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
+	local L="" R="" mode=insert c c2 c3 _r _pc _quit=
 	if [ ! -t 0 ]; then
 		IFS= read -r REPLY_LINE || return 1
 		return 0
@@ -82,6 +161,10 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 	fi
 	hi=$hn   # index one past the newest entry == the fresh line being typed
 	_ED_ROW=0
+	# a new question cleared the screen: whatever panel the last one had is
+	# gone with it, and closing a panel that is not there would climb into
+	# the question.
+	ED_PANEL= ED_PANEL_ROWS=0
 
 	# the prompt colour tracks the mode, the way cmdchamp's does: white while you
 	# type, red the instant you drop to normal mode, so the mode is legible
@@ -134,15 +217,8 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			[ -n "$L" ] && L="${L%?}"
 			;;
 		"$E_TAB")
-			# Tab: the reference panel, without abandoning what you typed --
-			# the page scrolls past, the question and your line are reprinted.
 			# learn mode only, same as typing man; the clock modes get nothing.
-			if [ "${MODE:-}" = learn ] && command -v ref_panel >/dev/null; then
-				printf '\n'
-				ref_panel "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)"
-				printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
-				_ED_ROW=0
-			fi
+			_ed_panel_toggle
 			;;
 		*)
 			if [ "$mode" = insert ]; then

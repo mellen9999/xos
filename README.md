@@ -404,7 +404,10 @@ further: the answer's own output is derived by running it, and yours must match
 exactly, so `grep -c WARN` cannot pass an ERROR question. a miss shows you
 where your command died -- what it printed against what was wanted, the line
 count at every pipeline stage, and the exact flags between you and the nearest
-accepted answer. every level ends with a named boss -- five questions, thirty seconds each,
+accepted answer. tab opens that command's reference right above the prompt and
+tab again takes it away -- the question, what you had typed and the cursor all
+stay where they were; a page too tall for the room is cut to fit and says how
+many lines it held back. every level ends with a named boss -- five questions, thirty seconds each,
 no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
 where the last boss fell -- and inside a level, at the card you stopped on, with the
 score you had. `learn review` re-asks the weakest cards first,

@@ -34,6 +34,11 @@ else
 	BAR_F='█' BAR_E='░'
 fi
 
+# a literal newline. $(printf '\n') cannot produce one -- command substitution
+# strips them -- so it is written out.
+NL='
+'
+
 COLS=${COLUMNS:-}
 [ -n "$COLS" ] || COLS=$(stty size 2>/dev/null | cut -d' ' -f2)
 [ -n "$COLS" ] || COLS=$(tput cols 2>/dev/null)
@@ -41,6 +46,16 @@ COLS=${COLUMNS:-}
 # never draw past 100 columns -- a full-width rule on an ultrawide terminal is
 # noise, not structure.
 [ "$COLS" -le 100 ] 2>/dev/null || COLS=100
+
+# COLS above is a typography choice; the line editor needs the terminal's real
+# size. it has to know where the terminal ACTUALLY wraps -- assuming 100 on a
+# 160-column window made every climb-back land a row short and reprint the
+# answer over the question -- and how much room is left below the prompt.
+_sz=$(stty size 2>/dev/null)
+TERM_LINES=${_sz%% *} TERM_COLS=${_sz##* }
+[ "$TERM_COLS" -ge 20 ] 2>/dev/null || TERM_COLS=${COLUMNS:-80}
+[ "$TERM_LINES" -ge 8 ] 2>/dev/null || TERM_LINES=${LINES:-24}
+unset _sz
 
 rule() { printf '%s' "$D"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}'; printf '%s\n' "$N"; }
 

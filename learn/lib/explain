@@ -67,19 +67,23 @@ explain_syntax() {
 	return $(( 1 - found ))
 }
 
-# ref_panel ANSWER -- the tab/man panel: a command's ref page plus the shell
-# syntax its first listed answer leans on, under the SAME "shell syntax"
+# ref_panel_text ANSWER -- the tab/man panel: a command's ref page plus the
+# shell syntax its first listed answer leans on, under the SAME "shell syntax"
 # heading explain() uses. the one place both learn's word path and the
 # editor's Tab key call into, so they can never drift apart again.
-ref_panel() {
+ref_panel_text() {
 	if [ -z "${Q_REF:-}" ]; then
 		note "no reference for this one"
 		return 0
 	fi
-	ref "$Q_REF" | ${PAGER:-cat}
+	ref "$Q_REF"
 	printf '  %sshell syntax%s\n' "$D" "$N"
 	explain_syntax "$1" || printf '  %s(none -- a single command, no operators)%s\n' "$D" "$N"
 }
+
+# the same page, printed. the editor captures the text instead, so it can
+# measure the panel before deciding whether it fits on the screen.
+ref_panel() { ref_panel_text "$1" | ${PAGER:-cat}; }
 
 # explain LINE... -- the one-line summary of every command in the line, then the
 # shell syntax holding them together. `learn <cmd>` still prints a full page;
