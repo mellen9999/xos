@@ -178,7 +178,7 @@ ref_examples() {
 			}
 		}')
 	[ -n "$out" ] || return 1
-	printf '  %sin the wild%s\n%s\n' "$D" "$N" "$out"
+	printf '  %sin the wild%s\n%s\n' "$U" "$N" "$out"
 }
 
 # ref_card CMD head|flags [MAXROWS] -- the abridged reference. `head` is the
@@ -196,6 +196,7 @@ ref_card() {
 	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
 	    -v vs="$(vs_of "$1")" -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
+		function fcol(s, w) { return pad(s, w - 1) " " }
 		function clip(s, w) {
 			if (w < 4 || length(s) <= w) return substr(s, 1, w < 1 ? 0 : w)
 			s = substr(s, 1, w - 2); sub(/[ ,][^ ,]*$/, "", s)
@@ -232,7 +233,7 @@ ref_card() {
 			}
 			if (mode == "head") {
 				printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
-				if (summary != "") printf "  %s%s%s\n", D, clip(summary, cols - 4), N
+				if (summary != "") print "  " clip(summary, cols - 4)
 				if (vs != "") printf "  %s%s%s\n", D, clip(vs, cols - 4), N
 				exit
 			}
@@ -245,7 +246,7 @@ ref_card() {
 			if (max == 0 || n + (foot1 > 0 ? 1 : 0) <= max) {
 				for (i = 1; i <= n; i++)
 					if (Dd[i] == "") printf "  %s%s%s\n", C, F[i], N
-					else printf "  %s%s%s%s\n", C, pad(F[i], col), N, clip(Dd[i], cols - col - 4)
+					else printf "  %s%s%s%s\n", C, fcol(F[i], col), N, clip(Dd[i], cols - col - 4)
 				if (foot1 > 0) foot(foot1, c, D, N)
 				exit
 			}
@@ -259,8 +260,8 @@ ref_card() {
 			cell = int((cols - 4) / 2); dw = cell - col
 			for (i = 1; i <= half; i++) {
 				j = i + half
-				printf "  %s%s%s%s", C, pad(F[i], col), N, pad(clip(Dd[i], dw), dw)
-				if (j <= shown) printf "  %s%s%s%s", C, pad(F[j], col), N, clip(Dd[j], dw)
+				printf "  %s%s%s%s", C, fcol(F[i], col), N, pad(clip(Dd[i], dw), dw)
+				if (j <= shown) printf "  %s%s%s%s", C, fcol(F[j], col), N, clip(Dd[j], dw)
 				printf "\n"
 			}
 			if (nflag - shown > 0) foot(nflag - shown, c, D, N)
@@ -297,7 +298,7 @@ ref_panel_text() {
 		budget=$left
 		[ "$budget" -ge 2 ] || budget=2
 	fi
-	printf '%s\n  %sshell syntax%s\n%s\n' "$head" "$D" "$N" "$syn"
+	printf '%s\n  %sshell syntax%s\n%s\n' "$head" "$U" "$N" "$syn"
 	[ -n "$ex" ] && printf '%s\n' "$ex"
 	ref_card "$Q_REF" flags "$budget"
 }
@@ -313,6 +314,6 @@ explain() {
 		[ -f "$REF/$r" ] && printf '  %s%-9s%s %s\n' "$W" "$c" "$N" "$(sed -n '2p' "$REF/$r")"
 	done
 	echo
-	printf '  %sshell syntax%s\n' "$D" "$N"
+	printf '  %sshell syntax%s\n' "$U" "$N"
 	explain_syntax "$line" || printf '  %s(none -- a single command, no operators)%s\n' "$D" "$N"
 }

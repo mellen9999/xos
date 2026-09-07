@@ -1,16 +1,37 @@
-# ui -- terminal output. square, dense, ANSI-256, no motion.
+# ui -- terminal output. square, dense, the terminal's own 8 colours, no motion.
 #
 # colour is a courtesy, never information: every state that colour marks is
 # also marked by a character, so NO_COLOR and a dumb terminal lose nothing.
+#
+#   R  wrong        G  right       Y  the answer      U  a heading
+#   M  a banner     C  what you type (flags, operators, keys)
+#   W  a name or a value            D  the frame, and everything quiet
 
+# the palette is the terminal's own eight, not a 256-colour ramp: xos boots to
+# a linux console and is read over ssh from whatever the far end is running, so
+# the colours that always exist are the ones worth building on -- and they come
+# out in the reader's own scheme rather than fighting it. each of 1..7 carries
+# exactly one meaning; 0 only ever appears through V, which swaps fg and bg.
 if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-dumb}" = dumb ] || [ ! -t 1 ]; then
-	N= B= D= R= G= Y= C= M= W= U= V=
+	N= B= D= R= G= Y= U= M= C= W= V=
 else
-	N=$(printf '\033[0m')      B=$(printf '\033[1m')    D=$(printf '\033[2m')
-	R=$(printf '\033[38;5;196m') G=$(printf '\033[38;5;46m')
-	Y=$(printf '\033[38;5;226m') C=$(printf '\033[38;5;51m')
-	M=$(printf '\033[38;5;208m') W=$(printf '\033[38;5;231m')
-	V=$(printf '\033[7m')
+	N=$(printf '\033[0m')  B=$(printf '\033[1m')  V=$(printf '\033[7m')
+	R=$(printf '\033[31m')     # wrong, missing, broken
+	G=$(printf '\033[32m')     # right, passed, covered
+	Y=$(printf '\033[33m')     # the answer, and anything to be careful with
+	U=$(printf '\033[1;34m')   # a heading within a page
+	M=$(printf '\033[35m')     # a full-width banner -- the page's own title
+	C=$(printf '\033[36m')     # what you type: flags, operators, keys
+	W=$(printf '\033[37m')     # names and values -- commands, levels, the line
+	# dim has to name a colour. a bare \033[2m keeps the terminal's DEFAULT
+	# foreground, which under most schemes is brighter than the 37 live text
+	# uses -- the quiet rows then read as the loudest thing on the screen. 90 is
+	# a real grey; a terminal with only eight colours has none, so it gets faint
+	# white instead, which is the same idea by the only means it has.
+	case "${TERM:-}" in
+		vt100|vt102|vt220|ansi|*-m|*-mono) D=$(printf '\033[2;37m') ;;
+		*) D=$(printf '\033[90m') ;;
+	esac
 fi
 
 # terminal width. ash does not export COLUMNS the way bash does, so trusting it
@@ -57,7 +78,17 @@ TERM_LINES=${_sz%% *} TERM_COLS=${_sz##* }
 [ "$TERM_LINES" -ge 8 ] 2>/dev/null || TERM_LINES=${LINES:-24}
 unset _sz
 
-rule() { printf '%s' "$D"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}'; printf '%s\n' "$N"; }
+# the rules, built once. a rule is the same string every time it is drawn, so
+# forking awk per call was a fork per header, per card, per panel open.
+# RULE spans COLS -- the typography width. PANEL_RULE never exceeds the real
+# terminal, because the editor counts the rows its panel fills and a rule that
+# wrapped would put that count out and climb back over the question.
+RULE=$(awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}')
+PANEL_RULE=$(awk -v n="$(( COLS < TERM_COLS ? COLS : TERM_COLS ))" \
+	'BEGIN{while(n-->0)printf "-"}')
+PANEL_RULE="$D$PANEL_RULE$N"
+
+rule() { printf '%s%s%s\n' "$D" "$RULE" "$N"; }
 
 # the answer prompt, cmdchamp-style: a bare $ at the far left, white while you
 # type and red the moment you drop to vi normal mode. built here where the R/W
@@ -120,7 +151,7 @@ statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 	[ -n "$right" ] && rt="$rt  +$right"
 	padw=$(( COLS - ${#lt} - bw - ${#rt} ))
 	[ "$padw" -ge 1 ] 2>/dev/null || padw=1
-	printf '  %s%s%s  %s%s%s%*s' "$B" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
+	printf '  %s%s%s  %s%s%s%*s' "$B$W" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
 	bar "$done" "$tot" "$bw"
 	printf ' %s%s/%s%s' "$D" "$done" "$tot" "$N"
 	[ -n "$right" ] && printf '  %s+%s%s' "$G" "$right" "$N"

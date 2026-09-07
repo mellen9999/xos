@@ -121,7 +121,7 @@ autopsy() {
 	note "and nothing leaves this machine."
 
 	# ---- what you reach for -------------------------------------------------
-	printf '\n  %syou reach for%s\n' "$B" "$N"
+	printf '\n  %syou reach for%s\n' "$U" "$N"
 	local max cmds
 	cmds=$(printf '%s\n' "$scan" | awk -F'	' '$1=="CMD"{print $3"\t"$2}' | sort -rn | head -8)
 	max=$(printf '%s\n' "$cmds" | awk -F'	' 'NR==1{print $1}')
@@ -137,7 +137,7 @@ autopsy() {
 	local habs
 	habs=$(printf '%s\n' "$scan" | awk -F'	' '$1=="HAB"{print $2"\t"$3}')
 	if [ -n "$habs" ]; then
-		printf '\n  %shabits worth dropping%s\n' "$B" "$N"
+		printf '\n  %shabits worth dropping%s\n' "$U" "$N"
 		# prefix each with its rank, sort, then render
 		printf '%s\n' "$habs" | while IFS='	' read -r key cnt; do
 			[ -n "$key" ] || continue
@@ -154,7 +154,7 @@ autopsy() {
 	local seen_run taught
 	seen_run=$(printf '%s\n' "$scan" | awk -F'	' '$1=="SEEN"{print $2}' | sort -u)
 	taught=$(ap_taught)
-	printf '\n  %sthe curriculum%s\n' "$B" "$N"
+	printf '\n  %sthe curriculum%s\n' "$U" "$N"
 	printf '%s\n' "$taught" | awk -v seen="$seen_run" '
 		BEGIN { n = split(seen, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") S[a[i]] = 1 }
 		{ t++; if ($1 in S) run++; else if (gap == 0 || $2 < gap) { gap = $2; gapcmd = $1 } }

@@ -76,6 +76,7 @@ ref() {
 	    -v vs="$(vs_of "$1")" '
 		function rl(   i,s){ s=""; for(i=0;i<cols;i++) s=s"-"; return D s N }
 		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
+		function fcol(s,w){ return pad(s,w-1) " " }
 		{ line[NR]=$0 }
 		END {
 			# measure the flag column across every tab-led row
@@ -107,9 +108,9 @@ ref() {
 					if(match(l,/\t+/)){ f=substr(l,1,RSTART-1); d=substr(l,RSTART+RLENGTH) }
 					else { f=l; d="" }
 					if(d=="") printf "  %s%s%s\n", C, f, N
-					else      printf "  %s%s%s%s\n", C, pad(f,col), N, d
+					else      printf "  %s%s%s%s\n", C, fcol(f,col), N, d
 				} else {                                       # prose
-					printf "  %s%s%s\n", D, l, N
+					print "  " l                          # the meat: plain
 				}
 			}
 			print rl()
@@ -414,11 +415,11 @@ boss_round() {
 	# the splash gets its own screen -- the boss is an event, not another card.
 	cls
 	echo
-	printf '%s' "$R$B"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
-	printf '  %sBOSS%s  %s%s%s%s\n' "$R$B" "$N" "$B" "$bname" "$N" \
+	printf '%s' "$M$B"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
+	printf '  %sBOSS%s  %s%s%s%s\n' "$M$B" "$N" "$B" "$bname" "$N" \
 		"$(printf '%*s' $(( COLS > 40 ? COLS - 32 - ${#bname} : 1 )) '')${D}${BOSS_LIMIT}s  pass: 4 of 5${N}"
 	level_field "$id" flavor | say
-	printf '%s' "$R"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
+	printf '%s' "$M"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
 	note "no hints. no reference. the clock does not stop."
 	pause_card || { MODE=learn; return 2; }
 
