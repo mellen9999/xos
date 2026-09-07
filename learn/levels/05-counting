@@ -116,7 +116,7 @@ ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
 ---
-q: {sort sizes.txt by sizes like 2K and 1M, smallest first|order sizes.txt by sizes like 2K and 1M, smallest to largest|sort sizes.txt so sizes like 2K and 1M compare correctly}
+q: {of sizes.txt's sizes like 2K and 1M, print only the smallest|sort sizes.txt so 2K and 1M compare right, print just the smallest|sort sizes.txt by sizes like 2K and 1M, print only the first}
 a: sort -h sizes.txt | head -1
 cmp: ref
 ref: sort
@@ -137,7 +137,7 @@ ref: sort
 teach: sort -o
 hint: -o names the output file -- it can even be the same file you're sorting
 ---
-q: {sort versions.txt so 1.10 comes after 1.9, not before it|sort versions.txt's version numbers so 1.10 lands after 1.9|order versions.txt correctly, so 1.10 follows 1.9}
+q: {sort versions.txt so 1.10 follows 1.9, print only the last|sort versions.txt's version numbers, print just the highest|order versions.txt so 1.10 follows 1.9, print only the last}
 a: sort -V versions.txt | tail -1
 cmp: ref
 ref: sort

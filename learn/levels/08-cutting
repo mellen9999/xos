@@ -47,7 +47,7 @@ ref: cut
 teach: cut -f
 hint: a trailing dash with no end number means to the end of the line
 ---
-q: %show% count then name from @csv@, not resorted to name-first
+q: %show% @csv@'s count then name, in that order, not re-sorted
 a: cut -D -d, -f4,1 @csv@
 out: 42,gateway
 ref: cut

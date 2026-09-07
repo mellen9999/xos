@@ -138,7 +138,7 @@ ref: read
 teach: read -p
 hint: -p prints its argument as a prompt before reading
 ---
-q: %show% @csv@'s first column, keeping the delimiter in a variable
+q: set d to a comma, then %show% @csv@'s first column using it
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
 ref: cut
@@ -167,7 +167,7 @@ teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
 ---
 setup: your PATH might be hijacked or broken
-q: %find% ls the safe way and list @txt@ with it
+q: %list% @txt@ with ls, using the standard PATH, not yours
 a: command -p ls @txt@
 out: @txt@
 ref: command

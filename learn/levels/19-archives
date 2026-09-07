@@ -211,7 +211,7 @@ teach: bunzip2 -t
 hint: -t tests integrity without writing any decompressed output
 ---
 setup: you just downloaded archive.zip
-q: {unpack it into the current directory|extract archive.zip here, no target directory needed|extract every file in archive.zip right here}
+q: {unpack archive.zip into the current directory|extract archive.zip here, no target directory needed|extract every file in archive.zip right here}
 a: unzip archive.zip
 state: exists:hello.txt
 ref: unzip

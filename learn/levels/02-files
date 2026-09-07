@@ -179,7 +179,7 @@ ref: cp
 teach: cp -i
 hint: i for interactive -- prompts before clobbering
 ---
-q: {copy @cfg@ over @cfg2@, forcing past any resistance|copy @cfg@ onto @cfg2@, forcing past whatever would block it|force @cfg@ over @cfg2@, no matter what's already there}
+q: {copy @cfg@ onto @cfg2@, deleting it first if the write fails|copy @cfg@ onto @cfg2@, removing it if it won't take a write|force @cfg@ onto @cfg2@, deleting it if the write fails}
 a: cp -f @cfg@ @cfg2@
 state: exists:@cfg2@
 ref: cp
@@ -235,7 +235,7 @@ ref: mktemp
 teach: mktemp
 hint: generates and creates a uniquely-named file, then prints its path
 ---
-q: get a temporary directory instead of a file
+q: %make% a temporary directory, not a temporary file
 a: mktemp -d
 why: primitive-cost
 ref: mktemp

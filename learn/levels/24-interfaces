@@ -169,7 +169,7 @@ ref: arp
 teach: arp -d
 hint: -d removes one entry from the cache
 ---
-q: {add a permanent arp entry pinning @ip@|pin @ip@ to a mac address permanently in the arp cache|add a static arp entry for @ip@}
+q: {pin @ip@ to the mac 00:11:22:33:44:55 permanently|permanently map @ip@ to 00:11:22:33:44:55 in the arp cache|add a static arp entry for @ip@ at 00:11:22:33:44:55}
 a: arp -s @ip@ 00:11:22:33:44:55
 why: live-hw
 ref: arp
@@ -183,7 +183,7 @@ ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface
 ---
-q: {publish an arp entry for @ip@ on @iface@, another's behalf|answer arp requests for @ip@ on @iface@, another host's behalf|publish a proxy arp entry for @ip@ out of @iface@}
+q: {publish an arp entry for @ip@ on @iface@, on another's behalf|answer arp requests for @ip@ on @iface@, on another's behalf|publish a proxy arp entry for @ip@ out of @iface@}
 a: arp -D @iface@ -s @ip@
 why: live-hw
 ref: arp

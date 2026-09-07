@@ -86,7 +86,7 @@ ref: printf
 teach: printf
 hint: printf takes a format first, then the values to fill it with
 ---
-q: %show% @word@ with printf, same as before -- no trailing newline
+q: %show% @word@ with printf and no trailing newline
 a: printf '%s' @word@
 out: @word@
 ref: printf

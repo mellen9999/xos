@@ -32,6 +32,8 @@ ref: strings
 teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
+setup: ii keeps one directory per server. Your nick is xos and your session
+setup: directory is $HOME/irc unless a question says otherwise.
 q: {start ii against @host@ on the standard tls-free irc port, as nick xos|connect ii to @host@ on the plain irc port, using the nick xos|start ii, joining @host@ on the standard irc port as xos}
 a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
 why: live-net
@@ -41,20 +43,22 @@ teach: ii -p
 teach: ii -n
 hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
-q: {start ii against @host@ with a chosen real name|start ii on @host@, setting a real name of your choosing|connect ii to @host@ while supplying a real name}
+setup: ii's files live under $HOME/irc, one directory per server.
+q: {start ii against @host@ with xos as the real name too|start ii on @host@, setting the real name to xos|connect ii to @host@ supplying xos as the real name}
 a: ii -s @host@ -f xos -n xos -i $HOME/irc
 why: live-net
 ref: ii
 teach: ii -f
 hint: -f sets the real name shown alongside the nick
 ---
-q: {start a second ii session against @host@, no clobbering the default|run ii on @host@ with its files kept separate from your main session|point ii at @host@ using a directory of your own}
+q: {start a second ii session on @host@, its files in /tmp/irc|run ii on @host@ keeping its files in /tmp/irc, not the default|point ii at @host@ with /tmp/irc as its directory}
 a: ii -s @host@ -n xos -i /tmp/irc
 why: live-net
 ref: ii
 teach: ii -i
 hint: -i points ii at a directory of your choosing instead of the default
 ---
+setup: ii's files live under $HOME/irc, one directory per server.
 q: {join #xos on @host@|hop into #xos on @host@|get onto #xos on @host@}
 a: echo '/j #xos' > $HOME/irc/@host@/in
 why: live-net
@@ -62,6 +66,7 @@ ref: ii
 teach: ii
 hint: ii turns each server command into a line written to that server's in fifo
 ---
+setup: ii's files live under $HOME/irc, one directory per server.
 q: {read what is happening in #xos on @host@, live|follow #xos's out file on @host@ live|watch #xos's activity on @host@ as it happens}
 a: tail -f $HOME/irc/@host@/#xos/out
 why: interactive
@@ -69,6 +74,7 @@ ref: tail
 teach: tail -f
 hint: -f keeps tail running, printing new lines as they arrive
 ---
+setup: ii's files live under $HOME/irc, one directory per server.
 q: {say hello in #xos on @host@|send hello to #xos on @host@|drop a hello into #xos on @host@}
 a: echo hello > $HOME/irc/@host@/#xos/in
 why: live-net
@@ -76,6 +82,7 @@ ref: ii
 teach: ii
 hint: whatever you echo into a channel's in fifo, ii sends as a message
 ---
+setup: ii's files live under $HOME/irc, one directory per server.
 q: %find% every mention of your nick across every channel
 a: grep -r xos $HOME/irc
 why: live-net
@@ -83,6 +90,7 @@ ref: grep
 teach: grep -r
 hint: -r walks every channel directory recursively
 ---
+setup: ii's files live under $HOME/irc, one directory per server.
 q: %list% every channel ii has joined
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 why: live-net
@@ -136,7 +144,9 @@ ref: wg
 teach: wg
 hint: wg set applies configuration to an existing interface, private-key here
 ---
-q: {add a peer to wg0 by its public key, endpoint and allowed ips|configure a peer on wg0 with its public key, endpoint and allowed ips|add a peer to wg0, specifying its public key, endpoint and allowed ips}
+setup: The peer's public key is PUBKEY, its endpoint titan.example:51820, and
+setup: the addresses it is allowed to use are 10.9.0.0/24.
+q: {add that peer to wg0 by public key, endpoint and allowed ips|configure that peer on wg0 with its key, endpoint and allowed ips|add that peer to wg0, naming its key, endpoint and allowed ips}
 a: wg set wg0 peer PUBKEY endpoint titan.example:51820 allowed-ips 10.9.0.0/24
 why: live-net
 ref: wg
@@ -165,7 +175,9 @@ ref: dropbearkey
 teach: dropbearkey -y
 hint: -y prints the public key for an existing private key file
 ---
-q: {run the ssh server, bound only to the wireguard address|start the ssh server listening only on the wireguard side|run dropbear bound to the wireguard interface only}
+setup: The host key is /state/host_key, this machine's wireguard address is
+setup: 10.9.0.1, and you log in there as root with the key /state/id.
+q: {run the ssh server on 10.9.0.1:22, bound to wireguard only|start the ssh server listening only on 10.9.0.1 port 22|run dropbear bound to 10.9.0.1:22, the wireguard side only}
 a: dropbear -r /state/host_key -p 10.9.0.1:22
 why: live-net
 ref: dropbear
@@ -173,7 +185,8 @@ teach: dropbear -r
 teach: dropbear -p
 hint: -r names the host key, -p the address and port to bind
 ---
-q: {watch the ssh server's own errors as it starts, not going quiet|start the ssh server so you see it fail, not buried in a log|run the ssh server so its errors land in front of you}
+setup: The host key is /state/host_key; you log in with the key /state/id.
+q: {run the ssh server in the foreground, errors on stderr not a log|start dropbear so it stays in front of you and prints its errors|run dropbear foregrounded with its errors going to stderr}
 a: dropbear -r /state/host_key -F -E
 why: live-net
 ref: dropbear
@@ -188,21 +201,22 @@ ref: dbclient
 teach: dbclient -i
 hint: -i points dbclient at the private key to authenticate with
 ---
-q: {ssh in and attach to a running abduco session in one command|ssh in, immediately attaching to a running abduco session|combine ssh and abduco attach into a single command}
+setup: The host key is /state/host_key; you log in with the key /state/id.
+q: {ssh to 10.9.0.1 and attach to the abduco session work, one command|ssh to root at 10.9.0.1, attaching straight to abduco's work session|combine the ssh to 10.9.0.1 and abduco -a work into one command}
 a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
 why: live-net
 ref: dbclient
 teach: dbclient
 hint: the whole point -- reconnect straight into the work that survived the drop
 ---
-q: {ssh to a host on a non-standard port|ssh to a host, connecting on a non-standard port|use dbclient to reach a host on a non-default port}
+q: {ssh to root at 10.9.0.1 on port 2222 instead of 22|ssh to root at 10.9.0.1, connecting on port 2222|use dbclient to reach root at 10.9.0.1 on port 2222}
 a: dbclient -p 2222 root@10.9.0.1
 why: live-net
 ref: dbclient
 teach: dbclient -p
 hint: -p picks the port dbclient connects to
 ---
-q: {forward local port 8080 to a service on the far side, over ssh|tunnel local port 8080 to a remote service over ssh|set up ssh local port forwarding from 8080 to a far-side service}
+q: {forward local port 8080 to port 80 on 10.9.0.1, over ssh|tunnel local port 8080 to localhost:80 on 10.9.0.1 over ssh|ssh-forward 8080 here to localhost:80 on 10.9.0.1}
 a: dbclient -L 8080:localhost:80 root@10.9.0.1
 why: live-net
 ref: dbclient

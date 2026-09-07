@@ -210,7 +210,7 @@ ref: losetup
 teach: losetup -r
 hint: -r attaches the loop device read-only
 ---
-q: {attach disk.img starting at an offset of 1 megabyte|loop-attach disk.img, skipping the first megabyte|attach disk.img to a loop device, starting 1 megabyte into the file}
+q: {attach disk.img at a 1048576 byte offset -- one megabyte in|loop-attach disk.img, skipping 1048576 bytes, one megabyte|attach disk.img to a loop device 1048576 bytes in}
 a: losetup -o 1048576 -f disk.img
 why: root
 ref: losetup
@@ -313,14 +313,14 @@ ref: cryptsetup
 teach: cryptsetup
 hint: open maps the decrypted device under /dev/mapper by the name you give
 ---
-q: {unlock it without allowing any writes|open /dev/sda3 read-only, allowing no writes through it|decrypt /dev/sda3 without permitting any writes}
+q: {unlock /dev/sda3 as state, allowing no writes|open /dev/sda3 read-only as state, no writes through it|decrypt /dev/sda3 as state, permitting no writes}
 a: cryptsetup open --readonly /dev/sda3 state
 why: root
 ref: cryptsetup
 teach: cryptsetup --readonly
 hint: --readonly maps the device without allowing writes through it
 ---
-q: {lock it again and remove the mapping|close the state mapping and re-lock the device|tear down /dev/mapper/state and lock /dev/sda3 again}
+q: {lock /dev/sda3 again by removing the state mapping|close the state mapping and re-lock the device|tear down /dev/mapper/state and lock /dev/sda3 again}
 a: cryptsetup close state
 why: root
 ref: cryptsetup
@@ -348,28 +348,28 @@ ref: cryptsetup
 teach: cryptsetup --cipher
 hint: --cipher names the cipher instead of taking cryptsetup's default
 ---
-q: {format with a 512 bit key|format /dev/sda3 using a 512 bit key|choose a 512 bit key while formatting /dev/sda3}
+q: {format /dev/sda3 with a 512 bit key|format /dev/sda3 using a 512 bit key|choose a 512 bit key while formatting /dev/sda3}
 a: cryptsetup luksFormat --key-size 512 /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --key-size
 hint: --key-size is in bits, and must match what the cipher supports
 ---
-q: {format choosing pbkdf2 rather than the argon2id default|format /dev/sda3 with pbkdf2 instead of the argon2id default|swap the key derivation function to pbkdf2 while formatting}
+q: {format /dev/sda3 choosing pbkdf2 over the argon2id default|format /dev/sda3 with pbkdf2 instead of the argon2id default|swap /dev/sda3's key derivation to pbkdf2 while formatting}
 a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --pbkdf
 hint: --pbkdf picks the key derivation function used to slow down password guessing
 ---
-q: {format without any prompt or confirmation, for a script|format /dev/sda3 with no confirmation prompt, suitable for a script|skip the are-you-sure prompt while formatting, for scripted use}
+q: {format /dev/sda3 with no prompt or confirmation, for a script|format /dev/sda3 with no confirmation prompt, suitable for a script|skip the are-you-sure prompt formatting /dev/sda3, for a script}
 a: cryptsetup luksFormat --batch-mode /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --batch-mode
 hint: --batch-mode skips the are-you-sure prompt, for scripting
 ---
-q: {open a device saying out loud what is happening|open /dev/sda3 while narrating what cryptsetup is doing|unlock the device with verbose output describing each step}
+q: {open /dev/sda3 as state, narrating what cryptsetup is doing|open /dev/sda3 as state while narrating each step out loud|unlock /dev/sda3 as state with verbose output on each step}
 a: cryptsetup open --verbose /dev/sda3 state
 why: root
 ref: cryptsetup
@@ -432,35 +432,35 @@ ref: mke2fs
 teach: mke2fs
 hint: mke2fs with no flags builds an ext2 filesystem by default
 ---
-q: %make% an ext filesystem without being asked to confirm
+q: %make% an ext filesystem on /dev/mapper/state, no confirming
 a: mke2fs -F /dev/mapper/state
 why: root
 ref: mke2fs
 teach: mke2fs -F
 hint: -F skips the confirmation prompt, useful for scripting
 ---
-q: %make% an ext filesystem giving it a label
+q: %make% an ext filesystem on /dev/mapper/state labelled data
 a: mke2fs -L data /dev/mapper/state
 why: root
 ref: mke2fs
 teach: mke2fs -L
 hint: -L sets the filesystem's volume label
 ---
-q: {no admin space reserved -- all space usable when making the filesystem|when making the filesystem, reserve zero blocks for admin use|build the filesystem with no space reserved for the superuser}
+q: {make /dev/mapper/state's filesystem reserving no admin space|reserve zero blocks for admin use on /dev/mapper/state|build /dev/mapper/state's filesystem, nothing reserved for root}
 a: mke2fs -m 0 /dev/mapper/state
 why: root
 ref: mke2fs
 teach: mke2fs -m
 hint: -m sets the percent reserved for root; 0 reserves nothing
 ---
-q: {format a usb stick partition as fat32|make a fat32 filesystem on a usb stick partition|turn a usb stick partition into fat32}
+q: {format the usb partition /dev/sda1 as fat32|make a fat32 filesystem on /dev/sda1|turn the usb partition /dev/sda1 into fat32}
 a: mkdosfs /dev/sda1
 why: root
 ref: mkdosfs
 teach: mkdosfs
 hint: mkdosfs with no flags builds fat32 (or fat16, sized by the partition)
 ---
-q: {format a fat filesystem with a volume label|make a fat filesystem, giving it a volume label|format a fat filesystem and label it while you're at it}
+q: {format /dev/sda1 as fat with the volume label BACKUP|make a fat filesystem on /dev/sda1 labelled BACKUP|format /dev/sda1 as fat, labelling it BACKUP}
 a: mkdosfs -n BACKUP /dev/sda1
 why: root
 ref: mkdosfs

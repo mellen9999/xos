@@ -17,7 +17,7 @@ ref: xargs
 teach: xargs
 hint: xargs turns lines of stdin into arguments appended to the command
 ---
-q: {do the same, safely, for filenames that might contain spaces|repeat that, but safe for filenames with spaces in them|redo it in a way that survives filenames containing spaces}
+q: {count the lines of every .log file, safe for names with spaces|count each .log file's lines in a way that survives spaces in names|line-count every .log file here, spaces in the names and all}
 a: find . -name '*.log' -print0 | xargs -0 wc -l
 cmp: ref
 ref: xargs

@@ -142,7 +142,7 @@ ref: awk
 teach: awk -v
 hint: OFS is the output field separator
 ---
-q: @csv@ rows share a column count -- %show% each line's field count
+q: %show% how many comma-separated fields each line of @csv@ has
 a: awk -F, '{print NF}' @csv@
 cmp: ref
 ref: awk

@@ -96,7 +96,7 @@ ref: cd
 teach: cd
 hint: just the command and the target -- no flags needed
 ---
-q: {go up one directory|move to the parent directory|step out one level up}
+q: {go up one directory|move to the parent directory|change to the directory one level up}
 a: cd ..
 a: cd ../
 why: conceptual

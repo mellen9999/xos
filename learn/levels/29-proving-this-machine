@@ -118,7 +118,7 @@ ref: strings
 teach: strings
 hint: strings pulls printable text out of the binary; grep -c counts the matches
 ---
-q: %list% every command this system documents, and count them
+q: %count% the commands this system documents, using learn list
 a: learn list | wc -l
 cmp: ref
 ref: learn

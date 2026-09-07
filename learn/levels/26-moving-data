@@ -147,7 +147,7 @@ teach: telnet -a
 hint: -a hands the server $USER as the login name, no prompt
 ---
 setup: tftp has no login and no encryption -- exactly what firmware on
-setup: embedded gear still expects.
+setup: embedded gear still expects. The remote file is file.txt throughout.
 q: {fetch a file over tftp from @host@|download a file using tftp from @host@|use tftp to fetch a file from @host@}
 a: tftp -g -r file.txt @host@
 why: live-net
@@ -164,13 +164,15 @@ teach: tftp -p
 teach: tftp -l
 hint: -p puts a file, -l names the local file to send
 ---
-q: {tftp a file from @host@ faster, with bigger packets|speed up a tftp fetch from @host@ via block size|pull from @host@ over tftp with a larger block size}
+q: {fetch file.txt from @host@ over tftp in 1024 byte blocks|speed up file.txt's tftp fetch from @host@, block size 1024|pull file.txt from @host@ over tftp using 1024 byte blocks}
 a: tftp -b 1024 -g -r file.txt @host@
 why: live-net
 ref: tftp
 teach: tftp -b
 hint: -b sets the block size used for the transfer
 ---
+setup: ftpget and ftpput both name the local file local.txt and the remote
+setup: one remote.txt, and the password is secret. Only the flag changes.
 q: {fetch a file from the ftp server @host@|download a file from the ftp server @host@|use ftpget to pull a file from @host@}
 a: ftpget @host@ local.txt remote.txt
 why: live-net
@@ -266,7 +268,7 @@ ref: udhcpc
 teach: udhcpc -n
 hint: -n exits immediately if no lease shows up, rather than retrying forever
 ---
-q: {run a chosen script on @iface@ when the lease is obtained|fire a script of your choosing on @iface@ once the lease arrives|have udhcpc run a script when @iface@ gets a lease}
+q: {run the default udhcpc script on @iface@ once the lease arrives|name /usr/share/udhcpc/default.script to run when @iface@ gets a lease|have @iface@'s lease run /usr/share/udhcpc/default.script}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
 why: live-net
 ref: udhcpc

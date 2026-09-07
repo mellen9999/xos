@@ -107,7 +107,7 @@ ref: find
 teach: find -perm
 hint: MODE alone means exactly this mode; -MODE means all these bits are set; +MODE means at least one is
 ---
-q: security check -- %find% every setuid binary here, any other bits
+q: security check -- %find% every file here that has the setuid bit set
 a: find . -perm -4000
 out: suid-tool
 ref: find
@@ -191,7 +191,7 @@ ref: find
 teach: find -L
 hint: makes find follow symlinks and describe what they point to
 ---
-q: deleting bottom-up -- %list% contents before their directory
+q: %list% everything here bottom-up, each directory after its contents
 a: find . -depth
 cmp: ref
 ref: find

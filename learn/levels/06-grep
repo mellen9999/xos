@@ -170,7 +170,7 @@ ref: grep
 teach: grep -e
 hint: -e is how you search for something starting with a dash
 ---
-q: {@log@ may use tabs, not spaces -- %find% either|search @log@ for a space or tab run|match whitespace in @log@ with a POSIX class}
+q: {@log@ may use tabs, not spaces -- match either with a POSIX class|search @log@ for a space or tab run|match whitespace in @log@ with a POSIX class}
 a: grep '[[:space:]]' @log@
 why: fixture-cost
 ref: grep

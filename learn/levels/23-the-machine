@@ -197,7 +197,7 @@ ref: date
 teach: date -r
 hint: -r reports a file's modification time instead of the clock
 ---
-q: {you found a timestamp string in a log -- turn it into a formatted date|parse a given date string instead of reading the system clock|turn a date string into a formatted date without touching the clock}
+q: {a log gave you 2024-03-01 -- parse that string, not the clock|parse the date string 2024-03-01 instead of reading the clock|turn the string 2024-03-01 into a date without touching the clock}
 a: date -d 2024-03-01
 out: 2024|Mar
 ref: date
@@ -393,14 +393,14 @@ ref: logger
 teach: logger -p
 hint: -p takes facility.level to set the message's priority
 ---
-q: {ethernet is dead -- open a serial console to a device at 115200 baud|connect to a serial console running at 115200 baud|dial into a serial device at 115200 baud}
+q: {ethernet is dead -- open /dev/ttyS0 as a console at 115200 baud|connect to the serial console /dev/ttyS0 at 115200 baud|dial into the serial device /dev/ttyS0 at 115200 baud}
 a: microcom -s 115200 /dev/ttyS0
 why: live-hw
 ref: microcom
 teach: microcom -s
 hint: when ethernet is dead, this is how you reach a router or another machine
 ---
-q: {talk to a serial device giving up after 10 seconds of silence|open a serial device but bail out after 10 seconds of silence|connect to a serial device, timing out after 10 idle seconds}
+q: {talk to /dev/ttyS0, giving up after 10000ms of silence|open /dev/ttyS0 but bail out after 10000ms of silence|connect to /dev/ttyS0, timing out after 10000ms idle}
 a: microcom -t 10000 /dev/ttyS0
 why: live-hw
 ref: microcom
