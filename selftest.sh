@@ -440,6 +440,9 @@ grep -q 'learn-varies: yes' <<< "$out" \
 grep -q 'learn-chains: yes' <<< "$out" \
 	&& ok "challenge track holds its shape on the booted system" \
 	|| bad "learn challenge check failed at runtime"
+grep -q 'learn-vs: yes' <<< "$out" \
+	&& ok "the reference names the command it is confused with" \
+	|| bad "learn/vs did not ship -- cards lose their vs line"
 
 echo
 section "A13  a session outlives the terminal that started it"

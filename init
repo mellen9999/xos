@@ -512,6 +512,9 @@ if cmdline_has xos.test; then
 	printf 'learn-varies: '; a=$(learn 1 </dev/null 2>/dev/null | grep -c '%[a-z][a-z]*%'); [ "${a:-1}" = 0 ] && echo yes || echo "no (BAD -- unexpanded macro)"
 	# the challenge track must hold its shape on the machine, not only at build
 	printf 'learn-chains: '; learn challenge check >/dev/null 2>&1 && echo yes || echo "no (BAD)"
+	# the reference card names the command you reached for by mistake. prove the
+	# file shipped by reading one back out of a rendered page, not by stat'ing it
+	printf 'learn-vs: '; learn ref uniq 2>/dev/null | grep -q '^  vs ' && echo yes || echo "no (BAD)"
 	# print presence, never addresses -- this output gets read aloud
 	printf 'net-iface-up: '; ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1 | grep . || echo none
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no

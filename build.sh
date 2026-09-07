@@ -644,7 +644,7 @@ rootfs() {
   for part in ref lib pools levels scenarios; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  for _f in skip builtins phrases syntax; do
+  for _f in skip builtins phrases syntax vs chains; do
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
