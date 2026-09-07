@@ -429,7 +429,10 @@ if cmdline_has xos.test; then
 	# can actually be allocated, not merely that the config claims to allow it.
 	printf 'devpts-mounted: '; awk '$2=="/dev/pts" {print $3; f=1} END{if(!f) print "no"}' /proc/mounts
 	printf 'ptmx-node: '; if [ -c /dev/ptmx ]; then echo yes; else echo "no (BAD)"; fi
-	printf 'pty-alloc: '; if exec 9<>/dev/ptmx 2>/dev/null; then
+	# braces: a redirection on a bare `exec` applies to the SHELL and stays
+	# there, so `exec 9<>... 2>/dev/null` sent init's own stderr to /dev/null
+	# for the whole rest of the boot. inside a group it lasts one command.
+	printf 'pty-alloc: '; if { exec 9<>/dev/ptmx; } 2>/dev/null; then
 		_slave=no
 		for _p in /dev/pts/[0-9]*; do [ -e "$_p" ] && _slave=yes && break; done
 		[ "$_slave" = yes ] && echo ok || echo "FAILED (no slave)"
