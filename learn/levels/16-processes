@@ -16,14 +16,14 @@ ref: ps
 teach: ps
 hint: ps alone shows just this terminal's processes, not the whole system
 ---
-q: %list% processes showing just the pid and the command name
+q: %list% processes trimmed to just pid and name so you can scan it fast
 a: ps -o pid,comm
 out: ^PID +COMMAND$
 ref: ps
 teach: ps -o
 hint: -o picks exactly which columns to show
 ---
-q: %list% processes including their threads
+q: a process looks hung -- %list% its threads too, not just one line for it
 a: ps -T
 out: \{[A-Za-z_]+\}
 ref: ps
@@ -37,7 +37,7 @@ ref: top
 teach: top
 hint: q leaves it
 ---
-q: {take a single snapshot of top rather than an interactive display|run top just once and print plain text, no live display|use top's batch mode to capture one snapshot}
+q: {grab one reading of cpu and mem usage to paste into a note, no live screen|capture what's using resources right now as plain text you can save|log a single snapshot of top's output instead of watching it live}
 a: top -b -n 1
 out: PID|Mem
 ref: top
@@ -45,13 +45,14 @@ teach: top -b
 teach: top -n
 hint: b for batch mode -- plain text, no cursor tricks
 ---
-q: {run top updating every 5 seconds instead of the default|use top -d 5 to slow the refresh rate to 5 seconds|watch top refreshing once every 5 seconds}
+q: {top refreshes too fast to read -- slow it to every 5 seconds|slow top's refresh to every 5 seconds so the numbers hold still|watch top updating only once every 5 seconds instead}
 a: top -d 5
 why: interactive
 ref: top
 teach: top -d
 hint: -d sets the refresh interval in seconds
 ---
+setup: something called @proc@ is eating the cpu
 q: %find% the process ids of anything called @proc@
 a: pgrep @proc@
 why: live-hw
@@ -59,42 +60,43 @@ ref: pgrep
 teach: pgrep
 hint: pgrep prints matching pids and nothing else
 ---
-q: %find% @proc@ matching against the whole command line, not just the name
+q: @proc@'s name is too generic -- %find% it by its full command line
 a: pgrep -f @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -f
 hint: -f matches against the full command line, not just the process name
 ---
-q: %list% @proc@ processes showing the name beside each pid
+q: %list% every @proc@ pid together with its name
 a: pgrep -l @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -l
 hint: -l adds the process name next to each pid
 ---
-q: %find% only the newest process called @proc@
+q: you started @proc@ more than once -- %find% just the most recent one
 a: pgrep -n @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -n
 hint: -n keeps only the most recently started match
 ---
-q: %find% only the oldest process called @proc@
+q: several @proc@ are running -- %find% the one that's been up longest
 a: pgrep -o @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -o
 hint: -o keeps only the oldest match
 ---
-q: %find% processes whose name is exactly @proc@ and not merely contains it
+setup: another process has a name that merely contains "@proc@"
+q: %find% processes named exactly @proc@, not that other one too
 a: pgrep -x @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -x
 hint: -x requires an exact name match, not a substring
 ---
-q: %find% every process that is NOT called @proc@
+q: %find% every process except @proc@
 a: pgrep -v @proc@
 why: live-hw
 ref: pgrep
@@ -108,6 +110,7 @@ ref: pgrep
 teach: pgrep -P
 hint: -P filters by parent pid
 ---
+setup: you've tracked the runaway process down to pid 12345
 q: {politely ask process 12345 to exit|send process 12345 the default signal, asking it to exit|ask process 12345 to terminate, with no explicit signal}
 a: kill 12345
 why: live-hw
@@ -115,14 +118,14 @@ ref: kill
 teach: kill
 hint: no flag means TERM, which the program may catch
 ---
-q: {force process 12345 to die immediately, uncatchably|use kill -9 to end process 12345 with no chance to clean up|send process 12345 the KILL signal, which it cannot ignore}
+q: {TERM didn't work -- force process 12345 to die immediately, uncatchably|process 12345 ignored TERM -- give it no chance to clean up this time|process 12345 won't die politely -- send the one signal it cannot ignore}
 a: kill -9 12345
 why: live-hw
 ref: kill
 teach: kill -9
 hint: 9 is KILL, the one signal a process cannot catch or ignore
 ---
-q: {send process 12345 the TERM signal by number|use kill -15 on process 12345 rather than the bare command|send signal 15, TERM, to process 12345 explicitly}
+q: {a doc gives you a signal number instead of a name -- send 12345 signal 15|send 12345 signal 15, the number for the default TERM|you're told to send signal 15, not just the bare command, to 12345}
 a: kill -15 12345
 why: live-hw
 ref: kill
@@ -136,14 +139,15 @@ ref: kill
 teach: kill -l
 hint: -l lists every signal name kill understands
 ---
-q: {kill every process called @proc@ by name|use pkill to end every process named @proc@|send the default signal to every process called @proc@}
+q: {skip hunting for pids -- kill every @proc@ by name in one shot|kill every @proc@ running, by name, no pid lookup first|end every @proc@ running without looking up its pid}
 a: pkill @proc@
 why: live-hw
 ref: pkill
 teach: pkill
 hint: pkill matches by name and sends the signal itself, no pgrep needed first
 ---
-q: {force-kill every process whose full command line mentions @proc@|use pkill -9 -f to kill by command line rather than name|send KILL to every process whose command line contains @proc@}
+setup: it won't die to a plain kill, and its name is too generic to match alone
+q: {force-kill everything whose command line mentions @proc@|nothing else works -- force-kill by command line for @proc@|kill -9 every process whose command line, not name, has @proc@}
 a: pkill -9 -f @proc@
 why: live-hw
 ref: pkill
@@ -192,7 +196,7 @@ ref: nproc
 teach: nproc --all
 hint: --all counts every CPU, even ones your process can't use
 ---
-q: %list% @proc@ processes showing the full command line of each
+q: multiple @proc@ run with different args -- %list% each command line
 a: pgrep -a @proc@
 why: live-hw
 ref: pgrep
@@ -206,7 +210,7 @@ ref: pidof
 teach: pidof
 hint: pidof looks up pids by name in one step, like pgrep without the flags
 ---
-q: %find% only a single pid for @proc@, not all of them
+q: a script needs one pid for @proc@, not a list -- %find% just one
 a: pidof -s @proc@
 why: live-hw
 ref: pidof
@@ -234,6 +238,7 @@ ref: lsof
 teach: lsof
 hint: on unix almost everything is a file, so this shows almost everything
 ---
+setup: you need to rotate @log@ but something already has it open
 q: %find% which processes have @log@ open
 a: fuser @log@
 why: live-hw
@@ -241,7 +246,7 @@ ref: fuser
 teach: fuser
 hint: fuser reports the pids of anything with that file open
 ---
-q: %find% what is using the mount point @dir@
+q: you can't unmount @dir@ -- %find% what's still using it
 a: fuser -m @dir@
 why: live-hw
 ref: fuser
@@ -276,7 +281,7 @@ ref: pwdx
 teach: pwdx
 hint: pwdx reports a process's current working directory by pid
 ---
-q: {kill every process named @proc@ by name|use killall to end every process matching @proc@'s name|send the default signal to every process named @proc@}
+q: {you want an exact-name kill, not pkill's substring match|kill every process literally named @proc@, no partial matches|end every @proc@ by its exact name}
 a: killall @proc@
 why: live-hw
 ref: killall

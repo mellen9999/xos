@@ -12,14 +12,14 @@ brief:
 brief: The other specials: $$ this shell's pid, $! the last background pid,
 brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
 ---
-q: {run false and then show its exit status|run the false command and check what $? becomes|execute false, then print its exit code}
+q: {run false, then %show% the exit status it left behind in $?|run false and check what $? comes back as|execute false, then %show% its exit code from $?}
 a: false; echo $?
 cmp: ref
 ref: false
 teach: false
 hint: false always exits 1; it has no other job
 ---
-q: {run true and confirm its exit status is zero|run true and verify $? comes back 0|execute true, then check its exit code is zero}
+q: {run true, then %show% the exit status it left behind in $?|run true and verify $? comes back as 0|execute true, then %show% its exit code from $?}
 a: true; echo $?
 cmp: ref
 ref: true
@@ -33,21 +33,22 @@ ref: grep
 teach: grep -q
 hint: -q silences grep's output, leaving only its exit status for &&
 ---
-q: %show% "missing" only if @log@ does NOT contain the word nonexistent
+q: %show% "missing" if @log@ has no match for nonexistent
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 ref: grep
 teach: grep -q
 hint: || runs its right side only when the left side fails
 ---
-q: %show% found if @needle@ is in @log@, and missing if it is not, in one line
+q: %show% found if @needle@ is in @log@, else missing
 a: grep -q @needle@ @log@ && echo found || echo missing
 cmp: ref
 ref: grep
 teach: grep -q
 hint: chain && and || together to cover both outcomes in one line
 ---
-q: %show% this shell's own process id
+setup: a pid-named lockfile keeps two copies of a script from colliding
+q: %show% this shell's pid to use in the lockfile name
 a: echo $$
 out: ^[1-9][0-9]*$
 ref: sh
@@ -61,49 +62,49 @@ ref: sleep
 teach: sleep
 hint: an ampersand backgrounds; $! holds the pid it was just given
 ---
-q: {exit the shell with status 0|end the shell with exit status 0|leave the shell, setting its exit status to 0}
+q: {exit 0 so a caller checking $? sees success|end the shell with a clean, successful exit status|leave the shell reporting success via exit status 0}
 a: exit 0
 status: 0
 ref: exit
 teach: exit
 hint: exit takes the status as its argument; with none it reuses $?
 ---
-q: {exit the shell with status 3|end the shell with exit status 3|leave the shell, setting its exit status to 3}
+q: {exit with status 3 so a caller checking $? knows the failure|end the shell with exit status 3, a custom failure code|leave the shell with exit status 3, a signal to the caller}
 a: exit 3
 status: 3
 ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
-q: {invert an exit status -- succeed when grep finds nothing in @log@|flip a status so grep finding nothing counts as success in @log@|make "no match in @log@" read as success rather than failure}
+q: {succeed only when @log@ has no match at all|flip a status so grep finding nothing counts as success in @log@|make "no match in @log@" read as success rather than failure}
 a: ! grep -q nonexistent @log@
 status: 0
 ref: grep
 teach: grep -q
 hint: a leading ! flips the status
 ---
-q: %make% the shell stop at the first command that fails
+q: %make% a broken step stop the whole script instead of continuing silently
 a: set -e
 why: conceptual
 ref: set
 teach: set -e
 hint: -e makes any failing command end the script immediately
 ---
-q: %make% the shell treat an unset variable as an error rather than an empty string
+q: %make% a typo'd variable name fail loudly instead of expanding to empty
 a: set -u
 why: conceptual
 ref: set
 teach: set -u
 hint: -u turns a reference to an unset variable into a hard error
 ---
-q: {try to cd into @word@-place, and if that fails because it doesn't exist yet, create it instead|attempt to enter @word@-place, falling back to making it if the cd fails|cd into @word@-place or, failing that, make it}
+q: {cd into @word@-place, or create it if that fails|enter @word@-place, falling back to creating it if cd fails|cd into @word@-place or, failing that, make it}
 a: cd @word@-place || mkdir @word@-place
 state: exists:@word@-place
 ref: cd
 teach: cd
 hint: || only runs its right side when the left side's exit status is nonzero -- cd fails cleanly when the target is missing
 ---
-q: %make% the shell print each command before running it
+q: %make% the shell show each command as it runs, for debugging
 a: set -x
 why: conceptual
 ref: set

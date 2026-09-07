@@ -10,7 +10,8 @@ brief: For anything space-separated, awk is the better tool, and it is next.
 brief:
 brief: -c here picks characters by position, not a count.
 ---
-q: %show% the first comma-separated field of every line in @csv@
+setup: @csv@ is name,id,status,count
+q: %show% just the name column
 a: cut -d, -f1 @csv@
 out: ^gateway$
 ref: cut
@@ -18,49 +19,49 @@ teach: cut -d
 teach: cut -f
 hint: -d sets the delimiter, -f picks the field number
 ---
-q: %show% the third comma-separated field of @csv@
+q: %show% just the status column of @csv@
 a: cut -d, -f3 @csv@
 cmp: ref
 ref: cut
 teach: cut -f
 hint: field numbers start at 1, not 0
 ---
-q: %show% fields 1 and 3 of @csv@
+q: %show% the name and status columns of @csv@ together
 a: cut -d, -f1,3 @csv@
 out: gateway,up
 ref: cut
 teach: cut -f
 hint: comma-separate the field numbers to pick more than one
 ---
-q: %show% fields 2 through 4 of @csv@
+q: %show% every column of @csv@ except the name
 a: cut -d, -f2-4 @csv@
 out: 1,up,42
 ref: cut
 teach: cut -f
 hint: a dash between two numbers means a range
 ---
-q: %show% everything from field 3 to the end of each line in @csv@
+q: %show% status and everything after it in @csv@
 a: cut -d, -f3- @csv@
 out: up,42
 ref: cut
 teach: cut -f
 hint: a trailing dash with no end number means to the end of the line
 ---
-q: %show% fields 4 and 1 of @csv@, in that exact order -- not resorted to 1 then 4
+q: %show% count then name from @csv@, not resorted to name-first
 a: cut -D -d, -f4,1 @csv@
 out: 42,gateway
 ref: cut
 teach: cut -D
 hint: without -D, cut always prints selected fields back in ascending order; -D keeps them (and any duplicates) exactly as you listed them
 ---
-q: %show% the first 10 characters of each line of @log@
+q: @log@ opens with a 10-char date -- %show% just that date
 a: cut -c1-10 @log@
 out: ^2024-03-01$
 ref: cut
 teach: cut -c
 hint: -c counts characters by position, not fields
 ---
-q: %show% characters 12 onward of each line of @log@
+q: @log@ opens with a date and a space -- %show% the rest
 a: cut -c12- @log@
 cmp: ref
 ref: cut
@@ -74,14 +75,14 @@ ref: cut
 teach: cut -b
 hint: -b counts bytes; same as -c unless the text is multibyte
 ---
-q: %show% field 1 of @csv@, skipping lines that have no comma in them at all
+q: %show% @csv@'s name column, skipping lines with no comma
 a: cut -d, -f1 -s @csv@
 out: ^gateway$
 ref: cut
 teach: cut -s
 hint: without -s, a line with no delimiter is printed whole
 ---
-q: %show% fields 1 and 3 of @csv@, joining them with a colon instead of a comma
+q: %show% name and status from @csv@ joined by a colon, not a comma
 a: cut -d, -f1,3 -O: @csv@
 out: ^gateway:up$
 ref: cut
@@ -116,7 +117,7 @@ ref: tr
 teach: tr -d
 hint: \n is the newline character, deleted the same as any other
 ---
-q: {collapse every run of repeated spaces in @log@ down to a single space|squeeze repeated spaces in @log@ down to one space each|collapse runs of spaces in @log@ so each run becomes a single space}
+q: {squeeze repeated spaces in @log@ to one space each|collapse runs of spaces in @log@ into a single space|collapse every space run in @log@ down to one space}
 a: tr -s ' ' < @log@
 out: INFO service
 ref: tr
@@ -138,7 +139,7 @@ teach: tr -c
 hint: -c complements the set, so -dc deletes everything NOT listed
 
 ---
-q: {sort the numbers in the count column of @csv@ numerically, largest first|order the count column of @csv@ numerically, biggest number first|pull the count column from @csv@ and sort it numerically, descending}
+q: {sort the count column of @csv@ numerically, largest first|order @csv@'s count column numerically, biggest first|pull @csv@'s count column and sort it numerically, descending}
 a: cut -d, -f4 @csv@ | sort -rn
 cmp: ref
 ref: sort

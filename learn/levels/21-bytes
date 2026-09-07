@@ -9,7 +9,7 @@ brief:
 brief: dd names its arguments with = rather than flags: if= in, of= out, bs=
 brief: block size, count= how many blocks.
 ---
-q: %show% @bin@ as hex bytes with the printable characters beside them
+q: %show% @bin@ as hex with the printable text beside it
 a: hexdump -C @bin@
 cmp: ref
 ref: hexdump
@@ -23,7 +23,7 @@ ref: hexdump
 teach: hexdump -b
 hint: b for byte -- one-byte octal display, unlike the two-byte forms below
 ---
-q: %show% @bin@ as characters, escaping the unprintable ones
+q: %show% @bin@ as characters, escaping anything unprintable
 a: hexdump -c @bin@
 cmp: ref
 ref: hexdump
@@ -51,7 +51,7 @@ ref: hexdump
 teach: hexdump -o
 hint: o for octal, again grouped two bytes at a time
 ---
-q: {dump only the first 32 bytes of @bin@|show just the first 32 bytes of @bin@, nothing past that|limit the dump of @bin@ to its first 32 bytes}
+q: {you only need @bin@'s header -- dump just its first 32 bytes|check @bin@'s header by dumping only its first 32 bytes|cap the dump of @bin@ at its first 32 bytes, header only}
 a: hexdump -C -n 32 @bin@
 cmp: ref
 ref: hexdump
@@ -65,7 +65,7 @@ ref: hexdump
 teach: hexdump -s
 hint: -s skips that many bytes before the dump begins
 ---
-q: {dump @bin@ without collapsing repeated lines into a single asterisk|show every line of @bin@ in full, even the repeated ones|turn off the asterisk that normally hides repeated lines when dumping @bin@}
+q: {dump @bin@ without collapsing repeated lines into an asterisk|show every line of @bin@ in full, even repeats|turn off the asterisk hiding repeated lines in @bin@}
 a: hexdump -C -v @bin@
 cmp: ref
 ref: hexdump
@@ -79,7 +79,7 @@ ref: hexdump
 teach: hexdump -e
 hint: -e takes a format string, the same kind -f reads from a file
 ---
-q: {dump @bin@ with the format string read from fmt.txt|dump @bin@ using the format string stored in fmt.txt|point hexdump at fmt.txt, the file holding the format string, then dump @bin@ with it}
+q: {dump @bin@ using the format string in fmt.txt|dump @bin@ with the format read from fmt.txt|point hexdump at fmt.txt and dump @bin@ with it}
 a: hexdump -f fmt.txt @bin@
 out: [0-9a-f]{2} [0-9a-f]{2}
 ref: hexdump
@@ -100,14 +100,14 @@ ref: od
 teach: od -A
 hint: -A picks the radix for the address column -- d decimal, x hex, n none at all
 ---
-q: %show% @bin@ as single hex bytes, one per position, instead of od's default octal words
+q: confirm @bin@'s an elf binary -- %show% single hex bytes
 a: od -t x1 @bin@
 out: 7f 45 4c 46
 ref: od
 teach: od -t
 hint: -t picks the display type -- x1 is hex, one byte at a time
 ---
-q: %show% only the first 8 bytes of @bin@ with od
+q: @bin@'s signature -- %show% its first 8 bytes with od
 a: od -N 8 @bin@
 out: ^0000010$
 ref: od
@@ -121,14 +121,14 @@ ref: dd
 teach: dd
 hint: if= is the source, of= is the destination -- no other flags needed
 ---
-q: {copy the first 512 bytes of @log@ into head.bin|use dd to copy just the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ and write them to head.bin}
+q: {only need @log@'s start -- copy its first 512 bytes to head.bin|grab just the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ into head.bin}
 a: dd if=@log@ of=head.bin bs=512 count=1
 state: exists:head.bin
 ref: dd
 teach: dd
 hint: bs= sets the block size, count= how many blocks to copy
 ---
-q: {read 16 bytes from @log@ starting at byte 32|starting 32 bytes into @log@, read the next 16 bytes|skip the first 32 bytes of @log@ and read 16 bytes from there}
+q: {something's embedded 32 bytes into @log@ -- read 16 bytes there|starting 32 bytes into @log@, read the next 16 bytes|skip the first 32 bytes of @log@ and read 16 bytes from there}
 a: dd if=@log@ bs=1 skip=32 count=16
 out: 16 bytes
 ref: dd
@@ -142,42 +142,42 @@ ref: dd
 teach: dd
 hint: /dev/zero is an endless stream of zero bytes; bs=/count= cap it
 ---
-q: %make% 32 bytes of random data
+q: %make% 32 random bytes to use as a key
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd
 teach: dd
 hint: /dev/urandom is the random byte source; bs= sets how many bytes total
 ---
-q: {copy @txt@ with dd, showing no progress or summary at all|use dd to copy @txt@ while suppressing all progress and summary output|copy @txt@ with dd as quietly as possible, with no summary line}
+q: {this dd copy of @txt@ runs in a script -- no progress, no summary|copy @txt@ with dd, suppressing all progress and summary output|copy @txt@ with dd as quietly as possible}
 a: dd if=@txt@ of=copy.txt status=none
 state: exists:copy.txt
 ref: dd
 teach: dd
 hint: status= controls dd's progress/summary output -- none silences it
 ---
-q: {split @log@ into pieces of 2 lines each|break @log@ into pieces of 2 lines apiece|use split to cut @log@ into 2-line chunks}
+q: {@log@ is too long to page through -- split it into 2-line pieces|break @log@ into pieces of 2 lines apiece|cut @log@ into 2-line chunks with split}
 a: split -l 2 @log@
 state: exists:xaa
 ref: split
 teach: split -l
 hint: -l counts lines per output piece, split's default unit
 ---
-q: {split @log@ into pieces of 100 bytes each|break @log@ into 100-byte pieces|use split to cut @log@ into chunks of 100 bytes}
+q: {you need to move @log@ in chunks under 100 bytes -- split it up|break @log@ into 100-byte pieces|cut @log@ into 100-byte chunks with split}
 a: split -b 100 @log@
 state: exists:xaa
 ref: split
 teach: split -b
 hint: -b counts bytes per piece instead of lines
 ---
-q: {split @log@ using 3-character suffixes instead of 2|split @log@ but make the output suffixes 3 characters long instead of the default 2|when splitting @log@, widen the suffix length from 2 characters to 3}
+q: {@log@ splits into so many pieces -- widen suffixes to 3|split @log@ with 3-character suffixes, not the default 2|widen @log@'s split suffixes from 2 to 3 characters}
 a: split -a 3 -l 2 @log@
 state: exists:xaaa
 ref: split
 teach: split -a
 hint: -a sets how many characters long the generated suffixes are
 ---
-q: {open @bin@ in a hex editor to change bytes in place, not just read them|open @bin@ in something that lets you edit bytes, not just view them|unlike hexdump, open @bin@ in a tool that can write bytes back}
+q: {open @bin@ in a hex editor to change bytes, not read them|open @bin@ in something that edits bytes, not just views them|unlike hexdump, open @bin@ in a tool that writes bytes back}
 a: hexedit @bin@
 why: interactive
 ref: hexedit

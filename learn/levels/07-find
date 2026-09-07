@@ -107,7 +107,7 @@ ref: find
 teach: find -perm
 hint: MODE alone means exactly this mode; -MODE means all these bits are set; +MODE means at least one is
 ---
-q: %find% files under here with the setuid bit set, matching "at least these bits" rather than an exact mode
+q: security check -- %find% every setuid binary here, any other bits
 a: find . -perm -4000
 out: suid-tool
 ref: find
@@ -156,7 +156,7 @@ ref: find
 teach: find -prune
 hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
-q: {stop at the first .log file found rather than walking the whole tree|find the first .log file and stop there, without walking the rest of the tree|find one .log file and quit immediately, not the whole tree}
+q: {stop at the first .log file found, not the whole tree|find the first .log file and stop, not the rest of the tree|find one .log file and quit immediately, not the whole tree}
 a: find . -name '*.log' -print -quit
 cmp: ref
 ref: find
@@ -170,7 +170,7 @@ ref: find
 teach: find -exec
 hint: {} is the filename, and the ; ends the command -- escape it from the shell
 ---
-q: %find% every .log file and pass them all to one wc -l instead of one each
+q: %find% every .log file and pass them all to a single wc -l
 a: find . -name '*.log' -exec wc -l {} +
 cmp: ref
 ref: find
@@ -191,14 +191,14 @@ ref: find
 teach: find -L
 hint: makes find follow symlinks and describe what they point to
 ---
-q: %list% every file under here in depth-first order, contents before the directory
+q: deleting bottom-up -- %list% contents before their directory
 a: find . -depth
 cmp: ref
 ref: find
 teach: find -depth
 hint: flips the walk order -- normally a directory prints before its contents
 ---
-q: %find% every .log file and print the names separated by NUL rather than newline
+q: filenames might contain spaces -- %find% .log files, names NUL-separated
 a: find . -name '*.log' -print0
 cmp: ref
 ref: find

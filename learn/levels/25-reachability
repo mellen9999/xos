@@ -8,28 +8,28 @@ brief:
 brief: ping proves a host answers. traceroute shows where the packets stop.
 brief: netstat shows what your own machine is doing about it.
 ---
-q: {send three pings to @ip@ and stop|ping @ip@ three times, then stop|send exactly three pings to @ip@}
+q: {does @ip@ even answer -- send three pings and stop|ping @ip@ three times, then stop|send exactly three pings to @ip@}
 a: ping -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -c
 hint: -c sets how many pings to send before stopping
 ---
-q: {ping @ip@ quietly, printing only the summary|ping @ip@ with per-packet output suppressed, summary only|ping @ip@ and print only the final summary}
+q: {just need loss percent -- ping @ip@ quietly, summary only|ping @ip@ with per-packet output suppressed, summary only|ping @ip@ and print only the final summary}
 a: ping -c 3 -q @ip@
 why: live-net
 ref: ping
 teach: ping -q
 hint: -q suppresses per-packet lines, printing only the final summary
 ---
-q: {ping with one second between packets|ping @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
+q: {you don't want to flood the link -- ping with one second between packets|ping @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
 a: ping -i 1 -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -i
 hint: -i sets the interval between packets, in seconds
 ---
-q: {ping @ip@ out of @iface@|ping @ip@ through @iface@|send the pings to @ip@ out of @iface@}
+q: {two interfaces, test one specifically -- ping @ip@ out of @iface@|ping @ip@ through @iface@|send the pings to @ip@ out of @iface@}
 a: ping -I @iface@ -c 3 @ip@
 why: live-net
 ref: ping
@@ -43,7 +43,7 @@ ref: ping
 teach: ping -s
 hint: -s sets the payload size in bytes, useful for MTU testing
 ---
-q: {give up on the whole ping run after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}
+q: {can't wait forever for a dead host -- give up the ping run after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}
 a: ping -w 5 @ip@
 why: live-net
 ref: ping
@@ -57,49 +57,49 @@ ref: ping
 teach: ping -W
 hint: -W caps how long to wait for each individual reply
 ---
-q: {ping with a fixed time to live of 5 hops|ping @ip@ with the ttl fixed at 5 hops|send pings to @ip@ that expire after 5 hops}
+q: {is @ip@ on the local segment -- ping with ttl fixed at 5 hops|ping @ip@ with the ttl fixed at 5 hops|send pings to @ip@ that expire after 5 hops}
 a: ping -t 5 -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -t
 hint: -t sets the ip ttl, capping how many hops a packet can cross
 ---
-q: {ping using a chosen pattern in the payload bytes|ping @ip@ with a specific byte pattern filling the payload|fill the ping payload to @ip@ with a chosen pattern}
+q: {flaky link may be corrupting bits -- ping with a chosen payload pattern|ping @ip@ with a specific byte pattern filling the payload|fill the ping payload to @ip@ with a chosen pattern}
 a: ping -p ff -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -p
 hint: -p fills the payload with a repeating hex pattern you choose
 ---
-q: {ping in adaptive mode, sending as fast as replies come back|ping @ip@ adaptively, firing the next packet as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
+q: {need samples fast -- ping adaptively, firing as soon as a reply lands|ping @ip@ adaptively, firing the next packet as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
 a: ping -A -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -A
 hint: -A sends the next ping as soon as the last reply arrives, instead of waiting
 ---
-q: %show% the path packets take to @ip@
+q: pings aren't getting through -- %show% the path to @ip@
 a: traceroute @ip@
 why: live-net
 ref: traceroute
 teach: traceroute
 hint: traceroute with no flags shows the path packets take, hop by hop
 ---
-q: {trace the path without resolving names, so it runs fast|trace to @ip@ skipping name resolution for speed|run the trace to @ip@ fast, with no hostname lookups}
+q: {don't want to wait on dns per hop -- trace the path without resolving names|trace to @ip@ skipping name resolution for speed|run the trace to @ip@ fast, with no hostname lookups}
 a: traceroute -n @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -n
 hint: -n skips resolving each hop's hostname, so it runs faster
 ---
-q: {trace no further than 10 hops|cap the trace to @ip@ at 10 hops|trace to @ip@ but stop after 10 hops}
+q: {the trace to @ip@ is dragging on -- cap it at 10 hops|cap the trace to @ip@ at 10 hops|trace to @ip@ but stop after 10 hops}
 a: traceroute -m 10 @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -m
 hint: -m caps the maximum number of hops traced
 ---
-q: {send one probe per hop instead of three|trace to @ip@ sending just one probe per hop|cut the probes per hop to one, instead of the default three}
+q: {the default three probes per hop is too slow -- send just one|trace to @ip@ sending just one probe per hop|cut the probes per hop to one, instead of the default three}
 a: traceroute -q 1 @ip@
 why: live-net
 ref: traceroute
@@ -113,7 +113,7 @@ ref: traceroute
 teach: traceroute -f
 hint: -f sets the starting ttl, skipping the earlier hops
 ---
-q: {trace using icmp echo rather than udp|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
+q: {firewall might be dropping udp -- trace using icmp echo instead|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
 a: traceroute -I @ip@
 why: live-net
 ref: traceroute
@@ -134,7 +134,7 @@ ref: traceroute
 teach: traceroute -s
 hint: -s sets the source address the probes claim to be from
 ---
-q: {trace to @ip@ targeting destination port @port@|trace to @ip@ targeting port @port@|aim the trace to @ip@ at destination port @port@}
+q: {firewall may treat this port differently -- trace @ip@, port @port@|trace to @ip@ targeting port @port@|aim the trace to @ip@ at destination port @port@}
 a: traceroute -p @port@ @ip@
 why: live-net
 ref: traceroute
@@ -162,7 +162,7 @@ ref: traceroute
 teach: traceroute -r
 hint: -r sends probes directly, bypassing the normal routing tables
 ---
-q: {pause half a second between probes|trace to @ip@ with half a second between probes|space the probes to @ip@ half a second apart}
+q: {something's rate-limiting you -- pause half a second between probes|trace to @ip@ with half a second between probes|space the probes to @ip@ half a second apart}
 a: traceroute -z 500 @ip@
 why: live-net
 ref: traceroute
@@ -183,35 +183,35 @@ ref: traceroute
 teach: traceroute -l
 hint: -l sets the length of the probe packets themselves
 ---
-q: {do not fragment the trace packets|trace to @ip@ with fragmentation disabled|forbid the trace packets to @ip@ from being fragmented}
+q: {check if fragmentation breaks this path -- disable it on the trace packets|trace to @ip@ with fragmentation disabled|forbid the trace packets to @ip@ from being fragmented}
 a: traceroute -F @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -F
 hint: -F sets the don't-fragment bit on the trace packets
 ---
-q: {look up the address of a hostname|resolve @host@ to its address|find the address @host@ resolves to}
+q: {site loads by ip but not by name -- look up @host@'s address|resolve @host@ to its address|find the address @host@ resolves to}
 a: nslookup @host@
 why: live-net
 ref: nslookup
 teach: nslookup
 hint: nslookup with just a name asks your configured resolver
 ---
-q: {look up @host@ using the dns server @ip@|resolve @host@ using @ip@ as the dns server you name|query @ip@ directly for @host@}
+q: {resolver's broken -- look up @host@ via @ip@ as dns server|resolve @host@ using @ip@ as the dns server you name|query @ip@ directly for @host@}
 a: nslookup @host@ @ip@
 why: live-net
 ref: nslookup
 teach: nslookup
 hint: naming a server after the host queries it directly, bypassing your resolver
 ---
-q: {what sockets is this machine using|report the sockets this machine is currently using|list this machine's current sockets}
+q: {see what your machine is doing on the network -- what sockets is it using|report the sockets this machine is currently using|list this machine's current sockets}
 a: netstat
 why: live-net
 ref: netstat
 teach: netstat
 hint: netstat alone lists the sockets currently in use
 ---
-q: %show% only listening sockets
+q: check what's accepting connections -- %show% only listening sockets
 a: netstat -l
 why: live-net
 ref: netstat
@@ -225,7 +225,7 @@ ref: netstat
 teach: netstat -a
 hint: -a shows every socket, listening and connected alike
 ---
-q: %show% sockets numerically, without resolving names or ports
+q: dns is down -- %show% sockets numerically, no names or ports resolved
 a: netstat -n
 why: live-net
 ref: netstat
@@ -246,7 +246,7 @@ ref: netstat
 teach: netstat -u
 hint: -u filters to udp sockets only
 ---
-q: %show% which process owns each socket
+q: which process has a port open -- %show% who owns each socket
 a: netstat -p
 why: live-net
 ref: netstat
@@ -288,7 +288,7 @@ ref: netstat
 teach: netstat -e
 hint: -e adds extended fields like user and inode
 ---
-q: %show% netstat with wide columns so long addresses are not truncated
+q: ipv6 addresses keep getting cut off -- %show% netstat with wide columns
 a: netstat -W
 why: live-net
 ref: netstat

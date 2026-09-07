@@ -9,7 +9,8 @@ brief: The classic trap is filenames with spaces. find -print0 emits names
 brief: separated by a NUL byte, which cannot occur in a filename, and xargs -0
 brief: reads them back. Use that pair by default and the problem never arises.
 ---
-q: %find% every .log file and count the lines of each, using xargs
+setup: a pile of .log files has built up and you want line counts for all of them
+q: %find% every .log file and count the lines of each
 a: find . -name '*.log' | xargs wc -l
 cmp: ref
 ref: xargs
@@ -23,14 +24,14 @@ ref: xargs
 teach: xargs -0
 hint: NUL is the one byte a filename cannot contain
 ---
-q: {pass exactly one argument per command invocation|use xargs -n 1 to run the command once per input line|split the input so each invocation gets exactly one argument}
+q: {a command only takes one argument at a time -- run it once per input line|feed the command one item per invocation, not all at once|run echo once per file instead of one giant invocation}
 a: ls | xargs -n 1 echo
 cmp: ref
 ref: xargs
 teach: xargs -n
 hint: -n caps how many arguments go into each invocation
 ---
-q: {put each input where you want it, not just at the end, using a placeholder|use xargs -I to place each item wherever you want in the command|give xargs a placeholder so input can go mid-command, not just trailing}
+q: {you need each filename in the middle of the command, not tacked on the end|the argument has to land mid-command -- give xargs a placeholder for where|put each item wherever you want in the command, not just trailing}
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
 ref: xargs
@@ -44,70 +45,70 @@ ref: xargs
 teach: xargs -t
 hint: -t prints the command line to stderr before running it
 ---
-q: {do nothing at all when the input is empty, rather than running once|when there's no input at all, run nothing rather than one empty invocation|make xargs skip running entirely on empty input}
+q: {a pipeline sometimes produces nothing -- don't run the command in that case|when there's no input at all, skip running the command entirely|don't let an empty input still trigger one empty invocation}
 a: printf '' | xargs -r echo nothing
 why: primitive-cost
 ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
-q: {stop reading input at the word STOP|use xargs -E STOP to cut off input the moment STOP appears|make xargs ignore everything from STOP onward}
+q: {the input has a STOP marker -- ignore everything from there on|cut off input the moment the word STOP shows up|treat STOP as the end of input, whatever follows it}
 a: printf 'a b STOP c' | xargs -E STOP echo
 cmp: ref
 ref: xargs
 teach: xargs -E
 hint: -E names a string that, once seen, ends input reading right there
 ---
-q: {run at most 2 commands at the same time|use xargs -P 2 to run two invocations in parallel|cap concurrent xargs invocations at 2}
+q: {these are independent and slow -- run 2 at a time instead of one by one|speed things up by running 2 invocations in parallel|don't wait for each one to finish before starting the next -- cap it at 2}
 a: ls | xargs -P 2 -n 1 echo
 why: primitive-cost
 ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
 ---
-q: {ask before running each command|use xargs -p to confirm each invocation before it runs|make xargs pause and ask before every command}
+q: {this could go wrong -- confirm each command before it actually runs|don't trust the list blindly -- approve each invocation first|make xargs pause and ask before every command}
 a: ls | xargs -p echo
 why: interactive
 ref: xargs
 teach: xargs -p
 hint: -p prompts for confirmation before each invocation, handy for a dry run
 ---
-q: {take the argument list from @txt@ rather than standard input|use xargs -a @txt@ so arguments come from that file, not a pipe|read arguments out of @txt@ instead of piping them in}
+q: {the list is already saved in @txt@ -- use it, no piping needed|@txt@ already holds the arguments -- feed it straight in|read the argument list out of @txt@ instead of piping it in}
 a: xargs -a @txt@ echo
 out: rotate
 ref: xargs
 teach: xargs -a
 hint: -a reads the argument list from a file instead of stdin
 ---
-q: {keep each command line under 100 bytes, splitting into more invocations|use xargs -s 100 to cap each command line's length|limit each invocation's command line to 100 bytes}
+q: {some tool chokes on long command lines -- cap each one at 100 bytes|keep every generated command line under 100 bytes, splitting as needed|limit each invocation's command line to 100 bytes}
 a: ls | xargs -s 100 echo
 cmp: ref
 ref: xargs
 teach: xargs -s
 hint: -s caps the total length of each generated command line
 ---
-q: {strip the directory part off the path @dir@/@txt@|use basename to drop everything up to the last slash in @dir@/@txt@|reduce @dir@/@txt@ down to just its filename}
+q: {you only want the filename out of @dir@/@txt@, not the whole path|find handed you @dir@/@txt@ -- reduce it down to just the filename|drop everything but the filename from @dir@/@txt@}
 a: basename @dir@/@txt@
 out: ^@txt@$
 ref: basename
 teach: basename
 hint: basename strips everything up through the last slash
 ---
-q: {strip @txt@'s directory and its .txt suffix|use basename on @txt@ with a suffix argument to drop .txt too|reduce @txt@ down to its name with .txt also removed}
+q: {strip @txt@ down to its name, dropping the .txt suffix too|get @txt@'s bare name with the .txt extension gone as well|reduce @txt@ to just its name, no directory and no .txt suffix}
 a: basename @txt@ .txt
 cmp: ref
 ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {strip @txt@'s .txt suffix using the explicit flag rather than a second argument|use basename -s .txt on @txt@ instead of passing the suffix as a bare argument|strip .txt off @txt@ using the -s flag form}
+q: {you'll want this to work stripping several files at once|scripting generically, so name the suffix explicitly, not trailing|drop .txt from @txt@ the way that still works with more files}
 a: basename -s .txt @txt@
 cmp: ref
 ref: basename
 teach: basename -s
 hint: -s is the explicit-flag form of the same suffix stripping
 ---
-q: {take the basename of several paths at once|use basename -a to process @txt@ and @log@ together|run basename over multiple paths in a single call}
+q: {you have several paths and want just the filenames, all in one call|process @txt@ and @log@ together instead of running basename twice|reduce both @txt@ and @log@ to bare filenames in a single call}
 a: basename -a @txt@ @log@
 cmp: ref
 ref: basename
@@ -135,7 +136,7 @@ ref: readlink
 teach: readlink -f
 hint: -f follows every link in the chain, not just the first one
 ---
-q: {read a symlink without a trailing newline|use readlink -n so no newline follows the output|print @txt@'s link target with no newline at the end}
+q: {piping @txt@'s link target onward -- no stray newline allowed|@txt@'s target needs to come out with no trailing newline|feed @txt@'s link target on without an extra newline}
 a: readlink -n @txt@
 why: primitive-cost
 ref: readlink
@@ -156,7 +157,8 @@ ref: type
 teach: type
 hint: type reports whether a name is a builtin, a file, a function or an alias
 ---
-q: {remember where a command lives so the shell stops searching for it|use hash to cache sed's location for faster lookups|make the shell remember where sed is instead of searching PATH again}
+setup: you're about to call sed hundreds of times in a loop
+q: {stop the shell from searching PATH for sed every single time|cache sed's location so future calls skip the PATH search|make the shell remember where sed is instead of looking it up again}
 a: hash sed
 why: primitive-cost
 ref: hash

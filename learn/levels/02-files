@@ -33,14 +33,14 @@ ref: cp
 teach: cp -r
 hint: the flag cp calls "Recurse"
 ---
-q: {copy @cfg@ to @cfg2@, but refuse to overwrite it if it already exists|copy @cfg@ to @cfg2@ without clobbering it if it's already there|copy @cfg@ to @cfg2@, only if @cfg2@ doesn't already exist}
+q: {don't overwrite @cfg2@ -- copy @cfg@ there only if missing|duplicate @cfg@ as @cfg2@ without clobbering an existing file|make @cfg2@ from @cfg@, but only if @cfg2@ doesn't exist}
 a: cp -n @cfg@ @cfg2@
 why: primitive-cost
 ref: cp
 teach: cp -n
 hint: n for "no clobber"
 ---
-q: {copy @txt@ to @txt@.bak preserving its timestamps and permissions|copy @txt@ to @txt@.bak, keeping its timestamps and permissions intact|make a copy of @txt@ at @txt@.bak that keeps its timestamps and permissions}
+q: {copy @txt@ to @txt@.bak, keeping timestamps and permissions|copy @txt@ to @txt@.bak without losing timestamps or permissions|back up @txt@ to @txt@.bak, keeping timestamps and permissions}
 a: cp -p @txt@ @txt@.bak
 a: cp -a @txt@ @txt@.bak
 state: exists:@txt@.bak
@@ -48,7 +48,7 @@ ref: cp
 teach: cp -p
 hint: p for preserve
 ---
-q: {copy @dir@ to @dir2@-archive preserving everything -- one flag, not three|copy @dir@ to @dir2@-archive keeping everything about it intact, using a single flag|archive-copy @dir@ to @dir2@-archive, preserving everything with just one flag}
+q: {copy @dir@ to @dir2@-archive preserving everything, one flag only|copy @dir@ to @dir2@-archive keeping it all intact, single flag|archive-copy @dir@ to @dir2@-archive, everything preserved, one flag}
 a: cp -a @dir@ @dir2@-archive
 state: exists:@dir2@-archive
 ref: cp
@@ -164,7 +164,7 @@ ref: ln
 teach: ln
 hint: no flag needed -- ln makes a hard link by default
 ---
-q: %make% a symlink @word@-link to @txt@, replacing it if it already exists
+q: %make% a symlink @word@-link to @txt@, replacing it if it exists
 a: ln -sf @txt@ @word@-link
 a: ln -fs @txt@ @word@-link
 state: exists:@word@-link
@@ -172,28 +172,28 @@ ref: ln
 teach: ln -f
 hint: combine -s for symbolic with -f to replace what's already there
 ---
-q: {copy @cfg@ to @cfg2@, asking before it would overwrite anything|copy @cfg@ to @cfg2@, but prompt first if that would overwrite something|copy @cfg@ over @cfg2@, confirming before any overwrite}
+q: {ask before copying @cfg@ over an existing @cfg2@|duplicate @cfg@ as @cfg2@, asking first if it'd overwrite|copy @cfg@ over @cfg2@, confirming before any overwrite}
 a: cp -i @cfg@ @cfg2@
 why: interactive
 ref: cp
 teach: cp -i
 hint: i for interactive -- prompts before clobbering
 ---
-q: {copy @cfg@ over @cfg2@ forcing it through even if the target resists|copy @cfg@ onto @cfg2@, forcing past anything that would block it|force a copy of @cfg@ over @cfg2@ no matter what's in the way}
+q: {copy @cfg@ over @cfg2@, forcing past any resistance|copy @cfg@ onto @cfg2@, forcing past whatever would block it|force @cfg@ over @cfg2@, no matter what's already there}
 a: cp -f @cfg@ @cfg2@
 state: exists:@cfg2@
 ref: cp
 teach: cp -f
 hint: f removes the destination first if a plain overwrite would fail
 ---
-q: {move @txt@ to @word@.txt, asking first if that would overwrite something|move @txt@ to @word@.txt, but prompt before overwriting anything|rename @txt@ to @word@.txt, confirming first if it would clobber something}
+q: {move @txt@ to @word@.txt, asking first if it would overwrite|rename @txt@ to @word@.txt, but prompt before any overwrite|before renaming @txt@ to @word@.txt, confirm if it would clobber}
 a: mv -i @txt@ @word@.txt
 why: interactive
 ref: mv
 teach: mv -i
 hint: i for interactive, same idea as cp -i
 ---
-q: {move @txt@ to @word@.txt, forcing it without any prompt|move @txt@ to @word@.txt, overwriting anything there with no confirmation|force the move of @txt@ to @word@.txt, skipping any prompt}
+q: {move @txt@ to @word@.txt, forcing it with no prompt|rename @txt@ to @word@.txt, overwriting it with no confirmation|force the rename of @txt@ to @word@.txt, skip the prompt}
 a: mv -f @txt@ @word@.txt
 state: exists:@word@.txt
 ref: mv
@@ -207,14 +207,14 @@ ref: rm
 teach: rm -i
 hint: i for interactive -- prompts before removing
 ---
-q: {remove prune/mid/deep and any parent directories left empty behind it|delete prune/mid/deep, then clean up any now-empty parents above it|remove prune/mid/deep along with the empty parent directories it leaves behind}
+q: {remove prune/mid/deep and any parents left empty behind it|delete prune/mid/deep, then clean up now-empty parents above it|remove prune/mid/deep along with the empty parents it leaves behind}
 a: rmdir -p prune/mid/deep
 state: gone:prune
 ref: rmdir
 teach: rmdir -p
 hint: p walks back up removing each parent as long as it's now empty
 ---
-q: %make% a named pipe called @word@.fifo
+q: %make% @word@.fifo, a pipe so two processes can talk directly
 a: mkfifo @word@.fifo
 state: exists:@word@.fifo
 ref: mkfifo
@@ -235,21 +235,21 @@ ref: mktemp
 teach: mktemp
 hint: generates and creates a uniquely-named file, then prints its path
 ---
-q: %make% a temporary directory rather than a file
+q: get a temporary directory instead of a file
 a: mktemp -d
 why: primitive-cost
 ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
 ---
-q: %make% a temporary name without actually creating anything
+q: get a temporary name without actually creating anything
 a: mktemp -u
 why: primitive-cost
 ref: mktemp
 teach: mktemp -u
 hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
 ---
-q: %make% a temporary file, staying silent if it cannot
+q: %make% a temp file that stays silent if it fails
 a: mktemp -q
 why: primitive-cost
 ref: mktemp

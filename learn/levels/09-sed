@@ -13,7 +13,7 @@ brief:
 brief: && runs the next command only if the last one worked -- copy first,
 brief: edit only if the copy landed.
 ---
-q: {replace the first @old@ on each line of @cfg@ with @new@|swap the first @old@ for @new@ on every line of @cfg@|change the first occurrence of @old@ per line to @new@ in @cfg@}
+q: {replace the first @old@ on each line of @cfg@ with @new@|swap the first @old@ per line of @cfg@ for @new@|change the first @old@ per line to @new@ in @cfg@}
 a: sed 's/@old@/@new@/' @cfg@
 cmp: ref
 ref: sed
@@ -27,7 +27,7 @@ ref: sed
 teach: sed
 hint: the g goes after the final slash
 ---
-q: {replace @old@ with @new@ in @cfg@, ignoring case|replace @old@ with @new@ in @cfg@, matching case-insensitively|swap @old@ for @new@ in @cfg@ without caring about case}
+q: {replace @old@ with @new@ in @cfg@, ignoring case|replace @old@ with @new@ in @cfg@, case-insensitively|swap @old@ for @new@ in @cfg@ without caring about case}
 a: sed 's/@old@/@new@/gi' @cfg@
 a: sed 's/@old@/@new@/Ig' @cfg@
 cmp: ref
@@ -49,7 +49,7 @@ ref: sed
 teach: sed -n
 hint: same p as line 3, but a range with a comma before it
 ---
-q: %show% every line of @log@ that mentions @sev@, using sed rather than grep
+q: %show% every @log@ line mentioning @sev@, using sed not grep
 a: sed -n '/@sev@/p' @log@
 out: @sev@
 ref: sed
@@ -91,42 +91,42 @@ ref: sed
 teach: sed
 hint: ^ *  matches leading spaces, replaced with nothing
 ---
-q: {do two edits in one pass -- drop comments, then drop blank lines -- from @cfg@|drop comments and blank lines from @cfg@ in a single sed invocation|in one pass, remove both comments and blank lines from @cfg@}
+q: {do two edits in one pass -- drop comments, then blanks -- from @cfg@|drop comments and blanks from @cfg@ in one sed invocation|in one pass, remove comments and blank lines from @cfg@}
 a: sed -e '/^#/d' -e '/^$/d' @cfg@
 out: listen
 ref: sed
 teach: sed -e
 hint: -e lets you give more than one script
 ---
-q: {pull the number out of every port line in @cfg@ using an extended regex|extract the number from each port line in @cfg@ with an extended regex|using extended regex, pull just the number out of every port line in @cfg@}
+q: {pull the port number out of @cfg@ using extended regex|extract the port number from @cfg@ with extended regex|using extended regex, pull the port number from @cfg@}
 a: sed -E 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 ref: sed
 teach: sed -E
 hint: -E gives you (groups) without backslashes; \1 is what the group caught
 ---
-q: {pull the port number out of @cfg@ again, but with the older flag letter for extended regular expressions|repeat the port-number extraction from @cfg@ using the older extended-regex flag letter|do the same port-number pull from @cfg@, but with the legacy extended-regex flag}
+q: {pull the port number from @cfg@ again, with the older regex flag|repeat the port pull from @cfg@ with the older flag|redo the port pull from @cfg@ with the legacy flag}
 a: sed -r 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 ref: sed
 teach: sed -r
 hint: -r and -E are the same flag; -E is the portable spelling
 ---
-q: {swap the first two comma-separated fields of @csv@|reverse the order of the first two comma-separated fields in @csv@|exchange @csv@'s first two comma-separated fields}
+q: {@csv@ is name,id,status,count -- swap name and id so id comes first|@csv@ is name,id,status,count -- put id ahead of name|@csv@ is name,id,status,count -- reverse name and id at line start}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@
 cmp: ref
 ref: sed
 teach: sed -E
 hint: capture each field in a group, then reorder them with \1 and \2
 ---
-q: {copy @cfg@ to edit.ini and then change @old@ to @new@ inside it, in place|copy @cfg@ to edit.ini, then edit edit.ini in place changing @old@ to @new@|make a copy of @cfg@ named edit.ini and swap @old@ for @new@ in it directly}
+q: {copy @cfg@ to edit.ini, then change @old@ to @new@ in place|copy @cfg@ to edit.ini, then edit it in place|copy @cfg@ to edit.ini and swap @old@ for @new@ in it}
 a: cp @cfg@ edit.ini && sed -i 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini
 ref: sed
 teach: sed -i
 hint: -i writes the file back rather than printing it
 ---
-q: %show% only the last line of @log@ using sed
+q: @log@ ends with why it died -- %show% that line, sed not tail
 a: sed -n '$p' @log@
 out: out of memory
 ref: sed
@@ -140,14 +140,14 @@ ref: sed
 teach: sed -n
 hint: a pattern address and $ together mean from the first match to the end
 ---
-q: {replace @old@ with @new@ in @cfg@ using a sed script held in a file rather than typed on the command line|run sed on @cfg@ using a script file instead of an inline expression, swapping @old@ for @new@|apply a sed script stored in a file to @cfg@, replacing @old@ with @new@}
+q: {save the @old@-to-@new@ edit as a script, apply it to @cfg@|write a script for @old@-to-@new@, run it on @cfg@|put @old@-to-@new@ in a script, apply to @cfg@}
 a: printf 's/@old@/@new@/g\n' > s.sed && sed -f s.sed @cfg@
 cmp: ref
 ref: sed
 teach: sed -f
 hint: -f takes a filename holding the script, like -e takes it inline
 ---
-q: {copy @cfg@ to edit.ini, replace @old@ with @new@ in place, and keep the original as edit.ini.bak|edit a copy of @cfg@ in place changing @old@ to @new@, but back it up as edit.ini.bak first|make the same @old@-to-@new@ in-place edit on a copy of @cfg@, saving the pre-edit version as edit.ini.bak}
+q: {copy @cfg@ to edit.ini, swap @old@/@new@, keep edit.ini.bak|edit @cfg@'s copy, backed up first as edit.ini.bak|edit a copy of @cfg@, saved first as edit.ini.bak}
 a: cp @cfg@ edit.ini && sed -i.bak 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini.bak
 ref: sed

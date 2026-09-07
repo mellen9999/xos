@@ -15,21 +15,21 @@ ref: cat
 teach: cat
 hint: no flags -- cat just dumps the whole file to the screen
 ---
-q: %show% @txt@ with every line numbered
+q: %show% @txt@ with line numbers so you can quote one back
 a: cat -n @txt@
 cmp: ref
 ref: cat
 teach: cat -n
 hint: n numbers every line, including blanks
 ---
-q: %show% @txt@ numbering only the lines that are not blank
+q: give @txt@ line numbers, but skip the blank ones
 a: cat -b @txt@
 cmp: ref
 ref: cat
 teach: cat -b
 hint: like -n but skips numbering blank lines
 ---
-q: %show% @cfg@ with a $ marking the end of every line
+q: %show% @cfg@ to spot trailing whitespace on each line
 a: cat -e @cfg@
 cmp: ref
 ref: cat
@@ -51,7 +51,7 @@ ref: head
 teach: head -n
 hint: -n takes a count, or glue the number straight onto the dash
 ---
-q: %show% the first 20 bytes of @log@
+q: %show% @log@'s date header -- the first 20 bytes
 a: head -c 20 @log@
 out: 2024-03-01
 ref: head
@@ -73,7 +73,7 @@ ref: tail
 teach: tail -n
 hint: -n takes a count, same syntax as head -n
 ---
-q: %show% @log@ from line 5 onward -- not the last 5, the fifth to the end
+q: %show% @log@ starting at line 5 -- not the last 5 lines
 a: tail -n +5 @log@
 out: connection refused
 ref: tail
@@ -87,7 +87,7 @@ ref: tail
 teach: tail -f
 hint: f for follow. this one never exits -- Ctrl+c is how you leave.
 ---
-q: %show% @txt@ with its lines in reverse order, last line first
+q: flip @txt@ so the last line reads first
 a: tac @txt@
 out: verify the root hash
 ref: tac
@@ -101,14 +101,14 @@ ref: strings
 teach: strings
 hint: pulls sequences of printable characters out of any file, text or not
 ---
-q: %show% only strings in @bin@ that are at least 5 characters long
+q: %show% strings in @bin@, skipping noise under 5 characters
 a: strings -n 5 @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings -n
 hint: -n sets the minimum run length to count as a string
 ---
-q: %show% the strings in @bin@ with the byte offset each one was found at
+q: %show% the strings in @bin@ with each one's byte offset
 a: strings -t d @bin@
 a: strings -t x @bin@
 out: unlocked-by-strings
@@ -123,14 +123,14 @@ ref: less
 teach: less
 hint: q leaves, /pattern searches, g and G jump to the ends
 ---
-q: {open @log@ in the pager with line numbers shown|page through @log@ with line numbers displayed|view @log@ in the pager, showing a line number for each line}
+q: {page through @log@ with line numbers, so you can point one out|open @log@ in the pager with line numbers, to reference one|view @log@ in the pager with line numbers, to call one out}
 a: less -N @log@
 why: interactive
 ref: less
 teach: less -N
 hint: N turns on line numbers in the margin
 ---
-q: {open @log@ in the pager without wrapping long lines|page through @log@ without wrapping its long lines|view @log@ in the pager, letting long lines run off the screen instead of wrapping}
+q: {view @log@ in the pager without wrapping, columns stay aligned|page through @log@ unwrapped -- keep columns aligned|open @log@ in the pager without wrapping long lines}
 a: less -S @log@
 why: interactive
 ref: less
@@ -144,14 +144,14 @@ ref: less
 teach: less -I
 hint: capital I makes searches ignore case
 ---
-q: %show% the last 20 bytes of @log@ rather than the last lines
+q: %show% @log@'s last 20 bytes -- just how it ended
 a: tail -c 20 @log@
 cmp: ref
 ref: tail
 teach: tail -c
 hint: c for characters/bytes, same idea as head -c
 ---
-q: {follow @log@ by name, so it keeps working if the file is rotated and replaced|follow @log@ by its name rather than its handle, surviving rotation|watch @log@ in a way that keeps working if the file is rotated and replaced}
+q: {follow @log@ by name, so it survives rotation|follow @log@ by name, not handle -- survives rotation|watch @log@ in a way that survives rotation}
 a: tail -F @log@
 why: interactive
 ref: tail

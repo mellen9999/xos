@@ -22,14 +22,14 @@ ref: echo
 teach: echo
 hint: > creates or truncates the file, then writes
 ---
-q: {append the word @word@ to the end of @txt@ without destroying it|add the word @word@ onto the end of @txt@, leaving the rest intact|tack the word @word@ onto @txt@ without wiping out what's already there}
+q: {append @word@ to the end of @txt@ without destroying it|add @word@ to the end of @txt@, leaving the rest intact|tack @word@ onto @txt@ without wiping out what's there}
 a: echo @word@ >> @txt@
 state: match:@txt@:rotate
 ref: echo
 teach: echo
 hint: two angle brackets, not one
 ---
-q: {feed @txt@ into sort on its standard input, using a redirect rather than a filename|run sort with @txt@ connected to its standard input via a redirect, not as an argument|pipe @txt@ into sort's stdin using < instead of passing it as a filename}
+q: {feed @txt@ into sort's stdin with a redirect, not a filename|connect @txt@ to sort's stdin with a redirect, not an argument|feed @txt@ into sort via <, not as a filename argument}
 a: sort < @txt@
 out: ask why the fan
 ref: sort
@@ -50,14 +50,14 @@ ref: ls
 teach: ls
 hint: /dev/null is the bit bucket -- everything written to it is discarded
 ---
-q: {run "ls @dir@ @word@-missing" sending both output and errors into all.txt|run "ls @dir@ @word@-missing", capturing both its output and errors in all.txt|run "ls @dir@ @word@-missing" so output and errors both land in all.txt}
+q: {run "ls @dir@ @word@-missing", output and errors both into all.txt|run "ls @dir@ @word@-missing", capturing output and errors in all.txt|run "ls @dir@ @word@-missing" so everything lands in all.txt}
 a: ls @dir@ @word@-missing > all.txt 2>&1
 state: exists:all.txt
 ref: ls
 teach: ls
 hint: redirect stdout first, then point stderr at wherever stdout now goes
 ---
-q: %show% @log@ on screen AND save a copy into copy.txt at the same time
+q: %show% @log@ on screen while saving a copy to copy.txt
 a: cat @log@ | tee copy.txt
 out: service started
 ref: tee
@@ -79,14 +79,14 @@ ref: wc
 teach: wc -l
 hint: redirecting in with < keeps the filename out of wc's output
 ---
-q: %show% @word@ with printf, which unlike echo does exactly what you tell it
+q: %show% @word@ with printf -- no surprises like echo has
 a: printf '%s\n' @word@
 out: ^@word@$
 ref: printf
 teach: printf
 hint: printf takes a format first, then the values to fill it with
 ---
-q: %show% @word@ with no trailing newline, using printf
+q: %show% @word@ with printf, same as before -- no trailing newline
 a: printf '%s' @word@
 out: @word@
 ref: printf
@@ -100,21 +100,22 @@ ref: printf
 teach: printf
 hint: \t in the format string is a literal tab
 ---
-q: %show% the number @n@ padded to five digits with leading zeros
+q: %show% @n@ as a zero-padded, five-digit id
 a: printf '%05d\n' @n@
 out: ^0*[0-9]+$
 ref: printf
 teach: printf
 hint: the 0 before the 5 means zero-pad instead of space-pad
 ---
-q: {%show% @word@ on stderr rather than stdout|write @word@ straight to stderr, not stdout|send @word@ to stderr using >&2}
+q: {print a warning -- %show% @word@ on stderr, not stdout|this is a warning message: write @word@ straight to stderr, not stdout|send @word@ to stderr so it won't get mixed into a script's captured output}
 a: echo @word@ >&2
 out: @word@
 ref: echo
 teach: echo
 hint: >&2 points stdout at wherever stderr goes -- short for 1>&2, since 1 is the default
 ---
-q: {run "ls @dir@ @word@-missing", merging stderr into the pipe so grep can see the error text too, searching for "such"|merge stderr into the pipe with 2>&1 so grep also sees the error from "ls @dir@ @word@-missing", searching for "such"|search ALL output -- stdout and stderr both -- of "ls @dir@ @word@-missing" for "such", by merging them before the pipe}
+setup: "ls @dir@ @word@-missing" -- one real hit, one error
+q: {run it with stderr merged in, then grep for "such"|run it, merging stderr with 2>&1, then grep "such"|run it with output and errors merged, then grep "such"}
 a: ls @dir@ @word@-missing 2>&1 | grep such
 out: such
 ref: grep

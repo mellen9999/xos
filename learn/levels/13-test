@@ -11,56 +11,56 @@ brief:
 brief: Quote your variables. [ -n $x ] with x empty becomes [ -n ], which is
 brief: true, which is the opposite of what you asked. [ -n "$x" ] is correct.
 ---
-q: {test whether @txt@ exists|check that @txt@ is there|confirm @txt@ exists on disk}
+q: {make sure @txt@ is actually there before you read it|check that @txt@ exists before you rely on it|confirm @txt@ is really on disk}
 a: [ -e @txt@ ]
 status: 0
 ref: [
 teach: [ -e
 hint: -e is true for any kind of existing thing, file or directory
 ---
-q: {test whether @txt@ is a regular file|check that @txt@ is an ordinary file|confirm @txt@ is a regular file rather than a directory}
+q: {check @txt@ is a plain file before you try to read it|@txt@ should be an ordinary file, not a directory|verify @txt@ is a regular file, not something else}
 a: [ -f @txt@ ]
 status: 0
 ref: [
 teach: [ -f
 hint: -f is true only for a regular file, not a directory or link
 ---
-q: {test whether @dir@ is a directory|check that @dir@ is actually a directory|confirm @dir@ names a directory}
+q: {make sure @dir@ is really a directory before you cd into it|check that @dir@ is actually a directory, not a file|confirm @dir@ names a directory you can work in}
 a: [ -d @dir@ ]
 status: 0
 ref: [
 teach: [ -d
 hint: -d is true only when the path is a directory
 ---
-q: {test whether @txt@ exists and is not empty|check that @txt@ is there and has content|confirm @txt@ both exists and isn't zero bytes}
+q: {make sure @txt@ isn't empty before you use it as input|check that @txt@ exists and actually has content|confirm @txt@ is there and isn't a zero-byte file}
 a: [ -s @txt@ ]
 status: 0
 ref: [
 teach: [ -s
 hint: -s checks existence AND that the size is greater than zero
 ---
-q: {test whether @txt@ is readable|check that you have read permission on @txt@|confirm @txt@ can be read}
+q: {make sure you can actually read @txt@ before you try|check that you have read permission on @txt@|confirm @txt@ isn't locked away from you}
 a: [ -r @txt@ ]
 status: 0
 ref: [
 teach: [ -r
 hint: -r checks the read permission bit, not just that the file exists
 ---
-q: {test whether @script@ is writable|check that you can write to @script@|confirm write permission on @script@}
+q: {make sure you can actually edit @script@ before you try|check that you have write permission on @script@|confirm @script@ isn't locked read-only}
 a: [ -w @script@ ]
 status: 0
 ref: [
 teach: [ -w
 hint: -w checks the write permission bit
 ---
-q: {test whether @script@ is executable|check that @script@ has the execute bit set|confirm @script@ can be run}
+q: {make sure @script@ is actually runnable before you try ./@script@|check that @script@ has the execute bit set|confirm @script@ can be run, not just read}
 a: [ -x @script@ ]
 status: 0
 ref: [
 teach: [ -x
 hint: -x checks the execute permission bit
 ---
-q: {test whether link.txt is a symbolic link|check that link.txt is a symlink rather than a real file|confirm link.txt is a link, not the file itself}
+q: {check whether link.txt is a symlink before you overwrite what it points to|confirm link.txt is a symlink rather than the real file|make sure link.txt is a link, not the file itself}
 a: [ -L link.txt ]
 status: 0
 ref: [
@@ -95,14 +95,14 @@ ref: [
 teach: [ -f
 hint: || only runs echo when the test in front of it fails
 ---
-q: {use test rather than brackets to check that @dir@ is a directory, printing ok|check @dir@ is a directory with the test command instead of [ ], printing ok|run test -d on @dir@, printing ok, without using square brackets}
+q: {use test, not [ ], to check @dir@ is a directory, printing ok|check @dir@ is a directory with the test command, printing ok|run test -d on @dir@, printing ok, no square brackets}
 a: test -d @dir@ && echo ok
 cmp: ref
 ref: test
 teach: test -d
 hint: test and [ are the same command; test just skips the closing bracket
 ---
-q: {compare two copies of @word@ for equality as strings, printing same when they match|use = to test that two copies of @word@ match as strings, printing same|check whether two copies of @word@ are equal as strings, printing same}
+q: {compare two copies of @word@ as strings, printing same if they match|use = to test that two copies of @word@ match, printing same|check whether two copies of @word@ are equal, printing same}
 a: [ @word@ = @word@ ] && echo same
 out: ^same$
 ref: [
@@ -116,42 +116,42 @@ ref: [
 teach: [
 hint: != is the string inequality operator, the opposite of =
 ---
-q: {print seven if @cfg@ has exactly 7 lines, otherwise other|test whether the line count of @cfg@ equals 7: seven if so, other if not|check @cfg@ for exactly 7 lines, printing seven or other}
+q: {check @cfg@ has exactly 7 lines, printing seven or other|make sure @cfg@ still has 7 lines, printing seven or other|verify @cfg@'s line count is 7, printing seven or other}
 a: [ "$(wc -l < @cfg@)" -eq 7 ] && echo seven || echo other
 cmp: ref
 ref: [
 teach: [ -eq
 hint: -eq is numeric equality; use = for strings instead
 ---
-q: {print more if @log@ has over 14 lines, otherwise few|test whether @log@'s line count exceeds 14: more if so, few if not|check @log@ for more than 14 lines, printing more or few}
+q: {flag @log@ as too big past 14 lines, printing more or few|check whether @log@ has grown past 14 lines, printing more or few|watch for @log@ passing 14 lines, printing more or few}
 a: [ "$(wc -l < @log@)" -gt 14 ] && echo more || echo few
 cmp: ref
 ref: [
 teach: [ -gt
 hint: -gt is numeric greater-than
 ---
-q: {print fewer if @log@ has under 14 lines, otherwise many|test whether @log@'s line count is below 14: fewer if so, many if not|check @log@ for fewer than 14 lines, printing fewer or many}
+q: {flag @log@ as too short, under 14 lines, printing fewer or many|check whether @log@ is under 14 lines, printing fewer or many|watch for @log@ under 14 lines, printing fewer or many}
 a: [ "$(wc -l < @log@)" -lt 14 ] && echo fewer || echo many
 cmp: ref
 ref: [
 teach: [ -lt
 hint: -lt is numeric less-than
 ---
-q: {negate a test -- print gone when @word@-nope.txt does NOT exist|use ! to invert a test, printing gone when @word@-nope.txt is missing|print gone only when @word@-nope.txt does NOT exist, negating the test}
+q: {confirm @word@-nope.txt is really gone, printing gone if so|check that @word@-nope.txt was actually removed, printing gone|print gone only when @word@-nope.txt is missing, using ! to invert the test}
 a: [ ! -f @word@-nope.txt ] && echo gone
 out: ^gone$
 ref: [
 teach: [
 hint: ! in front of a test negates its result
 ---
-q: {require both that @txt@ exists and @dir@ is a directory, printing both|test that @txt@ exists AND @dir@ is a directory, printing both|combine two conditions with -a, printing both when @txt@ exists and @dir@ is a directory}
+q: {require both @txt@ and @dir@ to check out, printing both|test that @txt@ exists AND @dir@ is a directory, printing both|@txt@ and @dir@ both need to check out first, printing both}
 a: [ -f @txt@ -a -d @dir@ ] && echo both
 out: ^both$
 ref: [
 teach: [ -a
 hint: -a inside [ ] means logical AND between two conditions
 ---
-q: {accept either @txt@ existing or @word@-nope.txt existing, printing either|test that @txt@ exists OR @word@-nope.txt exists, printing either|combine two conditions with -o, printing either when one of the files exists}
+q: {accept either @txt@ existing or @word@-nope.txt existing, printing either|test that @txt@ exists OR @word@-nope.txt exists, printing either|check either of two possible file locations, printing either if one exists}
 a: [ -f @txt@ -o -f @word@-nope.txt ] && echo either
 out: ^either$
 ref: [

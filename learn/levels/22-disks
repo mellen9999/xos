@@ -13,7 +13,7 @@ brief:
 brief: -s here means summarize the whole tree into one line -- not silent, and
 brief: not a delimiter filter.
 ---
-q: {show how much space is free on the mounted filesystems|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
+q: {how full are this machine's disks -- show free space on each filesystem|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
 a: df
 out: 1K-blocks
 ref: df
@@ -34,28 +34,28 @@ ref: df
 teach: df -m
 hint: -m forces megabytes specifically, no auto-scaling
 ---
-q: %show% inode usage rather than block usage
+q: space free but nothing writable -- %show% inode usage, not blocks
 a: df -i
 out: Inodes
 ref: df
 teach: df -i
 hint: -i swaps the space columns for inode counts and percent-used
 ---
-q: %show% free space including pseudo-filesystems normally hidden
+q: df skipped something -- %show% free space including pseudo-filesystems
 a: df -a
 out: devpts|sysfs
 ref: df
 teach: df -a
 hint: -a includes filesystems df otherwise skips, like proc and tmpfs
 ---
-q: %show% free space with the filesystem type in a column
+q: mounted filesystems -- %show% free space with the type in a column
 a: df -T
 out: Filesystem +Type
 ref: df
 teach: df -T
 hint: -T adds a column naming each filesystem's type
 ---
-q: %show% free space only for filesystems of type squashfs
+q: is the read-only root itself full -- %show% free space just for squashfs
 a: df -t squashfs
 why: root
 ref: df
@@ -76,21 +76,21 @@ ref: du
 teach: du -h
 hint: -h scales the summary size to k/m/g
 ---
-q: %show% the size of every file under @dir@, not just the directories
+q: @dir@'s eating space -- %show% every file's size, not directories
 a: du -a @dir@
 cmp: ref
 ref: du
 teach: du -a
 hint: -a walks down to individual files, not just directories
 ---
-q: %show% @dir@'s sizes in bytes rather than blocks
+q: @dir@'s exact byte count, not blocks -- %show% sizes in bytes
 a: du -b @dir@
 cmp: ref
 ref: du
 teach: du -b
 hint: -b reports raw bytes instead of filesystem blocks
 ---
-q: %show% @dir@ only one level deep
+q: @dir@ has too much underneath -- %show% it only one level deep
 a: du -d 1 @dir@
 why: fixture-cost
 ref: du
@@ -125,7 +125,7 @@ ref: du
 teach: du -a
 hint: du -a lists everything with a size; sort -rn and head -10 do the ranking
 ---
-q: %list% the block devices this machine can see, with their filesystem labels
+q: you don't know what's plugged in -- %list% block devices and labels
 a: blkid
 why: root
 ref: blkid
@@ -139,21 +139,21 @@ ref: findfs
 teach: findfs
 hint: findfs takes a LABEL= or UUID= and prints the matching device node
 ---
-q: {mount /dev/sdb1 read-only at /mnt|mount /dev/sdb1 at /mnt, allowing no writes|attach /dev/sdb1 at /mnt without write access}
+q: {this isn't your machine -- mount /dev/sdb1 read-only at /mnt|mount /dev/sdb1 at /mnt, allowing no writes|attach /dev/sdb1 at /mnt without write access}
 a: mount -r /dev/sdb1 /mnt
 why: root
 ref: mount
 teach: mount -r
 hint: on a machine you do not trust, read-only is the default you want
 ---
-q: {mount /dev/sdb1 at /mnt naming the filesystem type explicitly|mount /dev/sdb1 at /mnt, telling mount the filesystem type instead of letting it guess|explicitly name the filesystem type while mounting /dev/sdb1 at /mnt}
+q: {auto-detect got it wrong -- mount /dev/sdb1 at /mnt, name the type|mount /dev/sdb1 at /mnt, telling mount the type instead of guessing|explicitly name the filesystem type while mounting /dev/sdb1}
 a: mount -t ext4 /dev/sdb1 /mnt
 why: root
 ref: mount
 teach: mount -t
 hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
-q: {mount /dev/sdb1 at /mnt with nosuid, nodev and noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes and execution|attach /dev/sdb1 at /mnt with the nosuid, nodev and noexec options set}
+q: {don't trust it -- mount /dev/sdb1 at /mnt with nosuid, nodev, noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes, execution|attach /dev/sdb1 at /mnt with the nosuid, nodev, noexec options}
 a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
 a: mount -o noexec,nodev,nosuid /dev/sdb1 /mnt
 why: root
@@ -224,7 +224,7 @@ ref: losetup
 teach: losetup -P
 hint: -P scans the attached image for a partition table
 ---
-q: %list% the partition table of /dev/sda
+q: you don't know how /dev/sda is carved up -- %list% its partition table
 a: fdisk -l /dev/sda
 why: root
 ref: fdisk
@@ -238,7 +238,7 @@ ref: blockdev
 teach: blockdev --getbsz
 hint: --getbsz reports the block size
 ---
-q: {report the size of /dev/sda in bytes|what is the size of /dev/sda, in bytes|find the exact byte size of /dev/sda}
+q: {before you image /dev/sda you need its exact size -- report it in bytes|what is the size of /dev/sda, in bytes|find the exact byte size of /dev/sda}
 a: blockdev --getsize64 /dev/sda
 why: root
 ref: blockdev
@@ -252,28 +252,28 @@ ref: blockdev
 teach: blockdev --setro
 hint: --setro flips the read-only flag at the block layer, below any filesystem
 ---
-q: {ask whether /dev/sda is currently read-only|check whether /dev/sda's read-only flag is set|is /dev/sda currently read-only at the block layer}
+q: {confirm the read-only flag on /dev/sda actually stuck|check whether /dev/sda's read-only flag is set|is /dev/sda currently read-only at the block layer}
 a: blockdev --getro /dev/sda
 why: root
 ref: blockdev
 teach: blockdev --getro
 hint: --getro reads that same read-only flag back
 ---
-q: {flush everything buffered in memory out to disk|force every dirty buffer out to disk right now|write all pending buffered data to disk}
+q: {about to yank a usb drive -- flush everything buffered out to disk|force every dirty buffer out to disk right now|write all pending buffered data to disk}
 a: sync
 why: root
 ref: sync
 teach: sync
 hint: sync with no arguments flushes every dirty buffer on the system
 ---
-q: {flush only the data for @txt@, not the whole system|flush just @txt@'s buffered data, leaving the rest alone|write out only @txt@'s pending data, not every buffer on the system}
+q: {you just wrote @txt@, don't risk losing it -- flush only its data|flush just @txt@'s buffered data, leaving the rest alone|write out only @txt@'s pending data, not every buffer}
 a: sync -d @txt@
 why: root
 ref: sync
 teach: sync -d
 hint: -d limits the flush to the file you name
 ---
-q: {run a command holding an exclusive lock on lock.file, so two copies cannot overlap|hold an exclusive lock on lock.file while a command runs, so it cannot overlap another copy|use lock.file as an exclusive lock around a command so two copies never run together}
+q: {hold an exclusive lock on lock.file so two copies never overlap|hold an exclusive lock on lock.file while a command runs|use lock.file as an exclusive lock around a command}
 a: flock -x lock.file echo held
 out: held
 ref: flock
@@ -297,7 +297,7 @@ hint: -s takes a shared lock, which can coexist with other shared locks
 setup: p3 is the state partition -- the only thing on this stick that survives
 setup: a reboot, and the only place a key can live. It is encrypted, and it is
 setup: also authenticated, which is a different property and the harder one.
-q: {write a new LUKS2 header on /dev/sda3, with authentication as well as encryption|format /dev/sda3 with a LUKS2 header that is both encrypted and authenticated|put a new LUKS2 header on /dev/sda3, adding integrity checking alongside the encryption}
+q: {write a LUKS2 header on /dev/sda3, encrypted and authenticated|format /dev/sda3 with a LUKS2 header, encrypted and authenticated|put a new LUKS2 header on /dev/sda3, integrity checked too}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
 why: root
@@ -387,7 +387,7 @@ hint: same nosuid,nodev,noexec trio, now applied to the decrypted volume
 setup: A disk someone hands you is untrusted input, and a filesystem driver is
 setup: a parser that runs it in your kernel. The safest read of a disk you do
 setup: not trust is dd at the block level, where no parser runs at all.
-q: {image the disk @txt@ (standing in for /dev/sda) to disk.img, byte for byte|make a byte-for-byte image of @txt@ (standing in for /dev/sda), writing it to disk.img|copy @txt@ (standing in for /dev/sda) to disk.img, byte for byte, with no filesystem involved}
+q: {image @txt@ (standing in for /dev/sda) to disk.img, byte for byte|make an image of @txt@ (stands in for /dev/sda) as disk.img|copy @txt@, standing in for /dev/sda, to disk.img byte for byte}
 a: dd if=@txt@ of=disk.img
 state: exists:disk.img
 ref: dd
@@ -425,7 +425,7 @@ ref: mount
 teach: mount -t
 hint: -o ro,loop reads the iso straight off the image file, no burn needed
 ---
-q: %make% an ext filesystem on the unlocked state device
+q: you need somewhere for keys -- %make% an ext filesystem on state
 a: mke2fs /dev/mapper/state
 why: root
 ref: mke2fs
@@ -446,7 +446,7 @@ ref: mke2fs
 teach: mke2fs -L
 hint: -L sets the filesystem's volume label
 ---
-q: {reserve no blocks for admin, so all space is usable, when making the filesystem|when making the filesystem, reserve zero blocks for admin use|build the filesystem with no space reserved for the superuser}
+q: {no admin space reserved -- all space usable when making the filesystem|when making the filesystem, reserve zero blocks for admin use|build the filesystem with no space reserved for the superuser}
 a: mke2fs -m 0 /dev/mapper/state
 why: root
 ref: mke2fs

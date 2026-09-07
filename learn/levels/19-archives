@@ -11,7 +11,8 @@ brief: directory instead of a subdirectory will scatter files everywhere.
 brief:
 brief: -c here means stdout, not count.
 ---
-q: %list% what is inside @archive@ without extracting anything
+setup: you just downloaded @archive@ and don't trust it yet
+q: %list% @archive@'s contents without extracting anything
 a: tar -tf @archive@
 out: ^[A-Za-z0-9_./-]+/?$
 ref: tar
@@ -19,7 +20,7 @@ teach: tar t
 teach: tar -f
 hint: t lists, and -f names the archive file to read
 ---
-q: %list% the contents of @archive@ verbosely, with sizes and permissions
+q: %list% @archive@'s contents with sizes and permissions
 a: tar -tvf @archive@
 out: ^[-d][-rwx]{9}
 ref: tar
@@ -54,14 +55,14 @@ ref: tar
 teach: tar x
 hint: x extracts; with no -C it lands in the current directory
 ---
-q: %get% @archive@ into the @dir@ directory rather than here
+q: %get% @archive@ into @dir@, not scattered here
 a: tar -xzf @archive@ -C @dir@
 why: fixture-cost
 ref: tar
 teach: tar -C
 hint: -C changes into that directory before extracting
 ---
-q: {pull src/main.c out of @archive@ and print it to stdout rather than to disk|use tar -O to extract src/main.c from @archive@ straight to stdout|extract src/main.c from @archive@ without writing it, printing it instead}
+q: {peek at src/main.c in @archive@ without extracting it all|read src/main.c out of @archive@ to your terminal|check src/main.c before extracting the rest of @archive@}
 a: tar -xzOf @archive@ src/main.c
 why: fixture-cost
 ref: tar
@@ -75,13 +76,14 @@ ref: tar
 teach: tar --exclude
 hint: --exclude takes a pattern and skips anything that matches it
 ---
-q: %get% @archive@ dropping the first leading directory from every path
+q: %get% @archive@ without its top-level wrapper
 a: tar -xzf @archive@ --strip-components 1
 why: fixture-cost
 ref: tar
 teach: tar --strip-components
 hint: --strip-components N removes that many leading path segments
 ---
+setup: your last extraction of @archive@ half-finished and left files behind
 q: %get% @archive@ overwriting anything already in the way
 a: tar -xzf @archive@ --overwrite
 why: fixture-cost
@@ -103,14 +105,14 @@ ref: tar
 teach: tar --no-recursion
 hint: --no-recursion archives a directory entry itself without descending into it
 ---
-q: %get% @archive@ without restoring the permissions it recorded
+q: %get% @archive@ without trusting its recorded modes
 a: tar -xzf @archive@ --no-same-permissions
 why: fixture-cost
 ref: tar
 teach: tar --no-same-permissions
 hint: --no-same-permissions applies your umask instead of the recorded modes
 ---
-q: %get% @archive@ recording numeric owner ids rather than names
+q: %get% @archive@ without resolving owners to fake names
 a: tar -xzf @archive@ --numeric-owner
 why: fixture-cost
 ref: tar
@@ -124,49 +126,49 @@ ref: gzip
 teach: gzip
 hint: gzip replaces the original file with a .gz version by default
 ---
-q: {compress @txt@ but keep the original as well|use gzip -k so @txt@ survives alongside @txt@.gz|gzip @txt@ without deleting the source file}
+q: {compress @txt@ but you still need the original file afterward|gzip @txt@ without losing @txt@ itself|compress @txt@ down to .gz, but keep @txt@ around too}
 a: gzip -k @txt@
 state: exists:@txt@.gz
 ref: gzip
 teach: gzip -k
 hint: -k keeps the original file alongside the new .gz
 ---
-q: {compress @txt@ to stdout without touching the file|use gzip -c to send compressed output to stdout, redirected to out.gz|pipe @txt@ through gzip -c into out.gz, leaving @txt@ as is}
+q: {compress @txt@ into out.gz without modifying or removing @txt@ itself|you want the compressed bytes in out.gz, @txt@ left completely alone|send @txt@'s compressed form to out.gz, leaving the original untouched}
 a: gzip -c @txt@ > out.gz
 state: exists:out.gz
 ref: gzip
 teach: gzip -c
 hint: -c writes the compressed bytes to stdout, leaving the file untouched
 ---
-q: {compress @txt@ even if a .gz already exists|use gzip -f to overwrite an existing @txt@.gz|force gzip to replace a .gz that's already there}
+q: {a leftover @txt@.gz exists -- compress @txt@ anyway|@txt@.gz already exists -- redo the compression|compress @txt@ again though its .gz is already there}
 a: gzip -f @txt@
 state: exists:@txt@.gz
 ref: gzip
 teach: gzip -f
 hint: -f overrides gzip's refusal to clobber an existing .gz
 ---
-q: {gzip @txt@ to z.gz, then read it without unpacking it to disk|use zcat to print z.gz's contents (gzipped from @txt@) without writing anything|stream z.gz's decompressed contents, built from @txt@, straight to your terminal}
+q: {gzip @txt@ to z.gz, then read it without unpacking to disk|print z.gz's contents, gzipped from @txt@, without writing anything|stream z.gz's contents, built from @txt@, to your terminal}
 a: gzip -c @txt@ > z.gz && zcat z.gz
 out: rotate
 ref: zcat
 teach: zcat
 hint: zcat is gzip -dc -- decompress straight to stdout
 ---
-q: {gzip @txt@ to z.gz, then uncompress z.gz back to z|use gunzip to turn z.gz, gzipped from @txt@, back into z|reverse gzip's compression on z.gz, built from @txt@}
+q: {compress @txt@ into z.gz, then uncompress it back to z|use gunzip to turn z.gz, gzipped from @txt@, back into z|reverse gzip's compression on z.gz, built from @txt@}
 a: gzip -c @txt@ > z.gz && gunzip z.gz
 state: exists:z
 ref: gunzip
 teach: gunzip
 hint: gunzip is the inverse of gzip, replacing the .gz with the original
 ---
-q: {gzip @txt@ to z.gz, then check it is not corrupt, without unpacking it|use gunzip -t to test z.gz, gzipped from @txt@, for corruption without extracting it|verify z.gz, built from @txt@, decompresses cleanly, without writing the result}
+q: {make z.gz from @txt@, then confirm it isn't corrupt|verify that z.gz, gzipped from @txt@, decompresses cleanly, untouched|check that z.gz, from @txt@, isn't corrupt, no output written}
 a: gzip -c @txt@ > z.gz && gunzip -t z.gz
 status: 0
 ref: gunzip
 teach: gunzip -t
 hint: -t verifies the archive's integrity without writing any output
 ---
-q: {gzip @txt@ to z.gz, then uncompress it to stdout, keeping the file|use gunzip -c so z.gz's contents (gzipped from @txt@) print without deleting z.gz|stream z.gz's decompressed contents, built from @txt@, to stdout, file untouched}
+q: {gzip @txt@ to z.gz, then print its contents, leaving z.gz in place|read z.gz's contents, gzipped from @txt@, without deleting it|stream z.gz's contents to stdout, z.gz left untouched}
 a: gzip -c @txt@ > z.gz && gunzip -c z.gz
 out: rotate
 ref: gunzip
@@ -180,14 +182,14 @@ ref: bzip2
 teach: bzip2
 hint: bzip2 works like gzip but usually compresses tighter, at more cpu cost
 ---
-q: {compress @txt@ with bzip2 at the highest compression setting|use bzip2 -9 on @txt@ for maximum compression|run bzip2 at its strongest compression level on @txt@}
+q: {@txt@ needs to be as small as possible -- max bzip2 strength|squeeze @txt@ down as far as bzip2 can, cpu cost be damned|compress @txt@ with bzip2's strongest, slowest setting}
 a: bzip2 -9 @txt@
 state: exists:@txt@.bz2
 ref: bzip2
 teach: bzip2 -1..9
 hint: -9 is the tightest compression level; -1 is the fastest
 ---
-q: {bzip2 @txt@ to stdout, keeping the original|use bzip2 -c to send compressed output to stdout as out.bz2|pipe @txt@ through bzip2 -c into out.bz2, leaving @txt@ untouched}
+q: {compress @txt@ into out.bz2 without modifying @txt@ itself|send @txt@'s bzip2-compressed bytes to out.bz2, original left alone|bzip2 @txt@ down to out.bz2, keeping the source file as is}
 a: bzip2 -c @txt@ > out.bz2
 state: exists:out.bz2
 ref: bzip2
@@ -201,14 +203,15 @@ ref: bunzip2
 teach: bunzip2
 hint: bunzip2 is bzip2's inverse, same relationship gunzip has to gzip
 ---
-q: {bzip2 @txt@ to z.bz2, then test it for corruption without unpacking it|use bunzip2 -t to verify z.bz2, bzip2'd from @txt@, without extracting it|check z.bz2, built from @txt@, decompresses cleanly, without writing the result}
+q: {bzip2 @txt@ to z.bz2, then confirm it isn't corrupt|verify that z.bz2, bzip2'd from @txt@, decompresses cleanly, untouched|make sure z.bz2, from @txt@, isn't corrupt, no output written}
 a: bzip2 -c @txt@ > z.bz2 && bunzip2 -t z.bz2
 status: 0
 ref: bunzip2
 teach: bunzip2 -t
 hint: -t tests integrity without writing any decompressed output
 ---
-q: {unpack a zip file into the current directory|use unzip on archive.zip to extract it here|extract every file in archive.zip into the current directory}
+setup: you just downloaded archive.zip
+q: {unpack it into the current directory|extract archive.zip here, no target directory needed|extract every file in archive.zip right here}
 a: unzip archive.zip
 state: exists:hello.txt
 ref: unzip
@@ -222,14 +225,14 @@ ref: unzip
 teach: unzip -l
 hint: -l lists contents without extracting anything
 ---
-q: {unpack a zip into a directory you choose|use unzip -d to extract archive.zip into @dir@|extract archive.zip's contents into a directory you name}
+q: {unpack archive.zip into @dir@ instead of scattering it here|keep archive.zip's contents contained -- extract it into @dir@|extract archive.zip somewhere specific, @dir@, not here}
 a: unzip archive.zip -d @dir@
 state: exists:@dir@/hello.txt
 ref: unzip
 teach: unzip -d
 hint: -d names the directory to extract into instead of the current one
 ---
-q: {unpack a zip overwriting anything already there, without asking|use unzip -o so existing files are replaced without a prompt|extract archive.zip, forcing overwrite of anything in the way}
+q: {old files are in the way -- re-extract archive.zip, overwrite them|redo the extraction of archive.zip, replacing what's already there|extract archive.zip again without it asking about existing files}
 a: unzip -o archive.zip
 state: exists:hello.txt
 ref: unzip
@@ -243,7 +246,7 @@ ref: unzip
 teach: unzip -p
 hint: -p extracts one named file to stdout instead of writing it
 ---
-q: {test a zip for corruption without unpacking it|use unzip -t to verify archive.zip without extracting it|check archive.zip's integrity, writing nothing to disk}
+q: {you just downloaded archive.zip -- make sure it isn't corrupt|verify archive.zip is intact without extracting anything|check archive.zip's integrity before you unpack it}
 a: unzip -t archive.zip
 status: 0
 ref: unzip

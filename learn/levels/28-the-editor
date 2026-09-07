@@ -12,7 +12,7 @@ brief:
 brief: The one you must know: press Escape, then type :q! and Enter. That
 brief: leaves without saving, from any state you have got yourself into.
 ---
-q: {open @txt@ in the editor|open @txt@ in vi|start editing @txt@ in vi}
+q: {open @txt@ in the editor|pull up @txt@ in vi|start editing @txt@ in vi}
 a: vi @txt@
 why: interactive
 ref: vi
@@ -48,6 +48,8 @@ ref: vi
 teach: vi
 hint: :w writes the file without leaving normal mode
 ---
+setup: A service is broken because one line in its config is wrong. Find
+setup: it and fix it, without breaking anything else.
 q: {jump to line 20 inside vi|move the cursor to line 20 in vi|go straight to line 20 in vi}
 a: :20
 why: interactive
@@ -62,7 +64,7 @@ ref: vi
 teach: vi
 hint: / starts a forward search, just like less and man
 ---
-q: {replace every occurrence of @old@ with @new@ in the whole file, in vi|in vi, replace every occurrence of @old@ with @new@ across the whole file|from vi, swap every @old@ for @new@ everywhere in the file}
+q: {fix every @old@ in a config, replacing it with @new@, from vi|in vi, swap every @old@ for @new@ across the config|from vi, replace every @old@ with @new@ in the config}
 a: :%s/@old@/@new@/g
 why: interactive
 ref: vi
@@ -83,7 +85,7 @@ ref: vi
 teach: vi
 hint: u undoes one change at a time, like most editors
 ---
-q: {page through @log@ with the pager rather than the editor|view @log@ a page at a time using less, not vi|open @log@ in less instead of the editor}
+q: {read through @log@ a page at a time, no risk of editing it|page through @log@ safely -- less can't change what it shows|view @log@ a page at a time, no chance of touching it}
 a: less @log@
 why: interactive
 ref: less
@@ -104,7 +106,7 @@ ref: less
 teach: less
 hint: G jumps to the very end, the same key vi uses for the last line
 ---
-q: {follow a growing file from inside less, the way tail -f does|from within less, follow a growing file the way tail -f does|switch less into tail -f style follow mode}
+q: {follow a growing file from inside less, the way tail -f does|while in less, follow a growing file the way tail -f does|switch less into tail -f style follow mode}
 a: F
 why: interactive
 ref: less

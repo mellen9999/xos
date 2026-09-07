@@ -52,14 +52,14 @@ ref: sort
 teach: sort -r
 hint: r flips the order
 ---
-q: %show% the lines of @txt@ with duplicates removed, using one command
+q: %show% @txt@ deduped, using just one command
 a: sort -u @txt@
 out: ask why the fan
 ref: sort
 teach: sort -u
 hint: u does the sort and the dedup in a single pass
 ---
-q: %show% the lines of @txt@ with duplicates removed, using sort and uniq
+q: %show% @txt@ deduped, using sort piped into uniq
 a: sort @txt@ | uniq
 out: ask why the fan
 ref: uniq
@@ -87,14 +87,14 @@ ref: uniq
 teach: uniq -u
 hint: u here shows only lines that had no duplicate
 ---
-q: {sort @csv@ by its third comma-separated field|order @csv@ using its third comma-separated field as the key|sort @csv@ on the third field, splitting on commas}
+q: {@csv@ is name,id,status,count -- sort it by status|@csv@ has columns name,id,status,count -- sort by status|@csv@'s columns are name,id,status,count -- sort by status}
 a: sort -t, -k3 @csv@
 out: down
 ref: sort
 teach: sort -t
 hint: -t sets the separator, -k picks the field
 ---
-q: {sort @csv@ by the fourth field, numerically, largest first|order @csv@ by its fourth field, numeric and descending|sort @csv@ on field four, largest number first}
+q: {@csv@ is name,id,status,count -- find the highest count|@csv@ has columns name,id,status,count -- highest count first|@csv@'s columns are name,id,status,count -- highest count first}
 a: sort -t, -k4 -rn @csv@
 a: sort -t, -k4rn @csv@
 out: ^gateway,
@@ -116,14 +116,14 @@ ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
 ---
-q: {sort sizes.txt by its human-readable sizes like 2K and 1M, smallest first|order sizes.txt by sizes such as 2K and 1M, smallest to largest|sort sizes.txt so human-readable sizes like 2K and 1M compare correctly, ascending}
+q: {sort sizes.txt by sizes like 2K and 1M, smallest first|order sizes.txt by sizes like 2K and 1M, smallest to largest|sort sizes.txt so sizes like 2K and 1M compare correctly}
 a: sort -h sizes.txt | head -1
 cmp: ref
 ref: sort
 teach: sort -h
 hint: h understands suffixes like K and M when comparing, so 512 sorts before 64k
 ---
-q: {sort @txt@ ignoring unprintable characters|sort @txt@ as if the unprintable characters were not there|sort @txt@ skipping any character that does not print}
+q: {sort @txt@ ignoring any stray control characters|sort @txt@ as if the stray control characters weren't there|sort @txt@ so odd control characters don't throw off the order}
 a: sort -i @txt@
 cmp: ref
 ref: sort
@@ -151,7 +151,7 @@ ref: uniq
 teach: uniq -i
 hint: sort -f groups case-insensitively, uniq -i then collapses it
 ---
-q: {collapse duplicates in @txt@ comparing only the first 6 characters of each line|collapse duplicate lines of @txt@ using only their first 6 characters to compare|remove duplicates from @txt@, comparing just the first 6 characters of each line}
+q: {collapse duplicates in @txt@ using just the first 6 characters|collapse duplicate lines of @txt@, comparing only 6 characters|remove duplicates from @txt@, comparing just the first 6 chars}
 a: sort @txt@ | uniq -w 6
 cmp: ref
 ref: uniq

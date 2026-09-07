@@ -47,14 +47,14 @@ ref: awk
 teach: awk
 hint: $1 in /proc/mounts is the device column
 ---
-q: {hash the bytes of the filesystem you are standing on|compute the sha256 of the filesystem you are running on|hash the raw bytes of the mounted root filesystem}
+q: {prove the mounted root matches what you signed -- hash it|get the digest of the filesystem you're standing on|hash the running root to compare against what you signed}
 a: sha256sum /dev/dm-0
 why: live-hw
 ref: sha256sum
 teach: sha256sum
 hint: dm-0 is the device dm-verity hands you once it is checking every block
 ---
-q: %show% just that digest, with the device name cut off
+q: %show% just the digest, ready to check against what you recorded
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
 why: live-hw
 ref: cut
@@ -111,7 +111,7 @@ ref: chmod
 teach: chmod
 hint: $HOME is on a tmpfs mounted noexec
 ---
-q: %count% how many times "Internet Security Research Group" appears among the strings in the tls binary
+q: %count% "Internet Security Research Group" hits in the tls binary
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 cmp: ref
 ref: strings

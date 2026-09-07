@@ -67,6 +67,7 @@ ref: setsid
 teach: setsid
 hint: setsid starts the process in a new session with no controlling terminal at all
 ---
+setup: a step in your script might hang forever waiting on something
 q: {give @script@ at most 5 seconds to finish, then kill it|run @script@ under a 5 second timeout|use timeout to cap @script@ at 5 seconds}
 a: timeout 5 ./@script@
 out: running
@@ -74,21 +75,21 @@ ref: timeout
 teach: timeout
 hint: timeout runs the command and sends TERM if it's still going after the limit
 ---
-q: {give sleep 10 two seconds, then send it KILL rather than TERM|run sleep 10 under a 2 second timeout that sends KILL instead of TERM|use timeout -s KILL to cap sleep 10 at 2 seconds}
+q: {cap sleep 10 at 2 seconds, force-killing it outright, no TERM first|run sleep 10 under a 2 second timeout that skips straight to KILL|give sleep 10 two seconds, then make sure it dies via KILL}
 a: timeout -s KILL 2 sleep 10
 why: interactive
 ref: timeout
 teach: timeout -s
 hint: -s picks which signal timeout sends when the limit is hit
 ---
-q: {run sleep 10 with a 1 second limit, sending KILL if it ignores the first signal|use timeout -k to cap sleep 10 at 1 second with a KILL fallback|run sleep 10 under a 1 second timeout that escalates to KILL}
+q: {give sleep 10 one second, then force-kill it if it's still ignoring you|cap sleep 10 at 1 second, escalating to KILL if it won't die|run sleep 10 under a 1 second limit that escalates to KILL}
 a: timeout -k 1 1 sleep 10
 why: interactive
 ref: timeout
 teach: timeout -k
 hint: -k gives a grace period, then escalates to KILL if the first signal didn't work
 ---
-q: {start a detached session called work running a shell, so it survives a drop|use abduco -n to create a detached session called work running a shell|create the session work with abduco, detached, so a dropped connection won't kill it}
+q: {start a detached session called work running a shell, so it survives a drop|use abduco -n to create work, detached, running a shell|create session work with abduco, detached, so a drop won't kill it}
 a: abduco -n work /bin/sh
 why: interactive
 ref: abduco
@@ -116,7 +117,7 @@ ref: abduco
 teach: abduco -A
 hint: -A attaches if the session exists, or creates it if it doesn't
 ---
-q: {watch the session work without being able to type into it|use abduco -r to observe work without sending it input|attach to work in read-only mode}
+q: {watch the session work without being able to type into it|use abduco -r to observe work without sending it input|open work read-only, with no typing allowed}
 a: abduco -r work
 why: interactive
 ref: abduco
@@ -130,7 +131,7 @@ ref: abduco
 teach: abduco
 hint: abduco with no session name lists what it's holding
 ---
-q: {attach to work using a different detach key, ctrl-q|use abduco -e to attach to work with ctrl-q as the detach key|attach to work, rebinding the detach key to ctrl-q}
+q: {rebind the detach key to ctrl-q before attaching to work|attach to work with ctrl-q as the detach key instead of the default|use ctrl-q as your detach key when you attach to work}
 a: abduco -e ^q -a work
 why: interactive
 ref: abduco
@@ -144,7 +145,7 @@ ref: jobs
 teach: jobs -l
 hint: -l adds the pid alongside each job's normal listing
 ---
-q: {send a hangup signal to process 12345 by number|use kill -1 to send process 12345 a hangup signal|send signal number 1, HUP, to process 12345}
+q: {tell process 12345 to reload -- send it HUP by number|nudge process 12345 to reload its config with a HUP signal|send process 12345 signal 1 (HUP) to make it reload}
 a: kill -1 12345
 why: interactive
 ref: kill
@@ -158,6 +159,7 @@ ref: ulimit
 teach: ulimit -a
 hint: -a prints every limit at once instead of just one
 ---
+setup: a script's writes keep failing partway through, mysteriously
 q: %show% the maximum file size this shell may create
 a: ulimit -f
 cmp: ref

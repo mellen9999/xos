@@ -25,7 +25,7 @@ ref: ls
 teach: ls
 hint: two letters
 ---
-q: %list% the current directory, including names that start with a dot
+q: %show% the current directory -- don't skip the hidden dotfiles
 a: ls -a
 cmp: ref
 ref: ls
@@ -40,7 +40,7 @@ ref: ls
 teach: ls -l
 hint: the long format flag, then the path
 ---
-q: %list% the current directory with sizes in K and M rather than raw bytes
+q: %list% with sizes in K and M, not raw bytes
 a: ls -lh
 a: ls -hl
 out: ^total
@@ -48,7 +48,7 @@ ref: ls
 teach: ls -h
 hint: two flags -- long format, and the one ls calls "Human readable"
 ---
-q: %list% the current directory {newest first|sorted by modification time}
+q: %list% {newest first|sorted by modification time}
 a: ls -lt
 a: ls -t
 why: fixture-cost
@@ -56,7 +56,7 @@ ref: ls
 teach: ls -t
 hint: sort by time
 ---
-q: %list% the current directory one name per line, nothing else
+q: %list% one name per line, so you can pipe it on
 a: ls -1
 out: ^server\.log$
 ref: ls
@@ -70,7 +70,7 @@ ref: echo
 teach: echo
 hint: it prints the word plus a trailing newline
 ---
-q: %show% @word@ with no trailing newline
+q: %show% @word@ without the newline, so more can follow on the same line
 a: echo -n @word@
 out: @word@
 ref: echo
@@ -110,49 +110,50 @@ ref: cd
 teach: cd
 hint: cd with no argument already means home
 ---
-q: %list% the current directory showing hidden names but not . and ..
+q: %show% the hidden files here, but skip the . and .. clutter
 a: ls -A
 why: fixture-cost
 ref: ls
 teach: ls -A
 hint: like -a, but leaves out . and ..
 ---
-q: %list% @dir@ itself rather than what is inside it
+q: confirm @dir@ exists, without dumping what's inside it
 a: ls -d @dir@
 out: ^@dir@$
 ref: ls
 teach: ls -d
 hint: stops ls from descending into the directory
 ---
-q: %list% the current directory marking directories with a slash and executables with a star
+q: %list% this directory so files, dirs, and executables stand out
 a: ls -F
 cmp: ref
 ref: ls
 teach: ls -F
 hint: appends a symbol showing each entry's type
 ---
-q: %list% the current directory showing each file's inode number
+q: %list% the directory showing inode numbers, to catch hard links
 a: ls -i
 out: ^ *[0-9]+ [^ ]
 ref: ls
 teach: ls -i
 hint: the number a file is known by at the filesystem level, not its name
 ---
-q: %list% in long format showing numeric user and group ids rather than names
+setup: these files came off another machine
+q: %list% in long format with numeric ids, not names
 a: ls -ln
 out: ^total
 ref: ls
 teach: ls -n
 hint: n modifies -l to print ids as numbers instead of names
 ---
-q: %list% marking only directories with a trailing slash
+q: %list% so you can spot which entries are directories, nothing else marked
 a: ls -p
 cmp: ref
 ref: ls
 teach: ls -p
 hint: like -F but only marks directories, nothing else
 ---
-q: %list% the current directory in reverse order
+q: %list% in reverse order
 a: ls -r
 cmp: ref
 ref: ls
@@ -166,21 +167,21 @@ ref: ls
 teach: ls -R
 hint: capital R -- lowercase r reverses order instead
 ---
-q: %list% the current directory largest file first
+q: %list% largest file first
 a: ls -S
 cmp: ref
 ref: ls
 teach: ls -S
 hint: sorts by size instead of name
 ---
-q: %list% showing the block size each file occupies
+q: %list% showing disk space each file here uses, in blocks
 a: ls -s
 cmp: ref
 ref: ls
 teach: ls -s
 hint: shows size in blocks, not bytes -- pair with -h for human units
 ---
-q: %list% the current directory across the screen in columns
+q: %list% across the screen in columns
 a: ls -x
 cmp: ref
 ref: ls

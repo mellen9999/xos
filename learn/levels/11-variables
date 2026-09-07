@@ -33,21 +33,21 @@ ref: echo
 teach: echo
 hint: $name (or ${name}) is how you read a variable back
 ---
-q: {store the output of the date command in a variable called @tvar@|capture what date prints into a variable named @tvar@|put the result of running date into @tvar@}
+q: {grab the current timestamp into a variable called @tvar@ so you can reuse it|save right-now's date and time in @tvar@ before it changes|stash the current timestamp in @tvar@ for later}
 a: @tvar@=$(date)
 why: primitive-cost
 ref: sh
 teach: sh
 hint: $( ) runs a command and becomes its output
 ---
-q: {store the number of lines in @log@ in a variable called @cvar@|capture how many lines @log@ has into a variable named @cvar@|put @log@'s line count into a variable called @cvar@}
+q: {stash @log@'s line count in @cvar@ so you can check it again later|save how many lines @log@ has right now into @cvar@|record @log@'s current line count in @cvar@ for comparison later}
 a: @cvar@=$(wc -l < @log@)
 why: primitive-cost
 ref: wc
 teach: wc -l
 hint: command substitution feeds wc's count straight into the assignment
 ---
-q: %show% the length of @word@ after storing it in @var@
+q: put @word@ in @var@, then %show% how many characters it holds
 a: @var@=@word@; echo ${#@var@}
 cmp: ref
 ref: sh
@@ -61,7 +61,7 @@ ref: sh
 teach: sh
 hint: :- substitutes default only when the variable is unset or empty
 ---
-q: %show% the line count of @log@ inside a sentence reading "lines: N"
+q: %show% @log@'s line count as "lines: N"
 a: echo "lines: $(wc -l < @log@)"
 out: ^lines: [0-9]+$
 ref: echo
@@ -82,7 +82,7 @@ ref: env
 teach: env
 hint: env with no arguments dumps the whole environment
 ---
-q: {run one command with @mvar@ set to @word@, without changing your own shell|run a single command that sees @mvar@=@word@ while your shell stays untouched|give just one command @mvar@=@word@ without exporting it yourself}
+q: {run one command with @mvar@ set to @word@, without changing your shell|run a single command that sees @mvar@=@word@, shell untouched|give just one command @mvar@=@word@ without exporting it}
 a: env @mvar@=@word@ sh -c 'echo $@mvar@'
 out: @word@
 ref: env
@@ -103,7 +103,7 @@ ref: env
 teach: env -u
 hint: -u strips one variable out of the environment for that command only
 ---
-q: %show% the environment with entries separated by NUL rather than newline
+q: %show% the environment NUL-separated so xargs -0 can parse it safely
 a: env -0
 cmp: ref
 ref: env
@@ -124,7 +124,7 @@ ref: read
 teach: read
 hint: read takes one line from stdin and stores it in the named variable
 ---
-q: {read a line into @var@ without letting backslashes escape anything|read one line into @var@ while leaving backslashes literal|take a line of input into @var@, raw, with no backslash escaping}
+q: {read a raw path into @var@ so backslashes survive intact|read user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}
 a: read -r @var@
 why: interactive
 ref: read
@@ -138,14 +138,14 @@ ref: read
 teach: read -p
 hint: -p prints its argument as a prompt before reading
 ---
-q: %show% the first field of @csv@, using a variable to hold the separator
+q: %show% @csv@'s first column, keeping the delimiter in a variable
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
 ref: cut
 teach: cut -d
 hint: the variable holding the separator still needs quoting when it's used
 ---
-q: {run "echo @word@" in a child shell using the -c flag|use sh -c to run "echo @word@" in a fresh child shell|spawn a child shell just to echo @word@ with -c}
+q: {spawn a one-off shell that just echoes @word@|run a throwaway shell whose only job is to echo @word@|fire off a fresh shell to print @word@ and nothing else}
 a: sh -c 'echo @word@'
 out: ^@word@$
 ref: sh
@@ -159,14 +159,15 @@ ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot
 ---
-q: {describe what ls is, in a full sentence rather than just a path|explain in words what ls resolves to|ask command for a plain-english description of ls}
+q: {check what ls actually is before you trust it in a script|find out in plain english what running ls would do|make sure ls isn't secretly an alias or function}
 a: command -V ls
 cmp: ref
 ref: command
 teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
 ---
-q: %find% ls using a safe default PATH rather than whatever yours happens to be, and use it to list @txt@
+setup: your PATH might be hijacked or broken
+q: %find% ls the safe way and list @txt@ with it
 a: command -p ls @txt@
 out: @txt@
 ref: command
