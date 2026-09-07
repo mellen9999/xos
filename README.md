@@ -411,7 +411,7 @@ cut to fit and says how many lines it held back. every level ends with a named b
 no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
 where the last boss fell -- and inside a level, at the card you stopped on, with the
 score you had. `learn review` re-asks the weakest cards first,
-`learn daily` is the same ten questions for everyone on a date, and
+`learn daily` is one hard question a day under boss rules, the same one for everyone, and
 `learn place` climbs the curriculum one question per rung so a first run can
 skip what you already know. `learn challenge` is the endgame, unlocked when
 the last boss falls: nineteen timed chains that compose the whole curriculum,

@@ -254,7 +254,7 @@ q_load() {
 # ---- the question loop ----------------------------------------------------
 
 ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
-	local key tier input tries=0
+	local key tier input tries=0 revealed=0
 	q_load "$1" "$2" || return 1
 	ED_OPEN=                  # every question starts with no panel open
 	# a meta reply (?, blank, the man/tab words) re-asks the same line: wipe its
@@ -329,6 +329,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		esac
 
 		if correct "$input"; then
+			# the miss is already banked; typing the shown answer just moves on
+			[ "$revealed" = 1 ] && return 1
 			card_grade "$key" 1
 			tier=$(card_tier "$key")
 			S_RIGHT=$((S_RIGHT + 1)); S_STREAK=$((S_STREAK + 1))
@@ -342,6 +344,10 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			return 0
 		fi
 
+		if [ "$revealed" = 1 ]; then
+			no "not it yet. type the line above."
+			continue
+		fi
 		tries=$((tries + 1))
 		if [ "$tries" -ge 2 ] || [ "$MODE" != learn ]; then
 			# the card demotes once per question, on the final miss -- not once
@@ -351,7 +357,12 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			[ "$MODE" = learn ] && coach_miss "$input"
 			no "wrong"
 			reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
-			return 1
+			[ "$MODE" = learn ] || return 1
+			# the answer is on the screen; the question stays until you have
+			# typed it yourself. reading it teaches nothing -- writing it does.
+			note "type it to move on"
+			revealed=1
+			continue
 		fi
 		no "not that. one more try."
 	done
@@ -606,38 +617,35 @@ place() {
 
 # ---- daily ----------------------------------------------------------------
 
-# ten questions, the same ten for everyone on the same date -- the seed is
-# the day number, and the pinned busybox fixes the rand() stream, so one
-# build asks one daily everywhere. no hints, no reference: a score to
-# compare, not a lesson. (RANDOM is seedable -- ASH_RANDOM_SUPPORT is on
-# for exactly this.)
+# one question a day, the same one for everyone on the same date, drawn from
+# the top third of the curriculum and asked under boss rules: thirty seconds,
+# no hints, no reference, no editor. the seed is the day number and the pinned
+# busybox fixes the rand() stream, so one build asks one daily everywhere.
+# (RANDOM is seedable -- ASH_RANDOM_SUPPORT is on for exactly this.)
 daily() {
-	local day nl lvl nq idx n=0 right=0 rc
-	# the label and the seed must agree on what "today" is, or "the same ten
+	local day nl lo lvl nq idx rc
+	# the label and the seed must agree on what "today" is, or "the same one
 	# everywhere" only holds until someone west of UTC opens it after 5pm --
 	# date +%s is UTC seconds regardless of TZ, so the label goes UTC too
 	day=$(date -u +%Y-%m-%d 2>/dev/null || echo today)
 	RANDOM=$(( $(date +%s 2>/dev/null || echo 0) / 86400 ))
 	nl=$(level_ids | grep -c .)
-	MODE=daily
-	while [ "$n" -lt 10 ]; do
-		# draw in THIS shell: a subshell re-seeds RANDOM from its own pid,
-		# which would make the "same ten everywhere" claim quietly false
-		rnd "$nl"; lvl=$(level_ids | sed -n "$((REPLY + 1))p")
-		nq=$(level_nq "$lvl")
-		[ "$nq" -gt 0 ] || continue
-		rnd "$nq"; idx=$((REPLY + 1))
-		cls
-		statusbar "daily" "$day  no hints" "$((n + 1))" "10" "$right"
-		ask "$lvl" "$idx"; rc=$?
-		[ "$rc" = 2 ] && { MODE=learn; return 0; }
-		[ "$rc" = 0 ] && right=$((right + 1))
-		n=$((n + 1))
-		pause_card || { MODE=learn; return 0; }
-	done
+	lo=$(( nl * 2 / 3 ))
+	# draw in THIS shell: a subshell re-seeds RANDOM from its own pid, which
+	# would make the "same one everywhere" claim quietly false
+	rnd $(( nl - lo )); lvl=$(level_ids | sed -n "$(( lo + REPLY + 1 ))p")
+	nq=$(level_nq "$lvl")
+	[ "$nq" -gt 0 ] || { no "no daily today: level $lvl has no questions."; return 1; }
+	rnd "$nq"; idx=$((REPLY + 1))
+	BOSS_LIMIT=$(boss_limit "$lvl")   # the clock that level's own boss runs
+	cls
+	statusbar "daily" "$day  ${BOSS_LIMIT}s  no hints" 1 1
+	MODE=boss
+	ask "$lvl" "$idx"; rc=$?
 	MODE=learn
+	[ "$rc" = 2 ] && return 0
 	rule
-	printf '  %sdaily %s%s  %s/10\n' "$B" "$day" "$N" "$right"
+	printf '  %sdaily %s%s  %s\n' "$B" "$day" "$N" "$([ "$rc" = 0 ] && echo right || echo wrong)"
 }
 
 # ---- stats ----------------------------------------------------------------
@@ -1423,7 +1431,7 @@ usage() {
 	learn list            every command xos ships
 	learn place           placement: skip past the levels you already know
 	learn review [n]      re-ask your weakest cards, weakest first
-	learn daily           today's ten -- same ten everywhere, compare scores
+	learn daily           today's one -- a hard card under the clock, same everywhere
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn scenario [name] missions -- narrative pipelines, or the list of unlocked ones
 	learn autopsy [file]  your own shell history, held up to the curriculum
@@ -1483,7 +1491,7 @@ menu() {
 		_mi c continue  "where you left off"
 		_mi p practice  "any level by number"
 		_mi r review    "weakest cards first"
-		_mi d daily     "today's ten, same for all"
+		_mi d daily     "one hard card, same for all"
 		if [ "$unlocked" = 1 ]; then _mi g gauntlet "30s a stage, one life"
 		else _mi_off g gauntlet "locked until every boss falls"; fi
 		_mi x placement "skip what you know"
