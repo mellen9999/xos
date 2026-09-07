@@ -1,32 +1,28 @@
-# ui -- terminal output. square, dense, the terminal's own colours, no motion.
+# ui -- terminal output. square, dense, no motion.
 #
-# colour is a courtesy, never information: every state that colour marks is
-# also marked by a character, so NO_COLOR and a dumb terminal lose nothing.
+# colour is a courtesy, never information: every state it marks is also marked
+# by a character, so NO_COLOR and a dumb terminal lose nothing.
 #
-#   R  wrong        G  right       Y  the answer      U  a heading
-#   M  a banner     C  what you type (flags, operators, keys)
-#   W  a name or a value            D  the frame, and everything quiet
+#   R wrong   G right   Y the answer   U a heading   M a banner
+#   C what you type -- flags, operators, keys
+#   W a name or a value        D the frame, and everything quiet
 #
 # three tiers, because xos is driven from a linux console, over ssh from
 # whatever the far end runs, and down a serial line from whatever is bolted to
-# the other end of it:
-#
-#   colour  the terminal's own eight, not a 256-colour ramp. these are the ones
-#           that always exist, and they arrive in the reader's own scheme
-#           rather than fighting it. each of 1..7 carries exactly one meaning;
-#           0 only ever appears through V, which swaps foreground and back.
-#   mono    a vt320 has no colour and silently drops every colour it is sent,
-#           so the whole channel would vanish without a word. it does have
-#           bold, underline and reverse -- three channels and plain -- and
-#           those carry the same distinctions.
-#   none    NO_COLOR, TERM=dumb, or output that is not a terminal at all.
+# the other end of that. COLOUR is the terminal's own eight rather than a
+# 256-colour ramp: those always exist, and they arrive in the reader's scheme
+# instead of fighting it -- 1..7 above, and 0 only ever through V, which swaps
+# foreground and back. MONO is a vt320: no colour, and it drops every colour
+# escape without a word, so the whole channel would vanish silently -- bold,
+# underline and reverse carry the same distinctions. NONE is NO_COLOR,
+# TERM=dumb, or output that is not a terminal.
 
 # _ui_tier TERM -- sets _tier. a function so the choice can be tested; nothing
-# else here can be, since every tier below this line needs a real terminal.
-# colour is the default and the list names only what is known to lack it: a
-# terminal that drops a colour it does not have loses nothing, while a modern
-# one wrongly denied the palette loses all of it. the list can be closed
-# because DEC's line is -- it ended in the nineties and will not grow.
+# below this line can be, since all of it needs a real terminal. colour is the
+# default and the list names only what is known to lack it: a terminal that
+# drops a colour it has not got loses nothing, one wrongly denied the palette
+# loses all of it. the list is closed rather than merely current -- DEC's line
+# ended in the nineties.
 _ui_tier() {
 	case "$1" in
 		dumb|'')              _tier=none ;;
@@ -45,30 +41,25 @@ else
 	N=$(printf '\033[0m')  B=$(printf '\033[1m')  V=$(printf '\033[7m')
 fi
 if [ "$_tier" = colour ]; then
-	R=$(printf '\033[31m')     # wrong, missing, broken
-	G=$(printf '\033[32m')     # right, passed, covered
-	Y=$(printf '\033[33m')     # the answer, and anything to be careful with
-	U=$(printf '\033[1;34m')   # a heading within a page
-	M=$(printf '\033[35m')     # a full-width banner -- the page's own title
-	C=$(printf '\033[36m')     # what you type: flags, operators, keys
-	W=$(printf '\033[37m')     # names and values -- commands, levels, the line
+	R=$(printf '\033[31m')
+	G=$(printf '\033[32m')
+	Y=$(printf '\033[33m')
+	U=$(printf '\033[1;34m')
+	M=$(printf '\033[35m')
+	C=$(printf '\033[36m')
+	W=$(printf '\033[37m')
 	# dim has to name a colour. a bare \033[2m keeps the terminal's DEFAULT
 	# foreground, which under most schemes is brighter than the 37 live text
 	# uses -- the quiet rows then read as the loudest thing on the screen.
 	D=$(printf '\033[90m')
 elif [ "$_tier" = mono ]; then
-	# the loud half of the palette reverses, the quiet half bolds, headings
-	# underline. dim is the exception: there is no faint on a vt-series
-	# terminal, so quiet text is simply NOT bold -- which is the same idea by
-	# the only means the hardware has, and it is why every one of these is set
-	# rather than left to fall back on a colour that will never arrive.
+	# the loud half reverses, the quiet half bolds, headings underline. dim is
+	# the exception: a vt-series terminal has no faint, so quiet text is simply
+	# NOT bold -- the same idea by the only means the hardware has.
 	R=$V  M=$V  U=$(printf '\033[4m')
 	G=$B  Y=$B  C=$B  W=$B  D=
 fi
 
-# terminal width. ash does not export COLUMNS the way bash does, so trusting it
-# alone pinned every session to 80 and made the rules wrap on any other size.
-# ask the terminal itself, then fall back.
 # synchronised output: the editor reprints the whole answer line on every
 # keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
 # redraw in these markers tells the terminal to paint it in one frame. unknown
@@ -100,7 +91,7 @@ case "$_tier" in
 esac
 if [ "$_tier" != none ] && [ -t 0 ]; then
 	_stty=$(stty -g 2>/dev/null) || _stty=
-	if [ -n "$_stty" ] && stty raw -echo min 0 time 2 2>/dev/null; then
+	if [ -n "$_stty" ] && stty raw -echo min 0 time 1 2>/dev/null; then
 		printf '\r·\033[6n'
 		IFS= read -r _cpr 2>/dev/null
 		stty "$_stty" 2>/dev/null
@@ -126,9 +117,11 @@ fi
 NL='
 '
 
+# terminal width. ash does not export COLUMNS the way bash does, so trusting it
+# alone pinned every session to 80 and made the rules wrap on any other size.
+# ask the terminal itself, then fall back.
 COLS=${COLUMNS:-}
 [ -n "$COLS" ] || COLS=$(stty size 2>/dev/null | cut -d' ' -f2)
-[ -n "$COLS" ] || COLS=$(tput cols 2>/dev/null)
 [ "$COLS" -ge 40 ] 2>/dev/null || COLS=80
 # never draw past 100 columns -- a full-width rule on an ultrawide terminal is
 # noise, not structure.
@@ -144,17 +137,19 @@ TERM_LINES=${_sz%% *} TERM_COLS=${_sz##* }
 [ "$TERM_LINES" -ge 8 ] 2>/dev/null || TERM_LINES=${LINES:-24}
 unset _sz
 
-# the rules, built once. a rule is the same string every time it is drawn, so
-# forking awk per call was a fork per header, per card, per panel open.
-# RULE spans COLS -- the typography width. PANEL_RULE never exceeds the real
-# terminal, because the editor counts the rows its panel fills and a rule that
-# wrapped would put that count out and climb back over the question.
-RULE=$(awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}')
-PANEL_RULE=$(awk -v n="$(( COLS < TERM_COLS ? COLS : TERM_COLS ))" \
-	'BEGIN{while(n-->0)printf "-"}')
-PANEL_RULE="$D$PANEL_RULE$N"
+# the two full-width bars, built once and in one pass: each is the same string
+# every time it is drawn, and building them where they are drawn was a fork per
+# header, per card, per panel open, and four per boss. neither exceeds the real
+# terminal -- the editor counts the rows its panel fills, and a bar that wrapped
+# would put that count out and climb back over the question. RULE carries its
+# own colour, since it is always dim; BANNER does not, since it is drawn in two.
+_bars=$(awk -v n="$(( COLS < TERM_COLS ? COLS : TERM_COLS ))" \
+	'BEGIN{while(n-->0){r=r"-";b=b"="}printf "%s\n%s", r, b}')
+RULE="$D${_bars%%"$NL"*}$N"
+BANNER=${_bars#*"$NL"}
+unset _bars
 
-rule() { printf '%s%s%s\n' "$D" "$RULE" "$N"; }
+rule() { printf '%s\n' "$RULE"; }
 
 # the answer prompt, cmdchamp-style: a bare $ at the far left, white while you
 # type and red the moment you drop to vi normal mode. built here where the R/W

@@ -184,10 +184,10 @@ _ed_panel_load() {
 	ED_PANEL_ROWS=${fit%%"$NL"*}
 	# the rules are added after the fit, not before it: fed through the fitter
 	# they would be cut like any other row, and the bottom edge would land
-	# above the "N more lines" marker instead of under it. PANEL_RULE cannot
+	# above the "N more lines" marker instead of under it. RULE cannot
 	# wrap, so each is exactly the one row added here.
 	if [ -n "$frame" ]; then
-		ED_PANEL="$PANEL_RULE$NL$ED_PANEL$NL$PANEL_RULE"
+		ED_PANEL="$RULE$NL$ED_PANEL$NL$RULE"
 		ED_PANEL_ROWS=$(( ED_PANEL_ROWS + 2 ))
 	fi
 	return 0
