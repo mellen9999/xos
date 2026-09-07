@@ -104,6 +104,7 @@ ref: mount
 teach: mount -o
 hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
 ---
+setup: Copy /bin/busybox to $HOME/x, make it executable, and try to run it.
 q: {prove nothing dropped in your home directory can be executed|show that a binary copied into your home directory cannot run|confirm code placed in $HOME cannot be executed}
 a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
 why: live-hw

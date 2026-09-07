@@ -394,7 +394,8 @@ ref: dd
 teach: dd
 hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
-q: {mount a fat32 usb stick read-only, with nothing on it able to run|mount a fat32 usb stick read-only, with execution disabled|attach a fat32 usb stick read-only and let nothing on it run}
+setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+q: {mount the fat32 usb stick /dev/sda1 that way|mount /dev/sda1 at /mnt as fat32, locked down like that|attach the fat32 stick /dev/sda1 at /mnt, locked down}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -402,7 +403,8 @@ ref: mount
 teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
-q: {mount an exfat sd card read-only and safely|safely mount an exfat sd card read-only|attach an exfat sd card read-only, locked down the same way}
+setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+q: {mount the exfat sd card /dev/sda1 the same way|safely mount /dev/sda1 at /mnt as exfat|attach the exfat card /dev/sda1 at /mnt, locked down the same}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -410,7 +412,8 @@ ref: mount
 teach: mount -t
 hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
-q: {mount a windows ntfs disk read-only|mount a windows ntfs disk allowing no writes|attach an ntfs disk in read-only mode}
+setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+q: {mount the windows ntfs disk /dev/sda2 that way|mount /dev/sda2 at /mnt as ntfs3, allowing no writes|attach the ntfs disk /dev/sda2 at /mnt, locked down}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt
 why: root
@@ -418,7 +421,8 @@ ref: mount
 teach: mount -t
 hint: read only -- xos will not write ntfs, by design
 ---
-q: {loop-mount an iso image read-only without burning it|mount an iso image read-only through a loop device, no burning required|attach an iso image as a read-only loop mount}
+setup: image.iso is an iso9660 image; mount it at /mnt.
+q: {loop-mount image.iso read-only, without burning it|mount image.iso read-only at /mnt through a loop device|attach image.iso at /mnt as a read-only loop mount}
 a: mount -t iso9660 -o ro,loop image.iso /mnt
 why: root
 ref: mount

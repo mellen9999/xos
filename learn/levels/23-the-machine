@@ -281,7 +281,7 @@ ref: stty
 teach: stty -g
 hint: -g prints settings in a compact form meant to be fed back to stty
 ---
-q: {query the settings of a terminal other than your own|report the settings of a terminal that is not your controlling one|check another terminal device's settings, not your own}
+q: {query /dev/tty1's settings, a terminal other than your own|report every setting of /dev/tty1, not your own terminal|check /dev/tty1's settings, not the terminal you are on}
 a: stty -F /dev/tty1 -a
 why: live-hw
 ref: stty

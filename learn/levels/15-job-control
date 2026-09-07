@@ -89,14 +89,16 @@ ref: timeout
 teach: timeout -k
 hint: -k gives a grace period, then escalates to KILL if the first signal didn't work
 ---
-q: {start a detached session called work running a shell, so it survives a drop|use abduco -n to create work, detached, running a shell|create session work with abduco, detached, so a drop won't kill it}
+setup: abduco sessions here are called work and run /bin/sh.
+q: {start a detached session called work running /bin/sh|use abduco -n to create work, detached, running /bin/sh|create the detached session work running /bin/sh}
 a: abduco -n work /bin/sh
 why: interactive
 ref: abduco
 teach: abduco -n
 hint: -n creates the session detached, without attaching to it
 ---
-q: {start a session called work and attach to it now|use abduco -c to create work and attach immediately|create the session work with abduco, attaching right away}
+setup: abduco sessions here are called work and run /bin/sh.
+q: {start a session called work running /bin/sh and attach now|use abduco -c to create work on /bin/sh, attaching at once|create work running /bin/sh with abduco, attaching right away}
 a: abduco -c work /bin/sh
 why: interactive
 ref: abduco
@@ -110,7 +112,8 @@ ref: abduco
 teach: abduco -a
 hint: -a attaches to a session that already exists
 ---
-q: {attach to work if it exists, create it if it does not|use abduco -A so work is created only if it's missing|attach to work, letting abduco create it when needed}
+setup: abduco sessions here are called work and run /bin/sh.
+q: {attach to work, or create it on /bin/sh if it does not exist|use abduco -A so work is created on /bin/sh only if missing|attach to work, letting abduco create it on /bin/sh if needed}
 a: abduco -A work /bin/sh
 why: interactive
 ref: abduco
