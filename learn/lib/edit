@@ -36,6 +36,11 @@ YANK=
 # does not need repainting. globals for the same reason YANK is one: set -u,
 # and the redraw and the toggle both read them.
 ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
+# ED_OPEN names the panel the learner has open (ref | hint | empty). it outlives
+# the meta round-trips within one question, so a hint or reference stays up while
+# you keep typing; ED_ROWS_USED is how many rows the finished line took, so the
+# caller can wipe a ?/skip echo instead of letting it walk the prompt downscreen.
+ED_OPEN= ED_ROWS_USED=0
 
 # redraw: reprint the line after the prompt, clear to end, park the cursor. the
 # whole repaint is wrapped in one synchronised-output frame so a remote terminal
@@ -136,29 +141,40 @@ _ed_panel_fit() {   # $1 width  $2 max rows  $3 marker prefix  $4 marker suffix
 # puts it on the screen: closing sets it empty and the redraw's clear-to-end-of-
 # screen takes it off again. one place paints, so the panel and the cursor can
 # never disagree about where the line ends.
-_ed_panel_toggle() {
-	local fit lrows max w=${TERM_COLS:-80}
-	if [ -n "$ED_PANEL" ]; then
-		ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
-		return 0
-	fi
-	[ "${MODE:-}" = learn ] || return 0
-	command -v ref_panel_text >/dev/null || return 0
+_ed_panel_load() {
+	local fit lrows max w=${TERM_COLS:-80} src suf
+	ED_LROWS=0        # nothing painted yet: the redraw must draw it in full
+	# closed, or a clock mode that has no panel at all: leave the region empty
+	# and the redraw's clear-to-end-of-screen takes whatever was there off.
+	[ -n "$ED_OPEN" ] && [ "${MODE:-}" = learn ] \
+		|| { ED_PANEL= ED_PANEL_ROWS=0 ED_OPEN=; return 0; }
 	lrows=$(( (2 + ${#L} + ${#R}) / w + 1 ))
 	# what is left of the screen under the answer line, once the block above it
-	# has its own: a status bar, the question, the hint line and the blank a
-	# setup blurb sometimes adds -- eight rows covers that with one to spare for
-	# the answer line taking a row while the panel is open. getting it wrong
+	# has its own: a status bar, the question, the affordance line and the blank
+	# a setup blurb sometimes adds -- eight rows covers that with one to spare
+	# for the answer line taking a row while the panel is open. getting it wrong
 	# costs the question its place on the screen, never the redraw its footing.
 	max=$(( ${TERM_LINES:-24} - lrows - 8 ))
 	[ "$max" -ge 3 ] || max=3
-	fit=$(ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)" \
-		| _ed_panel_fit "$w" "$max" "  $D" "${Q_REF:-}$N")
+	# one region, two sources: Tab fills it with the reference, ? with the hint.
+	# opening one closes the other, and neither ever scrolls the question off the
+	# top the way a printed note does -- the redraw owns the region absolutely.
+	case "$ED_OPEN" in
+		ref)
+			command -v ref_panel_text >/dev/null \
+				|| { ED_PANEL= ED_PANEL_ROWS=0 ED_OPEN=; return 0; }
+			src=$(ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)")
+			suf="${Q_REF:-}$N" ;;
+		hint)
+			src=${Q_HINT:-}
+			[ -n "$src" ] || src="no hint for this one -- Tab for the reference"
+			suf="hint$N" ;;
+	esac
+	fit=$(printf '%s\n' "$src" | _ed_panel_fit "$w" "$max" "  $D" "$suf")
 	# the row count is the first line; the panel is the rest
 	ED_PANEL=${fit#*"$NL"}
-	[ -n "$ED_PANEL" ] || return 0
+	[ -n "$ED_PANEL" ] || { ED_PANEL_ROWS=0; return 0; }
 	ED_PANEL_ROWS=${fit%%"$NL"*}
-	ED_LROWS=0        # nothing painted yet: the redraw must draw it in full
 	return 0
 }
 
@@ -179,9 +195,10 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	fi
 	hi=$hn   # index one past the newest entry == the fresh line being typed
 	_ED_ROW=0
-	# a new question cleared the screen: whatever panel the last one had went
-	# with it.
-	ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
+	# a new question cleared the screen; within a question ED_OPEN carries which
+	# panel (if any) the learner has open across its meta round-trips, so a hint
+	# or reference reopened here is the one they left up, not a blank slate.
+	_ed_panel_load
 
 	# the prompt colour tracks the mode, the way cmdchamp's does: white while you
 	# type, red the instant you drop to normal mode, so the mode is legible
@@ -197,6 +214,11 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	# newline from a cursor sitting mid-way through a wrapped line lands on
 	# the line's own tail and the verdict is printed over it.
 	_ed_leave() {
+		local _w=${TERM_COLS:-80}; [ "$_w" -gt 0 ] 2>/dev/null || _w=80
+		# how many rows the finished line occupied: a caller re-asking after a
+		# ?/skip/blank submit climbs back over exactly these and clears, so the
+		# echo does not push the prompt a line downscreen every time.
+		ED_ROWS_USED=$(( (2 + ${#L} + ${#R}) / _w + 1 ))
 		ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
 		_ed_pr; _ed_draw "$_pr" "$L$R" ""
 		printf '\n'
@@ -254,8 +276,10 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 			[ -n "$L" ] && L="${L%?}"
 			;;
 		"$E_TAB")
-			# learn mode only, same as typing man; the clock modes get nothing.
-			_ed_panel_toggle
+			# learn mode only; the clock modes never reach the editor. toggle the
+			# reference, and if the hint was the one showing this replaces it.
+			if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
+			_ed_panel_load
 			;;
 		*)
 			if [ "$mode" = insert ]; then

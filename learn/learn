@@ -256,6 +256,12 @@ q_load() {
 ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
 	local key tier input tries=0
 	q_load "$1" "$2" || return 1
+	ED_OPEN=                  # every question starts with no panel open
+	# a meta reply (?, blank, the man/tab words) re-asks the same line: wipe its
+	# echo first so the prompt keeps its place instead of walking down the screen
+	# one row per press. only on a real terminal, and only for the vi editor's
+	# own line -- the piped fallback has no cursor to move.
+	_meta_clear() { [ -t 0 ] && printf '\033[%dA\r\033[J' "${ED_ROWS_USED:-1}"; }
 	# a scenario passes its own file path (q_load's */* case): key that on
 	# "scn/<basename>", not the raw path, or review() has no level id to
 	# resolve back to a file and stats has no bucket to count it under.
@@ -266,10 +272,11 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 
 	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
-	# one line for every card: q, :q and :qa are all answers somewhere in the
-	# curriculum, so none of them may quit. leaving is the typed word `quit`,
-	# or Ctrl-C / Ctrl-D -- three things that are never an answer.
-	[ "$MODE" = learn ] && note "? hint · tab ref · skip · quit"
+	# the two panels you can open at a card (? for the hint, Tab for the
+	# reference, either key again closes it), then the one word that passes it.
+	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- documented in help,
+	# never an answer, and not a per-card affordance worth the width here.
+	[ "$MODE" = learn ] && note "? hint · tab ref · skip"
 
 	while :; do
 		if [ "$MODE" = boss ]; then
@@ -295,10 +302,14 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		fi
 		case "$input" in
 			quit)     return 2 ;;
-			'')       continue ;;
+			'')       _meta_clear; continue ;;
 			'?'|hint)
 				if [ "$MODE" != learn ]; then
 					note "no hints under the clock."
+				elif [ -t 0 ]; then
+					# toggle the hint panel under the answer line, in place
+					if [ "$ED_OPEN" = hint ]; then ED_OPEN=; else ED_OPEN=hint; fi
+					_meta_clear
 				elif [ -n "$Q_HINT" ]; then
 					note "$Q_HINT"
 				else
@@ -308,6 +319,9 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			man|tab)
 				if [ "$MODE" != learn ]; then
 					note "no hints under the clock."
+				elif [ -t 0 ]; then
+					if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
+					_meta_clear
 				else
 					ref_panel "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				fi
@@ -1347,6 +1361,19 @@ c' 20)" = 3 ] || exit 1
 	  [ "$(printf '%s' "$cut" | tail -1)" = "7 more lines -- learn ref ls" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL _ed_panel_fit: panel row count or cut" >&2; bad=$((bad+1)); }
+
+	# ? and Tab share one region: opening the hint fills ED_PANEL from Q_HINT,
+	# toggling closes it, and a clock mode gets no panel at all (and ED_OPEN is
+	# forced shut so it cannot leak a stale reference onto a timed round).
+	( MODE=learn; TERM_COLS=80; TERM_LINES=24; L=""; R=""
+	  Q_HINT="press f to follow"; Q_ANSWERS="tail -f x"; Q_REF=tail
+	  ED_OPEN=hint; _ed_panel_load
+	  case "$ED_PANEL" in *"press f to follow"*) ;; *) exit 1 ;; esac
+	  ED_OPEN=; _ed_panel_load; [ -z "$ED_PANEL" ] || exit 1
+	  MODE=boss; ED_OPEN=hint; _ed_panel_load
+	  { [ -z "$ED_PANEL" ] && [ -z "$ED_OPEN" ]; } || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_panel_load: hint toggle / clock-mode guard" >&2; bad=$((bad+1)); }
 
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
