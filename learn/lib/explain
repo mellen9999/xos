@@ -114,18 +114,10 @@ examples_cached() {
 		  done
 		  printf 's|@n@|3|g\ns|@n3@|5|g\n'; } > "$TMP/examples.sed"
 		awk '
-		function flush2(   i, l, b) {
-			if (r == "") { n = 0; return }
-			for (i = 1; i <= n; i++) {
-				l = A[i]
-				# a listed answer may offer {a|b}; the first branch is the one
-				# the level teaches, so that is the one worth showing
-				while (match(l, /\{[^{}]*\}/)) {
-					b = substr(l, RSTART + 1, RLENGTH - 2); sub(/\|.*/, "", b)
-					l = substr(l, 1, RSTART - 1) b substr(l, RSTART + RLENGTH)
-				}
-				print r "\t" l
-			}
+		function flush2(   i) {
+			# verbatim: a listed answer is already the exact line the grader
+			# accepts, braces and all. an awk program is not an alternation.
+			if (r != "") for (i = 1; i <= n; i++) print r "\t" A[i]
 			n = 0; r = ""
 		}
 		FNR == 1 { flush2() }
