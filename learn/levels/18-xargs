@@ -101,7 +101,7 @@ ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {you'll want this to work stripping several files at once|scripting generically, so name the suffix explicitly, not trailing|drop .txt from @txt@ the way that still works with more files}
+q: {strip .txt from @txt@ with the suffix named as a flag|scripting generically, so name the suffix explicitly, not trailing|drop .txt from @txt@ the way that still works with more files}
 a: basename -s .txt @txt@
 cmp: ref
 ref: basename

@@ -169,7 +169,7 @@ ref: date
 teach: date
 hint: a +FORMAT argument controls exactly what date prints
 ---
-q: {you need a timestamp to compare against a log's unix time|report now as a unix timestamp|what is the current time in seconds since the epoch}
+q: {compare against a log's unix time -- print now in epoch seconds|report now as a unix timestamp|what is the current time in seconds since the epoch}
 a: date +%s
 out: ^[0-9]{10}$
 ref: date

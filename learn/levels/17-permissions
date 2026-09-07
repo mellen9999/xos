@@ -112,7 +112,7 @@ ref: id
 teach: id -G
 hint: -G lists every group id you belong to, not just the primary
 ---
-q: setuidgid changed who you're acting as -- %show% who you really are
+q: %show% your real uid, not the effective one a setuid program would show
 a: id -ur
 why: primitive-cost
 ref: id
