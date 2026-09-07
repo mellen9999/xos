@@ -43,6 +43,7 @@ hint: concatenate every file into one stream before hashing it once
 setup: The final question. /proc/mounts, field 4 the comma-separated options.
 q: print each mount option in /proc/mounts that appears on more than one filesystem, with its count
 a: awk '{print $4}' /proc/mounts | tr ',' '\n' | sort | uniq -c | awk '$1>1'
+a: awk '{print $4}' /proc/mounts | tr , '\n' | sort | uniq -c | awk '$1>1'
+why: live-hw
 ref: awk
-cmp: ref
 hint: split the comma list onto separate lines before you sort and count
