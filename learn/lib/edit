@@ -30,28 +30,47 @@ EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
 # yank survives across questions. must exist before the first p/P: under
 # set -u an unset read crashes the lesson mid-question.
 YANK=
-# the reference panel, when Tab has opened it: the rendered page and the number
-# of terminal rows it fills. empty means closed. globals for the same reason
-# YANK is one -- set -u, and the redraw and the toggle both read them.
-ED_PANEL= ED_PANEL_ROWS=0
+# the reference panel, when Tab has opened it: the rendered page, the number of
+# terminal rows it fills, and how many rows the answer line filled when it was
+# last painted -- while that number holds, the panel below has not moved and
+# does not need repainting. globals for the same reason YANK is one: set -u,
+# and the redraw and the toggle both read them.
+ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
 
 # redraw: reprint the line after the prompt, clear to end, park the cursor. the
 # whole repaint is wrapped in one synchronised-output frame so a remote terminal
 # never shows a half-drawn line mid-keystroke.
 _ED_ROW=0
 _ed_draw() {   # $1 prompt  $2 L  $3 R   (the prompt is 2 cells wide: "$ ")
-	local _w=${TERM_COLS:-80} _p _t _prow _erow
+	local _w=${TERM_COLS:-80} _p _t _prow _erow _lr _col0=
 	[ "$_w" -gt 0 ] 2>/dev/null || _w=80
 	_p=$(( 2 + ${#2} ))            # cell index of the cursor (0-based)
 	_t=$(( 2 + ${#2} + ${#3} ))    # cells the whole line occupies
 	printf '%s' "$SYNC_BEG"
-	# climb to the line's first row, reprint it all, clear whatever is below
+	# climb to the line's first row and reprint it all
 	[ "$_ED_ROW" -gt 0 ] && printf '\033[%dA' "$_ED_ROW"
-	printf '\r%s%s%s\033[J' "$1" "$2" "$3"
-	# the print left the cursor after the last cell: on row (t-1)/w. with
-	# nothing right of the cursor that IS the cursor; otherwise climb to the
-	# row of cell p and step right to its column.
+	printf '\r%s%s%s' "$1" "$2" "$3"
 	_erow=$(( (_t - 1) / _w ))
+	_lr=$(( _erow + 1 ))
+	if [ -z "$ED_PANEL" ]; then
+		printf '\033[J'
+	elif [ "$_lr" = "$ED_LROWS" ]; then
+		# the line still fills the same rows, so the panel under it has not
+		# moved: clear this row alone and leave the panel where it is. that
+		# is what makes a keystroke with the panel open cost what one
+		# without it costs -- nothing is redrawn but the line.
+		printf '\033[K'
+	else
+		# the line took a row, or gave one back: the panel moves with it.
+		# every move here is relative, so if the panel runs past the bottom
+		# and the terminal scrolls, the climb still lands on the line --
+		# only what was above it scrolls away.
+		printf '\033[J\n%s\033[%dA\r' "$ED_PANEL" "$ED_PANEL_ROWS"
+		ED_LROWS=$_lr
+		_col0=1                # cursor is at column 0 now, not after the line
+	fi
+	# with nothing right of the cursor the end of the line IS the cursor;
+	# otherwise climb to the row of cell p and step right to its column.
 	if [ -n "$3" ]; then
 		_prow=$(( _p / _w ))
 		[ "$_erow" -gt "$_prow" ] && printf '\033[%dA' $(( _erow - _prow ))
@@ -59,6 +78,8 @@ _ed_draw() {   # $1 prompt  $2 L  $3 R   (the prompt is 2 cells wide: "$ ")
 		[ $(( _p % _w )) -gt 0 ] && printf '\033[%dC' $(( _p % _w ))
 		_ED_ROW=$_prow
 	else
+		[ -n "$_col0" ] && [ $(( _t - _erow * _w )) -gt 0 ] \
+			&& printf '\033[%dC' $(( _t - _erow * _w ))
 		_ED_ROW=$_erow
 	fi
 	printf '%s' "$SYNC_END"
@@ -107,40 +128,37 @@ _ed_panel_fit() {   # $1 width  $2 max rows  $3 marker prefix  $4 marker suffix
 		}'
 }
 
-# Tab: the reference opens ABOVE the answer line, and Tab again takes it away.
-# the question, what you have typed and the cursor all stay where they are.
+# Tab: the reference opens under the answer line, and Tab again takes it away.
+# the question, the answer line, what you have typed and the cursor all stay on
+# the row they were on -- nothing moves but what appears below.
 #
-# above, not below, is the whole trick: only the rows from the answer line down
-# are ever repainted, so the panel costs nothing per keystroke and the terminal
-# scrolls old text off the top by itself instead of us doing cursor arithmetic
-# across a scroll. closing climbs back over a known number of rows, which only
-# works while those rows are still on screen -- so a page too tall for the room
-# is cut to fit and says so, rather than scrolling the question away and taking
-# the climb with it.
+# nothing is drawn here. the toggle only says what the panel is, and the redraw
+# puts it on the screen: closing sets it empty and the redraw's clear-to-end-of-
+# screen takes it off again. one place paints, so the panel and the cursor can
+# never disagree about where the line ends.
 _ed_panel_toggle() {
-	local p fit lrows max w=${TERM_COLS:-80}
+	local fit lrows max w=${TERM_COLS:-80}
 	if [ -n "$ED_PANEL" ]; then
-		printf '\033[%dA\r\033[J' $(( _ED_ROW + ED_PANEL_ROWS ))
-		ED_PANEL= ED_PANEL_ROWS=0 _ED_ROW=0
+		ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
 		return 0
 	fi
 	[ "${MODE:-}" = learn ] || return 0
 	command -v ref_panel_text >/dev/null || return 0
 	lrows=$(( (2 + ${#L} + ${#R}) / w + 1 ))
-	# what is left of the screen once the answer line and the block above it
-	# have theirs: a status bar, the question, the hint line, and the blank a
-	# setup blurb sometimes adds -- eight rows covers all of it with one to
-	# spare for the answer line growing a row while the panel is open.
+	# what is left of the screen under the answer line, once the block above it
+	# has its own: a status bar, the question, the hint line and the blank a
+	# setup blurb sometimes adds -- eight rows covers that with one to spare for
+	# the answer line taking a row while the panel is open. getting it wrong
+	# costs the question its place on the screen, never the redraw its footing.
 	max=$(( ${TERM_LINES:-24} - lrows - 8 ))
 	[ "$max" -ge 3 ] || max=3
 	fit=$(ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)" \
 		| _ed_panel_fit "$w" "$max" "  $D" "${Q_REF:-}$N")
 	# the row count is the first line; the panel is the rest
-	p=${fit#*"$NL"}
-	[ -n "$p" ] || return 0
-	[ "$_ED_ROW" -gt 0 ] && printf '\033[%dA' "$_ED_ROW"
-	printf '\r\033[J%s\n' "$p"
-	ED_PANEL=$p ED_PANEL_ROWS=${fit%%"$NL"*} _ED_ROW=0
+	ED_PANEL=${fit#*"$NL"}
+	[ -n "$ED_PANEL" ] || return 0
+	ED_PANEL_ROWS=${fit%%"$NL"*}
+	ED_LROWS=0        # nothing painted yet: the redraw must draw it in full
 	return 0
 }
 
@@ -161,10 +179,9 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	fi
 	hi=$hn   # index one past the newest entry == the fresh line being typed
 	_ED_ROW=0
-	# a new question cleared the screen: whatever panel the last one had is
-	# gone with it, and closing a panel that is not there would climb into
-	# the question.
-	ED_PANEL= ED_PANEL_ROWS=0
+	# a new question cleared the screen: whatever panel the last one had went
+	# with it.
+	ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
 
 	# the prompt colour tracks the mode, the way cmdchamp's does: white while you
 	# type, red the instant you drop to normal mode, so the mode is legible
@@ -175,9 +192,19 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	_ed_pr() { if [ "$mode" = normal ]; then _pr="$PROMPT_NORM"; else _pr="$PROMPT_INS"; fi; }
 	local _pr
 
+	# leaving the prompt: take the panel off the screen and park at the end of
+	# the line, so the newline steps past all of it. without the park, a
+	# newline from a cursor sitting mid-way through a wrapped line lands on
+	# the line's own tail and the verdict is printed over it.
+	_ed_leave() {
+		ED_PANEL= ED_PANEL_ROWS=0 ED_LROWS=0
+		_ed_pr; _ed_draw "$_pr" "$L$R" ""
+		printf '\n'
+	}
+
 	_ed_pr; _ed_draw "$_pr" "$L" "$R"
 	while :; do
-		IFS= read -rsn1 c || { printf '\n'; REPLY_LINE="$L$R"; return 1; }
+		IFS= read -rsn1 c || { _ed_leave; REPLY_LINE="$L$R"; return 1; }
 		[ -z "$c" ] && break   # Enter (read strips the newline -> empty)
 
 		case "$c" in
@@ -211,7 +238,7 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 			# Ctrl-D quits the prompt from either mode, the way it does in
 			# cmdchamp. raw read delivers it as a byte, not EOF, so it has to
 			# be caught by hand; a blank line is returned and nothing graded.
-			printf '\n'; REPLY_LINE=""; return 1
+			_ed_leave; REPLY_LINE=""; return 1
 			;;
 		"$E_DEL"|"$E_BS")
 			[ -n "$L" ] && L="${L%?}"
@@ -230,11 +257,11 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 		esac
 		# normal-mode q sets this (cmdchamp binds q to quit); honour it here,
 		# where a return actually leaves read_line.
-		[ -n "$_quit" ] && { printf '\n'; REPLY_LINE=""; return 1; }
+		[ -n "$_quit" ] && { _ed_leave; REPLY_LINE=""; return 1; }
 		_ed_pr; _ed_draw "$_pr" "$L" "$R"
 	done
 
-	printf '\n'
+	_ed_leave
 	REPLY_LINE="$L$R"
 	# history: skip blanks and immediate repeats
 	if [ -n "$REPLY_LINE" ]; then
