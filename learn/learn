@@ -1377,7 +1377,7 @@ c' 20)" = 3 ] || exit 1
 	  [ "$(rows "$(printf '%40s' '')" 20)" = 2 ] || exit 1   # exactly two
 	  [ "$(rows "$(printf '%41s' '')" 20)" = 3 ] || exit 1
 	  # colour takes no cells: the same twenty characters, painted
-	  [ "$(rows "$E_ESC[36m$(printf '%20s' '')$E_ESC[0m" 20)" = 1 ] || exit 1
+	  [ "$(rows "${E_ESC}[36m$(printf '%20s' '')${E_ESC}[0m" 20)" = 1 ] || exit 1
 	  # too tall: cut to the budget, and the cut says how much it took. narrow
 	  # on purpose -- the marker itself wraps to two rows here, which is the
 	  # case a flat one-row reservation for it gets wrong.
@@ -1387,6 +1387,21 @@ c' 20)" = 3 ] || exit 1
 	  [ "$(printf '%s' "$cut" | tail -1)" = "7 more lines -- learn ref ls" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL _ed_panel_fit: panel row count or cut" >&2; bad=$((bad+1)); }
+
+	# the frame costs two rows, and the redraw climbs back over ED_PANEL_ROWS of
+	# them. count them separately from the code that sets them: an edge added
+	# without its row is an edge that eats the question, and a live terminal is
+	# the only other place that would ever say so.
+	( ref_panel_text() { printf '  one\n  two\n  three\n'; }
+	  Q_REF=ls Q_ANSWERS=ls Q_ROWS=4 MODE=learn ED_OPEN=ref L= R= TERM_COLS=80
+	  TERM_LINES=24; _ed_panel_load                       # room to frame
+	  [ "$ED_PANEL_ROWS" = "$(printf '%s\n' "$ED_PANEL" | grep -c '')" ] || exit 1
+	  case "$ED_PANEL" in "$PANEL_RULE"*"$PANEL_RULE") ;; *) exit 1 ;; esac
+	  TERM_LINES=11; _ed_panel_load                       # too short: no frame
+	  [ "$ED_PANEL_ROWS" = "$(printf '%s\n' "$ED_PANEL" | grep -c '')" ] || exit 1
+	  case "$ED_PANEL" in "$PANEL_RULE"*) exit 1 ;; esac
+	  exit 0 ) \
+		|| { echo "FAIL panel frame: row count or frame decision" >&2; bad=$((bad+1)); }
 
 	# no prompt may wrap an 80-column terminal at its widest rendering: it
 	# would cost the reference panel a row and read as prose, not an order.
