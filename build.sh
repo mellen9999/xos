@@ -1249,10 +1249,11 @@ TODO: write this entry by hand.
 #   G33 init remote-access arg-building, run through the real ash   (new)
 #   G34 signed UKI's embedded roothash matches the tree             (new)
 #   G35 first-party scripts parse under the shipped ash             (new)
+#   G36 learn reaches its prompt on a silent terminal, under that ash (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=33   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=34   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1521,6 +1522,35 @@ size() {
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
   done
   g "G35 first-party scripts parse under shipped ash" "$g35"
+
+  # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
+  # parsing is not running: the unicode probe asks the terminal a question, and
+  # a shell whose read ignores VMIN/VTIME waits for a newline the reply never
+  # sends. that hung learn before it drew anything, on the shipped ash, while
+  # the host's shell honoured the same stty and made it look fine. G35 cannot
+  # see it and no test that is not a terminal can either -- so open one, stay
+  # silent, and require an exit.
+  local g36=FAIL
+  python3 - "$bb35" <<'G36' >/dev/null 2>&1 && g36=ok
+import os, pty, select, sys, time
+bb = sys.argv[1]
+env = dict(os.environ, LEARN_ROOT=os.getcwd() + "/learn", TERM="xterm-256color")
+env.pop("COLUMNS", None); env.pop("LINES", None)
+pid, fd = pty.fork()
+if pid == 0:
+    os.execve(bb, [bb, "ash", "learn/learn", "ref", "cut"], env)
+end = time.time() + 10
+while time.time() < end:                  # answer nothing, ever
+    r, _, _ = select.select([fd], [], [], 0.2)
+    if r:
+        try: os.read(fd, 65536)           # drain, so a full pty cannot block it
+        except OSError: pass
+    try:
+        if os.waitpid(pid, os.WNOHANG)[0]: sys.exit(0)
+    except ChildProcessError: sys.exit(0)
+os.kill(pid, 9); sys.exit(1)
+G36
+  g "G36 learn starts on a terminal that answers nothing" "$g36"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.

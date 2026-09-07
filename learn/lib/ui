@@ -91,14 +91,24 @@ case "$_tier" in
 esac
 if [ "$_tier" != none ] && [ -t 0 ]; then
 	_stty=$(stty -g 2>/dev/null) || _stty=
-	if [ -n "$_stty" ] && stty raw -echo min 0 time 1 2>/dev/null; then
+	if [ -n "$_stty" ] && stty raw -echo 2>/dev/null; then
 		printf '\r·\033[6n'
-		IFS= read -r _cpr 2>/dev/null
+		# read -t, not the terminal's own min/time: busybox ash -- the shell
+		# this actually runs under -- ignores VMIN and VTIME and blocks for a
+		# newline the reply never sends. that hung learn before its first
+		# prompt on every terminal that stays quiet, and only the host's shell,
+		# which does honour them, made it look fine. a byte at a time, so an
+		# answer costs nothing and silence costs the timeout once.
+		_cpr=
+		while IFS= read -r -t 0.3 -n 1 _c 2>/dev/null; do
+			_cpr="$_cpr$_c"
+			case "$_c" in R) break ;; esac
+		done
 		stty "$_stty" 2>/dev/null
 		printf '\r\033[K'
-		case "${_cpr:-}" in *';2R'*) UNI=1 ;; *R) UNI=0 ;; esac
+		case "$_cpr" in *';2R'*) UNI=1 ;; *R) UNI=0 ;; esac
 	fi
-	unset _stty _cpr
+	unset _stty _cpr _c
 fi
 unset _tier
 
