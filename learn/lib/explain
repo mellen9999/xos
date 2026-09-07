@@ -67,23 +67,176 @@ explain_syntax() {
 	return $(( 1 - found ))
 }
 
-# ref_panel_text ANSWER -- the tab/man panel: a command's ref page plus the
-# shell syntax its first listed answer leans on, under the SAME "shell syntax"
-# heading explain() uses. the one place both learn's word path and the
-# editor's Tab key call into, so they can never drift apart again.
+# _prows WIDTH -- display rows the text on stdin takes at WIDTH, colour codes
+# not counted. the panel budget is in rows, and a line that wraps costs two.
+_prows() {
+	awk -v w="${1:-80}" '
+		{ t = $0; gsub(/\033\[[0-9;?]*[A-Za-z]/, "", t)
+		  n = length(t); rows += int((n > 0 ? n - 1 : 0) / w) + 1 }
+		END { print rows + 0 }'
+}
+
+# the answers the corpus itself teaches for a command, cached once per process:
+# real lines, already graded, so an example can never drift from what the
+# trainer accepts. templated answers are skipped -- @txt@ is not something to
+# type. built from the levels and the missions both.
+examples_cached() {
+	[ -s "$TMP/examples.all" ] || awk '
+		function flush(   i) {
+			if (r != "") for (i = 1; i <= n; i++)
+				if (A[i] !~ /[@%{]/) print r "\t" A[i]
+			n = 0; r = ""
+		}
+		FNR == 1 { flush() }
+		/^---/    { flush(); next }
+		/^a: /    { l = $0; sub(/^a: /, "", l); A[++n] = l; next }
+		/^ref: /  { r = $2 }
+		END       { flush() }
+	' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null | sort -u > "$TMP/examples.all"
+	cat "$TMP/examples.all"
+}
+
+# ref_examples CMD [SKIP] -- up to two example lines for CMD, never the answer
+# to the question on screen. shortest first, and no two examples leading with
+# the same flag, so two rows show two different things.
+ref_examples() {
+	local out
+	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v w="${COLS:-80}" -v C="$C" -v N="$N" '
+		$1 == c && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
+		END {
+			# the fullest line that still fits a row, not the shortest: a real
+			# invocation with its arguments teaches more than a bare command
+			for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++)
+				if (length(L[j]) > length(L[i])) { t = L[i]; L[i] = L[j]; L[j] = t }
+			for (i = 1; i <= n && k < 2; i++) {
+				split(L[i], t2, " "); sig = ""
+				for (f = 2; f <= 4; f++) if (t2[f] ~ /^-/) { sig = t2[f]; break }
+				if (sig != "" && seen[sig]++) continue
+				k++; printf "  %s%s%s\n", C, L[i], N
+			}
+		}')
+	[ -n "$out" ] || return 1
+	printf '  %sin the wild%s\n%s\n' "$D" "$N" "$out"
+}
+
+# ref_card CMD head|flags [MAXROWS] -- the abridged reference. `head` is the
+# name, one-line usage and summary; `flags` is ONLY the flags the curriculum
+# drills, and a footer saying how many the full page holds back -- `learn ref
+# CMD` is always the whole thing. given a row budget the flags go two-column
+# and the descriptions are cut to their cell; the panel is a glance, the page
+# is the read, and the card never spends a row it was not given.
+ref_card() {
+	local r taught
+	r=$(refname "$1")
+	[ -f "$REF/$r" ] || return 1
+	taught=$(taught_cached | awk -v c="$1" '$1 == c { printf " %s", $2 }')
+	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
+	    -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
+		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
+		function clip(s, w) {
+			if (w < 4 || length(s) <= w) return substr(s, 1, w < 1 ? 0 : w)
+			s = substr(s, 1, w - 2); sub(/[ ,][^ ,]*$/, "", s)
+			sub(/[ .,|]+$/, "", s); return s ".."
+		}
+		function known(k,   i, m, a) {
+			m = split(k, a, ",")
+			for (i = 1; i <= m; i++) if (index(taught, " " a[i] " ")) return 1
+			return 0
+		}
+		{ line[NR] = $0 }
+		END {
+			nflag = 0; n = 0; fw = 0; keep = 0
+			for (i = 2; i <= NR; i++) {
+				l = line[i]
+				if (l ~ /^Usage:/) { usage = substr(l, 8); continue }
+				if (l !~ /^\t/) {
+					if (l != "" && summary == "") summary = l
+					continue
+				}
+				sub(/^\t+/, "", l); f = l; d = ""
+				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
+				key = f; sub(/[ \t[].*/, "", key)
+				if (key ~ /^-/) {
+					nflag++; keep = known(key)
+					if (!keep) continue
+					n++; F[n] = f; Dd[n] = d
+					if (length(f) > fw) fw = length(f)
+				} else if (keep && n > 0) {
+					# a wrapped description: fold it into the row above rather
+					# than spend a whole row on half a sentence
+					Dd[n] = Dd[n] " " f (d == "" ? "" : " " d)
+				}
+			}
+			if (mode == "head") {
+				printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
+				if (summary != "") printf "  %s%s%s\n", D, clip(summary, cols - 4), N
+				exit
+			}
+			if (fw > 16) fw = 16
+			col = fw + 2
+			# one column while it fits, two when it does not, and if two still
+			# overflow the budget the tail rolls into the footer count -- the
+			# card is never taller than the room it was handed
+			foot1 = nflag - n
+			if (max == 0 || n + (foot1 > 0 ? 1 : 0) <= max) {
+				for (i = 1; i <= n; i++)
+					if (Dd[i] == "") printf "  %s%s%s\n", C, F[i], N
+					else printf "  %s%s%s%s\n", C, pad(F[i], col), N, clip(Dd[i], cols - col - 4)
+				if (foot1 > 0) foot(foot1, c, D, N)
+				exit
+			}
+			avail = max - 1
+			if (avail < 1) avail = 1
+			shown = n
+			if (shown > avail * 2) shown = avail * 2
+			half = int((shown + 1) / 2)
+			# two cells and the gap between them, measured on the plain text --
+			# the colour codes go on afterwards, or every row lands ragged
+			cell = int((cols - 4) / 2); dw = cell - col
+			for (i = 1; i <= half; i++) {
+				j = i + half
+				printf "  %s%s%s%s", C, pad(F[i], col), N, pad(clip(Dd[i], dw), dw)
+				if (j <= shown) printf "  %s%s%s%s", C, pad(F[j], col), N, clip(Dd[j], dw)
+				printf "\n"
+			}
+			if (nflag - shown > 0) foot(nflag - shown, c, D, N)
+		}
+		function foot(k, c, D, N) {
+			printf "  %s%d more flag%s -- learn ref %s%s\n", D, k, k == 1 ? "" : "s", c, N
+		}' "$REF/$r"
+}
+
+# ref_panel_text ANSWER -- the tab/man panel: what the command is, the shell
+# syntax this answer leans on, two real lines from the corpus, then the flags
+# the curriculum drills. the one place both learn's word path and the editor's
+# Tab key call into, so they can never drift apart. PANEL_ROWS, when set, is
+# the room the caller has: the examples are what goes first when it is tight,
+# and the flag list is shaped to whatever is left.
 ref_panel_text() {
+	local head syn ex used left budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
 	if [ -z "${Q_REF:-}" ]; then
 		note "no reference for this one"
 		return 0
 	fi
-	ref "$Q_REF"
-	printf '  %sshell syntax%s\n' "$D" "$N"
-	explain_syntax "$1" || printf '  %s(none -- a single command, no operators)%s\n' "$D" "$N"
+	head=$(ref_card "$Q_REF" head) || { note "no entry for $Q_REF"; return 0; }
+	syn=$(explain_syntax "$1") || syn="  ${D}(none -- a single command, no operators)${N}"
+	ex=$(ref_examples "$Q_REF" "${Q_ANSWERS:-}") || ex=
+	if [ "$budget" -gt 0 ]; then
+		used=$(printf '%s\n  shell syntax\n%s\n' "$head" "$syn" | _prows "$w")
+		left=$(( budget - used ))
+		# an example pair costs three rows; below that the flags need them more
+		if [ -n "$ex" ] && [ "$left" -ge 6 ]; then
+			left=$(( left - $(printf '%s\n' "$ex" | _prows "$w") ))
+		else
+			ex=
+		fi
+		budget=$left
+		[ "$budget" -ge 2 ] || budget=2
+	fi
+	printf '%s\n  %sshell syntax%s\n%s\n' "$head" "$D" "$N" "$syn"
+	[ -n "$ex" ] && printf '%s\n' "$ex"
+	ref_card "$Q_REF" flags "$budget"
 }
-
-# the same page, printed. the editor captures the text instead, so it can
-# measure the panel before deciding whether it fits on the screen.
-ref_panel() { ref_panel_text "$1" | ${PAGER:-cat}; }
 
 # explain LINE... -- the one-line summary of every command in the line, then the
 # shell syntax holding them together. `learn <cmd>` still prints a full page;

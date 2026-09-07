@@ -163,7 +163,7 @@ _ed_panel_load() {
 		ref)
 			command -v ref_panel_text >/dev/null \
 				|| { ED_PANEL= ED_PANEL_ROWS=0 ED_OPEN=; return 0; }
-			src=$(ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)")
+			src=$(PANEL_ROWS=$max ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)")
 			suf="${Q_REF:-}$N" ;;
 		hint)
 			src=${Q_HINT:-}
