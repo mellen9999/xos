@@ -104,7 +104,10 @@ examples_cached() {
 		# a sed script that fills every @token@ with the first value of its own
 		# pool. most listed answers are templated, and an example is worth more
 		# with a real filename in it than not shown at all -- these are the same
-		# lines the grader accepts, only settled on one roll.
+		# lines the grader accepts, only settled on one roll. a token the roll
+		# fills some other way (@needle@ picks a severity in a case, not from a
+		# pool) has no entry, so any line still holding one is dropped: a
+		# literal @needle@ on a card would read as a typo in the trainer.
 		{ token_pools | while read -r _t _p; do
 			_v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | head -1)
 			[ -n "$_v" ] && printf 's|@%s@|%s|g\n' "$_t" "$_v"
@@ -132,6 +135,7 @@ examples_cached() {
 		END       { flush2() }
 		' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
 		| sed -f "$TMP/examples.sed" \
+		| grep -v '@[a-z0-9][a-z0-9]*@' \
 		| sort -u > "$TMP/examples.all"
 	}
 	cat "$TMP/examples.all"
