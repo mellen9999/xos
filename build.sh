@@ -160,7 +160,17 @@ deps() {
 # that already had src/ populated it passed. that is why nobody saw it.
 get() {
   local url="$1" tar="$2" dir="$3"
-  [ -f "src/$tar" ] || curl -fL --progress-bar "$url" -o "src/$tar"
+  # one reset must not end a build that has already fetched gigabytes, and a
+  # half-written tarball must not survive to be taken for a cached one: the
+  # [ -f ] above would skip re-fetching it, and the digest check below would
+  # then blame the mirror for a truncation curl caused. --retry-all-errors
+  # because the transient failures here are resets and TLS handshakes, which
+  # plain --retry does not count; --speed-limit turns a stalled mirror into a
+  # retry instead of a build that hangs until someone notices.
+  [ -f "src/$tar" ] || curl -fL --progress-bar \
+      --connect-timeout 20 --speed-limit 1024 --speed-time 30 \
+      --retry 5 --retry-delay 2 --retry-all-errors "$url" -o "src/$tar" \
+    || { rm -f "src/$tar"; echo "FAIL: could not fetch $tar from $url" >&2; return 1; }
   grep -q " $tar$" sources.sha256 || { echo "FAIL: $tar not pinned in sources.sha256" >&2; return 1; }
   ( cd src && grep " $tar$" ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
     echo "FAIL: $tar digest mismatch -- refusing to extract" >&2; return 1; }
