@@ -1420,6 +1420,10 @@ c' 20)" = 3 ] || exit 1
 	  printf '%s\n' "$ex" | grep -qF "grep -r xos" && exit 1
 	  [ "$(printf '%s\n' "$ex" | grep -c .)" -le 3 ] || exit 1
 	  [ "$(printf 'ab\ncd\n' | _prows 1)" = 4 ] || exit 1
+	  # a templated answer still makes an example: the tokens are filled from
+	  # the pools, so a command drilled only through @txt@ is not left blank
+	  sed_ex=$(ref_examples sed "") || exit 1
+	  case "$sed_ex" in *@*) exit 1 ;; esac
 	  exit 0 ) \
 		|| { echo "FAIL ref_card/ref_examples: budget, taught-only or example pick" >&2; bad=$((bad+1)); }
 

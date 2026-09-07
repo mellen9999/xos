@@ -22,6 +22,24 @@ ctx_init() {
 	: > "$SUBST"
 }
 
+# token_pools -- "TOKEN POOL" for every substitution roll() makes, read out of
+# roll() itself. anything that needs to know what a @token@ can hold -- the
+# example lines on a reference card, the prompt-width gate -- reads this rather
+# than keeping a second copy of the list that drifts the day a token is added.
+token_pools() {
+	awk '
+		/pick2?[ \t]/ {
+			if (!match($0, /pick2?[ \t]+[A-Za-z0-9._]+/)) next
+			p = substr($0, RSTART, RLENGTH); sub(/pick2?[ \t]+/, "", p)
+			n = split($0, part, ";")
+			for (i = 1; i <= n; i++)
+				if (match(part[i], /sub[ \t]+[a-z0-9]+/)) {
+					t = substr(part[i], RSTART, RLENGTH); sub(/sub[ \t]+/, "", t)
+					print t, p
+				}
+		}' "$ROOT/lib/ctx"
+}
+
 # rnd MAX -> REPLY in 0..MAX-1
 rnd() { REPLY=$(( RANDOM % $1 )); }
 

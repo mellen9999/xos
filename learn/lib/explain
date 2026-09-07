@@ -100,18 +100,40 @@ _prows() {
 # trainer accepts. templated answers are skipped -- @txt@ is not something to
 # type. built from the levels and the missions both.
 examples_cached() {
-	[ -s "$TMP/examples.all" ] || awk '
-		function flush(   i) {
-			if (r != "") for (i = 1; i <= n; i++)
-				if (A[i] !~ /[@%{]/) print r "\t" A[i]
+	[ -s "$TMP/examples.all" ] || {
+		# a sed script that fills every @token@ with the first value of its own
+		# pool. most listed answers are templated, and an example is worth more
+		# with a real filename in it than not shown at all -- these are the same
+		# lines the grader accepts, only settled on one roll.
+		{ token_pools | while read -r _t _p; do
+			_v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | head -1)
+			[ -n "$_v" ] && printf 's|@%s@|%s|g\n' "$_t" "$_v"
+		  done
+		  printf 's|@n@|3|g\ns|@n3@|5|g\n'; } > "$TMP/examples.sed"
+		awk '
+		function flush2(   i, l, b) {
+			if (r == "") { n = 0; return }
+			for (i = 1; i <= n; i++) {
+				l = A[i]
+				# a listed answer may offer {a|b}; the first branch is the one
+				# the level teaches, so that is the one worth showing
+				while (match(l, /\{[^{}]*\}/)) {
+					b = substr(l, RSTART + 1, RLENGTH - 2); sub(/\|.*/, "", b)
+					l = substr(l, 1, RSTART - 1) b substr(l, RSTART + RLENGTH)
+				}
+				print r "\t" l
+			}
 			n = 0; r = ""
 		}
-		FNR == 1 { flush() }
-		/^---/    { flush(); next }
+		FNR == 1 { flush2() }
+		/^---/    { flush2(); next }
 		/^a: /    { l = $0; sub(/^a: /, "", l); A[++n] = l; next }
 		/^ref: /  { r = $2 }
-		END       { flush() }
-	' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null | sort -u > "$TMP/examples.all"
+		END       { flush2() }
+		' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null \
+		| sed -f "$TMP/examples.sed" \
+		| sort -u > "$TMP/examples.all"
+	}
 	cat "$TMP/examples.all"
 }
 
@@ -127,11 +149,18 @@ ref_examples() {
 			# invocation with its arguments teaches more than a bare command
 			for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++)
 				if (length(L[j]) > length(L[i])) { t = L[i]; L[i] = L[j]; L[j] = t }
+			# two examples that differ in one token teach one thing twice:
+			# the second must disagree with the first somewhere in its first
+			# three words, flag included -- one differing token is not enough
 			for (i = 1; i <= n && k < 2; i++) {
-				split(L[i], t2, " "); sig = ""
-				for (f = 2; f <= 4; f++) if (t2[f] ~ /^-/) { sig = t2[f]; break }
-				if (sig != "" && seen[sig]++) continue
-				k++; printf "  %s%s%s\n", C, L[i], N
+				m = split(L[i], t2, " ")
+				if (k > 0) {
+					same = 0
+					for (f = 1; f <= 3; f++) if (t2[f] == prev[f]) same++
+					if (same >= 2) continue
+				}
+				k++; for (f = 1; f <= 3; f++) prev[f] = t2[f]
+				printf "  %s%s%s\n", C, L[i], N
 			}
 		}')
 	[ -n "$out" ] || return 1
