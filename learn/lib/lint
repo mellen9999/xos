@@ -92,13 +92,14 @@ lint() {
 # paragraph instead of an instruction. the width that matters is the WIDEST a
 # prompt can render: the longest {a|b|c} branch, the longest %macro% synonym
 # and the longest value in whatever pool each @token@ draws from. the map from
-# token to pool is read out of lib/ctx rather than restated here, so a new
+# token to pool comes from roll itself, via token_pools in ctx, so a new
 # token is measured the day it is added.
 #
 # qwidth_over MAX -- prints every prompt whose widest rendering exceeds MAX.
 qwidth_over() {
 	local max=${1:-76}
-	awk -v max="$max" -v ctx="$ROOT/lib/ctx" -v pools="$POOLS" \
+	token_pools > "$TMP/qwidth.map"
+	awk -v max="$max" -v map="$TMP/qwidth.map" -v pools="$POOLS" \
 	    -v phr="$ROOT/phrases" '
 		function longest(file,   l, best) {
 			best = ""
@@ -111,18 +112,13 @@ qwidth_over() {
 			return best
 		}
 		BEGIN {
-			# token -> pool, straight out of the roll: "pick logs; sub log ..."
-			while ((getline l < ctx) > 0) {
-				if (l !~ /pick2?[ \t]/) continue
-				if (!match(l, /pick2?[ \t]+[A-Za-z0-9._]+/)) continue
-				p = substr(l, RSTART, RLENGTH); sub(/pick2?[ \t]+/, "", p)
-				n = split(l, part, ";")
-				for (i = 1; i <= n; i++)
-					if (match(part[i], /sub[ \t]+[a-z0-9]+/)) {
-						t = substr(part[i], RSTART, RLENGTH); sub(/sub[ \t]+/, "", t)
-						W[t] = length(longest(pools "/" p))
-					}
+			# token -> the widest value its pool can hold. the map comes from
+			# roll itself, via token_pools in ctx -- never a second list here.
+			while ((getline l < map) > 0) {
+				split(l, kv, " ")
+				W[kv[1]] = length(longest(pools "/" kv[2]))
 			}
+			close(map)
 			# the numeric tokens are not pooled: two digits is the widest roll
 			W["n"] = 2; W["n3"] = 2
 			# %macro% -> its longest member, from "name = one | two | three"
@@ -172,5 +168,5 @@ qwidth_over() {
 			if (length(s) > max)
 				printf "  %s:%d  %d cols\n", FILENAME, FNR, length(s)
 		}
-	' "$LEVELS"/* "$SCENARIOS"/* "$ROOT/chains" 2>/dev/null
+	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
 }
