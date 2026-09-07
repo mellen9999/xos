@@ -1369,6 +1369,13 @@ size() {
         printf '    squashfs pinned %s\n    squashfs built  %s\n' "${want_sq:0:32}..." "${have_sq:0:32}..." >&2
       [ "$want_rh" = "$have_rh" ] || \
         printf '    roothash pinned %s\n    roothash built  %s\n' "${want_rh:0:32}..." "${have_rh:0:32}..." >&2
+      # the remedy, because it is nearly always this one and `all && pin` can
+      # never reach it: the gates run at the END of `all`, so a stale pin fails
+      # the run that would have refreshed it. pin cannot move inside `all`
+      # either -- taken before the gates it would satisfy G13 by construction
+      # and stop meaning anything.
+      [ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] || \
+        printf '    if this build is the one you meant: ./build.sh pin\n' >&2
     fi
   else
     g "G13 image digest pinned" FAIL
