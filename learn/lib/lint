@@ -85,3 +85,92 @@ lint() {
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }
+
+# ---- prompt width ---------------------------------------------------------
+#
+# a question that wraps costs the reference panel a row and reads as a
+# paragraph instead of an instruction. the width that matters is the WIDEST a
+# prompt can render: the longest {a|b|c} branch, the longest %macro% synonym
+# and the longest value in whatever pool each @token@ draws from. the map from
+# token to pool is read out of lib/ctx rather than restated here, so a new
+# token is measured the day it is added.
+#
+# qwidth_over MAX -- prints every prompt whose widest rendering exceeds MAX.
+qwidth_over() {
+	local max=${1:-76}
+	awk -v max="$max" -v ctx="$ROOT/lib/ctx" -v pools="$POOLS" \
+	    -v phr="$ROOT/phrases" '
+		function longest(file,   l, best) {
+			best = ""
+			while ((getline l < file) > 0) {
+				sub(/[ \t]+$/, "", l)
+				if (l == "" || l ~ /^#/) continue
+				if (length(l) > length(best)) best = l
+			}
+			close(file)
+			return best
+		}
+		BEGIN {
+			# token -> pool, straight out of the roll: "pick logs; sub log ..."
+			while ((getline l < ctx) > 0) {
+				if (l !~ /pick2?[ \t]/) continue
+				if (!match(l, /pick2?[ \t]+[A-Za-z0-9._]+/)) continue
+				p = substr(l, RSTART, RLENGTH); sub(/pick2?[ \t]+/, "", p)
+				n = split(l, part, ";")
+				for (i = 1; i <= n; i++)
+					if (match(part[i], /sub[ \t]+[a-z0-9]+/)) {
+						t = substr(part[i], RSTART, RLENGTH); sub(/sub[ \t]+/, "", t)
+						W[t] = length(longest(pools "/" p))
+					}
+			}
+			# the numeric tokens are not pooled: two digits is the widest roll
+			W["n"] = 2; W["n3"] = 2
+			# %macro% -> its longest member, from "name = one | two | three"
+			while ((getline l < phr) > 0) {
+				if (l ~ /^#/ || l !~ /=/) continue
+				name = l; sub(/[ \t]*=.*/, "", name); gsub(/[ \t]/, "", name)
+				rest = l; sub(/^[^=]*=[ \t]*/, "", rest)
+				n = split(rest, m, "|")
+				best = ""
+				for (i = 1; i <= n; i++) {
+					gsub(/^[ \t]+|[ \t]+$/, "", m[i])
+					if (length(m[i]) > length(best)) best = m[i]
+				}
+				P[name] = best
+			}
+		}
+		function widest(s,   out, i, n, br, b, best, open, depth, start) {
+			# {a|b|c} -> the longest branch, innermost first
+			while ((start = index(s, "{")) > 0) {
+				depth = 0
+				for (i = start; i <= length(s); i++) {
+					c = substr(s, i, 1)
+					if (c == "{") { depth++; if (depth == 1) start = i }
+					else if (c == "}") { depth--; if (depth == 0) break }
+				}
+				if (depth != 0) break
+				br = substr(s, start + 1, i - start - 1)
+				if (index(br, "{") > 0) { start = index(br, "{") + start; continue }
+				n = split(br, b, "|"); best = ""
+				for (j = 1; j <= n; j++) if (length(b[j]) > length(best)) best = b[j]
+				s = substr(s, 1, start - 1) best substr(s, i + 1)
+			}
+			return s
+		}
+		/^q: / {
+			s = widest(substr($0, 4))
+			while (match(s, /%[a-z_]+%/)) {
+				k = substr(s, RSTART + 1, RLENGTH - 2)
+				s = substr(s, 1, RSTART - 1) (k in P ? P[k] : k) substr(s, RSTART + RLENGTH)
+			}
+			while (match(s, /@[a-z0-9]+@/)) {
+				k = substr(s, RSTART + 1, RLENGTH - 2)
+				pad = ""
+				for (i = 0; i < (k in W ? W[k] : 8); i++) pad = pad "x"
+				s = substr(s, 1, RSTART - 1) pad substr(s, RSTART + RLENGTH)
+			}
+			if (length(s) > max)
+				printf "  %s:%d  %d cols\n", FILENAME, FNR, length(s)
+		}
+	' "$LEVELS"/* "$SCENARIOS"/* "$ROOT/chains" 2>/dev/null
+}

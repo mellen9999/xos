@@ -69,7 +69,7 @@ setup: Now revocation. A signature proves WHO signed an image. It can never, by
 setup: itself, prove WHEN -- so a key stolen today can sign something and backdate
 setup: the story. The firmware's answer is a denylist of digests it refuses even
 setup: though they were once validly signed.
-q: name that denylist the firmware consults to reject a still-signed but known-bad image
+q: name the denylist that rejects a signed but known-bad image
 a: dbx
 a: DBX
 a: Dbx
@@ -83,7 +83,7 @@ setup: was SIGNED. It has said nothing about whether what was signed matches the
 setup: source you can actually read. xos closes that last gap by building the
 setup: same bytes every time -- rebuild from source, get the same image.sha256,
 setup: and the signature you trusted now vouches for code, not just for a blob.
-q: one word: the property that makes what-was-signed equal what-is-in-the-source
+q: one word: what makes the signed bytes provably the source bytes
 a: reproducibility
 a: Reproducibility
 a: reproducible
@@ -98,7 +98,7 @@ setup: covers the kernel, the command line and every block of the root. Two
 setup: things on the stick it does not cover: the partition table, and the
 setup: filesystem metadata of the EFI partition. Tamper there and you can stop
 setup: the machine booting -- you cannot change what runs.
-q: name the filesystem whose metadata on the efi partition sits outside the signature
+q: which filesystem's metadata on the efi partition the signature misses
 a: FAT
 a: fat
 a: Fat

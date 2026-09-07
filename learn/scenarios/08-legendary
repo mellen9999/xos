@@ -7,7 +7,7 @@ intro: earlier level, and none of them fit on one line comfortably.
 setup: Each level under /usr/share/learn/levels declares the commands it drills
 setup: on ref: lines. You want the commands that appear across the most
 setup: separate levels -- the load-bearing ones the whole curriculum leans on.
-q: print the five most frequently drilled commands with their counts, most first
+q: the five most drilled commands with their counts, most first
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort | uniq -c | sort -rn | head -n 5
 ref: uniq
 cmp: ref
@@ -16,7 +16,7 @@ hint: uniq -c needs sorted input first, or it only dedupes adjacent runs
 setup: A ref exists under /usr/share/learn/ref for every shipped command; the
 setup: levels drill only some. There is no comm here and ash has no process
 setup: substitution, so you difference two lists with grep instead.
-q: write the commands drilled in /usr/share/learn/levels to /tmp/taught, sorted and deduplicated, one per line
+q: write every command the levels drill to /tmp/taught, sorted, deduplicated
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u > /tmp/taught
 a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u > /tmp/taught
 why: live-hw
@@ -24,7 +24,7 @@ ref: sort
 hint: redirect the sorted, deduplicated list straight into the file
 ---
 setup: /tmp/taught now holds one drilled command per line.
-q: print every command documented in /usr/share/learn/ref but absent from /tmp/taught
+q: which commands have a ref page but are missing from /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxF -f /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxFf /tmp/taught
 why: live-hw
@@ -41,7 +41,7 @@ ref: sha256sum
 hint: concatenate every file into one stream before hashing it once
 ---
 setup: The final question. /proc/mounts, field 4 the comma-separated options.
-q: print each mount option in /proc/mounts that appears on more than one filesystem, with its count
+q: which mount options are shared by more than one filesystem, with counts
 a: awk '{print $4}' /proc/mounts | tr ',' '\n' | sort | uniq -c | awk '$1>1'
 a: awk '{print $4}' /proc/mounts | tr , '\n' | sort | uniq -c | awk '$1>1'
 why: live-hw

@@ -166,7 +166,7 @@ setup: Last. You have swept for listeners, egress, fifos, keys, hidden roots,
 setup: startup hooks and implants, and proven the root cannot be written and the
 setup: kernel cannot be reached. One line to state the verdict: the machine is
 setup: running the code you signed, and nothing is listening for anyone else.
-q: show the root device with its options, and that nothing is waiting on the network
+q: the root device with its options, and nothing waiting on the network
 a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
 cmp: ref
 ref: awk

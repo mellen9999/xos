@@ -5,7 +5,7 @@ intro: type, then a comma-separated option list. It is the ground truth for how
 intro: this machine is actually assembled -- and where you prove root is locked.
 ---
 setup: Field 2 of /proc/mounts is the mount point, field 3 the filesystem type.
-q: print the filesystem type of the root mount in /proc/mounts, and nothing else
+q: the root mount's filesystem type out of /proc/mounts, and nothing else
 a: awk '$2=="/" {print $3}' /proc/mounts
 ref: awk
 cmp: ref

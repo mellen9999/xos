@@ -14,7 +14,7 @@ setup: tlstunnel compiles its trust anchor INTO the binary rather than reading a
 setup: system CA store, so the certificate authority's name is somewhere inside.
 setup: That single baked-in anchor is the whole reason this machine trusts one
 setup: issuer and no other.
-q: show every string in /bin/tlstunnel mentioning Internet Security Research Group
+q: which strings in /bin/tlstunnel name Internet Security Research Group
 a: strings /bin/tlstunnel | grep 'Internet Security Research Group'
 ref: strings
 cmp: ref
