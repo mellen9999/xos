@@ -1,0 +1,54 @@
+# vs -- the sibling command, and the one sentence that tells them apart.
+#
+# every line is: NAME<TAB>text. NAME is a ref page; the text is what a learner
+# reaching for the wrong one of a pair needs to hear. only genuine confusions
+# are listed -- a line here costs a row on every card that shows it, so it has
+# to be worth more than a flag. shown by ref_card, and by `learn ref NAME`.
+cat	vs less: cat dumps the file; less moves around one too big to dump
+less	vs cat: less pages and scrolls; cat dumps it all and is gone
+head	vs tail: head is the start; only tail can follow a file live
+tail	vs head: tail is the end, and -f follows it live; head is the start
+grep	vs sed/awk: grep picks lines, sed rewrites them, awk splits fields
+sed	vs grep: sed edits the stream and prints ranges; grep only selects
+awk	vs cut: awk handles ragged spacing and can compute; cut is columns
+cut	vs awk: cut is fixed columns on one delimiter, and quicker to type
+sort	vs uniq: sort -u drops duplicates anywhere; uniq only adjacent ones
+uniq	vs sort -u: uniq needs sorted input but can count with -c
+cp	vs mv: cp leaves the original; mv removes it, or just renames
+mv	vs cp: mv renames when it can, so it is instant and copies nothing
+ln	vs cp: a link is one file under two names; a copy diverges at once
+find	vs ls: find walks the tree and can act; ls reads one directory
+xargs	vs find -exec: xargs batches; -exec ';' runs once per file
+du	vs df: du adds up files you name; df asks what room is left
+df	vs du: df is the filesystem's own tally; du walks the files
+ps	vs top: ps is a snapshot you can pipe; top is a live screen
+kill	vs killall: kill takes pids; killall takes a name, and takes all
+pkill	vs killall: pkill matches a pattern; killall wants the exact name
+ip	vs ifconfig: ip is current and sees every address; ifconfig is old
+ifconfig	vs ip: ifconfig is the old tool and misses addresses ip shows
+netstat	vs lsof: netstat lists sockets; lsof says which process holds one
+ping	vs traceroute: ping asks if it answers; traceroute where it stops
+nslookup	vs ping: nslookup resolves without touching the host at all
+wget	vs nc: wget speaks http and writes a file; nc is a raw socket
+nc	vs wget: nc is a bare socket you drive; wget knows http and files
+tar	vs gzip: tar packs many files into one; gzip compresses just one
+gzip	vs tar: gzip squeezes one file; it cannot pack a directory
+cmp	vs diff: cmp says whether and where; diff says how, line by line
+diff	vs cmp: diff shows the changed lines; cmp just finds the first byte
+dd	vs cp: dd writes devices at a block size you pick; cp writes files
+mount	vs losetup: losetup makes a file a device, then mount attaches it
+chmod	vs chown: chmod sets what may be done; chown sets who owns it
+printf	vs echo: printf takes a format and acts the same everywhere
+test	vs [: one builtin, two names -- [ just wants a closing bracket
+stat	vs ls -l: stat prints every inode field; ls -l is the summary
+dmesg	vs a log file: dmesg is the kernel ring buffer, not a file on disk
+md5sum	vs sha256sum: md5 is broken -- prove a file with sha256sum
+strings	vs hexdump: strings pulls readable text; hexdump shows every byte
+hexdump	vs strings: hexdump is every byte; strings is only the text in it
+tee	vs a redirect: tee writes the file and passes the stream on
+timeout	vs kill: timeout bounds a command you start; kill ends a running one
+umount	vs sync: sync flushes but leaves it mounted; umount also detaches
+top	vs ps: top refreshes and sorts itself; ps is one line per process
+killall	vs kill: killall matches the name, so it can hit more than you meant
+traceroute	vs ping: traceroute names every hop; ping only the far end
+vi	vs cat: vi edits in place; on a read-only root only /tmp will save

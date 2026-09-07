@@ -650,7 +650,7 @@ rootfs() {
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios root/usr/share/learn/
-  cp learn/skip learn/builtins learn/phrases learn/chains learn/syntax root/usr/share/learn/
+  cp learn/skip learn/builtins learn/phrases learn/chains learn/syntax learn/vs root/usr/share/learn/
 
   # hand-written shims for things busybox lacks
   # overlay carries the udhcpc script without

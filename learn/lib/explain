@@ -131,7 +131,7 @@ ref_card() {
 	[ -f "$REF/$r" ] || return 1
 	taught=$(taught_cached | awk -v c="$1" '$1 == c { printf " %s", $2 }')
 	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
-	    -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
+	    -v vs="$(vs_of "$1")" -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
 		function clip(s, w) {
 			if (w < 4 || length(s) <= w) return substr(s, 1, w < 1 ? 0 : w)
@@ -170,6 +170,7 @@ ref_card() {
 			if (mode == "head") {
 				printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
 				if (summary != "") printf "  %s%s%s\n", D, clip(summary, cols - 4), N
+				if (vs != "") printf "  %s%s%s\n", D, clip(vs, cols - 4), N
 				exit
 			}
 			if (fw > 16) fw = 16

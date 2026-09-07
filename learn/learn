@@ -24,6 +24,7 @@ set -u
 ROOT="${LEARN_ROOT:-/usr/share/learn}"
 REF="$ROOT/ref"
 LEVELS="$ROOT/levels"
+VS="$ROOT/vs"
 SHELLBIN="${LEARN_SH:-/bin/sh}"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/learn"
 TMP="${TMPDIR:-/tmp}/learn.$$"
@@ -54,6 +55,11 @@ done
 # one place keeps every caller -- ref, coverage, selftest -- agreeing.
 refname() { [ "$1" = "." ] && echo dot || echo "$1"; }
 
+# vs_of CMD -- the one sentence separating a command from the one it is
+# mistaken for, or nothing. a card row is expensive, so learn/vs lists only
+# pairs a learner actually reaches into the wrong half of.
+vs_of() { awk -F'\t' -v c="$1" '$1 == c { print $2; exit }' "$VS" 2>/dev/null; }
+
 ref() {
 	[ $# -ge 1 ] || die "usage: learn ref <command>"
 	_r=$(refname "$1")
@@ -65,7 +71,8 @@ ref() {
 	# a framed, tab-aligned page -- the raw file is busybox --help with hard tabs
 	# that render at whatever tabstop the terminal happens to use. this pins the
 	# flag column to one width and wraps the whole thing in rules, top and bottom.
-	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" '
+	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" \
+	    -v vs="$(vs_of "$1")" '
 		function rl(   i,s){ s=""; for(i=0;i<cols;i++) s=s"-"; return D s N }
 		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
 		{ line[NR]=$0 }
@@ -85,6 +92,7 @@ ref() {
 			printf "  %s%s%s\n", B W, line[1], N          # command name
 			for(i=2;i<=NR;i++) if(line[i] ~ /^Usage:/){
 				printf "  %susage:%s %s\n", D, N, substr(line[i],8); break }
+			if(vs != "") printf "  %s%s%s\n", D, vs, N
 			print rl()
 
 			started=0
@@ -1374,6 +1382,22 @@ c' 20)" = 3 ] || exit 1
 	  [ "$(printf '%s' "$cut" | tail -1)" = "7 more lines -- learn ref ls" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL _ed_panel_fit: panel row count or cut" >&2; bad=$((bad+1)); }
+
+	# learn/vs -- every line names a shipped ref page, carries exactly one tab,
+	# names it once, and fits a card row. a malformed line would print as an
+	# empty or truncated distinction and teach nothing.
+	if [ -f "$VS" ]; then
+		_vsbad=$(grep -v '^#' "$VS" | grep -c . )
+		grep -v '^#' "$VS" | awk -F'\t' -v ref="$REF" '
+			NF != 2 { print "  " $0 ": not NAME<tab>TEXT"; bad++; next }
+			seen[$1]++ { print "  " $1 ": listed twice"; bad++ }
+			length($2) > 76 { print "  " $1 ": too wide for a card row"; bad++ }
+			{ if ((getline junk < (ref "/" $1)) < 0) { print "  " $1 ": no ref page"; bad++ }
+			  close(ref "/" $1) }
+			END { exit bad > 0 }' \
+			|| { echo "FAIL learn/vs: malformed lines above" >&2; bad=$((bad+1)); }
+		[ "$_vsbad" -gt 0 ] || { echo "FAIL learn/vs: no entries" >&2; bad=$((bad+1)); }
+	fi
 
 	# the Tab card: abridged to the taught flags, fitted to a row budget, and
 	# never taller than that budget -- the outer panel cut must have nothing
