@@ -2,7 +2,7 @@
 # G13 compares against this. a mismatch on the SAME toolchain means the
 # image no longer corresponds to the source; on a different toolchain it
 # only means you cannot independently verify this build.
-image     34d565cd67cf8adc8334a7dd13badae393299d6eb2416c0f1ca33fdd043bb6d7
-squashfs  c5526c0f33ef3404379eea20e74e021bfcd5ba24e3be0f3d5bd0eb28d2ed6930
-roothash  8f5b6236d6fa351c8263996305055873ef74ea461af3bb96d46d131f11e7f895
+image     0fb0943c9fb6fbcd4bdf9b7d9418ed16092451a1087e30170e8916283b60a495
+squashfs  86f80e48affddf1290ed635f21a0003f74ae91000e2fa1f276428d4901c44831
+roothash  44c58437f02e4dd54cdfcb40e18595ad6d3fa48f4af62784900ff1f8236e27f2
 toolchain 9ab6320ddbee45637c96b6ba7dcb63eca76023efca4b7505d3ee7b3dcdfe7290
