@@ -277,8 +277,8 @@ ref_card() {
 }
 
 # ref_panel_text ANSWER -- the tab/man panel: what the command is, the shell
-# syntax this answer leans on, two real lines from the corpus, then the flags
-# the curriculum drills. the one place both learn's word path and the editor's
+# syntax this answer leans on, the flags the curriculum drills, then two real
+# lines from the corpus. the one place both learn's word path and the editor's
 # Tab key call into, so they can never drift apart. PANEL_ROWS, when set, is
 # the room the caller has: the examples are what goes first when it is tight,
 # and the flag list is shaped to whatever is left.
@@ -304,8 +304,8 @@ ref_panel_text() {
 		[ "$budget" -ge 2 ] || budget=2
 	fi
 	printf '%s\n  %sshell syntax%s\n%s\n' "$head" "$U" "$N" "$syn"
-	[ -n "$ex" ] && printf '%s\n' "$ex"
 	ref_card "$Q_REF" flags "$budget"
+	[ -n "$ex" ] && printf '%s\n' "$ex"
 }
 
 # explain LINE... -- the one-line summary of every command in the line, then the
