@@ -8,7 +8,10 @@
 # machine's wireguard/firewalled network.
 #
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
-# regen, or by hand). builds masscan + tcpdump, both verified static.
+# regen, or by hand). builds masscan + tcpdump + links + mutool, all static.
+# NOTE: masscan + tcpdump embed a build-id, so their arsenal.lock sha drifts per
+# build (size is stable) -- a point-in-time attestation. links + mutool are
+# bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
 #
 # nmap is NOT built here: nmap 7.95 is C++ and its static-musl link fights
 # Alpine's PIE-default toolchain. progress made (phase-2b picks up here):
@@ -26,7 +29,7 @@ OUT="${1:-arsenal}"; mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)  # absolute: -v be
 command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
 
 docker run --rm -i --network host -v "$OUT":/out alpine:3.20 sh -e <<'INNER'
-apk add --no-cache build-base git wget tar libpcap-dev \
+apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
