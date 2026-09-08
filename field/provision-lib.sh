@@ -7,7 +7,11 @@ populate() {
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
     for f in "$ARSENAL"/*; do
       b=$(basename "$f"); [ "$b" = arsenal.lock ] && continue
-      install -m 0755 "$f" "$H/tools/$b"
+      if [ -d "$f" ]; then
+        rm -rf "$H/tools/$b"; cp -a "$f" "$H/tools/$b"   # a tree: python/, sqlmap/
+      else
+        install -m 0755 "$f" "$H/tools/$b"               # a flat static binary
+      fi
     done
   else
     echo "  note: no arsenal at $ARSENAL -- run field/build-arsenal.sh first"

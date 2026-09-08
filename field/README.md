@@ -39,10 +39,15 @@ p3 is noexec, so a carried binary cannot execute directly (deliberate W^X).
 in, the mount flipped read-only (write-once), the tool run, the whole mount torn
 down on exit. A writable+executable area never persists.
 
-    sh ~/tools/xexec ~/tools/nmap -sn 10.0.0.0/24
+    sh ~/tools/xexec ~/tools/masscan -p80 10.0.0.0/24          # one binary
+    sh ~/tools/xexec -t ~/tools/python bin/python3 script.py   # a whole tree
 
 `sh xexec` bootstraps from noexec p3 because the shell only reads the script;
 only the binary it launches needs the exec surface. Root required (mounting is).
+`-t DIR ENTRY` stages a whole directory (an interpreter + its stdlib + `.so`s)
+onto the surface and runs `DIR/ENTRY` there -- noexec p3 cannot `dlopen` a
+python `.so`, so tree mode is how a carried python runs. Verified: direct exec
+from noexec p3 refused; via `-t`, python loads ssl/hashlib/sqlite3 and runs.
 
 ## write-protect: the two modes
 
@@ -86,7 +91,7 @@ the *field* capability. Four ways a tool gets here, easiest first:
     brute / crack       hydra, john          hydra, john (musl); hashcat OUT (GPU)
     reversing           radare2, gdb         radare2 / rizin (musl); gdb hard
     exploit framework   metasploit           OUT (ruby+db) -- use sliver + carried python
-    python tooling      sqlmap, impacket     via carried static python  (phase 3)
+    python tooling      sqlmap, impacket     BUILT: carried python 3.12 via xexec -t
     wireless            aircrack, wifite     OUT -- no wifi drivers, by design
     gpu cracking        hashcat              OUT -- passive/headless hardware
     gui                 burp, wireshark      OUT -- no GUI
@@ -155,10 +160,18 @@ sha256 -- the arsenal's own attestation):
 built and verified static + running: **ffuf httpx nuclei subfinder dnsx gobuster
 chisel masscan tcpdump** (~290MB, they live in `~/.local/share/xos-arsenal/`).
 
+    ./field/build-python.sh     # carried python 3.12 (musl) + sqlmap source
+
+carried python: building cpython static from scratch is impractical, so we
+carry python-build-standalone (cpython built reproducibly from source by
+Astral, pinned to a release + sha256, x86_64 baseline musl -- same spirit as
+xos's host-provided musl). it has dynamic `.so` extensions, so on the stick it
+runs through xexec's tree mode (above). that unlocks the whole python ecosystem
+-- sqlmap is staged; impacket/pwntools drop in the same way.
+
 deferred, honestly: **nmap** -- 7.95 is C++ and its static-musl link fights
 Alpine's PIE-default toolchain (needs a per-object flag pass; phase-2b). masscan
 covers fast scanning until then. next static C: socat, ligolo-ng, john, radare2.
-carried static python (sqlmap, impacket, pwntools) is phase 3.
 
 ## provisioning a stick
 

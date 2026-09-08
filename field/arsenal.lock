@@ -9,3 +9,5 @@ gobuster    github.com/OJ/gobuster/v3@v3.8.2  10465440  7a9dd33f3074c7ec501ed1ad
 chisel      github.com/jpillora/chisel@v1.12.1  11591840  1a768e64bf1e25b80564420ab30d0e7cd8c013ee3a6cca55b3b916f766f3f256
 masscan     masscan@1.3.2(musl-static)  1066376  34f33cfa26e88b6f2c57ad5284c8cd53401fd32815f7767c6dd1bfc7f7c1a807
 tcpdump     tcpdump@4.99.5(musl-static)  18750952  0336f24c5c968b468b89637ae7894119d85c62c0a121fdb9e0233f72ec30ccff
+python      python-build-standalone-cpython-3.12.14+20260901-x86_64-musl  213544457  12d6539cd518eaf9a2fee52d52e457e48826e6c40d3d6e490459a898d2543fcd(tarball)
+sqlmap      github.com/sqlmapproject/sqlmap@d486742  23602257  git-source(pure-python)

@@ -1,51 +1,69 @@
 #!/bin/sh
-# xexec -- run ONE carried binary, from an ephemeral exec surface that exists
-# only while it runs. carried on p3 (encrypted, noexec) alongside the tools it
-# launches; it is NOT part of the signed root, so the image's "nothing writable
-# is executable" proof (learn level 29) stays literally true. run it as:
+# xexec -- run carried code from an ephemeral exec surface that exists only
+# while it runs. carried on p3 (encrypted, noexec) alongside the tools it
+# launches; NOT part of the signed root, so the image's "nothing writable is
+# executable" proof (learn 29) stays literally true.
 #
-#     sh ~/tools/xexec ~/tools/nmap -sn 10.0.0.0/24
+#   sh ~/tools/xexec ~/tools/nmap -sn 10.0.0.0/24        # one static binary
+#   sh ~/tools/xexec -t ~/tools/python bin/python3 x.py  # a whole tree
 #
-# noexec on p3 blocks execve on the script itself, but `sh xexec` only READS it,
-# so the launcher bootstraps fine; the binary it runs cannot, which is the whole
-# reason the exec surface below exists.
+# noexec on p3 blocks execve on a file, so a carried binary cannot run and a
+# python .so cannot be dlopen'd. `sh xexec` itself is fine -- the shell only
+# READS the script. xexec stages what needs to execute onto a fresh exec tmpfs,
+# flips it read-only (write-once: nothing new can be dropped in and run), runs
+# it, and tears the mount down on exit. no writable+executable surface ever
+# persists, and none survives between runs.
 #
-# the surface is write-ONCE then read-only: tmpfs is mounted exec, the tool is
-# copied in, the mount is flipped read-only, and only THEN does the tool run --
-# so a writable-and-executable page never coexists. on exit (any exit, including
-# a signal) the mount is torn down, so between two xexec runs there is no
-# exec-capable surface anywhere. root is required, because mounting is.
+# -t DIR ENTRY: copy the whole DIR (an interpreter + its stdlib + .so's, say)
+# onto the exec surface and run DIR-relative ENTRY there -- the tree mode that
+# makes a carried python work. plain form copies a single binary. root required
+# (mounting is); the console session is root.
 set -u
 
 die() { printf 'xexec: %s\n' "$*" >&2; exit 1; }
-
-[ "$#" -ge 1 ] || die "usage: sh xexec <binary> [args...]"
-tool=$1; shift
-[ -f "$tool" ] || die "no such binary: $tool"
 [ "$(id -u)" = 0 ] || die "must be root (mounting the exec surface needs it)"
 
-base=$(basename "$tool")
-# a private mountpoint on the tmpfs home; the dir's own noexec does not matter,
-# the exec tmpfs is mounted OVER it.
-mp=$(mktemp -d "${TMPDIR:-/tmp}/.xexec.XXXXXX") || die "cannot make a mountpoint"
+tree=0
+if [ "${1:-}" = "-t" ]; then
+	tree=1; shift
+	[ "$#" -ge 2 ] || die "usage: xexec -t <dir> <relative-entrypoint> [args...]"
+	src=$1; entry=$2; shift 2
+	[ -d "$src" ] || die "no such dir: $src"
+	[ -f "$src/$entry" ] || die "no entrypoint $entry under $src"
+else
+	[ "$#" -ge 1 ] || die "usage: xexec <binary> [args...]   |   xexec -t <dir> <entry> [args...]"
+	src=$1; shift
+	[ -f "$src" ] || die "no such binary: $src"
+fi
 
-cleanup() {
-	umount "$mp" 2>/dev/null
-	rmdir "$mp" 2>/dev/null
-}
+mp=$(mktemp -d "${TMPDIR:-/tmp}/.xexec.XXXXXX") || die "cannot make a mountpoint"
+cleanup() { umount "$mp" 2>/dev/null; rmdir "$mp" 2>/dev/null; }
 trap cleanup EXIT INT TERM
 
-# exec, but nosuid+nodev, and size-capped so a runaway cannot eat RAM.
-mount -t tmpfs -o nosuid,nodev,size=256m tmpfs "$mp" || die "cannot mount exec surface"
-cp "$tool" "$mp/$base" || die "cannot stage $base"
-chmod 0755 "$mp/$base" || die "cannot make $base runnable"
-# write-once done: drop write, keep exec. from here nothing new can be dropped
-# in and then run. the -t tmpfs ... tmpfs form is the one busybox mount and
-# util-linux both honour for a tmpfs remount; a bare `-o remount,ro MP` fails
-# under busybox.
+# exec, but nosuid+nodev, size-capped so a runaway cannot eat RAM. a tree may
+# be large (a python is ~100MB), so the cap scales to the payload plus slack.
+cap=256
+if [ "$tree" = 1 ]; then
+	kb=$(du -sk "$src" 2>/dev/null | cut -f1); cap=$(( kb / 1024 + 128 ))
+fi
+mount -t tmpfs -o "nosuid,nodev,size=${cap}m" tmpfs "$mp" || die "cannot mount exec surface"
+
+if [ "$tree" = 1 ]; then
+	cp -a "$src/." "$mp/" || die "cannot stage tree"
+	run="$mp/$entry"
+else
+	base=$(basename "$src")
+	cp "$src" "$mp/$base" || die "cannot stage $base"
+	chmod 0755 "$mp/$base" || die "cannot make $base runnable"
+	run="$mp/$base"
+fi
+
+# write-once done: drop write, keep exec. the -t tmpfs ... tmpfs form is the one
+# busybox mount and util-linux both honour for a tmpfs remount; a bare
+# `-o remount,ro MP` fails under busybox.
 mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$mp" \
 	|| die "cannot seal the exec surface read-only"
 
-"$mp/$base" "$@"
+"$run" "$@"
 rc=$?
 exit "$rc"
