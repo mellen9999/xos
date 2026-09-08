@@ -44,7 +44,7 @@ trap cleanup EXIT INT TERM
 # be large (a python is ~100MB), so the cap scales to the payload plus slack.
 cap=256
 if [ "$tree" = 1 ]; then
-	kb=$(du -sk "$src" 2>/dev/null | cut -f1); cap=$(( kb / 1024 + 128 ))
+	kb=$(du -sk "$src" 2>/dev/null | cut -f1); cap=$(( ${kb:-0} / 1024 + 128 ))
 fi
 mount -t tmpfs -o "nosuid,nodev,size=${cap}m" tmpfs "$mp" || die "cannot mount exec surface"
 

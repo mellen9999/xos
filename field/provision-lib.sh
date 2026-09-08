@@ -6,7 +6,11 @@ populate() {
   install -m 0755 "${SELF:-$(dirname "$0")}/xexec" "$H/tools/xexec"
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
     for f in "$ARSENAL"/*; do
-      b=$(basename "$f"); [ "$b" = arsenal.lock ] && continue
+      b=$(basename "$f")
+      if [ "$b" = arsenal.lock ]; then
+        install -m 0644 "$f" "$H/tools/arsenal.lock"     # the attestation travels
+        continue
+      fi
       if [ -d "$f" ]; then
         rm -rf "$H/tools/$b"; cp -a "$f" "$H/tools/$b"   # a tree: python/, sqlmap/
       else
