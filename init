@@ -108,6 +108,9 @@ shutdown_() { # $1 = poweroff|reboot|halt
 	echo "xos: $1" > /dev/console
 	if grep -q '^/dev/mapper/xosstate ' /proc/mounts; then
 		umount "$STATE_DIR" 2>/dev/null || umount -l "$STATE_DIR" 2>/dev/null
+		# vault mode mounts p3 read-only on a sidecar instead of over $HOME;
+		# release it too or cryptsetup close finds the device still busy.
+		umount /tmp/p3ro 2>/dev/null || umount -l /tmp/p3ro 2>/dev/null
 		cryptsetup close xosstate 2>/dev/null
 	fi
 	sync
@@ -679,6 +682,20 @@ fi
 # this runs AFTER the test block (which powers off) so an automated boot never
 # blocks on the prompt, and BEFORE the consoles so the session that starts sees
 # the persistent home. STATE_DIR is set at the top, beside shutdown_().
+# true when the block device's media is write-protected. a BLU-style hardware
+# write switch sets the SCSI write-protect bit, which the kernel exposes as ro=1
+# on the block device (and on its parent disk). checked BEFORE opening so the
+# LUKS open can go read-only -- dm-integrity refuses a writable map on ro media.
+dev_ro() { # $1 = /dev/xxx
+	local n d
+	n=$(basename "$1")
+	for d in "$n" "$(printf '%s' "$n" | sed 's/p\{0,1\}[0-9]\{1,\}$//')"; do
+		[ -r "/sys/class/block/$d/ro" ] || continue
+		[ "$(cat "/sys/class/block/$d/ro" 2>/dev/null)" = 1 ] && return 0
+	done
+	return 1
+}
+
 state_open() {
 	cmdline_has xos.nostate && return 1
 	command -v cryptsetup >/dev/null 2>&1 || return 1
@@ -714,7 +731,7 @@ state_open() {
 	# up to three tries: a single typo should not cost persistence for the
 	# whole session, and there is no reboot-to-retry from across a tunnel. an
 	# empty answer at any prompt still means "skip" deliberately.
-	local pass opened="" tries=0
+	local pass opened="" tries=0 vault=0 roopt=""
 	while [ "$tries" -lt 3 ]; do
 		tries=$((tries + 1))
 		printf '\n  unlock persistent state? passphrase (empty to skip): ' > /dev/console
@@ -726,8 +743,12 @@ state_open() {
 		# unrelated encrypted drive sharing the hub must not shadow the real
 		# state stick and turn a correct passphrase into "wrong".
 		for dev in $cands; do
-			if printf '%s' "$pass" | cryptsetup open --key-file - "$dev" xosstate >/dev/null 2>&1; then
-				opened="$dev"; break
+			# write-protected media (a BLU's hardware switch) marks the block
+			# device read-only, and dm-integrity then refuses a writable open.
+			# open --readonly instead and remember it: this boot is a vault.
+			roopt=""; dev_ro "$dev" && roopt="--readonly"
+			if printf '%s' "$pass" | cryptsetup open $roopt --key-file - "$dev" xosstate >/dev/null 2>&1; then
+				opened="$dev"; [ -n "$roopt" ] && vault=1; break
 			fi
 		done
 		# the secret has done its job; do not leave it in PID 1's memory for
@@ -745,6 +766,31 @@ state_open() {
 	[ -n "$bootdisk" ] && [ "$(printf '%s' "${opened#/dev/}" | sed 's/p\{0,1\}[0-9]\{1,\}$//')" != "$bootdisk" ] \
 		&& printf '  note: state opened on %s, not the boot stick\n' "$opened" > /dev/console
 	mkdir -p "$STATE_DIR"
+	if [ "$vault" = 1 ]; then
+		# vault mode: the stick is write-protected and must stay provably
+		# unaltered. mount p3 read-only on a sidecar, keep $HOME on the RAM
+		# tmpfs made earlier, and stage p3's small mutable files into it while
+		# symlinking the bulk read-only trees. every runtime write then lands in
+		# RAM and the stick is never touched. nothing persists -- that is the
+		# whole point of running with the switch on.
+		mkdir -p /tmp/p3ro
+		if ! mount -t ext4 -o ro,nosuid,nodev,noexec /dev/mapper/xosstate /tmp/p3ro 2>/dev/null; then
+			printf '  state unlocked but the read-only filesystem would not mount -- p3 is damaged\n' > /dev/console
+			cryptsetup close xosstate 2>/dev/null
+			return 1
+		fi
+		chmod 700 "$STATE_DIR" 2>/dev/null
+		# copy the tiny read-write files so downstream may rewrite them in RAM;
+		# symlink the bulk trees (tools/docs are read-only by their nature).
+		for _f in wg0.conf ssh_host_key authorized_keys ledger recon; do
+			[ -e "/tmp/p3ro/$_f" ] && cp -a "/tmp/p3ro/$_f" "$STATE_DIR/$_f" 2>/dev/null
+		done
+		for _d in tools docs; do
+			[ -e "/tmp/p3ro/$_d" ] && ln -sf "/tmp/p3ro/$_d" "$STATE_DIR/$_d" 2>/dev/null
+		done
+		printf '  vault mode: p3 is write-protected -- running from RAM, the stick stays untouched\n' > /dev/console
+		return 0
+	fi
 	# mount p3 over /tmp/home -- the tmpfs home created earlier is shadowed by
 	# the persistent one. explicit -t ext4 because busybox mount does not probe
 	# the type (the ext4 driver mounts ext2/3/4 alike), and the mountpoint is
