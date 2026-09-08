@@ -17,7 +17,18 @@
 #                   chains are always reference-graded, never ungraded.
 #   unnamed-token   any @token@ an answer needs that neither the question,
 #                   its setup, nor its hint mentions: the learner cannot
-#                   derive it from what is on screen.
+#                   derive it from what is on screen. a {a|b|c} branch is
+#                   shown ALONE, so a token only one branch names counts as
+#                   unnamed -- the roll may never show that branch.
+#   unnamed-literal same rule one level down, for the constants an answer
+#                   types: a path, a filename, a value like hmac-sha256.
+#                   flags, their attached values, quoted sed/awk programs and
+#                   /dev/null and friends are not counted -- dictating those
+#                   would be reading the answer out. a path counts as named
+#                   when an ancestor directory and every segment below it are
+#                   on screen, and a why: conceptual block is exempt: there
+#                   the words of the answer ARE the knowledge under test.
+#                   `learn lint -vv` prints each one with its prompt.
 #
 # an ungraded block carries a why: line naming the reason it stays on string
 # matching -- selftest fails any that has neither a grading field nor a why:.
@@ -43,6 +54,81 @@ lint() {
 				s = substr(s, RSTART + RLENGTH)
 			}
 		}
+		# a literal is an ARGUMENT the answer types that a learner cannot
+		# derive from prose: a path, a filename with an extension, a
+		# hyphenated value like hmac-sha256. flags, their attached values,
+		# quoted sed/awk programs and the always-available character devices
+		# are not literals -- naming those in a prompt would be dictation.
+		function lits(s, dst,   n, i, w, parts) {
+			gsub(/'"'"'[^'"'"']*'"'"'/, " ", s)
+			gsub(/"[^"]*"/, " ", s)
+			gsub(/[|&;<>()]/, " ", s)
+			n = split(s, parts, /[ \t]+/)
+			for (i = 1; i <= n; i++) {
+				w = parts[i]
+				if (w ~ /^-/) continue                  # a flag, and its value
+				if (index(w, "$" "{")) continue         # a shell expansion
+				if (w ~ /[%+]/) continue                # a format string
+				sub(/^[a-z]+:\/\//, "", w)              # scheme: host and path stay
+				sub(/^\.\//, "", w)                     # ./script is script
+				sub(/^[^A-Za-z0-9\/$@]+/, "", w)
+				sub(/[,.:\/]+$/, "", w)
+				if (index(w, "=")) sub(/^[^=]*=/, "", w)
+				if (w == "") continue
+				if (w !~ /[.\/-]/) continue
+				if (w ~ /^[a-z]+$/) continue
+				if (w ~ /^[A-Za-z0-9]-[A-Za-z0-9]$/) continue   # a tr range
+				if (w ~ /^\/dev\/(null|zero|urandom|stdin|stdout)$/) continue
+				dst[w] = 1
+			}
+		}
+		# named -- is this literal on screen? a trailing glob is not part of
+		# the name, and a path counts as named when its directory and its
+		# leaf are both there: the learner can put those back together.
+		function named(w, ctx,   d, i, j, n, ok, seg) {
+			sub(/\/\*$/, "", w)
+			if (index(ctx, w)) return 1
+			# user@host is named when both halves are: nobody has to be told
+			# that dbclient wants them joined by an @.
+			if (w ~ /^[A-Za-z0-9_.-]+@[A-Za-z0-9_.@-]+$/) {
+				i = index(w, "@")
+				if (index(ctx, substr(w, 1, i - 1)) && index(ctx, substr(w, i + 1)))
+					return 1
+			}
+			# a @token@ segment belongs to the unnamed-token metric, not to
+			# this one -- drop those and judge what is left. $HOME/irc/@host@/in
+			# is named by "$HOME/irc" plus "in", the two parts an author writes.
+			gsub(/\/@[a-z0-9]+@/, "", w)
+			if (w == "" || w == "/") return 1
+			if (index(ctx, w)) return 1
+			# otherwise walk the prefixes: the literal is named when some
+			# ancestor directory is on screen and every segment below it is
+			# too. that is a path the learner can assemble, not one they had
+			# to already know.
+			n = split(w, seg, "/")
+			for (i = n - 1; i >= 1; i--) {
+				d = seg[1]
+				for (j = 2; j <= i; j++) d = d "/" seg[j]
+				if (d == "" || !index(ctx, d)) continue
+				ok = 1
+				for (j = i + 1; j <= n; j++) if (!index(ctx, seg[j])) ok = 0
+				if (ok) return 1
+			}
+			return 0
+		}
+		# inevery TOKEN, QLINE -- is the token on the card whichever {a|b|c}
+		# branch is rolled? outside the braces it always is; inside, only if
+		# every branch carries it. a branch is shown alone, so a token only
+		# one branch names is a token the learner may never see.
+		function inevery(t, qq,   a, b, rest, n, i, br) {
+			a = index(qq, "{"); b = index(qq, "}")
+			if (a == 0 || b < a) return index(qq, t) > 0
+			rest = substr(qq, 1, a - 1) substr(qq, b + 1)
+			if (index(rest, t)) return 1
+			n = split(substr(qq, a + 1, b - a - 1), br, "|")
+			for (i = 1; i <= n; i++) if (!index(br[i], t)) return 0
+			return 1
+		}
 		function flushblk(   k, t) {
 			if (!inblk) return
 			total++; ft[bf]++
@@ -56,32 +142,48 @@ lint() {
 			# question teaches; it counts as graded and asserts nothing.
 			# state:/cmp:/status: make a block strong whatever its out: says.
 			if (weak && !strong && k != "chain") { nweak++; fw2[bf]++ }
-			for (t in atok) if (!(t in qtok)) { nounnamed++; fu[bf]++; break }
-			inblk = 0; delete atok; delete qtok
+			for (t in atok) if (!(t in qtok) && !inevery(t, q)) { nounnamed++; fu[bf]++; break }
+			# same idea one level down: a literal the answer types that the
+			# prompt, its setup and its hint never name is not merely vague,
+			# it is unanswerable. a conceptual block is exempt -- there the
+			# words of the answer ARE the knowledge being tested.
+			if (!conceptual) {
+				bad = ""
+				for (t in alit) if (!named(t, ctxs)) bad = bad (bad ? "," : "") t
+				if (bad != "") {
+					nolit++; fl[bf]++
+					if (verbose == "-vv")
+						printf "  %s: %s\n    %s\n", bf, bad, q > "/dev/stderr"
+				}
+			}
+			inblk = 0; delete atok; delete qtok; delete alit
 		}
 		# bf pins the block to the file it came from: at FNR==1 awk has already
 		# advanced FILENAME, so flushing by FILENAME charges each file
 		# closing block to the next file in the glob
 		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; weak = 0; strong = 0; q = ""; next }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; firsta = ""; conceptual = 0; next }
 		inblk && /^hint:/ { hashint = 1 }
 		inblk && /^why:/  { haswhy = 1 }
 		inblk && /^(out|state|cmp|status):/ { graded = 1 }
 		inblk && /^(state|cmp|status):/ { strong = 1 }
 		inblk && /^out: / { o = $0; sub(/^out: /, "", o); gsub(/[][^$()*+?.|\\{}]/, "", o); if (length(o) < 4) weak = 1 }
 		inblk && /^q: / && q == "" { q = $0 }
-		inblk && /^(q|setup|hint):/ { toks($0, qtok) }
+		inblk && /^(setup|hint):/ { toks($0, qtok) }
 		inblk && /^a: / { toks($0, atok) }
+		inblk && /^why: conceptual$/ { conceptual = 1 }
+		inblk && /^(q|setup|hint|teach): / { ctxs = ctxs " " substr($0, index($0, ":") + 2) }
+		inblk && /^a: / && firsta == "" { firsta = substr($0, 4); lits(firsta, alit) }
 		END {
 			flushblk()
 			if (verbose == "-v")
 				for (f in ft) {
 					n = split(f, p, "/")
-					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token\n", \
-						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0
 				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token\n", \
-				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal\n", \
+				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }
@@ -154,7 +256,11 @@ qwidth_over() {
 			return s
 		}
 		/^q: / {
-			s = widest(substr($0, 4))
+			# expand BEFORE collapsing {a|b|c}: the longest branch as typed is
+			# not the widest one rendered -- a short branch holding @log@ beats
+			# a long one holding none, and picking the wrong branch here let a
+			# card sit six columns over the gate unnoticed.
+			s = substr($0, 4)
 			while (match(s, /%[a-z_]+%/)) {
 				k = substr(s, RSTART + 1, RLENGTH - 2)
 				s = substr(s, 1, RSTART - 1) (k in P ? P[k] : k) substr(s, RSTART + RLENGTH)
@@ -165,6 +271,7 @@ qwidth_over() {
 				for (i = 0; i < (k in W ? W[k] : 8); i++) pad = pad "x"
 				s = substr(s, 1, RSTART - 1) pad substr(s, RSTART + RLENGTH)
 			}
+			s = widest(s)
 			if (length(s) > max)
 				printf "  %s:%d  %d cols\n", FILENAME, FNR, length(s)
 		}
