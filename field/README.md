@@ -116,9 +116,18 @@ else is a build-and-carry away, and the strategy scales to near-full CLI parity.
 - optionally a **USB-ethernet dongle** -- xos ships cdc-ether/ncm/rndis/ax88179,
   so wired offense works off a dongle. (No wifi drivers: wireless is out.)
 
-## building the arsenal (phase 2)
+## building the arsenal
 
-Go tools: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build`, drop in `~/tools/`.
-musl-static C: build against `musl-static-pie.specs` (the fort's own toolchain).
-Keep it lean -- every binary is weight; busybox + the fort already cover most of
-a field session, and 16GB is better spent on wordlists, intel, and loot.
+`field/build-arsenal.sh` builds the static Go set (ffuf, httpx, nuclei,
+subfinder, dnsx, gobuster, chisel) into a staging dir and writes `arsenal.lock`
+(tool, version, size, sha256 -- the arsenal's own attestation). needs `go`
+(`paru -S go`); run once, copy the staging dir to the stick's `~/tools/`.
+
+    ./field/build-arsenal.sh            # -> ./arsenal/ + field/arsenal.lock
+    cp arsenal/* /mnt/p3/tools/         # onto the stick
+
+musl-static C (nmap, tcpdump, masscan, john, radare2): build against
+`musl-static-pie.specs`, the fort's own toolchain -- per-tool effort, phase 2b.
+carried static python (sqlmap, impacket, pwntools): phase 3. keep it lean --
+every binary is weight; busybox + the fort cover most of a session, and 16GB is
+better spent on wordlists, intel, and loot.
