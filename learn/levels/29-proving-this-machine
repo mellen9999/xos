@@ -110,7 +110,7 @@ a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || ec
 why: live-hw
 ref: chmod
 teach: chmod
-hint: $HOME is on a tmpfs mounted noexec
+hint: $HOME is mounted noexec -- tmpfs, or the encrypted state when unlocked
 ---
 q: %count% "Internet Security Research Group" hits in /bin/tlstunnel
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'

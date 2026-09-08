@@ -474,6 +474,23 @@ binary with no interpreter but a shared libc — it links clean and segfaults.
 note that musl itself is host-provided, not built from source here -- see
 SOURCES.md.
 
+## the field kit
+
+the signed root is the fort; the 16GB stick's free space is the encrypted state
+partition (p3), which already fills the device. what you carry there -- an
+operator key, wireguard home, offline docs, static tools -- turns xos into a
+swiss-army knife without widening the signed surface: capability comes from what
+you carry and what you plug in, never from the fort.
+
+the host's internal disks stay invisible (no nvme/sata driver, on purpose), so
+booting on a compromised machine cannot touch you and you cannot touch it. reach
+any drive over usb instead -- a passive keychain usb<->sata/nvme adapter makes a
+dead laptop's disk `/dev/sda`, imaged block-level or mounted read-only.
+
+carried binaries can't run from noexec p3 directly; `field/xexec` opens a
+single-use exec surface (write-once, then read-only, torn down on exit) to run
+one tool at a time. layout, playbook and the tool are in `field/`.
+
 ## not this
 
 not a general distro. no package manager, no compiler. persistence is opt-in

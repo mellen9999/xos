@@ -1,0 +1,51 @@
+#!/bin/sh
+# xexec -- run ONE carried binary, from an ephemeral exec surface that exists
+# only while it runs. carried on p3 (encrypted, noexec) alongside the tools it
+# launches; it is NOT part of the signed root, so the image's "nothing writable
+# is executable" proof (learn level 29) stays literally true. run it as:
+#
+#     sh ~/tools/xexec ~/tools/nmap -sn 10.0.0.0/24
+#
+# noexec on p3 blocks execve on the script itself, but `sh xexec` only READS it,
+# so the launcher bootstraps fine; the binary it runs cannot, which is the whole
+# reason the exec surface below exists.
+#
+# the surface is write-ONCE then read-only: tmpfs is mounted exec, the tool is
+# copied in, the mount is flipped read-only, and only THEN does the tool run --
+# so a writable-and-executable page never coexists. on exit (any exit, including
+# a signal) the mount is torn down, so between two xexec runs there is no
+# exec-capable surface anywhere. root is required, because mounting is.
+set -u
+
+die() { printf 'xexec: %s\n' "$*" >&2; exit 1; }
+
+[ "$#" -ge 1 ] || die "usage: sh xexec <binary> [args...]"
+tool=$1; shift
+[ -f "$tool" ] || die "no such binary: $tool"
+[ "$(id -u)" = 0 ] || die "must be root (mounting the exec surface needs it)"
+
+base=$(basename "$tool")
+# a private mountpoint on the tmpfs home; the dir's own noexec does not matter,
+# the exec tmpfs is mounted OVER it.
+mp=$(mktemp -d "${TMPDIR:-/tmp}/.xexec.XXXXXX") || die "cannot make a mountpoint"
+
+cleanup() {
+	umount "$mp" 2>/dev/null
+	rmdir "$mp" 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+# exec, but nosuid+nodev, and size-capped so a runaway cannot eat RAM.
+mount -t tmpfs -o nosuid,nodev,size=256m tmpfs "$mp" || die "cannot mount exec surface"
+cp "$tool" "$mp/$base" || die "cannot stage $base"
+chmod 0755 "$mp/$base" || die "cannot make $base runnable"
+# write-once done: drop write, keep exec. from here nothing new can be dropped
+# in and then run. the -t tmpfs ... tmpfs form is the one busybox mount and
+# util-linux both honour for a tmpfs remount; a bare `-o remount,ro MP` fails
+# under busybox.
+mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$mp" \
+	|| die "cannot seal the exec surface read-only"
+
+"$mp/$base" "$@"
+rc=$?
+exit "$rc"
