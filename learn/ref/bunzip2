@@ -1,7 +1,7 @@
 bunzip2
 Usage: bunzip2 [-cfk] [FILE]...
 
-Decompress FILEs (or stdin)
+Decompress FILEs (or stdin).
 
 	-c	Write to stdout
 	-f	Force

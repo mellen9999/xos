@@ -1,7 +1,7 @@
 ipcalc
 Usage: ipcalc [-bnmphs] ADDRESS[/PREFIX] [NETMASK]
 
-Calculate and display network settings from IP address
+Calculate and display network settings from IP address.
 
 	-b	Broadcast address
 	-n	Network address

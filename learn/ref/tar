@@ -1,7 +1,7 @@
 tar
 Usage: tar c|x|t [-zJjahmvokO] [-f TARFILE] [-C DIR] [-T FILE] [-X FILE] [LONGOPT]... [FILE]...
 
-Create, extract, or list files from a tar file
+Create, extract, or list files from a tar file.
 
 	c	Create
 	x	Extract

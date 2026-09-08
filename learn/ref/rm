@@ -1,7 +1,7 @@
 rm
 Usage: rm [-irf] FILE...
 
-Remove (unlink) FILEs
+Remove (unlink) FILEs.
 
 	-i	Always prompt before removing
 	-f	Never prompt

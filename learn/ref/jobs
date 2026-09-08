@@ -1,8 +1,9 @@
 jobs
 Usage: jobs [-l]
 
-List the jobs started from this shell and their state: Running, Stopped,
-or Done.
+List jobs started from this shell and their state.
+
+Each job is Running, Stopped, or Done.
 
 	-l	also show each job's process id
 

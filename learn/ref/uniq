@@ -1,7 +1,7 @@
 uniq
 Usage: uniq [-cduiz] [-f,s,w N] [FILE [OUTFILE]]
 
-Discard duplicate lines
+Discard duplicate lines.
 
 	-c	Prefix lines by the number of occurrences
 	-d	Only print duplicate lines

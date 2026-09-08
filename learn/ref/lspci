@@ -1,7 +1,7 @@
 lspci
 Usage: lspci [-mk]
 
-List all PCI devices
+List all PCI devices.
 
 	-m	Parsable output
 	-k	Show driver

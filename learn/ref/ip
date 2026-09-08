@@ -1,6 +1,8 @@
 ip
 Usage: ip [OPTIONS] address|route|link|tunnel|neigh|rule [ARGS]
 
+Show or change routes, addresses, and links.
+
 OPTIONS := -f[amily] inet|inet6|link | -o[neline]
 
 ip addr add|del IFADDR dev IFACE | show|flush [dev IFACE] [to PREFIX]

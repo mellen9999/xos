@@ -1,7 +1,7 @@
 cmp
 Usage: cmp [-ls] [-n NUM] FILE1 [FILE2 [SKIP1 [SKIP2]]]
 
-Compare FILE1 with FILE2 (or stdin)
+Compare FILE1 with FILE2 (or stdin).
 
 	-l	Write the byte numbers (decimal) and values (octal)
 		for all differing bytes

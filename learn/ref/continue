@@ -1,7 +1,6 @@
 continue
 Usage: continue [N]
 
-Shell builtin. Skip to the next iteration of the innermost loop, or of
-the loop N levels out.
+Skip to the innermost loop's next iteration, or N levels out.
 
 See also: break

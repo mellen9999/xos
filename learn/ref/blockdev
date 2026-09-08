@@ -1,6 +1,8 @@
 blockdev
 Usage: blockdev OPTION BLOCKDEV
 
+Get or set low-level attributes of a block device.
+
 	--setro		Set ro
 	--setrw		Set rw
 	--getro		Get ro

@@ -1,7 +1,7 @@
 watch
 Usage: watch [-n SEC] [-tx] PROG ARGS
 
-Run PROG periodically
+Run PROG periodically.
 
 	-n SEC	Period (default 2)
 	-t	Don't print header

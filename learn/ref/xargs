@@ -1,7 +1,7 @@
 xargs
 Usage: xargs [OPTIONS] [PROG ARGS]
 
-Run PROG on every item given by stdin
+Run PROG on every item given by stdin.
 
 	-0	NUL terminated input
 	-a FILE	Read from FILE instead of stdin

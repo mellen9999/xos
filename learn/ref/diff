@@ -1,7 +1,8 @@
 diff
 Usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] FILE1 FILE2
 
-Compare files line by line and output the differences between them.
+Compare files line by line and print the differences.
+
 This implementation supports unified diffs only.
 
 	-a	Treat all files as text

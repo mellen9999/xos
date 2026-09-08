@@ -1,7 +1,7 @@
 ln
 Usage: ln [-sfnbtv] [-S SUF] TARGET... LINK|DIR
 
-Create a link LINK or DIR/TARGET to the specified TARGET(s)
+Create a link LINK or DIR/TARGET to the specified TARGET(s).
 
 	-s	Make symlinks instead of hardlinks
 	-f	Remove existing destinations

@@ -1,7 +1,7 @@
 pidof
 Usage: pidof [-s] [-o PID] [NAME]...
 
-List PIDs of all processes with names that match NAMEs
+List PIDs of all processes with names that match NAMEs.
 
 	-s	Show only one PID
 	-o PID	Omit given pid

@@ -1,7 +1,7 @@
 netstat
 Usage: netstat [-ral] [-tuwx] [-enWp]
 
-Display networking information
+Display networking information.
 
 	-r	Routing table
 	-a	All sockets

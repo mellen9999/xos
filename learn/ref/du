@@ -1,7 +1,7 @@
 du
 Usage: du [-aHLdclsxhmk] [FILE]...
 
-Summarize disk space used for FILEs (or directories)
+Summarize disk space used for FILEs (or directories).
 
 	-a	Show file sizes too
 	-b	Apparent size (including holes)

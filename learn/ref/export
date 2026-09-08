@@ -1,8 +1,10 @@
 export
 Usage: export NAME=VALUE  |  export NAME
 
-Shell builtin. Mark a variable so that programs the shell starts inherit
-it. Without export a variable exists only inside the shell itself.
+Mark a variable so child processes inherit it.
+
+A shell builtin. Without export a variable exists only inside the shell
+itself.
 
 	export TERM=linux
 	export PATH="$PATH:/opt/bin"

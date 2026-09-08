@@ -1,9 +1,10 @@
 getopts
 Usage: getopts OPTSTRING NAME
 
-Parse option flags in a shell script, one per call, in a loop. A letter
-followed by : in OPTSTRING takes an argument, which lands in $OPTARG.
-$OPTIND tracks how far along it got.
+Parse option flags in a shell script, one per call, in a loop.
+
+A letter followed by : in OPTSTRING takes an argument, which lands in
+$OPTARG. $OPTIND tracks how far along it got.
 
 	while getopts "vf:" o; do
 		case $o in

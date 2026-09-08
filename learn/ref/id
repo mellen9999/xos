@@ -1,7 +1,7 @@
 id
 Usage: id [-ugGnr] [USER]
 
-Print information about USER or the current user
+Print information about USER or the current user.
 
 	-u	User ID
 	-g	Group ID

@@ -1,8 +1,9 @@
 eval
 Usage: eval ARG...
 
-Shell builtin. Join the arguments and run the result as a shell command.
-Powerful and dangerous: anything in the string is executed, so never eval
-data you did not construct yourself.
+Join the arguments and run the result as a shell command.
+
+A shell builtin, powerful and dangerous: anything in the string is
+executed, so never eval data you did not construct yourself.
 
 See also: exec, set

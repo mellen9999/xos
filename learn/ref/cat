@@ -1,7 +1,7 @@
 cat
 Usage: cat [-nbvteA] [FILE]...
 
-Print FILEs to stdout
+Print FILEs to stdout.
 
 	-n	Number output lines
 	-b	Number nonempty lines

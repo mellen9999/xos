@@ -1,7 +1,7 @@
 md5sum
 Usage: md5sum [-c[sw]] [FILE]...
 
-Print or check MD5 checksums
+Print or check MD5 checksums.
 
 	-c	Check sums against list in FILEs
 	-s	Don't output anything, status code shows success

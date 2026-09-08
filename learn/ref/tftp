@@ -1,7 +1,7 @@
 tftp
 Usage: tftp [OPTIONS] HOST [PORT]
 
-Transfer a file from/to tftp server
+Transfer a file from/to tftp server.
 
 	-l FILE	Local FILE
 	-r FILE	Remote FILE

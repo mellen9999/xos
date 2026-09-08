@@ -1,7 +1,7 @@
 env
 Usage: env [-i0] [-u NAME]... [-] [NAME=VALUE]... [PROG ARGS]
 
-Print current environment or run PROG after setting up environment
+Print the environment, or run PROG with a modified one.
 
 	-, -i	Start with empty environment
 	-0	NUL terminated output

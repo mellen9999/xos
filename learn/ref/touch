@@ -1,7 +1,7 @@
 touch
 Usage: touch [-cham] [-d DATE] [-t DATE] [-r FILE] FILE...
 
-Update mtime of FILEs
+Update mtime of FILEs.
 
 	-c	Don't create files
 	-h	Don't follow links

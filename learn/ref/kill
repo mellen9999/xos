@@ -1,8 +1,10 @@
 kill
 Usage: kill [-l] [-SIG] PID...
 
-Send a signal (default: TERM) to given PIDs. "kill" is a misnomer: it
-sends a signal, and most signals can be caught or ignored by the target.
+Send a signal (default: TERM) to given PIDs.
+
+"kill" is a misnomer: it sends a signal, and most signals can be caught
+or ignored by the target.
 
 	-l	List all signal names and numbers
 	-SIG	Send SIG instead of TERM, by number or name

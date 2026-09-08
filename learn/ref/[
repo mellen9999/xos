@@ -1,9 +1,10 @@
 [
 Usage: [ EXPRESSION ]
 
-Evaluate EXPRESSION and exit 0 if true, 1 if false. The bracket form of
-`test`: the final argument must be a literal ]. This is what `if [ ... ]`
-in a shell script actually runs.
+Evaluate EXPRESSION and exit 0 if true, 1 if false.
+
+The bracket form of `test`: the final argument must be a literal ].
+This is what `if [ ... ]` in a shell script actually runs.
 
 	-e FILE		FILE exists
 	-f FILE		FILE exists and is a regular file

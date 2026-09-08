@@ -222,6 +222,10 @@ the build fails, loudly, on any of:
 - a reference page that no longer matches the shipped binary's own `--help`
   flag for flag (seeding never overwrites a page, so without this a busybox
   bump that added a flag to an existing applet was invisible to the gate above)
+- a reference page that does not open on one sentence saying what its command
+  is for, short enough for a card to print whole -- the panel used to take the
+  first prose line it found and cut it to the terminal, so a wrapped paragraph
+  reached a learner mid-clause
 - a `learn` question graded by claims its own answer does not make true when
   executed (its printed output, exit status, or the files and modes it leaves)
 - an ungraded `learn` question with no written reason -- every block either

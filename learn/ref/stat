@@ -1,7 +1,7 @@
 stat
 Usage: stat [-ltf] [-c FMT] FILE...
 
-Display file (default) or filesystem status
+Display file (default) or filesystem status.
 
 	-c FMT	Use the specified format
 	-f	Display filesystem status

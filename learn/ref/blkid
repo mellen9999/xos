@@ -1,8 +1,10 @@
 blkid
 Usage: blkid [BLOCKDEV]...
 
-Print UUIDs of all filesystems, or of the block devices named. Reports
-the filesystem type and label too, by reading each device's superblock.
+Print UUIDs of all filesystems, or of the block devices named.
+
+Reports the filesystem type and label too, by reading each device's
+superblock.
 
 	blkid			every device it can see
 	blkid /dev/sda1		just that one

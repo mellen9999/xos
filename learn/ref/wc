@@ -1,7 +1,7 @@
 wc
 Usage: wc [-clwL] [FILE]...
 
-Count lines, words, and bytes for FILEs (or stdin)
+Count lines, words, and bytes for FILEs (or stdin).
 
 	-c	Count bytes
 	-l	Count newlines

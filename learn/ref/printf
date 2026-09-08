@@ -1,10 +1,11 @@
 printf
 Usage: printf FORMAT [ARG]...
 
-Format and print ARG(s) according to FORMAT (a-la C printf). Unlike echo,
-it adds no newline of its own -- you write one where you want one -- and
-its behaviour is identical in every shell, which is why it is the right
-choice for anything with escapes or leading dashes.
+Format and print ARG(s) according to FORMAT (a-la C printf).
+
+Unlike echo, it adds no newline of its own -- you write one where you
+want one -- and its behaviour is identical in every shell, which is why
+it is the right choice for anything with escapes or leading dashes.
 
 Escapes in FORMAT:
 

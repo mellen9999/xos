@@ -1,7 +1,7 @@
 grep
 Usage: grep [-HhnlLoqvsrRiwFE] [-m N] [-A|B|C N] { PATTERN | -e PATTERN... | -f FILE... } [FILE]...
 
-Search for PATTERN in FILEs (or stdin)
+Search for PATTERN in FILEs (or stdin).
 
 	-H	Add 'filename:' prefix
 	-h	Do not add 'filename:' prefix

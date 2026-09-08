@@ -1,9 +1,10 @@
 ii
 Usage: ii -s SERVER [-p PORT] [-n NICK] [-f FULLNAME] [-i DIR]
 
-Minimal IRC client. It has no interface: it maps the connection onto the
-filesystem. Each channel becomes a directory holding an `in` FIFO you
-write to and an `out` file you read.
+Chat on IRC through files instead of a UI.
+
+It maps the connection onto the filesystem: each channel becomes a
+directory holding an `in` FIFO you write to and an `out` file you read.
 
 	-s SERVER	host to connect to
 	-p PORT		port (default 6667)

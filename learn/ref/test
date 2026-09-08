@@ -1,9 +1,11 @@
 test
 Usage: test EXPRESSION
 
-Evaluate EXPRESSION and exit 0 if true, 1 if false. Identical to [ but
-without the trailing ]. The operators are the same, and are listed here
-rather than pointed at, so this page answers on its own.
+Evaluate EXPRESSION and exit 0 if true, 1 if false.
+
+Identical to [ but without the trailing ]. The operators are the same,
+and are listed here rather than pointed at, so this page answers on
+its own.
 
 	-e FILE		FILE exists
 	-f FILE		FILE exists and is a regular file

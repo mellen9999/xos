@@ -1,7 +1,7 @@
 hostname
 Usage: hostname [-sidf] [HOSTNAME | -F FILE]
 
-Show or set hostname or DNS domain name
+Show or set hostname or DNS domain name.
 
 	-s	Short
 	-i	Addresses for the hostname

@@ -1,8 +1,9 @@
 learn
 Usage: learn [N | ref CMD | -k WORD | list | stats | reset]
 
-This program. Teaches the xos command surface from nothing to fluent,
-in order, and never asks a question it has not already given you the
+Teach the xos command surface, from nothing to fluent.
+
+In order, and never asks a question it has not already given you the
 material to answer.
 
 	learn			resume the curriculum

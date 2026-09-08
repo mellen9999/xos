@@ -1,6 +1,8 @@
 awk
 Usage: awk [OPTIONS] [AWK_PROGRAM] [FILE]...
 
+Extract and transform fields from text using patterns.
+
 	-v VAR=VAL	Set variable
 	-F SEP		Use SEP as field separator
 	-f/-E FILE	Read program from FILE

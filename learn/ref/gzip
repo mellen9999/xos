@@ -1,7 +1,7 @@
 gzip
 Usage: gzip [-cfkdt] [FILE]...
 
-Compress FILEs (or stdin)
+Compress FILEs (or stdin).
 
 	-d	Decompress
 	-c	Write to stdout

@@ -1,7 +1,8 @@
 times
 Usage: times
 
-Shell builtin. Print accumulated user and system CPU time for the shell
-and for the processes it has waited on.
+Print accumulated CPU time for the shell and its children.
+
+Shell builtin, covering processes it has waited on.
 
 See also: ps, top

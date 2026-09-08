@@ -1,7 +1,7 @@
 df
 Usage: df [-PkmhTai] [-B SIZE] [-t TYPE] [FILESYSTEM]...
 
-Print filesystem usage statistics
+Print filesystem usage statistics.
 
 	-P	POSIX output format
 	-k	1024-byte blocks (default)

@@ -1,7 +1,7 @@
 microcom
 Usage: microcom [-d DELAY_MS] [-t TIMEOUT_MS ] [-s SPEED] [-X] TTY
 
-Copy bytes from stdin to TTY and from TTY to stdout
+Copy bytes from stdin to TTY and from TTY to stdout.
 
 	-d DELAY	Wait up to DELAY ms for TTY output before sending
 			every next byte to it

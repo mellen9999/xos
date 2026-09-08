@@ -1,7 +1,7 @@
 fdisk
 Usage: fdisk [-uls] [-C CYLINDERS] [-H HEADS] [-S SECTORS] [-b SSZ] [-t PARTTYPE] DISK
 
-Change partition table
+Change partition table.
 
 	-u		Start and End are in sectors (instead of cylinders)
 	-l		Show partition table for each DISK, then exit

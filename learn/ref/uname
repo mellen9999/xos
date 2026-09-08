@@ -1,7 +1,7 @@
 uname
 Usage: uname [-amnrspvio]
 
-Print system information
+Print system information.
 
 	-a	Print all
 	-m	Machine (hardware) type

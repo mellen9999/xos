@@ -1,9 +1,10 @@
 cryptsetup
 Usage: cryptsetup ACTION [OPTIONS] DEVICE [NAME]
 
-Set up encrypted block devices. On xos this is what p3 -- the state
-partition -- is built with, and it is the only way anything survives a
-reboot.
+Set up encrypted block devices.
+
+On xos this is what p3 -- the state partition -- is built with, and
+it is the only way anything survives a reboot.
 
 This page documents the actions and options xos itself uses. cryptsetup
 upstream has many more; these are the ones that matter here, and the ones

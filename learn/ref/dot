@@ -1,7 +1,8 @@
 .
 Usage: . FILE [ARGS]
 
-Read FILE and run it in the CURRENT shell, rather than starting a new one.
+Run FILE in the current shell instead of a subshell.
+
 Variables it sets, directories it cd's to, and functions it defines all
 survive, because nothing was forked.
 

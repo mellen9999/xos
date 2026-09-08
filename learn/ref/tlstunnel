@@ -1,7 +1,8 @@
 tlstunnel
 Usage: tlstunnel - HOST PORT
 
-Open a TLS connection to HOST:PORT and pipe stdin/stdout through it.
+Open a TLS connection to HOST:PORT and pipe stdio through it.
+
 The literal - means "use stdin/stdout".
 
 	printf 'HEAD / HTTP/1.0\r\nHost: example.org\r\n\r\n' \

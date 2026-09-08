@@ -1,7 +1,8 @@
 nc
 Usage: nc [IPADDR PORT]
 
-Open a TCP connection to IPADDR:PORT and wire it to stdin and stdout.
+Open a TCP connection to a host and port, wired to stdin/stdout.
+
 Every text tool you already know therefore works across a network.
 
 	nc example.org 80

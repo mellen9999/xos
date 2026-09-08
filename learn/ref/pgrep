@@ -1,7 +1,7 @@
 pgrep
 Usage: pgrep [-flanovx] [-s SID|-P PPID|PATTERN]
 
-Display process(es) selected by regex PATTERN
+Display process(es) selected by regex PATTERN.
 
 	-l	Show command name too
 	-a	Show command line too

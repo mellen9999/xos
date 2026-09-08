@@ -3,7 +3,7 @@ Usage: dd [if=FILE] [of=FILE] [ibs=N obs=N/bs=N] [count=N] [skip=N] [seek=N]
 	[conv=notrunc|noerror|sync|fsync]
 	[iflag=skip_bytes|count_bytes|fullblock|direct] [oflag=seek_bytes|append|direct]
 
-Copy a file with converting and formatting
+Copy a file with converting and formatting.
 
 	if=FILE		Read from FILE instead of stdin
 	of=FILE		Write to FILE instead of stdout

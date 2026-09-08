@@ -1,7 +1,7 @@
 pkill
 Usage: pkill [-l|-SIGNAL] [-xfvnoe] [-s SID|-P PPID|PATTERN]
 
-Send signal to processes selected by regex PATTERN
+Send signal to processes selected by regex PATTERN.
 
 	-l	List all signals
 	-x	Match whole name (not substring)

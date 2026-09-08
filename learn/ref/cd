@@ -1,9 +1,10 @@
 cd
 Usage: cd [DIR]
 
-Shell builtin. Change the working directory to DIR. With no argument, go
-to $HOME. It must be a builtin: a separate program could only change its
-own directory and then exit.
+Change the shell's working directory to DIR.
+
+With no argument, go to $HOME. It must be a builtin: a separate
+program could only change its own directory and then exit.
 
 	cd /etc		absolute path
 	cd ..		up one level

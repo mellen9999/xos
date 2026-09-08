@@ -1,7 +1,9 @@
 alias
 Usage: alias [NAME[=VALUE]]
 
-Give a command a shorter name. With no arguments, list every alias.
+Give a command a shorter name.
+
+With no arguments, list every alias.
 
 	alias ll='ls -l'	define one
 	alias ll			show what ll expands to

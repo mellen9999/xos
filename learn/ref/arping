@@ -1,7 +1,7 @@
 arping
 Usage: arping [-fqbDUA] [-c CNT] [-w TIMEOUT] [-I IFACE] [-s SRC_IP] DST_IP
 
-Send ARP requests/replies
+Send ARP requests/replies.
 
 	-f		Quit on first ARP reply
 	-q		Quiet

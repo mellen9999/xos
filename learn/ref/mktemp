@@ -1,7 +1,8 @@
 mktemp
 Usage: mktemp [-dt] [-p DIR] [TEMPLATE]
 
-Create a temporary file with name based on TEMPLATE and print its name.
+Create a temporary file or directory and print its name.
+
 TEMPLATE must end with XXXXXX (e.g. [/dir/]nameXXXXXX).
 Without TEMPLATE, -t tmp.XXXXXX is assumed.
 

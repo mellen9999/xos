@@ -185,7 +185,7 @@ ref_examples() {
 			}
 		}')
 	[ -n "$out" ] || return 1
-	printf '  %sin the wild%s\n%s\n' "$U" "$N" "$out"
+	printf '  %sexamples%s\n%s\n' "$U" "$N" "$out"
 }
 
 # ref_card CMD head|flags [MAXROWS] -- the abridged reference. `head` is the
@@ -201,7 +201,8 @@ ref_card() {
 	taught=$(taught_cached | awk -v c="$1" '$1 == c { printf " %s", $2 }')
 	_ref_rows "$REF/$r" |
 	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
-	    -v vs="$(vs_of "$1")" -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
+	    -v vs="$(vs_of "$1")" -v summary="$(summary_of "$1")" \
+	    -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
 		function fcol(s, w) { return pad(s, w - 1) " " }
 		function clip(s, w) {
@@ -220,10 +221,7 @@ ref_card() {
 			for (i = 2; i <= NR; i++) {
 				l = line[i]
 				if (l ~ /^Usage:/) { usage = substr(l, 8); continue }
-				if (l !~ /^\t/) {
-					if (l != "" && summary == "") summary = l
-					continue
-				}
+				if (l !~ /^\t/) continue
 				sub(/^\t+/, "", l); f = l; d = ""
 				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
 				key = f; sub(/[ \t[].*/, "", key)
@@ -318,7 +316,7 @@ explain() {
 	local line="$*" c r
 	printf '%s\n' "$line" | answer_cmds | awk 'NF' | sort -u | while read -r c; do
 		r=$(refname "$c")
-		[ -f "$REF/$r" ] && printf "  %s%-${EXP_W}s%s %s\n" "$W" "$c" "$N" "$(sed -n '2p' "$REF/$r")"
+		[ -f "$REF/$r" ] && printf "  %s%-${EXP_W}s%s %s\n" "$W" "$c" "$N" "$(summary_of "$c")"
 	done
 	echo
 	printf '  %sshell syntax%s\n' "$U" "$N"

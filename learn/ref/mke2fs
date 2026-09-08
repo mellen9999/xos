@@ -1,6 +1,8 @@
 mke2fs
 Usage: mke2fs [-Fn] [-b BLK_SIZE] [-i INODE_RATIO] [-I INODE_SIZE] [-m RESERVED_PERCENT] [-L LABEL] BLOCKDEV [KBYTES]
 
+Create an ext2 filesystem on a block device.
+
 	-b BLK_SIZE	Block size, bytes
 	-F		Force
 	-i RATIO	Max number of files is filesystem_size / RATIO

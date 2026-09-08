@@ -1,8 +1,9 @@
 fg
 Usage: fg [JOB]
 
-Bring a background or stopped job into the foreground and give it the
-terminal. With no argument, the most recent job.
+Bring a background or stopped job to the foreground.
+
+With no argument, the most recent job.
 
 	fg		the last job
 	fg %1		job 1

@@ -2,7 +2,7 @@ mv
 Usage: mv [-finT] SOURCE DEST
 or: mv [-fin] SOURCE... { -t DIRECTORY | DIRECTORY }
 
-Rename SOURCE to DEST, or move SOURCEs to DIRECTORY
+Rename SOURCE to DEST, or move SOURCEs to DIRECTORY.
 
 	-f	Don't prompt before overwriting
 	-i	Interactive, prompt before overwrite

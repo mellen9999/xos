@@ -1,7 +1,7 @@
 umount
 Usage: umount [-rlfda] [-t FSTYPE] FILESYSTEM|DIRECTORY
 
-Unmount filesystems
+Unmount filesystems.
 
 	-a	Unmount all filesystems
 	-r	Remount devices read-only if mount is busy

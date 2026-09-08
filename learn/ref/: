@@ -1,8 +1,9 @@
 :
 Usage: :
 
-Do nothing, successfully. The null command: it expands its arguments and
-returns 0.
+Do nothing, successfully.
+
+The null command: it expands its arguments and returns 0.
 
 	while :; do ... done	loop forever
 	: > FILE		truncate a file to nothing

@@ -1,7 +1,10 @@
 local
 Usage: local NAME[=VALUE]...
 
-Shell builtin. Scope a variable to the function it is declared in, so it
-does not leak into the caller. Without it every variable is global.
+Scope a variable to the function it is declared in.
+
+It does not leak into the caller, unlike an ordinary assignment. Without
+it every variable is global. This is a shell builtin, not an external
+command.
 
 See also: set, return

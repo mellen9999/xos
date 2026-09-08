@@ -1,4 +1,4 @@
 dirname
 Usage: dirname FILENAME
 
-Strip non-directory suffix from FILENAME
+Strip non-directory suffix from FILENAME.

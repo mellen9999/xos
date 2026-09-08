@@ -3,7 +3,7 @@ Usage: wget [-cqS] [--spider] [-O FILE] [-o LOGFILE] [--header STR]
 	[--post-data STR | --post-file FILE] [-Y on/off]
 	[--no-check-certificate] [-P DIR] [-U AGENT] [-T SEC] URL...
 
-Retrieve files via HTTP or FTP
+Retrieve files via HTTP or FTP.
 
 	--spider	Only check URL existence: $? is 0 if exists
 	--header STR	Add STR (of form 'header: value') to headers

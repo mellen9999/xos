@@ -1,8 +1,11 @@
 ash
 Usage: sh [-ilsx] [-c 'SCRIPT'] [FILE [ARGS]]
 
-The shell. On this system /bin/sh is busybox ash, and it is the only shell
-installed -- there is no second parser to fall back to or to be surprised by.
+Interactive shell and script interpreter for this system.
+
+On this system /bin/sh is busybox ash, and it is the only shell
+installed -- there is no second parser to fall back to or to be
+surprised by.
 
 	-c SCRIPT	run SCRIPT and exit, instead of reading a file or a tty
 	-i		interactive: prompt, job control, history

@@ -1,7 +1,7 @@
 flock
 Usage: flock [-sxun] FD | { FILE [-c] PROG ARGS }
 
-[Un]lock file descriptor, or lock FILE, run PROG
+Lock or unlock a file descriptor, or lock FILE and run PROG.
 
 	-s	Shared lock
 	-x	Exclusive lock (default)

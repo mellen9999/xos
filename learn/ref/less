@@ -1,7 +1,7 @@
 less
 Usage: less [-EFIMmNSRh~] [FILE]...
 
-View FILE (or stdin) one screenful at a time
+View FILE (or stdin) one screenful at a time.
 
 	-E	Quit once the end of a file is reached
 	-F	Quit if entire file fits on first screen

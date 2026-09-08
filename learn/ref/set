@@ -1,8 +1,9 @@
 set
 Usage: set [-eux] [--] [ARG]...
 
-Shell builtin. Change shell options, or set the positional parameters.
-With no arguments, print every shell variable.
+Change shell options, or set the positional parameters.
+
+Shell builtin. With no arguments, print every shell variable.
 
 	-e	exit as soon as any command fails
 	-u	error on an undefined variable instead of using empty

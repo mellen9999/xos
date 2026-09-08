@@ -6,7 +6,7 @@ Usage: arp
 [-v]	[-H HWTYPE] [-i IF] -s HOSTNAME HWADDR [netmask MASK] pub
 [-v]	[-H HWTYPE] [-i IF] -Ds HOSTNAME IFACE [netmask MASK] pub
 
-Manipulate ARP cache
+Manipulate ARP cache.
 
 	-a		Display (all) hosts
 	-d		Delete ARP entry

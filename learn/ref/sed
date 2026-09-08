@@ -2,6 +2,8 @@ sed
 Usage: sed [-i[SFX]] [-nrE] [-f FILE]... [-e CMD]... [FILE]...
 or: sed [-i[SFX]] [-nrE] CMD [FILE]...
 
+Filter and transform text using scripted edit commands.
+
 	-e CMD	Add CMD to sed commands to be executed
 	-f FILE	Add FILE contents to sed commands to be executed
 	-i[SFX]	Edit files in-place (otherwise write to stdout)

@@ -1,8 +1,9 @@
 wait
 Usage: wait [PID]
 
-Shell builtin. Block until a background job finishes. With no argument,
-wait for all of them.
+Block until a background job finishes.
+
+Shell builtin. With no argument, wait for all of them.
 
 	somecmd &
 	wait

@@ -1,7 +1,8 @@
 return
 Usage: return [N]
 
-Shell builtin. Leave the current function with status N. Unlike exit, the
-shell itself keeps running.
+Leave the current function with exit status N.
+
+Shell builtin. Unlike exit, the shell itself keeps running.
 
 See also: exit, local

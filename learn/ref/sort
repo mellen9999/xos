@@ -1,7 +1,7 @@
 sort
 Usage: sort [-nrughMcszbdfiokt] [-o FILE] [-k START[.OFS][OPTS][,END[.OFS][OPTS]] [-t CHAR] [FILE]...
 
-Sort lines of text
+Sort lines of text.
 
 	-o FILE	Output to FILE
 	-c	Check whether input is sorted

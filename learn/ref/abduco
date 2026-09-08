@@ -1,9 +1,11 @@
 abduco
 Usage: abduco [-a|-A|-c|-n] [-r] [-l] [-f] [-e detachkey] name command
 
-Detach a program from the terminal that started it. The program keeps its
-own pseudo-terminal, owned by abduco, so it survives the terminal going
-away -- a closed console, a dropped serial line, a killed ssh session.
+Detach a program from the terminal that started it.
+
+The program keeps its own pseudo-terminal, owned by abduco, so it
+survives the terminal going away -- a closed console, a dropped serial
+line, a killed ssh session.
 
 	-c	create a session and attach to it
 	-n	create a session and leave it detached

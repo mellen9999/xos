@@ -2,7 +2,7 @@ cp
 Usage: cp [-arPLHpfinlsTu] SOURCE DEST
 or: cp [-arPLHpfinlsu] SOURCE... { -t DIRECTORY | DIRECTORY }
 
-Copy SOURCEs to DEST
+Copy SOURCEs to DEST.
 
 	-a	Same as -dpR
 	-R,-r	Recurse

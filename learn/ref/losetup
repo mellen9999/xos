@@ -5,6 +5,8 @@ Usage: losetup [-rP] [-o OFS] {-f|LOOPDEV} FILE: associate loop devices
 	losetup -a: show status
 	losetup -f: show next free loop device
 
+Associate a file with a loop device, or manage existing ones.
+
 	-o OFS	Start OFS bytes into FILE
 	-P	Scan for partitions
 	-r	Read-only

@@ -1,7 +1,7 @@
 ls
 Usage: ls [-1AaCxdLHRFplinshrSXvctu] [-w WIDTH] [FILE]...
 
-List directory contents
+List directory contents.
 
 	-1	One column output
 	-a	Include names starting with .

@@ -1,7 +1,7 @@
 cut
 Usage: cut {-b|c LIST | -f|F LIST [-d SEP] [-s]} [-D] [-O SEP] [FILE]...
 
-Print selected fields from FILEs to stdout
+Print selected fields from FILEs to stdout.
 
 	-b LIST	Output only bytes from LIST
 	-c LIST	Output only characters from LIST

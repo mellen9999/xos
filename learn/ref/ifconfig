@@ -1,7 +1,7 @@
 ifconfig
 Usage: ifconfig [-a] [IFACE] [ADDRESS]
 
-Configure a network interface
+Configure a network interface.
 
 	[add ADDRESS[/PREFIXLEN]]
 	[del ADDRESS[/PREFIXLEN]]

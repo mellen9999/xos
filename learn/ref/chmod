@@ -1,6 +1,8 @@
 chmod
 Usage: chmod [-Rcvf] MODE[,MODE]... FILE...
 
+Change file permissions (mode) for FILE.
+
 MODE is octal number (bit pattern sstrwxrwxrwx) or [ugoa]{+|-|=}[rwxXst]
 
 	-R	Recurse

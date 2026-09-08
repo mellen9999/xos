@@ -1,7 +1,8 @@
 tail
 Usage: tail [OPTIONS] [FILE]...
 
-Print last 10 lines of FILEs (or stdin) to.
+Print the last 10 lines of FILEs (or stdin).
+
 With more than one FILE, precede each with a filename header.
 
 	-c [+]N[bkm]	Print last N bytes

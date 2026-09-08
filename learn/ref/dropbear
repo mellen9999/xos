@@ -1,10 +1,12 @@
 dropbear
 Usage: dropbear [-r hostkey] [-p [ADDR:]PORT] [-s] [-w] [-F] [-E]
 
-The ssh SERVER. On xos it is the one listening service, it accepts only
-public-key logins (no passwords), and init binds it to the wireguard
-interface alone -- so it is reachable through your tunnel and invisible
-on the untrusted network the stick is plugged into.
+Run the SSH server for remote logins.
+
+On xos it is the one listening service, it accepts only public-key
+logins (no passwords), and init binds it to the wireguard interface
+alone -- so it is reachable through your tunnel and invisible on the
+untrusted network the stick is plugged into.
 
 	-r FILE		host key file (ed25519)
 	-p ADDR:PORT	listen only on this address and port

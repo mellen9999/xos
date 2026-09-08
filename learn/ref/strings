@@ -1,7 +1,7 @@
 strings
 Usage: strings [-fo] [-t o|d|x] [-n LEN] [FILE]...
 
-Display printable strings in a binary file
+Display printable strings in a binary file.
 
 	-f		Precede strings with filenames
 	-o		Precede strings with octal offsets
