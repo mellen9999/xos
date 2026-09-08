@@ -79,8 +79,8 @@ the *field* capability. Four ways a tool gets here, easiest first:
   The whole modern recon/pivot ecosystem drops in as-is. Trivial.
 - **musl static-pie C:** builds against the same toolchain the fort uses. Some
   effort per tool, but the heavy hitters port.
-- **carried static python** (musl, ~30-50MB, phase 3): unlocks the entire
-  Python ecosystem -- the escape hatch for anything not natively static.
+- **carried python** (musl, run via `xexec -t`): unlocks the entire Python
+  ecosystem -- the escape hatch for anything not natively static.
 
     capability          kali                 xos plan
     ----------------    -----------------    --------------------------------
