@@ -1507,7 +1507,8 @@ c' 20)" = 3 ] || exit 1
 	( COLS=80; Q_REF=grep; Q_ANSWERS="grep -r xos $HOME/irc"
 	  card=$(ref_card grep flags 6)
 	  [ "$(printf '%s\n' "$card" | grep -c .)" -le 6 ] || exit 1
-	  case "$card" in *"more flags -- learn ref grep"*) ;; *) exit 1 ;; esac
+	  # nothing but flags: no footer row counting what the page holds back
+	  case "$card" in *"more flag"*) exit 1 ;; esac
 	  # only drilled flags reach the card; -H is documented but never taught
 	  printf '%s\n' "$card" | grep -q -- "-H " && exit 1
 	  ex=$(ref_examples grep "$Q_ANSWERS") || exit 1

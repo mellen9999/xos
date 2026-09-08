@@ -163,7 +163,7 @@ examples_cached() {
 ref_examples() {
 	local out src=${3:-${Q_SRC:-}}
 	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v w="${COLS:-80}" \
-	                            -v C="$C" -v N="$N" '
+	                            -v D="$D" -v N="$N" '
 		$1 == c && $3 != src && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
 		END {
 			# the fullest line that still fits a row, not the shortest: a real
@@ -181,7 +181,7 @@ ref_examples() {
 					if (same >= 2) continue
 				}
 				k++; for (f = 1; f <= 3; f++) prev[f] = t2[f]
-				printf "  %s%s%s\n", C, L[i], N
+				printf "  %s%s%s\n", D, L[i], N
 			}
 		}')
 	[ -n "$out" ] || return 1
@@ -190,8 +190,7 @@ ref_examples() {
 
 # ref_card CMD head|flags [MAXROWS] -- the abridged reference. `head` is the
 # name, one-line usage and summary; `flags` is ONLY the flags the curriculum
-# drills, and a footer saying how many the full page holds back -- `learn ref
-# CMD` is always the whole thing. given a row budget the flags go two-column
+# drills -- `learn ref CMD` is always the whole thing. given a row budget the flags go two-column
 # and the descriptions are cut to their cell; the panel is a glance, the page
 # is the read, and the card never spends a row it was not given.
 ref_card() {
@@ -217,7 +216,7 @@ ref_card() {
 		}
 		{ line[NR] = $0 }
 		END {
-			nflag = 0; n = 0; fw = 0; keep = 0
+			n = 0; fw = 0; keep = 0
 			for (i = 2; i <= NR; i++) {
 				l = line[i]
 				if (l ~ /^Usage:/) { usage = substr(l, 8); continue }
@@ -226,7 +225,7 @@ ref_card() {
 				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
 				key = f; sub(/[ \t[].*/, "", key)
 				if (key ~ /^-/) {
-					nflag++; keep = known(key)
+					keep = known(key)
 					if (!keep) continue
 					n++; F[n] = f; Dd[n] = d
 					if (length(f) > fw) fw = length(f)
@@ -251,18 +250,16 @@ ref_card() {
 			}
 			if (fw > 16) fw = 16
 			col = fw + 2
-			# one column while it fits, two when it does not, and if two still
-			# overflow the budget the tail rolls into the footer count -- the
-			# card is never taller than the room it was handed
-			foot1 = nflag - n
-			if (max == 0 || n + (foot1 > 0 ? 1 : 0) <= max) {
+			# one column while it fits, two when it does not, and if two
+			# still overflow the budget the tail is dropped -- the card is
+			# never taller than the room it was handed
+			if (max == 0 || n <= max) {
 				for (i = 1; i <= n; i++)
 					if (Dd[i] == "") printf "  %s%s%s\n", C, F[i], N
 					else printf "  %s%s%s%s\n", C, fcol(F[i], col), N, clip(Dd[i], cols - col - 4)
-				if (foot1 > 0) foot(foot1, c, D, N)
 				exit
 			}
-			avail = max - 1
+			avail = max
 			if (avail < 1) avail = 1
 			shown = n
 			if (shown > avail * 2) shown = avail * 2
@@ -276,10 +273,6 @@ ref_card() {
 				if (j <= shown) printf "  %s%s%s%s", C, fcol(F[j], col), N, clip(Dd[j], dw)
 				printf "\n"
 			}
-			if (nflag - shown > 0) foot(nflag - shown, c, D, N)
-		}
-		function foot(k, c, D, N) {
-			printf "  %s%d more flag%s -- learn ref %s%s\n", D, k, k == 1 ? "" : "s", c, N
 		}'
 }
 
