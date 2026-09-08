@@ -237,7 +237,14 @@ ref_card() {
 				}
 			}
 			if (mode == "head") {
-				printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
+				# the usage line repeats the command name, and the header
+				# already prints it -- "ls  ls [-1Aa...]" reads as a stutter.
+				# a usage that is nothing BUT the name (pwd, clear) leaves the
+				# header alone rather than a name and a run of spaces
+				if (usage == c) usage = ""
+				else if (index(usage, c " ") == 1) usage = substr(usage, length(c) + 2)
+				if (usage == "") printf "  %s%s%s\n", W, c, N
+				else printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
 				if (summary != "") print "  " clip(summary, cols - 4)
 				if (vs != "") printf "  %s%s%s\n", D, clip(vs, cols - 4), N
 				exit
