@@ -13,6 +13,13 @@ while read -r f; do
 	[ -z "$f" ] && continue
 	case "$f" in
 		keys/*|*.key)                say "refusing to commit a key: $f" ;;
+		*.key.enc|keys.local-*/*)
+			# a sealed key is ciphertext: it carries no PEM header, so the
+			# content rule below cannot see it, and *.key does not match
+			# *.key.enc. nine of these reached origin/main before anyone
+			# noticed. a passphrase is the only thing between a published
+			# blob and the signing key inside it -- name-match them here.
+			say "refusing to commit a sealed key: $f" ;;
 		bzImage|busybox|*.img|*.squashfs|*.uki|*.efi|*.fd|*.cpio.gz)
 			say "refusing to commit a build artifact: $f" ;;
 		src/*)                       say "refusing to commit vendored upstream source: $f" ;;

@@ -27,3 +27,4 @@ bzImage.config.sha256
 /cryptsetup
 /wg
 /dropbearmulti
+keys.local-*/
