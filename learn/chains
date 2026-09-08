@@ -76,7 +76,7 @@ a: od -A n -t x1 -N 8 @bin@ | head -1
 lvl: 21
 ref: od
 ---
-q: {pull the readable secret buried in @bin@|carve the unlocking string out of @bin@|dig the string that mentions unlocking out of @bin@}
+q: {pull the readable unlock string buried in @bin@|carve the unlocking string out of @bin@|dig the string that mentions unlocking out of @bin@}
 a: strings @bin@ | grep unlock
 lvl: 21
 ref: strings
@@ -91,7 +91,7 @@ a: ip addr | grep -c inet
 lvl: 24
 ref: ip
 ---
-q: %show% just the roothash value from the kernel command line
+q: %show% just the roothash value out of /proc/cmdline
 a: tr ' ' '\n' < /proc/cmdline | grep roothash | cut -d= -f2
 lvl: 29
 ref: tr

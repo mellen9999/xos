@@ -119,7 +119,7 @@ ref: sed
 teach: sed -E
 hint: capture each field in a group, then reorder them with \1 and \2
 ---
-q: {copy @cfg@ to edit.ini, then change @old@ to @new@ in place|copy @cfg@ to edit.ini, then edit it in place|copy @cfg@ to edit.ini and swap @old@ for @new@ in it}
+q: {copy @cfg@ to edit.ini, then change @old@ to @new@ in place|copy @cfg@ to edit.ini, then swap @old@ for @new@ inside it|copy @cfg@ to edit.ini and swap @old@ for @new@ in it}
 a: cp @cfg@ edit.ini && sed -i 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini
 ref: sed
@@ -140,14 +140,14 @@ ref: sed
 teach: sed -n
 hint: a pattern address and $ together mean from the first match to the end
 ---
-q: {save the @old@-to-@new@ edit as a script, apply it to @cfg@|write a script for @old@-to-@new@, run it on @cfg@|put @old@-to-@new@ in a script, apply to @cfg@}
+q: {save the @old@-to-@new@ edit in s.sed, apply it to @cfg@|write s.sed holding the @old@-to-@new@ edit, run it on @cfg@|put @old@-to-@new@ in s.sed, apply it to @cfg@}
 a: printf 's/@old@/@new@/g\n' > s.sed && sed -f s.sed @cfg@
 cmp: ref
 ref: sed
 teach: sed -f
 hint: -f takes a filename holding the script, like -e takes it inline
 ---
-q: {copy @cfg@ to edit.ini, swap @old@/@new@, keep edit.ini.bak|edit @cfg@'s copy, backed up first as edit.ini.bak|edit a copy of @cfg@, saved first as edit.ini.bak}
+q: {copy @cfg@ to edit.ini, swap @old@/@new@, keep edit.ini.bak|swap @old@ for @new@ in a copy of @cfg@, backup edit.ini.bak|edit @cfg@'s copy @old@-to-@new@, backup edit.ini.bak}
 a: cp @cfg@ edit.ini && sed -i.bak 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini.bak
 ref: sed

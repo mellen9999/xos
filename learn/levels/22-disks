@@ -297,7 +297,7 @@ hint: -s takes a shared lock, which can coexist with other shared locks
 setup: p3 is the state partition -- the only thing on this stick that survives
 setup: a reboot, and the only place a key can live. It is encrypted, and it is
 setup: also authenticated, which is a different property and the harder one.
-q: {write a LUKS2 header on /dev/sda3, encrypted and authenticated|format /dev/sda3 with a LUKS2 header, encrypted and authenticated|put a new LUKS2 header on /dev/sda3, integrity checked too}
+q: {write a LUKS2 header on /dev/sda3, hmac-sha256 integrity|format /dev/sda3 as LUKS2, authenticated with hmac-sha256|put a LUKS2 header on /dev/sda3, hmac-sha256 integrity}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
 why: root
@@ -341,7 +341,7 @@ ref: cryptsetup
 teach: cryptsetup
 hint: luksDump reads the header itself -- it never touches the encrypted data
 ---
-q: {format /dev/sda3 choosing the cipher explicitly|format /dev/sda3, naming the cipher instead of taking the default|choose the cipher yourself while formatting /dev/sda3}
+q: {format /dev/sda3, naming aes-xts-plain64 as the cipher|format /dev/sda3 with aes-xts-plain64, not the default|choose aes-xts-plain64 yourself formatting /dev/sda3}
 a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
 why: root
 ref: cryptsetup
@@ -395,7 +395,7 @@ teach: dd
 hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {mount the fat32 usb stick /dev/sda1 that way|mount /dev/sda1 at /mnt as fat32, locked down like that|attach the fat32 stick /dev/sda1 at /mnt, locked down}
+q: {mount fat32 stick /dev/sda1 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda1 at /mnt as fat32, read-only, nosuid, nodev, noexec|attach fat32 /dev/sda1 at /mnt read-only, nosuid, nodev, noexec}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -404,7 +404,7 @@ teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {mount the exfat sd card /dev/sda1 the same way|safely mount /dev/sda1 at /mnt as exfat|attach the exfat card /dev/sda1 at /mnt, locked down the same}
+q: {mount exfat card /dev/sda1 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda1 at /mnt as exfat, read-only, nosuid, nodev, noexec|attach exfat /dev/sda1 at /mnt read-only, nosuid, nodev, noexec}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -413,7 +413,7 @@ teach: mount -t
 hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {mount the windows ntfs disk /dev/sda2 that way|mount /dev/sda2 at /mnt as ntfs3, allowing no writes|attach the ntfs disk /dev/sda2 at /mnt, locked down}
+q: {mount ntfs3 disk /dev/sda2 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda2 at /mnt as ntfs3, read-only, nosuid, nodev, noexec|attach ntfs3 /dev/sda2 at /mnt read-only, nosuid, nodev, noexec}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt
 why: root
@@ -429,7 +429,7 @@ ref: mount
 teach: mount -t
 hint: -o ro,loop reads the iso straight off the image file, no burn needed
 ---
-q: you need somewhere for keys -- %make% an ext filesystem on state
+q: keys need a home -- %make% an ext filesystem on /dev/mapper/state
 a: mke2fs /dev/mapper/state
 why: root
 ref: mke2fs

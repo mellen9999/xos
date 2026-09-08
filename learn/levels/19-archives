@@ -98,7 +98,7 @@ ref: tar
 teach: tar -T
 hint: -T reads the list of names to archive from a file instead of the command line
 ---
-q: {bundle @dir@ without descending into its subdirectories|use tar --no-recursion so @dir@'s contents aren't walked into|archive @dir@ as a flat entry, skipping what's inside it}
+q: {bundle @dir@ into bundle.tar, not descending into its subdirectories|use tar --no-recursion so @dir@ lands flat inside bundle.tar|archive @dir@ into bundle.tar flat, skipping what's inside it}
 a: tar -cf bundle.tar --no-recursion @dir@
 state: exists:bundle.tar
 ref: tar
@@ -133,7 +133,7 @@ ref: gzip
 teach: gzip -k
 hint: -k keeps the original file alongside the new .gz
 ---
-q: {compress @txt@ into out.gz without modifying or removing @txt@ itself|you want the compressed bytes in out.gz, @txt@ left completely alone|send @txt@'s compressed form to out.gz, leaving the original untouched}
+q: {compress @txt@ into out.gz, leaving @txt@ itself in place|you want the compressed bytes in out.gz, @txt@ left completely alone|send @txt@'s compressed form to out.gz, leaving the original untouched}
 a: gzip -c @txt@ > out.gz
 state: exists:out.gz
 ref: gzip
@@ -168,7 +168,7 @@ ref: gunzip
 teach: gunzip -t
 hint: -t verifies the archive's integrity without writing any output
 ---
-q: {gzip @txt@ to z.gz, then print its contents, leaving z.gz in place|read z.gz's contents, gzipped from @txt@, without deleting it|stream z.gz's contents to stdout, z.gz left untouched}
+q: {gzip @txt@ to z.gz, then print its contents, leaving z.gz in place|read z.gz's contents, gzipped from @txt@, without deleting it|stream z.gz, gzipped from @txt@, to stdout, leaving it in place}
 a: gzip -c @txt@ > z.gz && gunzip -c z.gz
 out: rotate
 ref: gunzip
@@ -196,7 +196,7 @@ ref: bzip2
 teach: bzip2 -c
 hint: -c writes the compressed bytes to stdout instead of replacing the file
 ---
-q: {bzip2 @txt@ to z.bz2, then uncompress it back|use bunzip2 to reverse the .bz2 compression of @txt@|decompress z.bz2, bzip2'd from @txt@, back to its original}
+q: {bzip2 @txt@ to z.bz2, then uncompress z.bz2 back to z|use bunzip2 to turn z.bz2, bzip2'd from @txt@, back into z|decompress z.bz2, bzip2'd from @txt@, back to its original}
 a: bzip2 -c @txt@ > z.bz2 && bunzip2 z.bz2
 state: exists:z
 ref: bunzip2
@@ -218,7 +218,7 @@ ref: unzip
 teach: unzip
 hint: unzip with no flags extracts everything into the current directory
 ---
-q: %list% what is inside a zip without extracting it
+q: %list% what is inside archive.zip without extracting it
 a: unzip -l archive.zip
 out: hello.txt
 ref: unzip
@@ -239,7 +239,7 @@ ref: unzip
 teach: unzip -o
 hint: -o overwrites existing files without prompting for confirmation
 ---
-q: %show% one file out of a zip to stdout instead of writing it
+q: %show% hello.txt from archive.zip to stdout, not a file on disk
 a: unzip -p archive.zip hello.txt
 out: hello from the archive
 ref: unzip

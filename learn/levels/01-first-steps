@@ -41,7 +41,7 @@ ref: ls
 teach: ls -l
 hint: the long format flag, then the path
 ---
-q: %list% with sizes in K and M, not raw bytes
+q: %list% this directory with sizes in K and M, not raw bytes
 a: ls -lh
 a: ls -hl
 out: ^total
@@ -49,7 +49,7 @@ ref: ls
 teach: ls -h
 hint: two flags -- long format, and the one ls calls "Human readable"
 ---
-q: %list% {newest first|sorted by modification time}
+q: %list% this directory {newest first|sorted by modification time}
 a: ls -lt
 a: ls -t
 why: fixture-cost
@@ -57,7 +57,7 @@ ref: ls
 teach: ls -t
 hint: sort by time
 ---
-q: %list% one name per line, so you can pipe it on
+q: %list% this directory one filename per line
 a: ls -1
 out: ^server\.log$
 ref: ls
@@ -147,14 +147,14 @@ ref: ls
 teach: ls -n
 hint: n modifies -l to print ids as numbers instead of names
 ---
-q: %list% so you can spot which entries are directories, nothing else marked
+q: %list% this directory, marking directories only
 a: ls -p
 cmp: ref
 ref: ls
 teach: ls -p
 hint: like -F but only marks directories, nothing else
 ---
-q: %list% in reverse order
+q: %list% this directory in reverse order
 a: ls -r
 cmp: ref
 ref: ls
@@ -168,7 +168,7 @@ ref: ls
 teach: ls -R
 hint: capital R -- lowercase r reverses order instead
 ---
-q: %list% largest file first
+q: %list% this directory, largest file first
 a: ls -S
 cmp: ref
 ref: ls
@@ -182,7 +182,7 @@ ref: ls
 teach: ls -s
 hint: shows size in blocks, not bytes -- pair with -h for human units
 ---
-q: %list% across the screen in columns
+q: %list% this directory across the screen in columns
 a: ls -x
 cmp: ref
 ref: ls

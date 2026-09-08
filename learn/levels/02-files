@@ -33,7 +33,7 @@ ref: cp
 teach: cp -r
 hint: the flag cp calls "Recurse"
 ---
-q: {don't overwrite @cfg2@ -- copy @cfg@ there only if missing|duplicate @cfg@ as @cfg2@ without clobbering an existing file|make @cfg2@ from @cfg@, but only if @cfg2@ doesn't exist}
+q: {don't overwrite @cfg2@ -- copy @cfg@ there only if missing|duplicate @cfg@ as @cfg2@ without clobbering an existing file|make @cfg2@ from @cfg@ only if @cfg2@ is missing}
 a: cp -n @cfg@ @cfg2@
 why: primitive-cost
 ref: cp

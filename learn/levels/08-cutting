@@ -61,7 +61,7 @@ ref: cut
 teach: cut -c
 hint: -c counts characters by position, not fields
 ---
-q: @log@ opens with a date and a space -- %show% the rest
+q: @log@ opens with a 10-char date and a space -- %show% the rest
 a: cut -c12- @log@
 cmp: ref
 ref: cut

@@ -64,14 +64,14 @@ ref: sha512sum
 teach: sha512sum
 hint: sha512 produces a longer, 128 hex character digest
 ---
-q: {save that hash and confirm @txt@ still matches it|confirm @txt@ still matches the sha512 hash you saved earlier|check @txt@ against a saved sha512 hash file, not sha256}
+q: {save @txt@'s sha512 to s5.txt, then confirm it still matches|confirm @txt@ still matches the sha512 hash saved in s5.txt|check @txt@ against s5.txt's sha512 hash, not sha256}
 a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
 out: : OK
 ref: sha512sum
 teach: sha512sum -c
 hint: -c checks a saved hash file the same way it does for sha256sum
 ---
-q: {verify @txt@'s sha512 hash quietly, output only on failure|check @txt@'s saved sha512 hash without the success noise|confirm @txt@'s sha512 still matches, silent unless wrong}
+q: {verify @txt@ against s5.txt's sha512 hash, quiet on success|check @txt@ against s5.txt's sha512 hash, no output unless failing|confirm @txt@ matches s5.txt's sha512 hash, silent unless wrong}
 a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
 status: 0
 ref: sha512sum
@@ -85,14 +85,14 @@ ref: sha1sum
 teach: sha1sum
 hint: sha1 is 40 hex characters, kept around only for matching old published hashes
 ---
-q: {an old release only published sha1 -- confirm @txt@ still matches|verify @txt@ against that older sha1 hash file|its recorded sha1 hash should still match @txt@}
+q: {save @txt@'s sha1 to s1.txt, then confirm it still matches|confirm @txt@ still matches the sha1 hash saved in s1.txt|check @txt@ against s1.txt's sha1 hash, from an old release}
 a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
 out: : OK
 ref: sha1sum
 teach: sha1sum -c
 hint: -c verifies a sha1 hash file the same way as the other *sum tools
 ---
-q: {verify @txt@'s sha1 hash quietly, no output unless it fails|check @txt@'s saved sha1 hash without the OK noise|confirm @txt@'s sha1 still matches, silently unless it's wrong}
+q: {verify @txt@ against s1.txt's sha1 hash, quiet on success|check @txt@ against s1.txt's sha1 hash, no output unless failing|confirm @txt@ matches s1.txt's sha1 hash, silent unless wrong}
 a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
 status: 0
 ref: sha1sum
@@ -107,14 +107,14 @@ ref: md5sum
 teach: md5sum
 hint: md5 is 32 hex characters, the oldest and weakest of these tools
 ---
-q: {m.txt holds an older md5 hash -- confirm @txt@ still matches|match @txt@ against that older md5 hash file|its recorded md5 hash should still match @txt@}
+q: {m.txt holds an older md5 hash -- confirm @txt@ still matches|match @txt@ against the md5 hash saved in m.txt|check @txt@ against m.txt's recorded md5 hash}
 a: md5sum @txt@ > m.txt && md5sum -c m.txt
 out: : OK
 ref: md5sum
 teach: md5sum -c
 hint: -c verifies an md5 hash file the same way as the other *sum tools
 ---
-q: {verify @txt@'s md5 hash quietly, no output unless it fails|check @txt@'s saved md5 hash without printing every OK|confirm @txt@'s md5 still matches, silently unless it's wrong}
+q: {verify @txt@ against m.txt's md5 hash, quiet on success|check @txt@ against m.txt's md5 hash, no output unless failing|confirm @txt@ matches m.txt's md5 hash, silent unless wrong}
 a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
 status: 0
 ref: md5sum
@@ -166,7 +166,7 @@ ref: diff
 teach: diff
 hint: diff's default output shows changed lines with < and > markers
 ---
-q: %show% @txt@ vs @txt2@ in the unified format patches use
+q: %show% @txt@ vs @txt2@ as a unified diff, 3 lines of context
 a: diff -U 3 @txt@ @txt2@
 out: ^---
 status: 1
@@ -219,7 +219,7 @@ ref: base64
 teach: base64 -d
 hint: base64 is an encoding, not encryption -- anyone can undo it
 ---
-q: {a format you're pasting into requires base64 wrapped at 40 columns|encode @txt@ as base64, but wrap the output at 40 columns|base64-encode @txt@ with lines no longer than 40 characters}
+q: {@txt@'s base64 needs wrapping at 40 columns for pasting|encode @txt@ as base64, but wrap the output at 40 columns|base64-encode @txt@ with lines no longer than 40 characters}
 a: base64 -w 40 @txt@
 out: [A-Za-z0-9+/]
 ref: base64

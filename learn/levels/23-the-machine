@@ -344,7 +344,7 @@ ref: lsusb
 teach: lsusb
 hint: lsusb walks the usb bus the way lspci walks pci
 ---
-q: {who manufactured this machine|which vendor built this machine|name the maker of this machine}
+q: {who manufactured this machine -- read sys_vendor|which vendor built this machine, per sys_vendor|name this machine's maker, from sys_vendor}
 a: cat /sys/class/dmi/id/sys_vendor
 why: live-hw
 ref: cat
@@ -358,7 +358,7 @@ ref: cat
 teach: cat
 hint: product_name sits beside sys_vendor in /sys/class/dmi/id
 ---
-q: {which bios version is flashed on this machine|what version of firmware is this machine running|report the bios version this machine carries}
+q: {which bios version is flashed here -- read bios_version|what firmware version is this, per dmi id's bios_version|report this machine's bios_version, from /sys/class/dmi/id}
 a: cat /sys/class/dmi/id/bios_version
 why: live-hw
 ref: cat
@@ -386,7 +386,7 @@ ref: logger
 teach: logger -s
 hint: -s echoes the message to stderr as well as logging it
 ---
-q: {log a line at a chosen priority|log a line tagged with a specific priority|send a log line at a priority you choose}
+q: {log the line suspicious at priority user.warn|log suspicious, tagged user.warn|send the log line suspicious at user.warn}
 a: logger -p user.warn suspicious
 why: live-hw
 ref: logger

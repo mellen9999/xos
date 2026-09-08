@@ -101,14 +101,14 @@ ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {strip .txt from @txt@ with the suffix named as a flag|scripting generically, so name the suffix explicitly, not trailing|drop .txt from @txt@ the way that still works with more files}
+q: {strip .txt from @txt@ with the suffix named as a flag|name the .txt suffix explicitly stripping it off @txt@|drop .txt from @txt@ the way that still works with more files}
 a: basename -s .txt @txt@
 cmp: ref
 ref: basename
 teach: basename -s
 hint: -s is the explicit-flag form of the same suffix stripping
 ---
-q: {you have several paths and want just the filenames, all in one call|process @txt@ and @log@ together instead of running basename twice|reduce both @txt@ and @log@ to bare filenames in a single call}
+q: {@txt@ and @log@ -- want just the filenames, in one call|process @txt@ and @log@ in one basename call, not two|reduce @txt@ and @log@ to bare filenames in one call}
 a: basename -a @txt@ @log@
 cmp: ref
 ref: basename
@@ -129,7 +129,7 @@ ref: realpath
 teach: realpath
 hint: realpath resolves any relative pieces and symlinks along the way
 ---
-q: {follow a symlink to whatever it finally points at|use readlink -f to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
+q: {follow @txt@ through symlinks to whatever it finally points at|use readlink -f to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
 a: readlink -f @txt@
 cmp: ref
 ref: readlink

@@ -22,7 +22,7 @@ ref: ping
 teach: ping -q
 hint: -q suppresses per-packet lines, printing only the final summary
 ---
-q: {you don't want to flood the link -- ping with one second between packets|ping @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
+q: {don't flood the link -- ping @ip@ one second apart|ping @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
 a: ping -i 1 -c 3 @ip@
 why: live-net
 ref: ping
@@ -36,14 +36,14 @@ ref: ping
 teach: ping -I
 hint: -I picks which interface the pings go out of
 ---
-q: {ping with a payload of 1000 bytes to test for MTU trouble|ping @ip@ with a 1000 byte payload, to probe for MTU trouble|send 1000 byte pings to @ip@ to test for MTU issues}
+q: {probe for MTU trouble -- ping @ip@ with a 1000 byte payload|ping @ip@ with a 1000 byte payload, to probe for MTU trouble|send 1000 byte pings to @ip@ to test for MTU issues}
 a: ping -s 1000 -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -s
 hint: -s sets the payload size in bytes, useful for MTU testing
 ---
-q: {can't wait forever for a dead host -- give up the ping run after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}
+q: {@ip@ may be dead -- give the ping run up after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}
 a: ping -w 5 @ip@
 why: live-net
 ref: ping
@@ -64,14 +64,14 @@ ref: ping
 teach: ping -t
 hint: -t sets the ip ttl, capping how many hops a packet can cross
 ---
-q: {flaky link may be corrupting bits -- ping with a chosen payload pattern|ping @ip@ with a specific byte pattern filling the payload|fill the ping payload to @ip@ with a chosen pattern}
+q: {the link may corrupt bits -- ping @ip@ with a set pattern|ping @ip@ with a specific byte pattern filling the payload|fill the ping payload to @ip@ with a chosen pattern}
 a: ping -p ff -c 3 @ip@
 why: live-net
 ref: ping
 teach: ping -p
 hint: -p fills the payload with a repeating hex pattern you choose
 ---
-q: {need samples fast -- ping adaptively, firing as soon as a reply lands|ping @ip@ adaptively, firing the next packet as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
+q: {need samples fast -- ping @ip@ as soon as each reply lands|ping @ip@ adaptively, firing as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
 a: ping -A -c 3 @ip@
 why: live-net
 ref: ping
@@ -85,7 +85,7 @@ ref: traceroute
 teach: traceroute
 hint: traceroute with no flags shows the path packets take, hop by hop
 ---
-q: {don't want to wait on dns per hop -- trace the path without resolving names|trace to @ip@ skipping name resolution for speed|run the trace to @ip@ fast, with no hostname lookups}
+q: {no dns wait per hop -- trace to @ip@ without resolving names|trace to @ip@ skipping name resolution for speed|run the trace to @ip@ fast, with no hostname lookups}
 a: traceroute -n @ip@
 why: live-net
 ref: traceroute
@@ -99,21 +99,21 @@ ref: traceroute
 teach: traceroute -m
 hint: -m caps the maximum number of hops traced
 ---
-q: {the default three probes per hop is too slow -- send just one|trace to @ip@ sending just one probe per hop|cut the probes per hop to one, instead of the default three}
+q: {three probes per hop is too slow -- trace @ip@ with one|trace to @ip@ sending just one probe per hop|cut the probes per hop to @ip@ to one, not the default three}
 a: traceroute -q 1 @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -q
 hint: -q sets how many probes are sent per hop, default is three
 ---
-q: {start the trace at hop 5, skipping the first four|trace to @ip@ starting from hop 5|skip the first four hops and start tracing at hop 5}
+q: {start the trace to @ip@ at hop 5, skipping the first four|trace to @ip@ starting from hop 5|skip the first four hops tracing to @ip@, start at hop 5}
 a: traceroute -f 5 @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -f
 hint: -f sets the starting ttl, skipping the earlier hops
 ---
-q: {firewall might be dropping udp -- trace using icmp echo instead|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
+q: {a firewall may drop udp -- trace @ip@ with icmp echo|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
 a: traceroute -I @ip@
 why: live-net
 ref: traceroute

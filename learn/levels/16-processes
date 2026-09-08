@@ -281,7 +281,7 @@ ref: pwdx
 teach: pwdx
 hint: pwdx reports a process's current working directory by pid
 ---
-q: {you want an exact-name kill, not pkill's substring match|kill every process literally named @proc@, no partial matches|end every @proc@ by its exact name}
+q: {kill @proc@ by its exact name, not pkill's substring match|kill every process literally named @proc@, no partial matches|end every @proc@ by its exact name}
 a: killall @proc@
 why: live-hw
 ref: killall

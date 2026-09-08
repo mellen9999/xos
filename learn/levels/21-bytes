@@ -135,21 +135,21 @@ ref: dd
 teach: dd
 hint: skip= moves the read start point; bs=1 makes skip/count mean bytes
 ---
-q: %make% a 1 kilobyte file of zero bytes
+q: %make% zero.bin, a 1 kilobyte file of zero bytes
 a: dd if=/dev/zero of=zero.bin bs=1k count=1
 state: exists:zero.bin
 ref: dd
 teach: dd
 hint: /dev/zero is an endless stream of zero bytes; bs=/count= cap it
 ---
-q: %make% 32 random bytes to use as a key
+q: %make% rand.bin, 32 random bytes to use as a key
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd
 teach: dd
 hint: /dev/urandom is the random byte source; bs= sets how many bytes total
 ---
-q: {this dd copy of @txt@ runs in a script -- no progress, no summary|copy @txt@ with dd, suppressing all progress and summary output|copy @txt@ with dd as quietly as possible}
+q: {copy @txt@ to copy.txt for a script -- no progress, no summary|copy @txt@ to copy.txt with dd, no progress or summary output|copy @txt@ to copy.txt with dd as quietly as possible}
 a: dd if=@txt@ of=copy.txt status=none
 state: exists:copy.txt
 ref: dd

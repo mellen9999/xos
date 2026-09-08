@@ -24,7 +24,7 @@ ref: sort
 hint: redirect the sorted, deduplicated list straight into the file
 ---
 setup: /tmp/taught now holds one drilled command per line.
-q: which commands have a ref page but are missing from /tmp/taught
+q: which commands have a page in /usr/share/learn/ref but not in /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxF -f /tmp/taught
 a: ls /usr/share/learn/ref | grep -vxFf /tmp/taught
 why: live-hw

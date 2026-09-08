@@ -15,14 +15,14 @@ ref: ip
 teach: ip
 hint: ip addr with no filter lists every interface and its addresses
 ---
-q: piping this on -- %show% addresses one per line, easy to cut up
+q: piping this on -- %show% every interface's addresses one per line
 a: ip -o addr
 out: ^[0-9]+:.*inet
 ref: ip
 teach: ip
 hint: -o (oneline) puts each address on its own line for easy parsing
 ---
-q: ipv6 is cluttering the output -- %show% only ipv4 addresses
+q: too many ipv6 lines -- %show% every interface's ipv4 addresses
 a: ip -4 addr
 why: live-hw
 ref: ip
@@ -57,7 +57,7 @@ ref: ip
 teach: ip
 hint: addr add takes address/prefixlen, and dev to say where
 ---
-q: {take the address @ip@ off @iface@ again|remove @ip@ from @iface@|delete @ip@, which you just added to @iface@}
+q: {take @ip@/24 off @iface@ again|remove @ip@/24 from @iface@|delete @ip@/24, which you just added to @iface@}
 a: ip addr del @ip@/24 dev @iface@
 why: live-hw
 ref: ip
@@ -295,7 +295,7 @@ ref: ipcalc
 teach: ipcalc -p
 hint: -p converts a dotted netmask into its prefix length
 ---
-q: {ipcalc output for @ip@, no hostnames, script-friendly|run ipcalc on @ip@ with no hostnames, for scripting|strip ipcalc's output for @ip@ to script-friendly form}
+q: {ipcalc output for @ip@/24, no hostnames, script-friendly|run ipcalc on @ip@/24 with no hostnames, for scripting|strip ipcalc's output for @ip@/24 to script form}
 a: ipcalc -s @ip@/24
 cmp: ref
 ref: ipcalc

@@ -115,7 +115,7 @@ ref: sh
 teach: sh
 hint: each pattern ends with ) and each branch ends with ;;
 ---
-q: {print log when a filename ends in .log|match a filename against *.log, printing log|detect a .log suffix in a filename, printing log}
+q: {f is app.log -- print log when the name ends in .log|match f=app.log against *.log, printing log|set f=app.log, print log if it ends in .log}
 a: f=app.log; case $f in *.log) echo log ;; *) echo other ;; esac
 cmp: ref
 ref: sh

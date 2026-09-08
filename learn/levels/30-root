@@ -12,7 +12,7 @@ brief: actually proves, and what it does not.
 setup: Start with the claim. The root filesystem is not trusted because it
 setup: looks right; it is trusted because every block read out of it is
 setup: checked against a hash tree.
-q: %show% that the root is a read-only squashfs on a device-mapper device
+q: %show% from /proc/mounts that / is a read-only squashfs on device-mapper
 a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
 cmp: ref
 ref: awk
@@ -21,7 +21,7 @@ hint: $1, $3, $4 print the device, filesystem type and mount flags together
 ---
 setup: A hash tree has a single root hash. Everything below it is checked
 setup: against that one number, so the whole filesystem reduces to it.
-q: %get% the root hash the kernel was given
+q: %get% the root hash the kernel was given, out of /proc/cmdline
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 why: live-hw
 ref: sed
@@ -32,7 +32,7 @@ setup: That number arrived on the kernel command line. The command line is
 setup: baked into the unified kernel image on the ESP, and that image is
 setup: signed with keys you enrolled into the firmware yourself. So the hash
 setup: is anchored OUTSIDE the filesystem it describes.
-q: %show% the whole command line so you can see the hash sitting in it
+q: %show% all of /proc/cmdline, so you see the hash sitting in it
 a: cat /proc/cmdline
 cmp: ref
 ref: cat
@@ -42,7 +42,7 @@ hint: no filtering this time -- the whole line, hash included
 setup: A checksum stored inside the thing it describes proves nothing -- an
 setup: attacker who can edit the data can edit the checksum beside it. This is
 setup: the single most important idea on this page.
-q: {confirm the kernel halts instead of continuing when a block fails its check|check that the kernel is set to halt, not continue, on a failed block|prove the kernel panics rather than limping on after a corrupted block}
+q: {confirm /proc/cmdline sets panic_on_corruption, not carry on|check /proc/cmdline for panic_on_corruption|prove the kernel was told panic_on_corruption}
 a: grep -o panic_on_corruption /proc/cmdline
 why: live-hw
 ref: grep
@@ -51,7 +51,7 @@ hint: panic_on_corruption in the cmdline is what forces the halt
 ---
 setup: Now the other end. Hash the bytes actually mounted and see the number
 setup: for yourself.
-q: %show% the digest of the filesystem you are running on, and nothing else
+q: %show% /dev/dm-0's digest, the filesystem you are running on, alone
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
 why: live-hw
 ref: sha256sum
@@ -79,7 +79,7 @@ hint: three [ -e ] / cat checks, joined with $() inside one printf
 ---
 setup: And nothing writable may be executable, or the read-only root is a
 setup: formality.
-q: %show% every writable filesystem and whether it is mounted noexec
+q: %show% from /proc/mounts every writable filesystem, and if it is noexec
 a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
 why: live-hw
 ref: awk
@@ -87,7 +87,7 @@ teach: awk
 hint: $4 ~ /rw/ matches writable filesystems by their mount options
 ---
 setup: One line now. The whole argument, in the order you made it.
-q: %show% the root device, filesystem, flags and corruption policy together
+q: %show% /proc/mounts' line for /, then /proc/cmdline's policy
 a: awk '$2=="/" {printf "%s %s %s ", $1, $3, $4}' /proc/mounts && grep -o panic_on_corruption /proc/cmdline
 why: live-hw
 ref: awk
@@ -113,7 +113,7 @@ teach: awk
 hint: field 4 of the / line in /proc/mounts is the flag list, ro first
 ---
 setup: dm-0 is a device-mapper target, not a disk. Something real sits under it.
-q: {name the block device underneath the verity root|which physical device is dm-0 built on|show what backs the device-mapper root}
+q: {what backs dm-0 -- read /sys/block/dm-0/slaves|which physical device is dm-0 built on, per its slaves|name the block device under the verity root, from sysfs}
 a: ls /sys/block/dm-0/slaves
 why: live-hw
 ref: ls
@@ -121,7 +121,7 @@ teach: ls
 hint: a dm device lists what it is stacked on under slaves/
 ---
 setup: Lockdown is compiled in. Compiled-in means there is a file that says so.
-q: {print the lockdown mode the kernel is enforcing|confirm what lockdown mode is actually active|what lockdown mode is this kernel in}
+q: {print the lockdown mode from /sys/kernel/security/lockdown|confirm the mode in /sys/kernel/security/lockdown|read /sys/kernel/security/lockdown}
 a: cat /sys/kernel/security/lockdown
 why: live-hw
 ref: cat
@@ -129,7 +129,7 @@ teach: cat
 hint: the active mode is the one in [brackets]
 ---
 setup: No module loader means nothing can be added to the kernel after boot.
-q: {confirm there's no module loader on this kernel|prove no module loader exists on this kernel|check whether a module loader exists on this kernel at all}
+q: {confirm /proc/modules does not exist on this kernel|prove there is no /proc/modules, so no module loader|check whether /proc/modules exists at all}
 a: [ -e /proc/modules ] && echo present || echo none
 why: live-hw
 ref: [
@@ -137,7 +137,7 @@ teach: [ -e
 hint: -e tests existence; && and || pick which word to echo
 ---
 setup: The host's own disks are never touched because no driver can see them.
-q: {count the ahci or nvme drivers bound on the pci bus|prove no driver can reach the host's disks -- count them|check how many ahci or nvme drivers are bound, should be none}
+q: {count the ahci or nvme drivers under /sys/bus/pci/drivers|prove no ahci or nvme driver is bound -- count them in sysfs|how many ahci or nvme names are in /sys/bus/pci/drivers}
 a: ls /sys/bus/pci/drivers | grep -c -E 'ahci|nvme'
 why: live-hw
 ref: grep
@@ -145,7 +145,7 @@ teach: grep -c -E
 hint: -E makes | an alternation; -c counts the matching names
 ---
 setup: p3 counts its own unlocks. Remember the number the way you remember the four words.
-q: {print the boot count from the state ledger in your home|check how many times this state has been unlocked, from the ledger in $HOME|show how many times this state has been unlocked}
+q: {print the boot count from $HOME/ledger|check how many times this state has been unlocked, from $HOME/ledger|pull the unlock count out of $HOME/ledger}
 a: cut -d' ' -f1 $HOME/ledger
 why: live-hw
 ref: cut

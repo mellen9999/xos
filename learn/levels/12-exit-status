@@ -76,7 +76,7 @@ ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
-q: {succeed only when @log@ has no match at all|flip a status so grep finding nothing counts as success in @log@|make "no match in @log@" read as success rather than failure}
+q: {succeed only when @log@ has no match for nonexistent|flip a status so no match for nonexistent in @log@ succeeds|make a missing nonexistent match in @log@ count as success}
 a: ! grep -q nonexistent @log@
 status: 0
 ref: grep

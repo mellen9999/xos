@@ -18,7 +18,7 @@ ref: wget
 teach: wget
 hint: wget with no -O saves the file under the url's own basename
 ---
-q: {pick your own name for file.txt from @host@|choose the output name, saving file.txt from @host@|rename it yourself, pulling file.txt from @host@}
+q: {pick out.txt as your own name for file.txt from @host@|choose out.txt as the output name, saving file.txt from @host@|rename it out.txt, pulling file.txt from @host@}
 a: wget -O out.txt http://@host@/file.txt
 why: fixture-cost
 ref: wget
@@ -53,14 +53,14 @@ ref: wget
 teach: wget -S
 hint: -S prints the server's response headers as they arrive
 ---
-q: {reach file.txt past a token-gated api at @host@|attach a token header fetching file.txt from @host@|get file.txt through an api token check at @host@}
+q: {fetch file.txt from @host@ using header 'X-Token: abc'|send header 'X-Token: abc' fetching file.txt from @host@|get file.txt from @host@ with header 'X-Token: abc'}
 a: wget --header 'X-Token: abc' http://@host@/file.txt
 why: fixture-cost
 ref: wget
 teach: wget --header
 hint: --header adds one arbitrary header line to the request
 ---
-q: {POST a=1 to @host@/submit instead of fetching|send data to @host@/submit with a post, not a get|push a=1 to @host@/submit rather than downloading}
+q: {POST a=1 to @host@/submit instead of fetching|send a=1 to @host@/submit with a post, not a get|push a=1 to @host@/submit rather than downloading}
 a: wget --post-data 'a=1' http://@host@/submit
 why: fixture-cost
 ref: wget
@@ -81,7 +81,7 @@ ref: wget
 teach: wget -P
 hint: -P sets the directory the download is saved into
 ---
-q: {spoof the user agent fetching file.txt from @host@|pretend to be a different client pulling file.txt from @host@|fake the user agent grabbing file.txt from @host@}
+q: {spoof the user agent as xos fetching file.txt from @host@|pretend to be xos pulling file.txt from @host@|fake the user agent as xos grabbing file.txt from @host@}
 a: wget -U xos http://@host@/file.txt
 why: fixture-cost
 ref: wget
@@ -95,7 +95,7 @@ ref: wget
 teach: wget -T
 hint: -T caps how long wget waits for the server before giving up
 ---
-q: {log file.txt's fetch instead of watching it, from @host@|keep a log pulling file.txt, unattended, from @host@|track file.txt's download in a log, not the screen, from @host@}
+q: {log file.txt's fetch to wget.log, not the screen, from @host@|save file.txt's fetch log to wget.log, from @host@|track file.txt's pull in wget.log, not the screen, from @host@}
 a: wget -o wget.log http://@host@/file.txt
 why: fixture-cost
 ref: wget
@@ -116,7 +116,7 @@ ref: nc
 teach: nc
 hint: nc with just a host and port opens a raw tcp connection
 ---
-q: {speak http by hand to @host@ -- send a HEAD request through nc|hand-craft a HEAD request to @host@ and send it through nc|talk http directly to @host@ by piping a HEAD request into nc}
+q: {send a HEAD request to @host@ on port 80 via nc, by hand|hand-craft a HEAD request to @host@ port 80, send it through nc|pipe a HEAD request into nc, talking http to @host@ port 80}
 a: printf 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
 why: live-net
 ref: nc
@@ -180,6 +180,7 @@ ref: ftpget
 teach: ftpget
 hint: ftpget takes the local name then the remote name, in that order
 ---
+setup: local.txt and remote.txt are the names throughout, and secret is the password.
 q: {fetch from @host@ via ftp as @user@, with a password|download from the ftp server @host@, authenticating as @user@|use ftpget with the username @user@ to fetch from @host@}
 a: ftpget -u @user@ -p secret @host@ local.txt remote.txt
 why: live-net
@@ -188,6 +189,7 @@ teach: ftpget -u
 teach: ftpget -p
 hint: -u sets the username, -p the password
 ---
+setup: local.txt and remote.txt are the names throughout.
 q: {fetch from @host@ on the non-standard ftp port @port@|download from the ftp server @host@ listening on port @port@|use ftpget against @host@ on the non-default port @port@}
 a: ftpget -P @port@ @host@ local.txt remote.txt
 why: live-net
@@ -195,6 +197,7 @@ ref: ftpget
 teach: ftpget -P
 hint: -P picks the port instead of ftp's default 21
 ---
+setup: local.txt and remote.txt are the names throughout.
 q: {continue an interrupted ftp download from @host@|resume an ftp download from @host@ that got interrupted|pick an interrupted ftp download from @host@ back up}
 a: ftpget -c @host@ local.txt remote.txt
 why: live-net
@@ -202,6 +205,7 @@ ref: ftpget
 teach: ftpget -c
 hint: -c continues a download from where it stopped
 ---
+setup: remote.txt is the name @txt@ takes on the server.
 q: {put @txt@ up on the ftp server @host@|send @txt@ up to the ftp server @host@|use ftpput to upload @txt@ to @host@}
 a: ftpput @host@ remote.txt @txt@
 why: live-net
@@ -209,6 +213,7 @@ ref: ftpput
 teach: ftpput
 hint: ftpput takes the remote name then the local name, in that order
 ---
+setup: remote.txt is the name @txt@ takes on the server, and secret is the password.
 q: {upload @txt@ to @host@'s ftp, authenticating as @user@|send @txt@ to @host@ via ftp, logged in as @user@|use ftpput as @user@ to upload @txt@ to @host@}
 a: ftpput -u @user@ -p secret @host@ remote.txt @txt@
 why: live-net
@@ -217,6 +222,7 @@ teach: ftpput -u
 teach: ftpput -p
 hint: -u sets the username, -p the password, same as ftpget
 ---
+setup: remote.txt is the name @txt@ takes on the server.
 q: {upload @txt@ to @host@ on ftp port @port@|send @txt@ to @host@'s ftp on port @port@|use ftpput against @host@:@port@ to send @txt@}
 a: ftpput -P @port@ @host@ remote.txt @txt@
 why: live-net
@@ -268,7 +274,7 @@ ref: udhcpc
 teach: udhcpc -n
 hint: -n exits immediately if no lease shows up, rather than retrying forever
 ---
-q: {run the default udhcpc script on @iface@ once the lease arrives|name /usr/share/udhcpc/default.script to run when @iface@ gets a lease|have @iface@'s lease run /usr/share/udhcpc/default.script}
+q: {run /usr/share/udhcpc/default.script on @iface@ once the lease arrives|name /usr/share/udhcpc/default.script to run when @iface@ gets a lease|have @iface@'s lease run /usr/share/udhcpc/default.script}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
 why: live-net
 ref: udhcpc

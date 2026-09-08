@@ -151,7 +151,7 @@ ref: [
 teach: [ -a
 hint: -a inside [ ] means logical AND between two conditions
 ---
-q: {accept either @txt@ existing or @word@-nope.txt existing, printing either|test that @txt@ exists OR @word@-nope.txt exists, printing either|check either of two possible file locations, printing either if one exists}
+q: {accept either @txt@ or @word@-nope.txt existing, printing either|test that @txt@ exists OR @word@-nope.txt exists, printing either|check for @txt@ or @word@-nope.txt, printing either if one exists}
 a: [ -f @txt@ -o -f @word@-nope.txt ] && echo either
 out: ^either$
 ref: [

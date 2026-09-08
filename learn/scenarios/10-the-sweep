@@ -72,7 +72,7 @@ setup: Persistence next. The quiet backdoor is an extra ssh key: add one line to
 setup: authorized_keys and you return whenever you like. On xos that file lives
 setup: inside the read-only, verity-covered root -- an attacker cannot append to
 setup: it without changing a byte the hash tree covers, which halts the next boot.
-setup: The only writable home for a key is the encrypted p3, if you opted in.
+setup: The only writable home for a key is the encrypted p3 -- read /state/authorized_keys.
 q: print every key dropbear is configured to accept
 a: cat /state/authorized_keys 2>/dev/null
 ref: cat
@@ -83,7 +83,7 @@ hint: on a running stick this is the file to eyeball line by line
 setup: The oldest persistence of all: a second account with uid 0. root should be
 setup: the only name the system answers to as superuser; a hidden second uid-0 is
 setup: a whole extra root hiding in plain sight in the passwd database.
-q: print every account whose uid is 0
+q: print every account in /etc/passwd whose uid is 0
 a: awk -F: '$3==0 {print $1}' /etc/passwd
 cmp: ref
 ref: awk
@@ -134,7 +134,7 @@ hint: one default route, to the network you plugged into -- know it cold
 setup: Time to turn from hunting to proving. The deepest defense is that the root
 setup: filesystem is dm-verity and mounted read-only: an attacker cannot write a
 setup: backdoor to it AT ALL, and a single altered byte halts the next boot rather
-setup: than booting compromised. Confirm the root is read-only from where you sit.
+setup: than booting compromised. Confirm / is read-only, from /proc/mounts.
 q: show the root mount's options and pick out that it is read-only
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o ro
 ref: grep
@@ -144,7 +144,7 @@ hint: field 4 is the mount options; ro is the one that matters
 ---
 setup: A kernel-level implant is the way past a read-only root -- load a module, or
 setup: write kernel memory through /dev/mem. xos compiles both out: no module
-setup: loader, no /dev/mem. Show that the loader interface is simply not there.
+setup: loader, no /dev/mem. Show that /proc/modules, the loader interface, is not there.
 q: report whether the module loader is present or absent
 a: test -e /proc/modules && echo present || echo absent
 ref: test
@@ -154,7 +154,7 @@ hint: on xos this reads absent -- there is nothing to load a rootkit into
 ---
 setup: The lockdown state is the kernel's own promise that even root cannot reach
 setup: into it -- no /dev/mem, no kexec, no loading unsigned code. Read it straight
-setup: from the kernel.
+setup: from the kernel, out of /sys/kernel/security/lockdown.
 q: print the kernel lockdown state
 a: cat /sys/kernel/security/lockdown
 ref: cat
@@ -166,7 +166,7 @@ setup: Last. You have swept for listeners, egress, fifos, keys, hidden roots,
 setup: startup hooks and implants, and proven the root cannot be written and the
 setup: kernel cannot be reached. One line to state the verdict: the machine is
 setup: running the code you signed, and nothing is listening for anyone else.
-q: the root device with its options, and nothing waiting on the network
+q: /proc/mounts' root device and options, and nothing waiting on the network
 a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
 why: live-net
 ref: awk

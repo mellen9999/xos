@@ -32,7 +32,7 @@ ref: wait
 teach: wait
 hint: wait with no argument blocks until every background job finishes
 ---
-q: {start two sleeps at once and wait for both|background two sleep 1 commands, then wait for both to finish|run two sleeps concurrently and block until they're both done}
+q: {run two sleep 1 commands at once, then wait for both|background two sleep 1 commands, then wait for both to finish|run two sleep 1 commands concurrently and block until both finish}
 a: sleep 1 & sleep 1 & wait
 why: interactive
 ref: wait
@@ -141,7 +141,7 @@ ref: abduco
 teach: abduco -e
 hint: -e sets the key sequence that detaches you, default is ctrl-\
 ---
-q: %list% the jobs in this shell with their process ids
+q: %list% the jobs in this shell, with pids, after backgrounding sleep 1
 a: sleep 1 & jobs -l
 why: interactive
 ref: jobs

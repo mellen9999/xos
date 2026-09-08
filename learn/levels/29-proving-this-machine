@@ -12,14 +12,14 @@ brief: command line, inside an image signed with keys you enrolled yourself.
 brief: You are about to check that claim by hand, with commands you already
 brief: know. No special tool. Nothing you could not do on someone else's box.
 ---
-q: {what command line was this kernel booted with|report the kernel's boot command line|which command line did this kernel boot with}
+q: {what command line was this kernel booted with -- /proc/cmdline|report /proc/cmdline, the kernel's boot command line|read the boot command line out of /proc/cmdline}
 a: cat /proc/cmdline
 why: live-hw
 ref: cat
 teach: cat
 hint: cmdline is the exact string the bootloader handed the kernel
 ---
-q: {pull just the verity root hash out of that command line|extract just the verity root hash from the kernel command line|isolate the sha256 root hash out of /proc/cmdline}
+q: {pull just the verity root hash out of the kernel command line|extract just the verity root hash from the kernel command line|isolate the sha256 root hash out of /proc/cmdline}
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 why: live-hw
 ref: sed
@@ -33,7 +33,7 @@ ref: awk
 teach: awk
 hint: awk's $2 and $4 pick the mountpoint and options columns out of /proc/mounts
 ---
-q: {confirm the root is mounted read-only|check that / is mounted read-only|prove the root filesystem is mounted read-only}
+q: {confirm /proc/mounts has / read-only|check /proc/mounts says / is mounted read-only|prove the root is mounted read-only, from /proc/mounts}
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro'
 why: live-hw
 ref: grep
@@ -47,14 +47,14 @@ ref: awk
 teach: awk
 hint: $1 in /proc/mounts is the device column
 ---
-q: {prove the mounted root matches what you signed -- hash it|get the digest of the filesystem you're standing on|hash the running root to compare against what you signed}
+q: {hash /dev/dm-0, the mounted root, to compare with what you signed|get the digest of /dev/dm-0, the filesystem you're standing on|prove /dev/dm-0 matches what you signed -- hash it}
 a: sha256sum /dev/dm-0
 why: live-hw
 ref: sha256sum
 teach: sha256sum
 hint: dm-0 is the device dm-verity hands you once it is checking every block
 ---
-q: %show% just the digest, ready to check against what you recorded
+q: %show% /dev/dm-0's digest, and nothing else
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
 why: live-hw
 ref: cut
@@ -62,7 +62,7 @@ teach: cut -d
 teach: cut -f
 hint: cut -d' ' -f1 grabs just the hash, dropping the filename sha256sum prints after it
 ---
-q: {confirm the kernel was told to panic rather than continue on a bad block|check that the kernel is set to panic, not continue, on a bad block|prove the kernel will panic instead of carrying on after a bad block}
+q: {confirm /proc/cmdline sets panic_on_corruption, not carry on|check /proc/cmdline for panic_on_corruption|prove the kernel was told panic_on_corruption}
 a: grep -o panic_on_corruption /proc/cmdline
 why: live-hw
 ref: grep
@@ -76,7 +76,7 @@ ref: dmesg
 teach: dmesg
 hint: dmesg's boot log names the verity target as it starts checking blocks
 ---
-q: {is the kernel locked down, and how far|report the kernel's current lockdown level|check whether the kernel is locked down, and to what degree}
+q: {is the kernel locked down, and how far -- read the lockdown file|report the mode in /sys/kernel/security/lockdown|read /sys/kernel/security/lockdown}
 a: cat /sys/kernel/security/lockdown
 why: live-hw
 ref: cat
@@ -112,7 +112,7 @@ ref: chmod
 teach: chmod
 hint: $HOME is on a tmpfs mounted noexec
 ---
-q: %count% "Internet Security Research Group" hits in the tls binary
+q: %count% "Internet Security Research Group" hits in /bin/tlstunnel
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 cmp: ref
 ref: strings

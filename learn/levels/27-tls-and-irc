@@ -18,14 +18,14 @@ ref: tlstunnel
 teach: tlstunnel
 hint: tlstunnel takes - for stdin/stdout, then the host and port to wrap
 ---
-q: {fetch a page over https by speaking http into a tls tunnel|speak http by hand through a tls tunnel to fetch a page over https|hand-craft an http request and send it through a tls tunnel to @host@}
+q: {fetch @host@'s page over https by hand, through a tls tunnel|speak http to @host@ by hand, through a tls tunnel|hand-craft an http request to @host@, tunnel it through tls}
 a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
 why: live-net
 ref: tlstunnel
 teach: tlstunnel
 hint: pipe a raw http request into tlstunnel the same way you would into nc
 ---
-q: %count% "Internet Security Research Group" hits in the tls binary
+q: %count% "Internet Security Research Group" hits in /bin/tlstunnel
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 cmp: ref
 ref: strings
@@ -202,7 +202,7 @@ teach: dbclient -i
 hint: -i points dbclient at the private key to authenticate with
 ---
 setup: The host key is /state/host_key; you log in with the key /state/id.
-q: {ssh to 10.9.0.1 and attach to the abduco session work, one command|ssh to root at 10.9.0.1, attaching straight to abduco's work session|combine the ssh to 10.9.0.1 and abduco -a work into one command}
+q: {reach root at 10.9.0.1 by ssh, straight into abduco's work session|ssh to root at 10.9.0.1, attaching straight to abduco's work session|combine ssh to root at 10.9.0.1 with abduco -a work in one line}
 a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
 why: live-net
 ref: dbclient
@@ -216,7 +216,7 @@ ref: dbclient
 teach: dbclient -p
 hint: -p picks the port dbclient connects to
 ---
-q: {forward local port 8080 to port 80 on 10.9.0.1, over ssh|tunnel local port 8080 to localhost:80 on 10.9.0.1 over ssh|ssh-forward 8080 here to localhost:80 on 10.9.0.1}
+q: {forward local port 8080 to port 80 on 10.9.0.1, over ssh as root|tunnel local port 8080 to localhost:80 on 10.9.0.1 over ssh as root|ssh-forward 8080 here to localhost:80 on 10.9.0.1 as root}
 a: dbclient -L 8080:localhost:80 root@10.9.0.1
 why: live-net
 ref: dbclient
