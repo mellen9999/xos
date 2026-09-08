@@ -44,7 +44,7 @@ for spec in "$@"; do
   # the installed binary is named for its package; find it and normalise.
   src="$BIN/$(ls "$BIN")"; [ -f "$BIN/$name" ] && src="$BIN/$name"
   # resolve what version actually got built (module graph, last matching line).
-  ver=$(go version -m "$src" 2>/dev/null | awk -v m="${mod%@*}" '$1=="mod"||$1=="path"{if(index($2,m)){v=$3}} END{print v}')
+  ver=$(go version -m "$src" 2>/dev/null | awk '$1=="mod"{print $3; exit}')
   cp "$src" "$OUT/$name"; rm -f "$src"
   sz=$(stat -c%s "$OUT/$name"); sh=$(sha256sum < "$OUT/$name" | cut -d' ' -f1)
   printf '%-12s %s@%s  %s  %s\n' "$name" "${mod%@*}" "${ver:-?}" "$sz" "$sh" >> "$LOCK"
