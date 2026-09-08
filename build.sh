@@ -158,19 +158,58 @@ deps() {
 # happens before extraction -- the old bulk `sha256sum -c` ran after only two of
 # five sources had been downloaded, so on a clean clone it failed, and in a tree
 # that already had src/ populated it passed. that is why nobody saw it.
+# pull ONE url into src/$tar, or fail. split out of get() so the fallback
+# below is a loop over urls rather than a second copy of the curl line.
+# --retry-all-errors because the transient failures here are resets and TLS
+# handshakes, which plain --retry does not count; --speed-limit turns a
+# stalled mirror into a retry instead of a build that hangs until someone
+# notices. a half-written tarball must not survive to be taken for a cached
+# one: the [ -f ] in get() would skip re-fetching it, and the digest check
+# would then blame the mirror for a truncation curl caused.
+# retries are 2, not 5: with a fallback behind it, spending 110s proving one
+# dead host is dead is 110s not spent on the host that is up.
+pull() { # $1 url  $2 tarball
+  curl -fL --progress-bar --connect-timeout 20 --speed-limit 1024 --speed-time 30 \
+      --retry 2 --retry-delay 2 --retry-all-errors "$1" -o "src/$2" \
+    || { rm -f "src/$2"; return 1; }
+}
+
 get() {
   local url="$1" tar="$2" dir="$3"
-  # one reset must not end a build that has already fetched gigabytes, and a
-  # half-written tarball must not survive to be taken for a cached one: the
-  # [ -f ] above would skip re-fetching it, and the digest check below would
-  # then blame the mirror for a truncation curl caused. --retry-all-errors
-  # because the transient failures here are resets and TLS handshakes, which
-  # plain --retry does not count; --speed-limit turns a stalled mirror into a
-  # retry instead of a build that hangs until someone notices.
-  [ -f "src/$tar" ] || curl -fL --progress-bar \
-      --connect-timeout 20 --speed-limit 1024 --speed-time 30 \
-      --retry 5 --retry-delay 2 --retry-all-errors "$url" -o "src/$tar" \
-    || { rm -f "src/$tar"; echo "FAIL: could not fetch $tar from $url" >&2; return 1; }
+  # one reset must not end a build that has already fetched gigabytes.
+  #
+  # WHY A FALLBACK IS SAFE HERE. every source is pinned by sha256 in
+  # sources.sha256 and most also carry a committed maintainer signature, both
+  # checked before anything is extracted. the url is therefore not the trust
+  # anchor -- it only decides where the bytes arrive from. a mirror cannot make
+  # a bad tarball acceptable; it can only make a good one reachable when
+  # upstream is down. busybox.net was down for a whole afternoon on 2026-09-07
+  # and took the build with it, five retries against the same dead host.
+  #
+  # the fallback is the wayback machine's raw-bytes view of the SAME url, not a
+  # per-source mirror table, for the reason the ELF magic check below the
+  # commit wall gives: a table is a list of the outages you have already had,
+  # and would not have covered busybox.net the first time. `2999id_` asks for
+  # the snapshot closest to year 2999 -- always the latest -- so it does not
+  # rot the way a pinned year would, and id_ returns the stored bytes rather
+  # than a rewritten page.
+  if [ ! -f "src/$tar" ]; then
+    pull "$url" "$tar" || {
+      printf '  %s: %s unreachable -- trying the wayback machine\n' "$tar" "${url#*//}" >&2
+      pull "https://web.archive.org/web/2999id_/$url" "$tar"
+    } || {
+      # wayback does not hold everything (abduco and LVM2 are not archived), so
+      # say the part that is true of every source: any mirror will do, because
+      # the digest and the signature are what decide. this is the sentence that
+      # turns the next outage into a one-minute fix.
+      echo "FAIL: could not fetch $tar from $url or the wayback machine" >&2
+      printf '      the url is not the trust anchor here. fetch %s from ANY\n' "$tar" >&2
+      printf '      mirror, drop it at src/%s, and rerun -- the pinned\n' "$tar" >&2
+      printf '      digest %s\n' "$(grep " $tar$" sources.sha256 | cut -d' ' -f1)" >&2
+      printf '      and the committed maintainer signature still decide.\n' >&2
+      return 1
+    }
+  fi
   grep -q " $tar$" sources.sha256 || { echo "FAIL: $tar not pinned in sources.sha256" >&2; return 1; }
   ( cd src && grep " $tar$" ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
     echo "FAIL: $tar digest mismatch -- refusing to extract" >&2; return 1; }
