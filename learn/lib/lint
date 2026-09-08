@@ -20,6 +20,14 @@
 #                   derive it from what is on screen. a {a|b|c} branch is
 #                   shown ALONE, so a token only one branch names counts as
 #                   unnamed -- the roll may never show that branch.
+#   unnamed-word    the rule at its last level down, for UNGRADED blocks only.
+#                   an ungraded block is string-matched against its listed
+#                   answers, so every plain word the answer types -- the
+#                   message logger sends, the word an echo branch prints, the
+#                   filesystem type mount is told -- is part of the answer and
+#                   must be on the card. graded blocks are exempt: there the
+#                   output is judged, so any honest route to it passes and
+#                   dictating the words would be reading the answer out.
 #   unnamed-literal same rule one level down, for the constants an answer
 #                   types: a path, a filename, a value like hmac-sha256.
 #                   flags, their attached values, quoted sed/awk programs and
@@ -68,6 +76,7 @@ lint() {
 				w = parts[i]
 				if (w ~ /^-/) continue                  # a flag, and its value
 				if (index(w, "$" "{")) continue         # a shell expansion
+				if (w ~ /^[0-9a-fA-F:]*::[0-9a-fA-F:]*$/) { dst[w] = 1; continue }  # an ipv6 address
 				if (w ~ /[%+]/) continue                # a format string
 				sub(/^[a-z]+:\/\//, "", w)              # scheme: host and path stay
 				sub(/^\.\//, "", w)                     # ./script is script
@@ -80,6 +89,25 @@ lint() {
 				if (w ~ /^[A-Za-z0-9]-[A-Za-z0-9]$/) continue   # a tr range
 				if (w ~ /^\/dev\/(null|zero|urandom|stdin|stdout)$/) continue
 				dst[w] = 1
+			}
+		}
+		# words -- the plain words an answer passes as ARGUMENTS: the
+		# message logger logs, the word an echo prints, the type mount is
+		# given. a command word is not one (naming it would be dictation),
+		# nor is a flag or the value attached to one.
+		function words(s, dst,   n, i, tok, cmd, prev, parts) {
+			n = split(s, parts, /[ \t]+/); cmd = ""; prev = 0
+			for (i = 1; i <= n; i++) {
+				tok = parts[i]
+				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; continue }
+				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in)$/) { cmd = ""; continue }
+				if (cmd == "") { cmd = tok; continue }
+				if (tok ~ /^-/) { prev = 1; continue }   # a flag
+				if (prev)      { prev = 0; continue }    # and its value
+				# a wrapper runs what follows it: that is a command, not an argument
+				if (tok ~ /^(env|timeout|xargs|nohup|setsid|watch|flock|sh|ash|chroot)$/) { cmd = ""; continue }
+				gsub(/^['\''"]|['\''"]$/, "", tok)
+				if (tok ~ /^[a-z][a-z0-9]*$/) dst[tok] = 1
 			}
 		}
 		# named -- is this literal on screen? a trailing glob is not part of
@@ -147,6 +175,20 @@ lint() {
 			# prompt, its setup and its hint never name is not merely vague,
 			# it is unanswerable. a conceptual block is exempt -- there the
 			# words of the answer ARE the knowledge being tested.
+			# a word an ungraded answer types, named nowhere on the card. the
+			# q half honours the branch rule -- a word only one {a|b|c} branch
+			# names is a word the roll may never show.
+			if (!graded && !conceptual && k != "chain") {
+				bad = ""
+				for (t in aword)
+					if (t != refcmd && !index(tolower(ctxq), t) && !inevery(t, tolower(q)))
+						bad = bad (bad ? "," : "") t
+				if (bad != "") {
+					noword++; fx[bf]++
+					if (verbose == "-vv")
+						printf "  %s: word %s\n    %s\n", bf, bad, q > "/dev/stderr"
+				}
+			}
 			if (!conceptual) {
 				bad = ""
 				for (t in alit) if (!named(t, ctxs)) bad = bad (bad ? "," : "") t
@@ -156,13 +198,13 @@ lint() {
 						printf "  %s: %s\n    %s\n", bf, bad, q > "/dev/stderr"
 				}
 			}
-			inblk = 0; delete atok; delete qtok; delete alit
+			inblk = 0; delete atok; delete qtok; delete alit; delete aword
 		}
 		# bf pins the block to the file it came from: at FNR==1 awk has already
 		# advanced FILENAME, so flushing by FILENAME charges each file
 		# closing block to the next file in the glob
 		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; firsta = ""; conceptual = 0; next }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; ctxq = ""; refcmd = ""; firsta = ""; conceptual = 0; next }
 		inblk && /^hint:/ { hashint = 1 }
 		inblk && /^why:/  { haswhy = 1 }
 		inblk && /^(out|state|cmp|status):/ { graded = 1 }
@@ -173,17 +215,21 @@ lint() {
 		inblk && /^a: / { toks($0, atok) }
 		inblk && /^why: conceptual$/ { conceptual = 1 }
 		inblk && /^(q|setup|hint|teach): / { ctxs = ctxs " " substr($0, index($0, ":") + 2) }
-		inblk && /^a: / && firsta == "" { firsta = substr($0, 4); lits(firsta, alit) }
+		# ctxq drops the q: the setup and hint are always on screen, while a
+		# {a|b|c} question shows one branch, judged by inevery instead.
+		inblk && /^(setup|hint|teach): / { ctxq = ctxq " " substr($0, index($0, ":") + 2) }
+		inblk && /^ref: / { refcmd = substr($0, 6); sub(/ .*/, "", refcmd) }
+		inblk && /^a: / && firsta == "" { firsta = substr($0, 4); lits(firsta, alit); words(firsta, aword) }
 		END {
 			flushblk()
 			if (verbose == "-v")
 				for (f in ft) {
 					n = split(f, p, "/")
-					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal\n", \
-						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal  %3d unnamed-word\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0, fx[f] + 0
 				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal\n", \
-				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal, %d with an unnamed word\n", \
+				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0, noword + 0
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }

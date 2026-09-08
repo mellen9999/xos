@@ -24,63 +24,63 @@ ref: xargs
 teach: xargs -0
 hint: NUL is the one byte a filename cannot contain
 ---
-q: {a command only takes one argument at a time -- run it once per input line|feed the command one item per invocation, not all at once|run echo once per file instead of one giant invocation}
+q: {feed ls's names to echo one per run, not all in one go|run echo once per name ls prints, one argument each time|echo the names ls prints one at a time, one run per name}
 a: ls | xargs -n 1 echo
 cmp: ref
 ref: xargs
 teach: xargs -n
 hint: -n caps how many arguments go into each invocation
 ---
-q: {you need each filename in the middle of the command, not tacked on the end|the argument has to land mid-command -- give xargs a placeholder for where|put each item wherever you want in the command, not just trailing}
+q: {echo "found NAME" for each .log name ls prints, NAME mid-command|for every .log name ls prints, echo found NAME, name not trailing|print "found NAME" per .log name from ls, the name in the middle}
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
 ref: xargs
 teach: xargs -I
 hint: -I defines a placeholder that gets replaced with each input item
 ---
-q: %show% each command before running it
+q: {echo the names ls prints, showing each command before it runs|print every echo command before it runs over ls's names|feed ls's names to echo, printing each command line first}
 a: ls | xargs -t echo
 cmp: ref
 ref: xargs
 teach: xargs -t
 hint: -t prints the command line to stderr before running it
 ---
-q: {a pipeline sometimes produces nothing -- don't run the command in that case|when there's no input at all, skip running the command entirely|don't let an empty input still trigger one empty invocation}
+q: {printf '' sends no input -- don't let echo nothing run at all|with printf '' as the input, skip running echo nothing entirely|empty input from printf '' must not still run echo nothing once}
 a: printf '' | xargs -r echo nothing
 why: primitive-cost
 ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
-q: {the input has a STOP marker -- ignore everything from there on|cut off input the moment the word STOP shows up|treat STOP as the end of input, whatever follows it}
+q: {echo printf 'a b STOP c', treating STOP as the end of input|feed printf 'a b STOP c' to echo, input ending at STOP|echo the words printf 'a b STOP c' sends, up to the STOP marker}
 a: printf 'a b STOP c' | xargs -E STOP echo
 cmp: ref
 ref: xargs
 teach: xargs -E
 hint: -E names a string that, once seen, ends input reading right there
 ---
-q: {these are independent and slow -- run 2 at a time instead of one by one|speed things up by running 2 invocations in parallel|don't wait for each one to finish before starting the next -- cap it at 2}
+q: {echo ls's names one per run, 2 runs going at a time|run echo over ls's names one name each, 2 in parallel|echo each name ls prints, one per run, capped at 2 parallel}
 a: ls | xargs -P 2 -n 1 echo
 why: primitive-cost
 ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
 ---
-q: {this could go wrong -- confirm each command before it actually runs|don't trust the list blindly -- approve each invocation first|make xargs pause and ask before every command}
+q: {echo ls's names, but confirm each command before it runs|feed ls's names to echo, approving every command first|make xargs ask before each echo it runs over ls's names}
 a: ls | xargs -p echo
 why: interactive
 ref: xargs
 teach: xargs -p
 hint: -p prompts for confirmation before each invocation, handy for a dry run
 ---
-q: {the list is already saved in @txt@ -- use it, no piping needed|@txt@ already holds the arguments -- feed it straight in|read the argument list out of @txt@ instead of piping it in}
+q: {@txt@ already holds the argument list -- echo it, no pipe|echo the arguments in @txt@, read straight out of the file|feed @txt@'s lines to echo without piping them in}
 a: xargs -a @txt@ echo
 out: rotate
 ref: xargs
 teach: xargs -a
 hint: -a reads the argument list from a file instead of stdin
 ---
-q: {some tool chokes on long command lines -- cap each one at 100 bytes|keep every generated command line under 100 bytes, splitting as needed|limit each invocation's command line to 100 bytes}
+q: {echo ls's names, capping each command line at 100 bytes|feed ls's names to echo, no command line over 100 bytes|run echo over ls's names, 100 bytes per command line max}
 a: ls | xargs -s 100 echo
 cmp: ref
 ref: xargs

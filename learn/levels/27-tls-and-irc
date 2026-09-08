@@ -51,7 +51,8 @@ ref: ii
 teach: ii -f
 hint: -f sets the real name shown alongside the nick
 ---
-q: {start a second ii session on @host@, its files in /tmp/irc|run ii on @host@ keeping its files in /tmp/irc, not the default|point ii at @host@ with /tmp/irc as its directory}
+setup: Your nick is xos.
+q: {start a second ii session on @host@ as xos, its files in /tmp/irc|run ii on @host@ as nick xos, files in /tmp/irc, not the default|point ii at @host@ as xos with /tmp/irc as its directory}
 a: ii -s @host@ -n xos -i /tmp/irc
 why: live-net
 ref: ii
@@ -83,7 +84,7 @@ teach: ii
 hint: whatever you echo into a channel's in fifo, ii sends as a message
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: %find% every mention of your nick across every channel
+q: %find% every mention of your nick xos across every channel
 a: grep -r xos $HOME/irc
 why: live-net
 ref: grep
@@ -128,14 +129,14 @@ a: ip addr add 10.9.0.2/24 dev wg0
 why: live-net
 ref: ip
 teach: ip
-hint: same ip addr add you already know, now on a wireguard interface
+hint: the ip addr add ADDR/PREFIX dev IFACE you know, now on a wireguard iface
 ---
 q: {bring wg0 up|bring the wg0 interface up|set wg0 up}
 a: ip link set wg0 up
 why: live-net
 ref: ip
 teach: ip
-hint: same ip link set ... up you already know
+hint: the ip link set IFACE up you already know, on a wireguard interface
 ---
 q: {set wg0's private key from private.key|load wg0's private key from private.key|configure wg0 to use the key in private.key}
 a: wg set wg0 private-key private.key

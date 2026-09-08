@@ -129,7 +129,7 @@ teach: cat
 hint: the active mode is the one in [brackets]
 ---
 setup: No module loader means nothing can be added to the kernel after boot.
-q: {confirm /proc/modules does not exist on this kernel|prove there is no /proc/modules, so no module loader|check whether /proc/modules exists at all}
+q: {test /proc/modules, printing present if it is there, none if not|check for /proc/modules, printing present or none|does /proc/modules exist -- print present or none}
 a: [ -e /proc/modules ] && echo present || echo none
 why: live-hw
 ref: [

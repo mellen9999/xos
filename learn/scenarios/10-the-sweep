@@ -38,7 +38,7 @@ hint: drop -l: not what is waiting, but what is already talking
 setup: The shortest reverse shells skip the tools entirely and let the SHELL open
 setup: the socket, through bash's /dev/tcp. xos ships no bash. /bin/sh is ash and
 setup: has no network of its own, so that one-liner has nothing to write to.
-q: confirm this shell has no /dev/tcp back door
+q: test for a /dev/tcp back door, printing present or absent
 a: test -e /dev/tcp && echo present || echo absent
 out: absent
 ref: test
@@ -145,7 +145,7 @@ hint: field 4 is the mount options; ro is the one that matters
 setup: A kernel-level implant is the way past a read-only root -- load a module, or
 setup: write kernel memory through /dev/mem. xos compiles both out: no module
 setup: loader, no /dev/mem. Show that /proc/modules, the loader interface, is not there.
-q: report whether the module loader is present or absent
+q: test /proc/modules, printing present or absent
 a: test -e /proc/modules && echo present || echo absent
 ref: test
 cmp: ref

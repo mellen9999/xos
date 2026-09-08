@@ -13,7 +13,7 @@ brief: Where cut takes columns, awk takes columns AND does arithmetic, keeps
 brief: counters, and holds a map. That is why it outlives cut in your fingers.
 ---
 setup: @log@ lines run "date time SEV message"
-q: %show% just the severity of each
+q: %show% just the severity field of each @log@ line
 a: awk '{print $3}' @log@
 out: ^INFO$
 ref: awk
@@ -64,7 +64,7 @@ teach: awk
 hint: the pattern filters which lines run the action
 ---
 setup: @csv@ is name,id,status,count
-q: %show% just the name column
+q: %show% just the name column of @csv@
 a: awk -F, '{print $1}' @csv@
 out: ^gateway$
 ref: awk

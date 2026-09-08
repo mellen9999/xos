@@ -132,7 +132,7 @@ ref: ls
 teach: ls -F
 hint: appends a symbol showing each entry's type
 ---
-q: %list% the directory showing inode numbers, to catch hard links
+q: %list% this directory showing inode numbers, to catch hard links
 a: ls -i
 out: ^ *[0-9]+ [^ ]
 ref: ls
@@ -140,7 +140,7 @@ teach: ls -i
 hint: the number a file is known by at the filesystem level, not its name
 ---
 setup: these files came off another machine
-q: %list% in long format with numeric ids, not names
+q: %list% this directory in long format with numeric ids, not names
 a: ls -ln
 out: ^total
 ref: ls
@@ -175,7 +175,7 @@ ref: ls
 teach: ls -S
 hint: sorts by size instead of name
 ---
-q: %list% showing disk space each file here uses, in blocks
+q: %list% this directory with the disk blocks each file uses
 a: ls -s
 cmp: ref
 ref: ls

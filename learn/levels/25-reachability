@@ -64,7 +64,7 @@ ref: ping
 teach: ping -t
 hint: -t sets the ip ttl, capping how many hops a packet can cross
 ---
-q: {the link may corrupt bits -- ping @ip@ with a set pattern|ping @ip@ with a specific byte pattern filling the payload|fill the ping payload to @ip@ with a chosen pattern}
+q: {the link may corrupt bits -- ping @ip@ with the pattern ff|ping @ip@ with ff as the byte pattern filling the payload|fill the ping payload to @ip@ with the pattern ff}
 a: ping -p ff -c 3 @ip@
 why: live-net
 ref: ping
@@ -295,28 +295,28 @@ ref: netstat
 teach: netstat -W
 hint: -W widens columns so long addresses print in full
 ---
-q: {ping an ipv6 host three times|send three pings to an ipv6 host|ping an ipv6 host, stopping after three}
+q: {ping the ipv6 loopback ::1 three times|send three pings to the ipv6 loopback ::1|ping ::1, the ipv6 loopback, stopping after three}
 a: ping6 -c 3 ::1
 why: live-net
 ref: ping6
 teach: ping6
 hint: the whole world is moving to ipv6; the tools have a 6 on the end
 ---
-q: {trace the ipv6 path to a host|trace the path to an ipv6 host|show the ipv6 path a trace takes to a host}
+q: {trace the ipv6 path to ::1|trace the path to the ipv6 loopback ::1|show the ipv6 path a trace to ::1 takes}
 a: traceroute6 ::1
 why: live-net
 ref: traceroute6
 teach: traceroute6
 hint: traceroute6 is traceroute's ipv6-only counterpart
 ---
-q: {trace the ipv6 path without resolving names|trace the ipv6 path fast, skipping name resolution|trace to an ipv6 host without resolving hostnames}
+q: {trace the ipv6 path to ::1 without resolving names|trace to ::1 over ipv6, skipping name resolution|trace the ipv6 path to ::1 with no hostname lookups}
 a: traceroute6 -n ::1
 why: live-net
 ref: traceroute6
 teach: traceroute6 -n
 hint: -n skips name resolution here too
 ---
-q: {trace an ipv6 path no further than 10 hops|cap an ipv6 trace at 10 hops|trace the ipv6 path but stop after 10 hops}
+q: {trace the ipv6 path to ::1 no further than 10 hops|cap the ipv6 trace to ::1 at 10 hops|trace over ipv6 to ::1, stopping after 10 hops}
 a: traceroute6 -m 10 ::1
 why: live-net
 ref: traceroute6

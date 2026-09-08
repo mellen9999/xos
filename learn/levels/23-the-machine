@@ -365,21 +365,21 @@ ref: cat
 teach: cat
 hint: a changed bios_version since your last visit is worth noticing
 ---
-q: {write a line into the system log|log a line to the system log|send a line into the system log}
+q: {write the line hello from xos into the system log|log the line hello from xos to the system log|send hello from xos into the system log}
 a: logger hello from xos
 why: live-hw
 ref: logger
 teach: logger
 hint: logger writes its arguments as one line to the system log
 ---
-q: {log a line tagged with a name of your choosing|log a line under a tag you choose|send a log line tagged with your own name}
+q: {log the line investigating under the tag xos|log investigating, tagged xos|send the log line investigating with xos as its tag}
 a: logger -t xos investigating
 why: live-hw
 ref: logger
 teach: logger -t
 hint: -t sets the tag that shows up in the log for this line
 ---
-q: {log a line and also print it to your own terminal|log a line while also echoing it to your terminal|send a line to the log and print it locally too}
+q: {log the line checking and print it to your terminal too|log checking, echoing it to your terminal as well|send checking to the log and to your own terminal}
 a: logger -s checking
 why: live-hw
 ref: logger

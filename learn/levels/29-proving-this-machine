@@ -83,21 +83,21 @@ ref: cat
 teach: cat
 hint: lockdown has stages; cat just reads the current one
 ---
-q: {prove there is no module loader to insert code into this kernel|show that this kernel has no module loader to insert code through|confirm no module loader exists on this kernel}
+q: {is there a module loader to load code into this kernel -- present or absent|test /proc/modules, printing present or absent|check for a module loader, printing present or absent}
 a: [ -e /proc/modules ] && echo present || echo absent
 why: live-hw
 ref: [
 teach: [ -e
 hint: -e tests for existence; no /proc/modules means no module loader at all
 ---
-q: {prove /dev/mem is not there to read or write physical memory through|show that /dev/mem does not exist on this system|confirm there is no /dev/mem to read or write physical memory through}
+q: {test /dev/mem, the door to physical memory, printing present or absent|is /dev/mem there to read physical memory -- print present or absent|check for /dev/mem, printing present or absent}
 a: [ -e /dev/mem ] && echo present || echo absent
 why: live-hw
 ref: [
 teach: [ -e
 hint: -e tests for existence, same idea as the modules check above
 ---
-q: {prove the root filesystem refuses to be remounted writable|show that attempting to remount / read-write is refused|confirm / cannot be remounted writable}
+q: {remount / read-write, printing WRITABLE if it takes, refused if not|try remounting / rw, printing WRITABLE or refused|attempt / read-write, printing WRITABLE on success, refused on failure}
 a: mount -o remount,rw / 2>/dev/null && echo WRITABLE || echo refused
 why: live-hw
 ref: mount
@@ -105,7 +105,7 @@ teach: mount -o
 hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
 ---
 setup: Copy /bin/busybox to $HOME/x, make it executable, and try to run it.
-q: {prove nothing dropped in your home directory can be executed|show that a binary copied into your home directory cannot run|confirm code placed in $HOME cannot be executed}
+q: {copy busybox to $HOME/x, chmod +x, run it true -- print ran or refused|copy busybox into $HOME, chmod +x, run it true -- print ran or refused|drop busybox at $HOME/x, make it +x, run true, print ran or refused}
 a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
 why: live-hw
 ref: chmod

@@ -146,7 +146,7 @@ ref: mount
 teach: mount -r
 hint: on a machine you do not trust, read-only is the default you want
 ---
-q: {auto-detect got it wrong -- mount /dev/sdb1 at /mnt, name the type|mount /dev/sdb1 at /mnt, telling mount the type instead of guessing|explicitly name the filesystem type while mounting /dev/sdb1}
+q: {auto-detect got it wrong -- mount /dev/sdb1 at /mnt as ext4|mount /dev/sdb1 at /mnt, naming ext4 instead of guessing|name ext4 as the type while mounting /dev/sdb1 at /mnt}
 a: mount -t ext4 /dev/sdb1 /mnt
 why: root
 ref: mount
@@ -318,7 +318,7 @@ a: cryptsetup open --readonly /dev/sda3 state
 why: root
 ref: cryptsetup
 teach: cryptsetup --readonly
-hint: --readonly maps the device without allowing writes through it
+hint: cryptsetup open --readonly maps the device, no writes through it
 ---
 q: {lock /dev/sda3 again by removing the state mapping|close the state mapping and re-lock the device|tear down /dev/mapper/state and lock /dev/sda3 again}
 a: cryptsetup close state

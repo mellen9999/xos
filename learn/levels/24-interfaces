@@ -48,7 +48,7 @@ a: ip link set @iface@ down
 why: live-hw
 ref: ip
 teach: ip
-hint: down is the mirror of up
+hint: ip link set IFACE down is the mirror of ip link set IFACE up
 ---
 q: {no dhcp -- give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a /24 netmask|add the address @ip@/24 to @iface@}
 a: ip addr add @ip@/24 dev @iface@
@@ -62,7 +62,7 @@ a: ip addr del @ip@/24 dev @iface@
 why: live-hw
 ref: ip
 teach: ip
-hint: addr del is the mirror of addr add
+hint: ip addr del ADDR/PREFIX dev IFACE mirrors addr add
 ---
 q: %show% the routing table
 a: ip route
