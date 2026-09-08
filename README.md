@@ -476,20 +476,32 @@ SOURCES.md.
 
 ## the field kit
 
-the signed root is the fort; the 16GB stick's free space is the encrypted state
-partition (p3), which already fills the device. what you carry there -- an
-operator key, wireguard home, offline docs, static tools -- turns xos into a
-swiss-army knife without widening the signed surface: capability comes from what
-you carry and what you plug in, never from the fort.
+the signed root is the fort (~8MiB). the rest of the stick is the encrypted
+state partition (p3), which already fills the device -- on a 16GB stick, ~15.9GB:
+
+    p1 ESP 64 MiB   signed UKI + enrollment keys
+    p2     ~8 MiB   verity root: the fort
+    p3     ~15.9GB  LUKS2 + hmac-sha256 -- everything you carry
+
+what you carry there -- an operator key, wireguard home, offline docs, wordlists,
+static tools, loot -- turns xos into a field kit without widening the signed
+surface: capability comes from what you carry and what you plug in, never from
+the fort. the gigabytes are wordlists + offline intel + loot capacity, not tool
+binaries (a curated static arsenal is under 1GB). this is not a 600-package
+distro with a desktop; it is a lean, provable CLI kit -- see `field/` for the
+full 16GB layout, the tool matrix vs kali, and the field playbook.
 
 the host's internal disks stay invisible (no nvme/sata driver, on purpose), so
 booting on a compromised machine cannot touch you and you cannot touch it. reach
 any drive over usb instead -- a passive keychain usb<->sata/nvme adapter makes a
-dead laptop's disk `/dev/sda`, imaged block-level or mounted read-only.
+dead laptop's disk `/dev/sda`, imaged block-level or mounted read-only. (no wifi
+drivers either: wired/usb-ethernet/tether + wireguard only, wireless is out.)
 
 carried binaries can't run from noexec p3 directly; `field/xexec` opens a
 single-use exec surface (write-once, then read-only, torn down on exit) to run
-one tool at a time. layout, playbook and the tool are in `field/`.
+one tool at a time. the hardware write switch is a per-boot mode: ON = vault
+(unalterable, run in RAM, zero trace); OFF = work (persist loot). layout,
+playbook, kali matrix and the tool are in `field/`.
 
 ## not this
 
