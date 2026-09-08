@@ -154,18 +154,18 @@ plate do not rot, need no firmware, and outlive any single stick.
 
 ## building the arsenal
 
-Two build scripts, both writing static amd64 binaries into `./arsenal/`; the
-nine currently built are pinned in `field/arsenal.lock` (source@version, size,
-sha256 -- the arsenal's own attestation):
+Three build scripts, each writing into `./arsenal/`; every artifact is pinned in
+`field/arsenal.lock` (source@version, size, sha256 -- the arsenal's own
+attestation), so a rebuild reproduces the same set:
 
     ./field/build-arsenal.sh    # Go set: ffuf httpx nuclei subfinder dnsx
                                 #   gobuster chisel   (needs go; CGO-free static)
     ./field/build-arsenal-c.sh  # musl-C: masscan tcpdump   (needs docker+alpine)
+    ./field/build-python.sh     # carried python 3.12 + sqlmap (below)
 
 built and verified static + running: **ffuf httpx nuclei subfinder dnsx gobuster
-chisel masscan tcpdump** (~290MB, they live in `~/.local/share/xos-arsenal/`).
-
-    ./field/build-python.sh     # carried python 3.12 (musl) + sqlmap source
+chisel masscan tcpdump** -- nine standalone static binaries (~300MB), plus the
+carried python tree, all in `~/.local/share/xos-arsenal/`.
 
 carried python: building cpython static from scratch is impractical, so we
 carry python-build-standalone (cpython built reproducibly from source by
