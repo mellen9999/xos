@@ -47,3 +47,17 @@ echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 echo "note: refresh field/arsenal.lock after (sha256 + sizes)."
+
+# ── nmap phase-2b: resume here ────────────────────────────────────────────────
+# the recipe below gets 7.95 through configure and every object; it FAILS only at
+# the final static link (see the note up top). uncomment inside the docker block
+# and finish the per-lib flag pass. deps to apk add: openssl-dev
+# openssl-libs-static zlib-static zlib-dev libpcap-dev linux-headers.
+#
+#   wget -qO- https://nmap.org/dist/nmap-7.95.tar.bz2 | tar xj && cd nmap-7.95
+#   F="-O2 -fno-pie -fno-PIC"
+#   ./configure --without-zenmap --without-ndiff --without-nping --without-libssh2 \
+#     --with-libz=/usr --with-openssl=/usr --with-libpcap=/usr \
+#     CC=gcc CXX=g++ CFLAGS="$F" CXXFLAGS="$F" LDFLAGS="-static -no-pie"
+#   make -j"$(nproc)"        # <-- last object still won't link static; make serial
+#   file nmap | grep -q "statically linked" && cp nmap /out/nmap
