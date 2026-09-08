@@ -78,11 +78,11 @@ the *field* capability. Four ways a tool gets here, easiest first:
                                               tftp telnet ip arp ping traceroute
                                               dbclient wg tlstunnel cryptsetup
                                               dd losetup blkid strings tar sha*
-    port/host scan      nmap, masscan        nmap, masscan        (musl C)
-    packet capture      tcpdump, tshark      tcpdump (musl C); tshark out (glib)
-    web fuzz/recon      ffuf, gobuster       ffuf gobuster nuclei httpx  (Go)
+    port/host scan      nmap, masscan        masscan BUILT; nmap deferred (musl C++)
+    packet capture      tcpdump, tshark      tcpdump BUILT; tshark out (glib)
+    web fuzz/recon      ffuf, gobuster       ffuf gobuster nuclei httpx  BUILT
     recon suite         amass, subfinder     subfinder dnsx naabu        (Go)
-    pivot / tunnel      chisel, socat        chisel ligolo-ng (Go); socat (musl)
+    pivot / tunnel      chisel, socat        chisel BUILT; ligolo/socat next
     brute / crack       hydra, john          hydra, john (musl); hashcat OUT (GPU)
     reversing           radare2, gdb         radare2 / rizin (musl); gdb hard
     exploit framework   metasploit           OUT (ruby+db) -- use sliver + carried python
@@ -144,16 +144,34 @@ plate do not rot, need no firmware, and outlive any single stick.
 
 ## building the arsenal
 
-`field/build-arsenal.sh` builds the static Go set (ffuf, httpx, nuclei,
-subfinder, dnsx, gobuster, chisel) into a staging dir and writes `arsenal.lock`
-(tool, version, size, sha256 -- the arsenal's own attestation). needs `go`
-(`paru -S go`); run once, copy the staging dir to the stick's `~/tools/`.
+Two build scripts, both writing static amd64 binaries into `./arsenal/`; the
+nine currently built are pinned in `field/arsenal.lock` (source@version, size,
+sha256 -- the arsenal's own attestation):
 
-    ./field/build-arsenal.sh            # -> ./arsenal/ + field/arsenal.lock
-    cp arsenal/* /mnt/p3/tools/         # onto the stick
+    ./field/build-arsenal.sh    # Go set: ffuf httpx nuclei subfinder dnsx
+                                #   gobuster chisel   (needs go; CGO-free static)
+    ./field/build-arsenal-c.sh  # musl-C: masscan tcpdump   (needs docker+alpine)
 
-musl-static C (nmap, tcpdump, masscan, john, radare2): build against
-`musl-static-pie.specs`, the fort's own toolchain -- per-tool effort, phase 2b.
-carried static python (sqlmap, impacket, pwntools): phase 3. keep it lean --
-every binary is weight; busybox + the fort cover most of a session, and 16GB is
-better spent on wordlists, intel, and loot.
+built and verified static + running: **ffuf httpx nuclei subfinder dnsx gobuster
+chisel masscan tcpdump** (~290MB, they live in `~/.local/share/xos-arsenal/`).
+
+deferred, honestly: **nmap** -- 7.95 is C++ and its static-musl link fights
+Alpine's PIE-default toolchain (needs a per-object flag pass; phase-2b). masscan
+covers fast scanning until then. next static C: socat, ligolo-ng, john, radare2.
+carried static python (sqlmap, impacket, pwntools) is phase 3.
+
+## provisioning a stick
+
+when the BLU arrives, three steps put the whole kit on it:
+
+    sudo ./build.sh usb /dev/sdX          # flash the signed stick
+    sudo ./build.sh addstate /dev/sdX     # add encrypted p3 (sets passphrase)
+    sudo ./field/provision.sh /dev/sdX3   # open p3, lay down tools/ + arsenal
+
+`provision.sh` opens p3, mounts it, installs `xexec` + everything in
+`~/.local/share/xos-arsenal/` into `~/tools/`, and creates `wordlists/ docs/
+loot/`. point `XOS_WORDLISTS=` / `XOS_DOCS=` at staging dirs to fill those too.
+idempotent -- re-run to update the arsenal on an existing stick.
+
+keep it lean -- every binary is weight; busybox + the fort cover most of a
+session, and 16GB is better spent on wordlists, intel, and loot.

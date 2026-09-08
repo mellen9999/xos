@@ -1,9 +1,11 @@
-# arsenal.lock -- built 2026-09-08T19:42Z
-# tool  module@version  bytes  sha256
-ffuf         github.com/ffuf/ffuf/v2@v2.2.1  10485920  2db73defe0e7b85b6b847f55d815ded7c298ff91e43ccd7047daf0dc01cbedd2
-httpx        github.com/projectdiscovery/httpx/cmd/httpx@v1.12.0  54247584  4a5e90a1f4b55cc8477d0d8e3ac33500429fe0bd70e9c014370167cb2e88c943
-nuclei       github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.11.1  134766752  fe970428c1afcc19fe1a3089f3043424ae7b95d3e68f896e7e9619dafd254319
-subfinder    github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.16.0  29773984  0735a2028dd449d1dcab74691c5a7354bd9cd3a20f4d0ff117f0be3aa6df8d16
-dnsx         github.com/projectdiscovery/dnsx/cmd/dnsx@v1.3.1  29139104  904108099f064a6332cf46f335d58312b76b6294450dbfeabfe9e43ffb22a2fb
-gobuster     github.com/OJ/gobuster/v3@v3.8.2  10465440  7a9dd33f3074c7ec501ed1ad8cb9ec0fe52bedfa0c8ae519fff667db259e2b44
-chisel       github.com/jpillora/chisel@v1.12.1  11591840  1a768e64bf1e25b80564420ab30d0e7cd8c013ee3a6cca55b3b916f766f3f256
+# arsenal.lock -- 2026-09-08T19:56Z
+# tool  source  bytes  sha256
+ffuf        github.com/ffuf/ffuf/v2@v2.2.1  10485920  2db73defe0e7b85b6b847f55d815ded7c298ff91e43ccd7047daf0dc01cbedd2
+httpx       github.com/projectdiscovery/httpx/cmd/httpx@v1.12.0  54247584  4a5e90a1f4b55cc8477d0d8e3ac33500429fe0bd70e9c014370167cb2e88c943
+nuclei      github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.11.1  134766752  fe970428c1afcc19fe1a3089f3043424ae7b95d3e68f896e7e9619dafd254319
+subfinder   github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.16.0  29773984  0735a2028dd449d1dcab74691c5a7354bd9cd3a20f4d0ff117f0be3aa6df8d16
+dnsx        github.com/projectdiscovery/dnsx/cmd/dnsx@v1.3.1  29139104  904108099f064a6332cf46f335d58312b76b6294450dbfeabfe9e43ffb22a2fb
+gobuster    github.com/OJ/gobuster/v3@v3.8.2  10465440  7a9dd33f3074c7ec501ed1ad8cb9ec0fe52bedfa0c8ae519fff667db259e2b44
+chisel      github.com/jpillora/chisel@v1.12.1  11591840  1a768e64bf1e25b80564420ab30d0e7cd8c013ee3a6cca55b3b916f766f3f256
+masscan     masscan@1.3.2(musl-static)  1066376  34f33cfa26e88b6f2c57ad5284c8cd53401fd32815f7767c6dd1bfc7f7c1a807
+tcpdump     tcpdump@4.99.5(musl-static)  18750952  0336f24c5c968b468b89637ae7894119d85c62c0a121fdb9e0233f72ec30ccff
