@@ -57,11 +57,16 @@ The BLU stick's hardware write switch is a per-boot mode:
                         (xexec's surface is tmpfs), zero trace; NO persistence
     switch OFF  work    unlock p3 read-write; save loot, update recon, persist
 
-xexec already works switch-ON (tmpfs is RAM). Full vault mode still needs init
-to open p3 read-only on write-protected media and skip its writes (ledger, ssh
-host key, recon) -- that is a phase-2 init change. With the switch ON, loot goes
-to RAM or an attached USB drive, not the stick. (learn 09 teaches the switch as
-what closes the unsigned-metadata gap.)
+init implements this. On a write-protected stick the block device reports
+read-only (`/sys/class/block/*/ro`); `state_open` sees it, opens LUKS with
+`--readonly` (dm-integrity refuses a writable map on ro media otherwise), mounts
+p3 read-only on a sidecar, and keeps `$HOME` on the RAM tmpfs -- staging p3's
+small mutable files (wg0.conf, ssh_host_key, ledger, recon) into RAM as real
+copies and symlinking the bulk read-only trees (tools, docs) in place. Every
+runtime write then lands in RAM; the stick is never touched. Switch OFF is the
+unchanged read-write path. With the switch ON, loot goes to RAM or an attached
+USB drive, not the stick. (learn 09 teaches the switch as what closes the
+unsigned-metadata gap.)
 
 ## do we have "full kali"? -- honest matrix
 
@@ -169,9 +174,12 @@ xos's host-provided musl). it has dynamic `.so` extensions, so on the stick it
 runs through xexec's tree mode (above). that unlocks the whole python ecosystem
 -- sqlmap is staged; impacket/pwntools drop in the same way.
 
-deferred, honestly: **nmap** -- 7.95 is C++ and its static-musl link fights
-Alpine's PIE-default toolchain (needs a per-object flag pass; phase-2b). masscan
-covers fast scanning until then. next static C: socat, ligolo-ng, john, radare2.
+deferred, honestly: **nmap** -- 7.95 static-musl on Alpine. Compiling every
+object `-fno-pie -fno-PIC` and pointing configure at the system static libz
+(the bundled zlib builds a `.so` that `-static` cannot link) clears the first
+walls, but the parallel link still fails to produce a static binary; pinning the
+last object needs a serial per-lib flag pass -- phase-2b. masscan covers fast
+scanning until then. next static C: socat, ligolo-ng, john, radare2.
 
 ## provisioning a stick
 

@@ -10,12 +10,17 @@
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
 # regen, or by hand). builds masscan + tcpdump, both verified static.
 #
-# nmap is NOT built here: nmap 7.95 is C++ and its static-musl link fails on
-# Alpine's PIE-default toolchain (R_X86_64_32 against __TMC_END__ with plain
-# -static; crt1/rcrt1 "undefined reference to main" once PIE is forced off or
-# to static-pie, because the flag leaks into a bundled-lib link). it needs a
-# dedicated per-object flag pass -- phase-2b. masscan covers fast scanning until
-# then.
+# nmap is NOT built here: nmap 7.95 is C++ and its static-musl link fights
+# Alpine's PIE-default toolchain. progress made (phase-2b picks up here):
+#   - compile every object -fno-pie -fno-PIC (kills the initial R_X86_64_32 /
+#     __TMC_END__ against a PIE-compiled object)
+#   - point configure at the SYSTEM static libz (--with-libz=/usr): the bundled
+#     zlib insists on building libz.so, which -static cannot link ("undefined
+#     reference to main" from crt1 linking a .so)
+#   - keep bundled pcre2 (builds a .a, fine); 7.95 needs pcre2 not legacy pcre
+# with those, configure + most objects build, but the final parallel link still
+# does not emit a static binary -- the remaining fix is a serial per-lib flag
+# pass to pin the last offending object. masscan covers fast scanning until then.
 set -eu
 OUT="${1:-arsenal}"; mkdir -p "$OUT"
 command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
