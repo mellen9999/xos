@@ -22,12 +22,36 @@
 # does not emit a static binary -- the remaining fix is a serial per-lib flag
 # pass to pin the last offending object. masscan covers fast scanning until then.
 set -eu
-OUT="${1:-arsenal}"; mkdir -p "$OUT"
+OUT="${1:-arsenal}"; mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)  # absolute: -v below must not double-prefix $PWD
 command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
 
-docker run --rm --network host -v "$PWD/$OUT":/out alpine:3.20 sh -e <<'INNER'
-apk add --no-cache build-base git wget tar libpcap-dev >/dev/null 2>&1
+docker run --rm -i --network host -v "$OUT":/out alpine:3.20 sh -e <<'INNER'
+apk add --no-cache build-base git wget tar libpcap-dev \
+  zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
+
+# links 2.30 -- the reader. text-mode (no X/fb): a zim is served by kiwix-serve
+# on localhost and reads perfectly as text, so the graphics libs (and their
+# static-link fight) are not paid for. https works: openssl-libs-static is
+# linked, so it also fetches over TLS when a network is up.
+# WHY THIS IS AN ARSENAL TOOL, NOT A ROOTFS COMPONENT: a browser is capability,
+# and xos's rule is that capability rides p3 (carried), never the signed image.
+# putting links in build.sh would widen the verity-checked trust surface for no
+# reason -- the fort must stay a fort. see field/README.md.
+( set -e; log links
+  mkdir -p /s && wget -qO- http://links.twibright.com/download/links-2.30.tar.bz2 | tar xj -C /s
+  cd /s/links-2.30
+  # graphics off keeps the dep set to zlib+ssl, both of which apk ships as .a;
+  # -static then links clean where a graphics build would drag in libpng/jpeg.
+  # env vars must PREFIX configure -- links' configure reads CFLAGS=... as a
+  # positional host triplet otherwise ("can only configure for one host").
+  CFLAGS="-O2" LDFLAGS="-static" ./configure --with-ssl --without-x --without-fb \
+    --without-directfb --without-svgalib >/s/links.log 2>&1
+  make -j"$(nproc)" >>/s/links.log 2>&1
+  file links | grep -q "statically linked" || { echo "not static"; tail -5 /s/links.log; exit 1; }
+  ./links -version | head -1
+  strip links                       # -s equivalent: smaller binary, same behaviour
+  cp links /out/links ) || log "links FAILED"
 
 # masscan 1.3.2 -- self-contained, static
 ( set -e; log masscan
@@ -43,9 +67,33 @@ log() { echo "[c-build] $*"; }
   file tcpdump | grep -q "statically linked" || { echo "not static"; exit 1; }
   cp tcpdump /out/tcpdump ) || log "tcpdump FAILED"
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump)$' | tr '\n' ' ')"
+# mupdf/mutool 1.24.10 -- the PDF reader for xos. `mutool draw -F txt` turns any
+# pdf (the survival floor: where-there-is-no-doctor, FM 21-76, every datasheet on
+# the knowledge stick) into text for busybox `less`, or `-F html` for links. it
+# bundles its own freetype/mujs/jbig2dec/openjpeg, so -static links clean with no
+# system libs. big (~40MB) because it carries a full pdf+font+js stack -- the only
+# thing that reads a pdf on a browserless box, and the stick has room.
+( set -e; log mutool
+  wget -qO m.tgz https://github.com/ArtifexSoftware/mupdf-downloads/releases/download/1.24.10/mupdf-1.24.10-source.tar.gz     || wget -qO m.tgz "https://web.archive.org/web/2999id_/https://mupdf.com/downloads/archive/mupdf-1.24.10-source.tar.gz"
+  mkdir -p /s && tar xz -C /s -f m.tgz
+  cd /s/mupdf-1.24.10-source
+  # no explicit target: the default build emits build/release/mutool linked
+  # against the bundled thirdparty libs. HAVE_X11/GLUT=no drops the GUI viewer.
+  make -j"$(nproc)" HAVE_X11=no HAVE_GLUT=no USE_SYSTEM_LIBS=no     XCFLAGS="-O2" LDFLAGS="-static" build=release >/s/mutool.log 2>&1
+  file build/release/mutool | grep -q "statically linked" || { echo "not static"; tail -5 /s/mutool.log; exit 1; }
+  build/release/mutool draw -F txt -o /dev/null docsrc/manual/*.pdf 2>/dev/null || true
+  strip build/release/mutool
+  cp build/release/mutool /out/mutool ) || log "mutool FAILED"
+
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|links|mutool)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
+# fail LOUD, not open: a build that produced none of its four binaries used to
+# exit 0 with an empty arsenal (the $PWD/$OUT double-prefix bug did exactly this).
+# a builder that ships nothing must fail, not shrink -- the same rule as rootfs().
+built=0
+for b in masscan tcpdump links mutool; do [ -f "$OUT/$b" ] && built=$((built+1)); done
+[ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
 echo "note: refresh field/arsenal.lock after (sha256 + sizes)."
 
 # ── nmap phase-2b: resume here ────────────────────────────────────────────────

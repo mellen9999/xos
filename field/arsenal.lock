@@ -9,5 +9,9 @@ gobuster    github.com/OJ/gobuster/v3@v3.8.2  10465440  7a9dd33f3074c7ec501ed1ad
 chisel      github.com/jpillora/chisel@v1.12.1  11591840  1a768e64bf1e25b80564420ab30d0e7cd8c013ee3a6cca55b3b916f766f3f256
 masscan     masscan@1.3.2(musl-static)  1066376  34f33cfa26e88b6f2c57ad5284c8cd53401fd32815f7767c6dd1bfc7f7c1a807
 tcpdump     tcpdump@4.99.5(musl-static)  18750952  0336f24c5c968b468b89637ae7894119d85c62c0a121fdb9e0233f72ec30ccff
+links       links@2.30(musl-static)  6066904  6302e0c739f8ff12d5c9a9479267ba5a9503b3e90b31b60909a77ae917af31d5
 python      python-build-standalone-cpython-3.12.14+20260901-x86_64-musl  213544457  12d6539cd518eaf9a2fee52d52e457e48826e6c40d3d6e490459a898d2543fcd
 sqlmap      github.com/sqlmapproject/sqlmap@d486742  23602257  git-checkout
+mutool      mupdf@1.24.10(musl-static)  43993768  b6c06710717f316c468ddabc93adc7344233ecdebb2a7383ee81b15b539c45ab
+kiwix-serve  kiwix-tools@3.8.2(musl-static-pie)  19122440  b52605db03ea0df58528d47ed5db2c29e154ea06f878e5bcb73500c8dedb517c
+kiwix-search kiwix-tools@3.8.2(musl-static-pie)  16323400  3fe5453d80957265903ce9f2b49461466b83f37d7decc06c385198d6d8262114

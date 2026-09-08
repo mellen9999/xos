@@ -160,12 +160,18 @@ attestation), so a rebuild reproduces the same set:
 
     ./field/build-arsenal.sh    # Go set: ffuf httpx nuclei subfinder dnsx
                                 #   gobuster chisel   (needs go; CGO-free static)
-    ./field/build-arsenal-c.sh  # musl-C: masscan tcpdump   (needs docker+alpine)
+    ./field/build-arsenal-c.sh  # musl-C: masscan tcpdump links mutool (docker+alpine)
     ./field/build-python.sh     # carried python 3.12 + sqlmap (below)
+    ./field/build-kiwix.sh      # carried kiwix-serve + kiwix-search (reads zims)
 
 built and verified static + running: **ffuf httpx nuclei subfinder dnsx gobuster
-chisel masscan tcpdump** -- nine standalone static binaries (~300MB), plus the
-carried python tree, all in `~/.local/share/xos-arsenal/`.
+chisel masscan tcpdump** (recon/net), plus the **reader set** that turns the
+carried knowledge into something you can actually consume on a browserless box:
+**links** (html/zim over `kiwix-serve` on localhost), **mutool** (`mutool draw
+-F txt any.pdf | less` -- the survival-PDF floor), and **kiwix-serve /
+kiwix-search** (serve or grep the zim corpus on the second stick). all in
+`~/.local/share/xos-arsenal/`; the reader set is the answer to "I have the data,
+can I read it here" -- see the consumption note below.
 
 carried python: building cpython static from scratch is impractical, so we
 carry python-build-standalone (cpython built reproducibly from source by
