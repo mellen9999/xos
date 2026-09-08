@@ -109,12 +109,38 @@ else is a build-and-carry away, and the strategy scales to near-full CLI parity.
 5. **Phone home.** wireguard `wg0` dials out to the one peer you control; ssh
    over it. xos never listens on the host's network.
 
-## required kit (on the keychain)
+## the keychain (lifetime EDC)
 
-- a passive **USB <-> SATA/NVMe adapter** -- this, not a kernel driver, is how
-  the stick sees internal disks. Keeps the fort untouchable in situ.
-- optionally a **USB-ethernet dongle** -- xos ships cdc-ether/ncm/rndis/ax88179,
-  so wired offense works off a dongle. (No wifi drivers: wireless is out.)
+Design by failure mode. The insight that orders everything: **only two things
+are irreplaceable.** The image, the stick and the tools all rebuild from source
+(that is what reproducible builds buy you). The only things you cannot recreate
+are your **p3 secrets** (passphrase + encrypted data) and your **signing keys**
+(PK/KEK/db -- without them you cannot rebuild a bootable signed stick). So the
+lifetime priority is not gear, it is backing those two up offline and apart. The
+rest is adapters.
+
+    item                              prevents                              tier
+    ------------------------------    ----------------------------------    ---------
+    the xos stick (hw write switch)   -- the tool                           core
+    USB<->SATA/NVMe adapter (passive) can't see host's internal disk        essential
+    USB-A<->USB-C bidir adapter       can't plug into a modern/old host     essential
+    metal backup: p3 pass + wg/ssh    lose the ring -> lose your life+home  LIFETIME
+      keys, stored OFF the keychain
+    2nd cloned stick, stored apart    stick lost / flash rot                resilience
+    USB-ethernet dongle               dead NIC / wired offense (no wifi)    field
+
+- get a stick with a **true hardware** write switch (Kanguru FlashBlu30, Netac
+  U335 -- confirm it is hardware, not a software toggle), or vault mode is
+  fiction.
+- the **metal secret backup** is the one thing that must NOT ride the same
+  keychain as the stick -- one lost ring should not cost both. a fireproof steel
+  plate (cryptosteel-style), ideally a Shamir split across two locations.
+- the **signing keys** live on your build machine, backed up offline at home --
+  never the keychain. they are how you regenerate a lost stick.
+- xos is a payload, not a computer: it still needs any x86-64 UEFI host to run.
+
+Everything here is minimal and timeless on purpose: passive adapters and a metal
+plate do not rot, need no firmware, and outlive any single stick.
 
 ## building the arsenal
 
