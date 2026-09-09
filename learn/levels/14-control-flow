@@ -44,7 +44,7 @@ ref: sh
 teach: sh
 hint: *.log expands to the matching filenames before the loop ever runs
 ---
-q: {loop over every .log file here printing its line count|use for over *.log, printing the line count of each file|iterate over the .log files here, running wc -l on each}
+q: {loop over every .log file here printing its line count alone|use for over *.log, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}
 a: for f in *.log; do wc -l < $f; done
 out: ^[0-9]+$
 cmp: ref
@@ -94,7 +94,7 @@ ref: read
 teach: read -r
 hint: the redirect goes on the done, feeding the whole loop
 ---
-q: {read @csv@ line by line, splitting each into fields on commas|use while read with IFS=, to split each line of @csv@ into fields|iterate over @csv@, splitting each line on commas into fields}
+q: {read @csv@ line by line on commas, printing the first field|split @csv@'s lines on commas with IFS=, printing field one|iterate over @csv@ splitting on commas, printing the first field}
 a: while IFS=, read -r a b c d; do echo "$a"; done < @csv@
 out: ^gateway$
 ref: read

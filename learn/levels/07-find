@@ -51,7 +51,7 @@ ref: find
 teach: find -type
 hint: d for directory, same flag family as -type f
 ---
-q: %find% files under here but do not descend more than one level
+q: %find% entries under here but do not descend more than one level
 a: find . -maxdepth 1
 cmp: ref
 ref: find
@@ -65,7 +65,7 @@ ref: find
 teach: find -mindepth
 hint: -mindepth is the floor, -maxdepth is the ceiling
 ---
-q: %find% files under here larger than 1 kilobyte
+q: %find% regular files under here larger than 1 kilobyte
 a: find . -type f -size +1k
 cmp: ref
 ref: find
@@ -79,28 +79,28 @@ ref: find
 teach: find -empty
 hint: matches files with zero bytes or directories with nothing in them
 ---
-q: %find% files under here modified in the last day
+q: %find% regular files under here modified in the last day
 a: find . -type f -mtime -1
 cmp: ref
 ref: find
 teach: find -mtime
 hint: -1 means "less than one day ago"
 ---
-q: %find% files under here modified in the last 30 minutes
+q: %find% regular files under here modified in the last 30 minutes
 a: find . -type f -mmin -30
 cmp: ref
 ref: find
 teach: find -mmin
 hint: -mmin is -mtime's minutes cousin
 ---
-q: %find% files under here that are executable
+q: %find% regular files under here that are executable
 a: find . -type f -executable
 cmp: ref
 ref: find
 teach: find -executable
 hint: tests the permission bits directly, not the file extension
 ---
-q: %find% files under here with the exact permission mode 755
+q: %find% entries under here with the exact permission mode 755
 a: find . -perm 755
 cmp: ref
 ref: find
@@ -135,14 +135,14 @@ ref: find
 teach: find -o
 hint: -o is OR; without it, predicates are ANDed together
 ---
-q: %find% files under here that are NOT .log files
+q: %find% regular files under here that are NOT .log files
 a: find . -type f ! -name '*.log'
 cmp: ref
 ref: find
 teach: find -name
 hint: ! negates whatever predicate follows it
 ---
-q: %find% files whose path contains the word src
+q: %find% entries whose path contains the word src
 a: find . -path '*src*'
 cmp: ref
 ref: find
@@ -177,7 +177,7 @@ ref: find
 teach: find -exec
 hint: ending with + batches the results; ending with \; forks per file
 ---
-q: %find% files under here without crossing into another filesystem
+q: %find% entries under here without crossing into another filesystem
 a: find . -xdev
 cmp: ref
 ref: find

@@ -158,7 +158,7 @@ ref: tail
 teach: tail -F
 hint: capital F reopens the name; lowercase f holds the old file open forever
 ---
-q: %show% the byte offset of every string found in @bin@
+q: %show% every string in @bin@ with its offset in octal
 a: strings -o @bin@
 cmp: ref
 ref: strings

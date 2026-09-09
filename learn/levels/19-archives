@@ -55,15 +55,15 @@ ref: tar
 teach: tar x
 hint: x extracts; with no -C it lands in the current directory
 ---
-q: %get% @archive@ into @dir@, not scattered here
-a: tar -xzf @archive@ -C @dir@
+q: %get% archive/site-backup.tar.gz into @dir@, not scattered here
+a: tar -xzf archive/site-backup.tar.gz -C @dir@
 why: fixture-cost
 ref: tar
 teach: tar -C
 hint: -C changes into that directory before extracting
 ---
-q: {peek at src/main.c in @archive@ without extracting it all|read src/main.c out of @archive@ to your terminal|check src/main.c before extracting the rest of @archive@}
-a: tar -xzOf @archive@ src/main.c
+q: {peek at src/main.c in archive/site-backup.tar.gz without extracting it all|read src/main.c out of archive/site-backup.tar.gz to your terminal|print src/main.c from archive/site-backup.tar.gz, extracting nothing}
+a: tar -xzOf archive/site-backup.tar.gz src/main.c
 why: fixture-cost
 ref: tar
 teach: tar -O
@@ -76,16 +76,16 @@ ref: tar
 teach: tar --exclude
 hint: --exclude takes a pattern and skips anything that matches it
 ---
-q: %get% @archive@ without its top-level wrapper
-a: tar -xzf @archive@ --strip-components 1
+q: %get% archive/site-backup.tar.gz without its top-level wrapper
+a: tar -xzf archive/site-backup.tar.gz --strip-components 1
 why: fixture-cost
 ref: tar
 teach: tar --strip-components
 hint: --strip-components N removes that many leading path segments
 ---
-setup: your last extraction of @archive@ half-finished and left files behind
-q: %get% @archive@ overwriting anything already in the way
-a: tar -xzf @archive@ --overwrite
+setup: your last extraction half-finished and left files behind
+q: %get% archive/site-backup.tar.gz overwriting anything in the way
+a: tar -xzf archive/site-backup.tar.gz --overwrite
 why: fixture-cost
 ref: tar
 teach: tar --overwrite
@@ -105,15 +105,15 @@ ref: tar
 teach: tar --no-recursion
 hint: --no-recursion archives a directory entry itself without descending into it
 ---
-q: %get% @archive@ without trusting its recorded modes
-a: tar -xzf @archive@ --no-same-permissions
+q: %get% archive/site-backup.tar.gz without trusting its recorded modes
+a: tar -xzf archive/site-backup.tar.gz --no-same-permissions
 why: fixture-cost
 ref: tar
 teach: tar --no-same-permissions
 hint: --no-same-permissions applies your umask instead of the recorded modes
 ---
-q: %get% @archive@ without resolving owners to fake names
-a: tar -xzf @archive@ --numeric-owner
+q: %get% archive/site-backup.tar.gz without resolving owners to fake names
+a: tar -xzf archive/site-backup.tar.gz --numeric-owner
 why: fixture-cost
 ref: tar
 teach: tar --numeric-owner

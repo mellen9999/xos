@@ -273,21 +273,21 @@ ref: sync
 teach: sync -d
 hint: -d limits the flush to the file you name
 ---
-q: {hold an exclusive lock on lock.file so two copies never overlap|hold an exclusive lock on lock.file while a command runs|use lock.file as an exclusive lock around a command}
+q: {hold an exclusive lock on lock.file while echoing held|lock lock.file exclusively, running echo held under it|take lock.file's exclusive lock around echo held}
 a: flock -x lock.file echo held
 out: held
 ref: flock
 teach: flock -x
 hint: -x is flock's default, an exclusive lock -- named here for clarity
 ---
-q: {take the lock but give up immediately if someone else holds it|try the lock and bail out at once if it is already held|attempt lock.file's lock, failing instantly rather than waiting}
+q: {lock lock.file around echo held, giving up at once if it is held|try lock.file's lock for echo held, failing instantly not waiting|take lock.file's lock around echo held, bailing if someone has it}
 a: flock -n lock.file echo held
 out: held
 ref: flock
 teach: flock -n
 hint: -n makes flock fail instead of waiting when the lock is held
 ---
-q: {take a shared lock rather than an exclusive one|take lock.file's lock as shared, not exclusive|hold a shared lock instead of an exclusive one}
+q: {take lock.file's lock as shared, not exclusive, around echo held|hold a shared lock on lock.file while echoing held|lock lock.file shared rather than exclusive, running echo held}
 a: flock -s lock.file echo held
 out: held
 ref: flock
@@ -376,7 +376,7 @@ ref: cryptsetup
 teach: cryptsetup --verbose
 hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
-q: {mount the unlocked state device with nothing on it able to run|mount /dev/mapper/state so nothing on it can execute|attach the decrypted state device with execution disabled}
+q: {mount /dev/mapper/state at /state -- no setuid, no device nodes, no exec|mount the unlocked state device at /state: nosuid, nodev, noexec|attach /dev/mapper/state at /state with nosuid, nodev and noexec}
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
 a: mount -o noexec,nodev,nosuid /dev/mapper/state /state
 why: root

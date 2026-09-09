@@ -87,7 +87,7 @@ a: env @mvar@=@word@ sh -c 'echo $@mvar@'
 out: @word@
 ref: env
 teach: env
-hint: VAR=value cmd sets it for that command alone, not your shell
+hint: env VAR=value cmd sets it for that command alone, not your shell
 ---
 q: {empty the environment first, then print empty to prove it|run with no inherited environment, printing empty to prove it|strip the environment to nothing, then echo empty to prove it}
 a: env -i sh -c 'echo empty'

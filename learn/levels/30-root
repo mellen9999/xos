@@ -61,7 +61,7 @@ hint: cut -d' ' -f1 drops the device name sha256sum prints after the hash
 setup: Compare that against the digest recorded when the image was built --
 setup: which you must have carried here from somewhere else. Reading it off
 setup: this disk would prove nothing at all.
-q: %show% the running digest beside the root hash it's checked against
+q: {print the running digest as mounted, the anchored hash as roothash|label the running digest mounted and the anchored hash roothash|print two labelled lines: mounted, then roothash}
 a: printf 'mounted %s\nroothash %s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
 cmp: ref
 ref: printf
@@ -70,7 +70,7 @@ hint: two command substitutions inside one printf
 ---
 setup: A verified root is worth nothing if code can be added to the kernel
 setup: underneath it. Close that door and check it stayed closed.
-q: {report the module loader, /dev/mem and lockdown state, all in one line|combine the module loader, /dev/mem and lockdown checks into one line|check the module loader, /dev/mem and lockdown state together, one line}
+q: {label three lines -- modules and devmem present or absent, then lockdown|print modules, devmem as present or absent, then lockdown's own value|three labelled lines: modules, devmem present or absent, lockdown}
 a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
 cmp: ref
 ref: printf

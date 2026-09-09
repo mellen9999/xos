@@ -18,7 +18,8 @@ ref: tlstunnel
 teach: tlstunnel
 hint: tlstunnel takes - for stdin/stdout, then the host and port to wrap
 ---
-q: {fetch @host@'s page over https by hand, through a tls tunnel|speak http to @host@ by hand, through a tls tunnel|hand-craft an http request to @host@, tunnel it through tls}
+setup: the request is HEAD / HTTP/1.0, Host: @host@, Connection: close
+q: {send that request to @host@ on 443 through a tls tunnel|pipe that request into a tls tunnel to @host@ on 443|hand that request to @host@ on 443 over tls}
 a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
 why: live-net
 ref: tlstunnel
