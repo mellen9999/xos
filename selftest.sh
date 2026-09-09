@@ -91,7 +91,7 @@ QEMU_FW=(
 # verity root resolved by PARTUUID off the stick's p2.
 boot_img() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-drive file="$1",if=virtio,format=raw,readonly=on \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null 2>&1
@@ -107,7 +107,7 @@ boot_refused() {
 	local log=/tmp/xos-refused.$$.log t=0 qp
 	rm -f "$log"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-drive file="$1",if=virtio,format=raw,readonly=on \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null > "$log" 2>&1 &
@@ -125,7 +125,7 @@ boot_refused() {
 boot_state() {
 	local disk="$1"; shift
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-drive file=stick.img,if=virtio,format=raw,readonly=on \
 		-drive file="$disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot "$@" < /dev/null 2>&1
@@ -144,7 +144,7 @@ boot_backclock() {
 # hardware path, including usb enumeration and the dm-mod.waitfor poll.
 boot_usb() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-device qemu-xhci,id=xhci \
 		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
 		-device usb-storage,bus=xhci.0,drive=stick \
@@ -705,7 +705,7 @@ else
 	mcopy -o -i /tmp/xos-a18.img@@1M /tmp/xos-a18-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	a18log=/tmp/xos-a18.log; a18qmp=/tmp/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-device qemu-xhci,id=xhci \
 		-drive if=none,id=stick,format=raw,readonly=on,file=/tmp/xos-a18.img \
 		-device usb-storage,bus=xhci.0,drive=stick,id=stickdev \
@@ -794,7 +794,7 @@ else
 	cp stick.img /tmp/xos-a19p.img
 	mcopy -o -i /tmp/xos-a19p.img@@1M /tmp/xos-a19p-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	o19p=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-drive file=/tmp/xos-a19p.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a19disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
@@ -810,7 +810,7 @@ else
 	cp stick.img /tmp/xos-a19n.img
 	mcopy -o -i /tmp/xos-a19n.img@@1M /tmp/xos-a19n-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	o19n=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \\
+		"${QEMU_FW[@]}" \
 		-drive file=/tmp/xos-a19n.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a19disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
@@ -843,7 +843,7 @@ else
 		local fifo=/tmp/xos-a19.fifo t=0
 		rm -f "$fifo" "$4"; mkfifo "$fifo"
 		timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-			"${QEMU_FW[@]}" \\
+			"${QEMU_FW[@]}" \
 			-drive file="$1",if=virtio,format=raw,readonly=on \
 			-drive file="$2",if=virtio,format=raw \
 			-nic user,model=virtio-net-pci -nographic -no-reboot < "$fifo" > "$4" 2>&1 &
