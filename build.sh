@@ -89,6 +89,11 @@ VUUID=00000000-0000-4000-8000-00000076726c
 # cmdline (which names the root by PARTUUID, never by /dev/sdX) boots the same
 # image whether it is p2 on a real usb stick or the whole disk under qemu.
 GPT_DISK=56524c00-0000-4000-8000-000000000000
+# the GPT type GUID for a LUKS partition. this used to be written as the gdisk
+# shortcode 8309, which sfdisk does not accept -- it answered "Failed to add #3
+# partition: Invalid argument" and addstate had therefore never once produced a
+# p3 on any stick. sfdisk takes a GUID or its own alias, never gdisk's codes.
+PT_LUKS=CA7D7CCB-63ED-4C53-861C-1742536059CC
 PU_ESP=56524c00-0000-4001-8000-000000000001
 PU_ROOT=56524c00-0000-4002-8000-000000000002
 PU_STATE=56524c00-0000-4003-8000-000000000003
@@ -1135,6 +1140,16 @@ usb() {
   have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$(stat -c%s xos.img)" status=none | sha256sum | awk '{print $1}')
   [ "$want_root" = "$have_root" ] \
     || { echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; }
+  # the image is ~68 MiB; the stick is not. dd copies the GPT verbatim, so the
+  # backup header and the "last usable LBA" still describe the IMAGE, and every
+  # sector past it reads as unpartitionable: sfdisk -F reported 0 B free on a
+  # 16 GB stick and addstate could not place p3 at all. move the backup header
+  # to the real end of the device so the rest of the stick becomes usable.
+  # deliberately AFTER the readback above, which compares against stick.img
+  # byte for byte -- this is the one edit that intentionally diverges from it,
+  # and it touches only GPT metadata, which no signature covers.
+  sfdisk --relocate gpt-bak-std "$dev" >/dev/null 2>&1 \
+    || echo "WARN: could not move the backup GPT to the end of $dev -- addstate may find no free space" >&2
   sync
   printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
@@ -1342,13 +1357,14 @@ TODO: write this entry by hand.
 #   G38 build.sh and selftest.sh parse under bash
 #   G39 both destructive disk paths go through the shared guard
 #   G40 the respawn backoff counts and sleeps as written
+#   G41 a flashed stick yields a p3 that fills the device
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=38   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=39   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1680,6 +1696,34 @@ printf 'fail=%s' \"\$_fail\"" 2>&1)
              "$f40" "$r40" "$out40" "$ws40" "$wf40" >&2; }
   done
   g "G40 respawn backoff counts and sleeps as written" "$g40"
+
+  # G41 -- flashing the stick must leave a device whose free space can actually
+  # become p3. no test could call usb()/addstate() (they demand a real removable
+  # disk), and both of the bugs this catches shipped for exactly that reason:
+  # dd left the backup GPT describing the 68 MiB IMAGE, so sfdisk saw 0 B free
+  # on a 16 GB stick, and the type was written as gdisk's 8309, which sfdisk
+  # rejects outright -- addstate had never once produced a p3. a sparse file is
+  # enough: sfdisk does the same arithmetic on a file as on a block device.
+  local g41=ok f41 free41 p3sz41 p2e41
+  if [ -f stick.img ]; then
+    f41=$(mktemp -u /tmp/xos-g41.XXXXXX.img)
+    truncate -s 16G "$f41" 2>/dev/null && dd if=stick.img of="$f41" bs=1M conv=notrunc status=none 2>/dev/null
+    sfdisk --relocate gpt-bak-std "$f41" >/dev/null 2>&1
+    free41=$(sfdisk -F "$f41" 2>/dev/null | awk '/^ *[0-9]+ /{print $3; exit}')
+    [ "${free41:-0}" -gt 33000000 ] \
+      || { g41=FAIL; printf '    only %s free sectors after relocate -- the backup GPT still describes the image\n' "${free41:-0}" >&2; }
+    p2e41=$(partx -g -o END -n 2:2 "$f41" 2>/dev/null | tr -d ' ')
+    sfdisk --no-reread -a "$f41" >/dev/null 2>&1 <<G41EOF
+start=$(( ${p2e41:-0} + 1 )), type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
+G41EOF
+    p3sz41=$(partx -g -o SECTORS -n 3:3 "$f41" 2>/dev/null | tr -d ' ')
+    [ "${p3sz41:-0}" -gt 33000000 ] \
+      || { g41=FAIL; printf '    p3 is %s sectors on a 16 GB device -- addstate cannot fill the stick\n' "${p3sz41:-0}" >&2; }
+    rm -f "$f41"
+  else
+    g41=FAIL; printf '    no stick.img to flash\n' >&2
+  fi
+  g "G41 a flashed stick yields a p3 that fills the device" "$g41"
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and
@@ -2073,6 +2117,11 @@ addstate() {
     return 1
   fi
 
+  # a stick flashed by an older build still has the image's backup GPT, so the
+  # free space is invisible. usb() does this now; repeat it here so an existing
+  # stick is repaired rather than refused.
+  sfdisk --relocate gpt-bak-std "$dev" >/dev/null 2>&1 || true
+
   # p2 must already be there; p3 goes in the free space after it.
   local p2end
   p2end=$(partx -g -o END -n 2:2 "$dev" 2>/dev/null | tr -d ' ') \
@@ -2082,7 +2131,7 @@ addstate() {
   echo "  target: $dev  model: $(disk_model "$dev")  -- p3 goes in the free space after sector $p2end"
   confirm_model "$dev" || return 1
   sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
-start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
+start=$((p2end + 1)), type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
   partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
   sleep 1
