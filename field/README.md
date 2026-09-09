@@ -160,7 +160,7 @@ attestation), so a rebuild reproduces the same set:
 
     ./field/build-arsenal.sh    # Go set: ffuf httpx nuclei subfinder dnsx
                                 #   gobuster chisel   (needs go; CGO-free static)
-    ./field/build-arsenal-c.sh  # musl-C: masscan tcpdump links mutool (docker+alpine)
+    ./field/build-arsenal-c.sh  # musl-C: masscan tcpdump links mutool frotz (docker+alpine)
     ./field/build-python.sh     # carried python 3.12 + sqlmap (below)
     ./field/build-kiwix.sh      # carried kiwix-serve + kiwix-search (reads zims)
 
@@ -172,6 +172,20 @@ carried knowledge into something you can actually consume on a browserless box:
 kiwix-search** (serve or grep the zim corpus on the second stick). all in
 `~/.local/share/xos-arsenal/`; the reader set is the answer to "I have the data,
 can I read it here" -- see the consumption note below.
+
+**morale is a supply, too:** **frotz** (dumb z-machine interpreter, static) plays
+the interactive-fiction library carried on the knowledge stick (`games/if/` --
+zork, anchorhead, spider-and-web) -- the one game genre a text-only box runs
+natively, no gpu, no emulator. (nethack is the next add; see the deferral in
+`build-arsenal-c.sh`.)
+
+**seeing what you carry:** a capability nobody can find is the same as not having
+it -- the reason links/mutool/kiwix were each a surprise. so the kit ships an
+`arsenal` lister: `sh ~/tools/arsenal` prints every carried tool, one line each,
+with how to run it, and cross-checks `arsenal.lock` so an attested-but-missing or
+present-but-unattested binary shows loud instead of hiding. descriptions live in
+`arsenal-catalog` (rides p3 with the tools, so the signed image never changes
+when the arsenal does).
 
 carried python: building cpython static from scratch is impractical, so we
 carry python-build-standalone (cpython built reproducibly from source by

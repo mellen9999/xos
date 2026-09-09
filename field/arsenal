@@ -1,0 +1,50 @@
+#!/bin/sh
+# arsenal -- list what this field kit can actually DO. run it on xos to see every
+# carried tool, one line each, with how to run it. reads ~/tools/ (the truth: what
+# is really here), annotates from arsenal-catalog, and cross-checks arsenal.lock so
+# a tool that is attested-but-missing or present-but-unattested shows LOUD instead
+# of hiding. p3 is noexec, so invoke as `sh ~/tools/arsenal` (or the `arsenal`
+# shell alias the field kit installs).
+#
+# WHY THIS EXISTS: a capability nobody can find is the same as not having it. links,
+# mutool, kiwix, frotz -- all were invisible until you already knew the name. this
+# is the index so you don't have to.
+set -u
+T="${XOS_TOOLS:-$HOME/tools}"
+[ -d "$T" ] || T=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)   # run from inside the dir
+CAT="$T/arsenal-catalog"
+LOCK="$T/arsenal.lock"
+
+desc() {  # one-line description for $1 from the catalog, or a blank
+  [ -f "$CAT" ] || { echo ""; return; }
+  awk -F'\t' -v n="$1" '$1==n{ $1=""; sub(/^\t/,""); print; found=1 } END{ if(!found) print "" }' "$CAT"
+}
+
+printf '=== xos arsenal ===  run a tool:  ~/tools/xexec <name> [args]\n\n'
+present=""
+for f in "$T"/*; do
+  [ -e "$f" ] || continue
+  b=$(basename "$f")
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|xexec) continue ;; esac
+  present="$present $b "
+  d=$(desc "$b")
+  [ -n "$d" ] || d="(no description -- present, unattested by catalog)"
+  printf '  %-13s %s\n' "$b" "$d"
+done
+[ -n "$present" ] || printf '  (nothing in %s -- run field/provision.sh)\n' "$T"
+
+# integrity: anything in the lock that is NOT on disk is a LOUD miss, not a shrug.
+if [ -f "$LOCK" ]; then
+  miss=""
+  while read -r name _rest; do
+    case "$name" in ''|'#'*) continue ;; esac
+    case "$present" in *" $name "*) ;; *) miss="$miss $name" ;; esac
+  done < "$LOCK"
+  [ -n "$miss" ] && printf '\n  ! attested in arsenal.lock but MISSING here:%s\n' "$miss"
+fi
+
+printf '\nreaders (offline knowledge):\n'
+printf '  kiwix-serve  serve zims:  ~/tools/xexec kiwix-serve --port 8080 /run/media/*/XOS-KNOW/zim/*.zim  -> links http://localhost:8080\n'
+printf '  mutool       read a pdf:  ~/tools/xexec mutool draw -F txt FILE.pdf | less\n'
+printf '  links        browse the served zim or any html/http\n'
+printf '  frotz        play interactive fiction:  ~/tools/xexec frotz /run/media/*/XOS-KNOW/games/if/spider-and-web.z5\n'

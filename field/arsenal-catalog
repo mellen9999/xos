@@ -1,0 +1,19 @@
+# arsenal-catalog -- one-line description per tool, joined by `arsenal` into a
+# human menu. name<TAB>description. rides p3 (capability), so adding a tool means
+# a line here + a rebuild, never an image change. keep lowercase + terse.
+ffuf	web fuzzer -- brute paths/params/vhosts against a target
+httpx	fast http prober -- which hosts/ports actually answer, titles, tech
+nuclei	template-driven vuln + misconfig scanner
+subfinder	passive subdomain discovery
+dnsx	fast dns toolkit -- resolve, bruteforce, record types
+gobuster	dir/dns/vhost brute-forcer
+chisel	tcp/udp tunnel over http -- pivot / port-forward through a firewall
+masscan	internet-scale port scanner (fast, stateless)
+tcpdump	packet capture + inspection on the wire
+links	text-mode web browser -- reads served zims and any html/http, no gui
+python	full cpython 3.12 -- scripting, a repl, http.server, the swiss knife
+sqlmap	automated sql-injection detection + exploitation
+mutool	pdf reader (mupdf) -- `draw -F txt|html` turns any pdf into readable text
+kiwix-serve	serve offline zims (wikipedia, survival docs) on localhost for links
+kiwix-search	grep the zims from the cli without a server
+frotz	z-machine interpreter -- plays the if/ interactive-fiction story files
