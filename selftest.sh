@@ -545,15 +545,23 @@ grep -q 'clock-not-before-floor: yes' <<< "$out" \
 # a machine whose rtc is already sane must make NO network time call -- the
 # the shipped tunnel's own handshake, as init saw it. A15 tests tls-time; this
 # is the layer under it, and it printed unread until now.
-if [ "$net_ok" = yes ]; then
-	grep -q 'tls-handshake: HTTP/1' <<< "$out" \
-		&& ok "init's tls handshake reached an https server through the shipped anchors" \
-		|| bad "tls-handshake did not return HTTP/1: $(grep -oP 'tls-handshake: \K.*' <<< "$out" | head -1)"
-	grep -q 'tls-stderr: none' <<< "$out" \
+#
+# $net_ok is a HOST-side probe, and the guest is behind qemu's user-mode NAT
+# with its own resolver -- the host can be online while the guest's DNS is not.
+# keying the assertion off $net_ok alone made this fail on a boot whose only
+# fault was `resolve ...: Try again`. a gate that cries wolf is a gate you stop
+# reading, so a guest-side network failure SKIPS; only a handshake that came
+# back wrong FAILS.
+tls_err=$(grep -oP 'tls-stderr: \K.*' <<< "$out" | head -1)
+if grep -q 'tls-handshake: HTTP/1' <<< "$out"; then
+	ok "init's tls handshake reached an https server through the shipped anchors"
+	[ "$tls_err" = none ] \
 		&& ok "the tls tunnel wrote nothing to stderr" \
-		|| bad "tls tunnel stderr: $(grep -oP 'tls-stderr: \K.*' <<< "$out" | head -1)"
+		|| bad "the tls tunnel handshook but still wrote to stderr: $tls_err"
+elif [ "$net_ok" != yes ] || [[ "$tls_err" =~ (resolve|Try\ again|Network\ is\ unreachable|No\ route) ]]; then
+	skipped "no network in the guest ($tls_err) -- init's tls handshake not evaluated"
 else
-	skipped "no network -- init's tls handshake not evaluated"
+	bad "tls-handshake did not return HTTP/1: $(grep -oP 'tls-handshake: \K.*' <<< "$out" | head -1)"
 fi
 
 # tls-time pass exists for floored clocks only, and its absence is a privacy
