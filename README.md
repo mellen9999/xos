@@ -40,6 +40,11 @@ one key at the top, complete coverage at the bottom.
 a signature says who signed an image, never when -- so an old release stays
 bootable forever unless something says otherwise. `revoked` is that something:
 it lists the authenticode digest of every image that must never boot again.
+`revoke` refuses to add a digest it cannot confirm: it reads the number sbsign
+signed out of the one field that holds it, and demands its own match. a digest
+that is merely *present* somewhere in the signature blob is not good enough --
+everything past the signed content is the image's own unsigned space, so that
+would let an image get itself revoked in name only.
 `./build.sh dbx` writes it two ways -- into the qemu varstore for the
 self-test, and as `/xos-keys/dbx.auth` on the stick, which is the form real
 firmware takes. enroll it in setup mode alongside the keys, **before** `PK.der`,

@@ -1474,13 +1474,14 @@ TODO: write this entry by hand.
 #   G41 a flashed stick yields a p3 that fills the device
 #   G42 a revocation is shipped in a form real firmware can enroll
 #   G43 an update preserves p3 -- its entry and its bytes
+#   G44 a planted digest cannot buy a pass from the revocation check
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=41   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=42   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1636,6 +1637,68 @@ gates() {
   # nothing, and look exactly like revocation that works.
   g "G21 revocation digest matches signature" \
     "$([ -n "$cur" ] && python3 pehash.py --verify xos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
+
+  # G44 -- G21 is only worth its line if it cannot be lied to. --verify used to
+  # look for its own digest anywhere in the PKCS#7 blob, and everything in there
+  # beyond the signed content comes from the image and is signed by nobody. so an
+  # image could carry a planted copy of a wrong digest, pass, and hand `revoke` a
+  # dbx entry that matches nothing while looking exactly like one that works.
+  # this replays that forgery byte for byte and demands a refusal.
+  local g44=ok
+  if [ -f xos-signed.efi ]; then
+    # -B: this is the one python invocation that imports pehash as a module, and
+    # a stray __pycache__ would leave the tree dirty -- which `pin` refuses.
+    PYTHONDONTWRITEBYTECODE=1 python3 -B - xos-signed.efi <<'G44EOF' >&2 || g44=FAIL
+import os, shutil, struct, sys, tempfile, pehash
+
+src = sys.argv[1]
+b = bytearray(open(src, "rb").read())
+pe = struct.unpack_from("<I", b, 0x3C)[0]
+opt = pe + 24
+dd = opt + (96 if struct.unpack_from("<H", b, opt)[0] == 0x10B else 112)
+cert_dd = dd + 32
+off, size = struct.unpack_from("<II", b, cert_dd)
+if not size:
+    sys.exit("    the signed image carries no signature")
+
+d = tempfile.mkdtemp(prefix="xos-g44-")
+f = os.path.join(d, "forged.efi")
+try:
+    if pehash.verify(src) != pehash.pe_hash(src):
+        sys.exit("    --verify does not return the digest it checked")
+
+    # flip one hashed byte: the image no longer hashes to what sbsign signed
+    b[off // 2] ^= 0xFF
+    open(f, "wb").write(b)
+    wrong = pehash.pe_hash(f)
+
+    # now plant that wrong digest in the certificate blob -- space the image owns
+    # and nobody signs. the cert-table entry is an excluded region and the tail
+    # boundary moves with the blob, so the hashed spans do not shift by a byte.
+    struct.pack_into("<I", b, cert_dd + 4, size + 32)
+    b += bytes.fromhex(wrong)
+    open(f, "wb").write(b)
+
+    # if either of these slips the forgery is not a forgery and the gate is theatre
+    if pehash.pe_hash(f) != wrong:
+        sys.exit("    planting the digest moved the hash -- the gate proves nothing")
+    _, o2, s2 = pehash._regions(bytes(b))
+    if bytes.fromhex(wrong) not in bytes(b[o2 + 8:o2 + s2]):
+        sys.exit("    the wrong digest is not in the blob a substring check reads")
+
+    try:
+        pehash.verify(f)
+    except ValueError:
+        pass                      # the only acceptable outcome
+    else:
+        sys.exit("    a planted digest passed --verify -- dbx would revoke nothing")
+finally:
+    shutil.rmtree(d, ignore_errors=True)
+G44EOF
+  else
+    g44=FAIL; printf '    no xos-signed.efi to forge against\n' >&2
+  fi
+  g "G44 a planted digest cannot pass revocation" "$g44"
 
   g "G7 kernel has no module loader" \
     "$([ -f "src/linux-$KVER/.config" ] && ! grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo ok || echo FAIL)"

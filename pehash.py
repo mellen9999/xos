@@ -7,9 +7,10 @@ and the attached signature itself. hashing the whole file instead produces a
 number that never matches anything, and a dbx entry that silently revokes
 nothing -- which looks exactly like a dbx entry that works.
 
-two independent checks keep this honest, because a wrong hash here fails open:
+three independent checks keep this honest, because a wrong hash here fails open:
   G21  the digest this computes must equal the one inside the image's own
        PKCS#7 signature (sbsign signed that digest, so it is ground truth)
+  G44  an image carrying a planted copy of a wrong digest must still be refused
   A11  a revoked image must actually be refused by the firmware, in a vm
 """
 import hashlib
@@ -67,6 +68,116 @@ def _regions(b):
     return spans, cert_off, cert_size
 
 
+# --- minimal DER, enough to walk one authenticode signature -------------------
+#
+# the digest we revoke has exactly one legitimate home: SpcIndirectDataContent's
+# messageDigest, which is the number sbsign signed. searching the whole PKCS#7
+# blob for it instead -- as this file used to -- accepts a match anywhere,
+# including a certificate body, an unauthenticated attribute, or padding, all of
+# which come from the image and none of which are signed. an image can therefore
+# carry a planted copy of its own wrong digest and pass. so we walk to the one
+# field that counts and demand equality.
+
+OID_SIGNED_DATA = "1.2.840.113549.1.7.2"
+OID_SPC_INDIRECT = "1.3.6.1.4.1.311.2.1.4"
+OID_SHA256 = "2.16.840.1.101.3.4.2.1"
+
+
+def _tlv(b, i):
+    """the DER element at b[i:] -> (tag, value_start, value_end, next_index)."""
+    if i + 2 > len(b):
+        raise ValueError("DER: element runs past the blob")
+    tag = b[i]
+    if tag & 0x1F == 0x1F:
+        raise ValueError("DER: multi-byte tags are not used here")
+    n = b[i + 1]
+    i += 2
+    if n & 0x80:
+        k = n & 0x7F
+        if k == 0 or k > 4 or i + k > len(b):
+            raise ValueError("DER: bad length encoding")
+        n = int.from_bytes(b[i:i + k], "big")
+        i += k
+    if i + n > len(b):
+        raise ValueError("DER: length runs past the blob")
+    return tag, i, i + n, i + n
+
+
+def _kids(b, s, e):
+    """every element between s and e, in order."""
+    out = []
+    while s < e:
+        tag, vs, ve, s = _tlv(b, s)
+        out.append((tag, vs, ve))
+    if s != e:
+        raise ValueError("DER: children overrun their parent")
+    return out
+
+
+def _seq(b, s, e, n):
+    """the n children of a constructed element, or a clear error."""
+    k = _kids(b, s, e)
+    if len(k) < n:
+        raise ValueError("DER: expected %d elements, found %d" % (n, len(k)))
+    return k
+
+
+def _oid(b, s, e):
+    """an OBJECT IDENTIFIER's value bytes as a dotted string."""
+    if e <= s:
+        raise ValueError("DER: empty OID")
+    parts = [str(b[s] // 40), str(b[s] % 40)]
+    v = 0
+    for c in b[s + 1:e]:
+        v = (v << 7) | (c & 0x7F)
+        if not c & 0x80:
+            parts.append(str(v))
+            v = 0
+    return ".".join(parts)
+
+
+def _expect(b, kid, tag, what):
+    if kid[0] != tag:
+        raise ValueError("DER: %s has tag 0x%02x, expected 0x%02x"
+                         % (what, kid[0], tag))
+    return kid[1], kid[2]
+
+
+def signed_digest(der):
+    """the authenticode digest sbsign actually signed, out of the one field
+    that holds it: SignedData.contentInfo -> SpcIndirectDataContent.messageDigest.
+    """
+    tag, s, e, _ = _tlv(der, 0)                       # ContentInfo
+    if tag != 0x30:
+        raise ValueError("DER: signature is not a SEQUENCE")
+    ci = _seq(der, s, e, 2)
+    s, e = _expect(der, ci[0], 0x06, "ContentInfo.contentType")
+    if _oid(der, s, e) != OID_SIGNED_DATA:
+        raise ValueError("DER: not a PKCS#7 signedData")
+    s, e = _expect(der, ci[1], 0xA0, "ContentInfo.content")
+
+    sd = _seq(der, *_expect(der, _seq(der, s, e, 1)[0], 0x30, "SignedData"), 3)
+    s, e = _expect(der, sd[2], 0x30, "SignedData.contentInfo")
+    eci = _seq(der, s, e, 2)
+    s, e = _expect(der, eci[0], 0x06, "contentInfo.contentType")
+    if _oid(der, s, e) != OID_SPC_INDIRECT:
+        raise ValueError("DER: signature does not carry SpcIndirectDataContent")
+    s, e = _expect(der, eci[1], 0xA0, "contentInfo.content")
+
+    spc = _seq(der, *_expect(der, _seq(der, s, e, 1)[0], 0x30,
+                             "SpcIndirectDataContent"), 2)
+    di = _seq(der, *_expect(der, spc[1], 0x30, "DigestInfo"), 2)
+    s, e = _expect(der, di[0], 0x30, "DigestInfo.digestAlgorithm")
+    s, e = _expect(der, _seq(der, s, e, 1)[0], 0x06, "digestAlgorithm.algorithm")
+    if _oid(der, s, e) != OID_SHA256:
+        raise ValueError("DER: signature digest is %s, not sha-256"
+                         % _oid(der, s, e))
+    s, e = _expect(der, di[1], 0x04, "DigestInfo.digest")
+    if e - s != 32:
+        raise ValueError("DER: sha-256 digest is %d bytes" % (e - s))
+    return der[s:e].hex()
+
+
 def pe_hash(path):
     b = open(path, "rb").read()
     spans, _, _ = _regions(b)
@@ -91,20 +202,22 @@ def extract_sig(path, out):
 def verify(path):
     """assert this hasher agrees with the signature already on the image.
 
-    sbsign signed the authenticode digest, so that digest sits verbatim inside
-    the PKCS#7 blob. if our number is not in there, our number is wrong.
+    sbsign signed the authenticode digest, so that digest sits in the image's
+    own PKCS#7 blob, in SpcIndirectDataContent. if our number is not that exact
+    field, our number is wrong -- and every dbx entry built from it would revoke
+    nothing while looking like revocation that works.
     """
     b = open(path, "rb").read()
     _, off, size = _regions(b)
     if not size:
         raise ValueError("image carries no signature to check against")
-    der = b[off + 8:off + size]
+    signed = signed_digest(b[off + 8:off + size])
     want = pe_hash(path)
-    if bytes.fromhex(want) not in der:
-        raise ValueError("computed digest %s is absent from the image's own "
-                         "signature -- the hasher is wrong" % want)
+    if want != signed:
+        raise ValueError("computed digest %s does not match the digest in the "
+                         "image's own signature (%s) -- the hasher is wrong or "
+                         "the image was altered after signing" % (want, signed))
     return want
-
 
 if __name__ == "__main__":
     try:
