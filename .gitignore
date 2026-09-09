@@ -29,3 +29,5 @@ bzImage.config.sha256
 /dropbearmulti
 keys.local-*/
 arsenal/
+/bash
+/initramfs.cpio.gz
