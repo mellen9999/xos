@@ -15,3 +15,4 @@ sqlmap      github.com/sqlmapproject/sqlmap@d486742  23602257  git-checkout
 mutool      mupdf@1.24.10(musl-static)  43993768  b6c06710717f316c468ddabc93adc7344233ecdebb2a7383ee81b15b539c45ab
 kiwix-serve  kiwix-tools@3.8.2(musl-static-pie)  19122440  b52605db03ea0df58528d47ed5db2c29e154ea06f878e5bcb73500c8dedb517c
 kiwix-search kiwix-tools@3.8.2(musl-static-pie)  16323400  3fe5453d80957265903ce9f2b49461466b83f37d7decc06c385198d6d8262114
+frotz       frotz@2.44(musl-static)  136576  b3f5ab05bf521712b929d9244236a23fd1557c4aa779d9393a31a20a494c298b

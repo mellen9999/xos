@@ -30,7 +30,8 @@ command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
 
 docker run --rm -i --network host -v "$OUT":/out alpine:3.20 sh -e <<'INNER'
 apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
-  zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static >/dev/null 2>&1
+  zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static \
+  ncurses-dev ncurses-static >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # links 2.30 -- the reader. text-mode (no X/fb): a zim is served by kiwix-serve
@@ -88,14 +89,41 @@ log() { echo "[c-build] $*"; }
   strip build/release/mutool
   cp build/release/mutool /out/mutool ) || log "mutool FAILED"
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|links|mutool)$' | tr '\n' ' ')"
+# frotz (dfrotz) -- dumb-terminal z-machine interpreter. WHY: morale is a supply,
+# and interactive fiction is the one game genre a text-only box runs natively --
+# one ~200KB binary plays the entire if/ story library carried on the knowledge
+# stick (zork, anchorhead, spider-and-web). "dumb" = pure stdout, so it needs no
+# curses and runs even on a busybox console. capability -> p3, same rule as links.
+( set -e; log frotz
+  git clone --depth 1 https://github.com/DavidGriffith/frotz /s/frotz >/s/frotz.log 2>&1
+  cd /s/frotz
+  # -fcommon: frotz's dumb port keeps tentative defs (f_setup, do_more_prompts)
+  # in a shared header; gcc>=10 defaults -fno-common and multiply-defines them.
+  make dfrotz CFLAGS="-O2 -static -fcommon" LDFLAGS="-static" PKG_CONFIG=false >>/s/frotz.log 2>&1
+  file dfrotz | grep -q "statically linked" || { echo "not static"; tail -12 /s/frotz.log; exit 1; }
+  strip dfrotz; cp dfrotz /out/frotz ) || log "frotz FAILED"
+
+# nethack -- DEFERRED (roguelike, would be the morale S-tier). two blockers, both
+# solvable in a follow-up pass:
+#   1. build: passing CFLAGS="...-static" wholesale clobbers nethack's own
+#      -I../include, so src/*.c can't find config.h. the fix is to edit
+#      sys/unix/hints/linux to APPEND '-static' to LFLAGS + '-fcommon' to CFLAGS
+#      (nethack 3.6.x is pre -fno-common too) rather than overriding on the cli.
+#   2. runtime: nethack needs a WRITABLE HACKDIR (saves/bones/record); p3 and the
+#      xexec tmpfs are read-only, so a launch must point HACKDIR at exFAT, e.g.
+#      HACKDIR=/run/media/$USER/XOS-KNOW/games/nethack ~/tools/xexec nethack
+# frotz + the if/ story library already give xos a native game library; nethack
+# is the next add, not a blocker.
+
+
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|links|mutool|frotz)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to
 # exit 0 with an empty arsenal (the $PWD/$OUT double-prefix bug did exactly this).
 # a builder that ships nothing must fail, not shrink -- the same rule as rootfs().
 built=0
-for b in masscan tcpdump links mutool; do [ -f "$OUT/$b" ] && built=$((built+1)); done
+for b in masscan tcpdump links mutool frotz; do [ -f "$OUT/$b" ] && built=$((built+1)); done
 [ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
 echo "note: refresh field/arsenal.lock after (sha256 + sizes)."
 
