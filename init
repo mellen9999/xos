@@ -84,6 +84,17 @@ fi
 # fingerprint below and the xos.test probe block -- so it is one function.
 roothash() { sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1; }
 
+# one respawn policy for both supervised loops -- dropbear and the console.
+# a payload that dies in under two seconds is crash-looping; after five in a
+# row the retry slows to 30s rather than pinning a passive-cooled cpu. this was
+# written out twice, and the dropbear copy is never reached in a healthy boot,
+# so the two could have drifted for a long time before anyone noticed. G40
+# runs this under the shipped ash and proves the counter and both sleeps.
+respawn_wait() { # $1 -- seconds the payload ran. updates _fail.
+	if [ "$1" -lt 2 ]; then _fail=$((_fail + 1)); else _fail=0; fi
+	if [ "$_fail" -ge 5 ]; then sleep 30; else sleep 1; fi
+}
+
 fpw=""
 fprh=$(roothash)
 if [ -n "$fprh" ] && [ -f /usr/share/xos/words ]; then
@@ -573,17 +584,27 @@ if cmdline_has xos.test; then
 	if cmdline_has xos.teststate && [ -b /dev/vdb ]; then
 		tsdev=/dev/vdb
 		[ -b /dev/vdb1 ] && tsdev=/dev/vdb1
+		# both branches below open the same volume, work in it, then hand it
+		# back the same way. the head and the tail were written out twice;
+		# only the middle -- read the marker, or lay the fixtures down --
+		# actually differs.
+		ts_mount() {
+			mkdir -p /tmp/ts
+			mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
+		}
+		ts_release() {
+			recon_check /tmp/ts
+			ledger_note /tmp/ts
+			umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+		}
 		if cryptsetup isLuks "$tsdev" 2>/dev/null; then
 			printf 'teststate-phase: reopen\n'
 			printf 'teststate-open: '
 			if printf 'testpass' | cryptsetup open --key-file - "$tsdev" ts >/dev/null 2>&1; then
 				echo ok
-				mkdir -p /tmp/ts
-				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
+				ts_mount
 				printf 'teststate-prior-marker: '; [ -f /tmp/ts/marker ] && cat /tmp/ts/marker || echo NONE
-				recon_check /tmp/ts
-				ledger_note /tmp/ts
-				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+				ts_release
 			else echo FAILED; fi
 		else
 			printf 'teststate-phase: provision\n'
@@ -594,8 +615,7 @@ if cmdline_has xos.test; then
 			printf 'teststate-mkfs: '
 			if printf 'testpass' | cryptsetup open --key-file - "$tsdev" ts >/dev/null 2>&1; then
 				if mke2fs -F /dev/mapper/ts >/dev/null 2>&1; then echo ok; else echo FAILED; fi
-				mkdir -p /tmp/ts
-				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
+				ts_mount
 				printf 'teststate-write: '; if echo "survived-a-reboot" > /tmp/ts/marker; then sync; echo ok; else echo FAILED; fi
 				# an operator-style wireguard config (Address INCLUDED -- that is
 				# how a human writes one) so a later production boot of this same
@@ -616,9 +636,7 @@ if cmdline_has xos.test; then
 					chmod 600 /tmp/ts/authorized_keys
 					rm -f /tmp/tsak
 				fi
-				recon_check /tmp/ts
-				ledger_note /tmp/ts
-				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+				ts_release
 			else echo FAILED; fi
 		fi
 	fi
@@ -884,8 +902,7 @@ if state_open; then
 				  while : ; do
 				    _t0=$(date +%s 2>/dev/null || echo 0)
 				    dropbear -F -E -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >>/tmp/ssh.log 2>&1
-				    if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then _fail=$((_fail + 1)); else _fail=0; fi
-				    [ "$_fail" -ge 5 ] && sleep 30 || sleep 1
+				    respawn_wait "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))"
 				  done ) &
 				# say "listening" only once the socket exists. the old line was
 				# printed the instant the supervisor forked, bind or no bind.
@@ -954,12 +971,7 @@ console_loop() {
 		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
 		# a console nothing is attached to returns EOF instantly and would
 		# respawn forever. this machine may be passive-cooled; back off instead.
-		if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then
-			_fail=$((_fail + 1))
-		else
-			_fail=0
-		fi
-		if [ "$_fail" -ge 5 ]; then sleep 30; else sleep 1; fi
+		respawn_wait "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))"
 	done
 }
 

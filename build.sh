@@ -114,6 +114,9 @@ say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 # always pipe into `has` instead of `grep -q`.
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 # nothing on $1 may be mounted. lsblk failing is a refusal, not a pass.
+# ────────────────────────────────────────────────────────────────────────────
+# helpers -- shell traps, disk guards, and the one place each lives
+# ────────────────────────────────────────────────────────────────────────────
 unmounted() {
   local m
   m=$(lsblk -nro MOUNTPOINTS "$1" 2>/dev/null) \
@@ -122,11 +125,41 @@ unmounted() {
     echo "FAIL: $1 (or a partition of it) is mounted -- unmount first" >&2; return 1; fi
 }
 
+# usb() and addstate() are the only code here that writes to a raw block device,
+# and they used to carry these guards as near-identical copies -- a guard fixed
+# in one and not the other is how a wrong disk gets wiped. one implementation,
+# both callers, and G39 fails the build if either stops calling it.
+disk_model() { # $1 device -> the model string, whitespace-squeezed
+  cat "/sys/block/$(basename "$1")/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//'
+}
+
+guard_removable() { # $1 device -- a whole, removable, unmounted disk or nothing
+  local n; n=$(basename "$1")
+  [ -e "/sys/block/$n" ] || { echo "FAIL: $1 is not a whole disk (partitions not allowed)" >&2; return 1; }
+  [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
+    || { echo "FAIL: $1 is not removable -- refusing to touch a fixed disk" >&2; return 1; }
+  unmounted "$1" || return 1
+}
+
+# confirmation the operator cannot bypass by hammering 'y': type the model back.
+# the mount check runs AGAIN after it, because the prompt (and, in usb(), a full
+# gate run before it) takes long enough for an automounter to grab the stick.
+confirm_model() { # $1 device
+  local model answer
+  model=$(disk_model "$1")
+  read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
+  [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
+  unmounted "$1" || return 1
+}
+
 # a missing host tool used to surface as a mid-build failure -- the exact fail
 # mode this repo eliminates everywhere else. name every one up front instead.
 STUB=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
 OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd
 OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
+# ────────────────────────────────────────────────────────────────────────────
+# the host toolchain, and the pinned sources it is pointed at
+# ────────────────────────────────────────────────────────────────────────────
 deps() {
   say "checking host toolchain"
   local miss=() cmd
@@ -320,6 +353,9 @@ fetch() {
     "$(grep -cE '\.(tar\.(xz|bz2|gz)|tgz)$' sources.sha256)"
 }
 
+# ────────────────────────────────────────────────────────────────────────────
+# components -- each built from a pinned tarball, musl static-pie
+# ────────────────────────────────────────────────────────────────────────────
 kernel() {
   say "building kernel $KVER"
   local d="src/linux-$KVER"
@@ -662,6 +698,9 @@ ii_() {
   printf '  ii: %d bytes\n' "$(stat -c%s ii)"
 }
 
+# ────────────────────────────────────────────────────────────────────────────
+# the image -- root filesystem, verity tree, keys, signed UKI, stick
+# ────────────────────────────────────────────────────────────────────────────
 rootfs() {
   say "building read-only root"
   rm -rf root
@@ -1059,16 +1098,13 @@ usb() {
   [ -n "$dev" ] || { echo "FAIL: usage: ./build.sh usb /dev/sdX" >&2; return 1; }
   [ -b "$dev" ] || { echo "FAIL: $dev is not a block device" >&2; return 1; }
   local n; n=$(basename "$dev")
-  [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
-  [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] || {
-    echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
-  unmounted "$dev" || return 1
+  guard_removable "$dev" || return 1
   [ -f stick.img ] || stick || return 1
   # the gates, every time. a stick.img left behind by a gate-FAILED `all` (stick
-  # runs before size) used to flash straight through here; the only check on
+  # runs before the gates) used to flash straight through here; the only check on
   # this path was a readback against a pin that the same failed run had
   # regenerated. gates are stateless and cheap next to a wrong stick in the field.
-  size || { echo "FAIL: gates failed -- not writing $dev" >&2; return 1; }
+  gates || { echo "FAIL: gates failed -- not writing $dev" >&2; return 1; }
 
   local dev_bytes img_bytes model
   dev_bytes=$(( $(cat "/sys/block/$n/size") * 512 ))
@@ -1077,19 +1113,12 @@ usb() {
   if [ "$dev_bytes" -gt $((128 * 1024 * 1024 * 1024)) ]; then
     echo "WARN: $dev is $((dev_bytes / 1024 / 1024 / 1024)) GiB -- larger than any usb stick, is this the right disk?" >&2
   fi
-  model=$(cat "/sys/block/$n/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//')
+  model=$(disk_model "$dev")
   echo "  target: $dev  size: $((dev_bytes / 1024 / 1024)) MiB  model: ${model:-unknown}"
   if wipefs -n "$dev" 2>/dev/null | has .; then
     echo "  WARNING: $dev already contains a filesystem/partition signature -- it will be DESTROYED."
   fi
-  # confirmation the user cannot bypass by hammering 'y': type the model back.
-  local answer
-  read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
-  [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
-
-  # asked again here: the gate run and the prompt above take long enough for
-  # an automounter to have grabbed the stick since the first check.
-  unmounted "$dev" || return 1
+  confirm_model "$dev" || return 1
   say "writing stick.img to $dev"
   dd if=stick.img of="$dev" bs=1M oflag=direct conv=fsync status=progress
 
@@ -1258,7 +1287,7 @@ TODO: write this entry by hand.
 # is TOK a legitimate flag cluster for the command documented by REF?
 # handles bundling (-rf = -r -f) and attached values (-f1 = -f with arg "1").
 # gate roster -- every G-number that exists, in one place, so a silently
-# dropped gate is visible instead of hiding in a diff. most run in size()
+# dropped gate is visible instead of hiding in a diff. most run in gates()
 # below; G8 runs in fetch(), G9 lives in githooks/pre-commit (not this
 # script).
 #   G1  image <= IMAGE_MAX
@@ -1299,10 +1328,16 @@ TODO: write this entry by hand.
 #   G35 first-party scripts parse under the shipped ash
 #   G36 learn reaches its prompt on a silent terminal, under that ash
 #   G37 the between-cards pause takes one keypress and gives the tty back
-size() {
+#   G38 build.sh and selftest.sh parse under bash
+#   G39 both destructive disk paths go through the shared guard
+#   G40 the respawn backoff counts and sleeps as written
+# ────────────────────────────────────────────────────────────────────────────
+# the gates -- every claim this repo makes, checked before it ships
+# ────────────────────────────────────────────────────────────────────────────
+gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=35   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=38   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1578,6 +1613,53 @@ size() {
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
   done
   g "G35 first-party scripts parse under shipped ash" "$g35"
+
+  # G38 -- build.sh and selftest.sh parse. G35 covers what ships; these two
+  # never ship, and until now nothing looked at them at all. that matters most
+  # for usb() and addstate(): no test calls them, so a syntax error in either
+  # is invisible until the moment someone flashes a real disk with it. bash,
+  # not ash -- these are the two files that are allowed to be bash.
+  local g38=ok f38 e38
+  for f38 in build.sh selftest.sh; do
+    e38=$(bash -n "$f38" 2>&1) \
+      || { g38=FAIL; printf '    %s does not parse: %s\n' "$f38" "$e38" >&2; }
+  done
+  g "G38 build scripts parse under bash" "$g38"
+
+  # G39 -- the only two functions here that write to a raw block device must
+  # both go through the shared guard. they were near-identical copies, which is
+  # how a guard gets fixed in one and forgotten in the other; one implementation
+  # is only worth anything if nothing can quietly stop calling it.
+  local g39=ok fn39 body39 need39
+  for fn39 in usb addstate; do
+    body39=$(sed -n "/^$fn39() {/,/^}/p" build.sh)
+    for need39 in guard_removable confirm_model; do
+      printf '%s' "$body39" | has "$need39 \"" \
+        || { g39=FAIL; printf '    %s() no longer calls %s\n' "$fn39" "$need39" >&2; }
+    done
+  done
+  g "G39 destructive disk paths share one guard" "$g39"
+
+  # G40 -- the respawn backoff, run for real. it is written once now, but the
+  # dropbear copy it replaced was never reached by any boot, healthy or not, so
+  # the arithmetic had no coverage whatsoever. sleep is shadowed by a stub, so
+  # the 30-second branch is observable without waiting 30 seconds.
+  # each case is "starting _fail : seconds the payload ran : want _fail : want sleep".
+  local g40=ok rw40 out40 c40 f40 r40 wf40 ws40
+  rw40=$(sed -n '/^respawn_wait()/,/^}/p' init)
+  for c40 in 0:1:1:1 3:1:4:1 4:1:5:30 4:9:0:1 7:5:0:1 5:1:6:30; do
+    f40=$(printf '%s' "$c40" | cut -d: -f1); r40=$(printf '%s' "$c40" | cut -d: -f2)
+    wf40=$(printf '%s' "$c40" | cut -d: -f3); ws40=$(printf '%s' "$c40" | cut -d: -f4)
+    out40=$("$bb35" ash -c "sleep() { printf 'slept=%s ' \"\$1\"; }
+$rw40
+_fail=$f40
+respawn_wait $r40
+printf 'fail=%s' \"\$_fail\"" 2>&1)
+    [ "$out40" = "slept=$ws40 fail=$wf40" ] \
+      || { g40=FAIL; printf '    respawn_wait: _fail=%s ran=%ss -> [%s] (want [slept=%s fail=%s])\n' \
+             "$f40" "$r40" "$out40" "$ws40" "$wf40" >&2; }
+  done
+  g "G40 respawn backoff counts and sleeps as written" "$g40"
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and
@@ -1899,6 +1981,9 @@ G37
 # resolved by PARTUUID from p2, identically to real hardware. no more fat:esp.
 # both boots are the same firmware and the same stick; only the way the disk is
 # attached differs, so that is the only thing either one spells out.
+# ────────────────────────────────────────────────────────────────────────────
+# qemu -- the development rig; the stick is the product
+# ────────────────────────────────────────────────────────────────────────────
 qboot() { # $@ -- how to attach the disk
   [ -f ovmf-vars.fd ] || { echo "FAIL: run ./build.sh uki first" >&2; return 1; }
   [ -f stick.img ] || stick || return 1
@@ -1929,6 +2014,9 @@ bootusb() {
 # encrypted, authenticated ext4 volume that xos unlocks at boot. this is the
 # only thing that makes anything persist. it touches the free space only; it
 # never writes to p1 or p2. run it once, against the physical stick.
+# ────────────────────────────────────────────────────────────────────────────
+# writing to real disks -- the only code here that can destroy data
+# ────────────────────────────────────────────────────────────────────────────
 addstate() {
   local dev="${1:-}"
   [ -b "$dev" ] || { echo "usage: $0 addstate /dev/sdX  (the whole stick, not a partition)" >&2; return 1; }
@@ -1940,14 +2028,10 @@ addstate() {
     command -v "${t%%:*}" >/dev/null 2>&1 || miss="$miss ${t%%:*}(${t##*:})"
   done
   [ -z "$miss" ] || { echo "FAIL: addstate needs:$miss" >&2; return 1; }
-  # this rewrites a partition table and luksFormats: every guard usb() has,
-  # it has. it used to have one (removable), so a removable sd card of photos
-  # with two partitions qualified, with no prompt.
-  local n; n=$(basename "$dev")
-  [ -e "/sys/block/$n" ] || { echo "FAIL: $dev is not a whole disk (partitions not allowed)" >&2; return 1; }
-  [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
-    || { echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
-  unmounted "$dev" || return 1
+  # this rewrites a partition table and luksFormats: every guard usb() has, it
+  # has -- literally the same two functions. it used to have one (removable), so
+  # a removable sd card of photos with two partitions qualified, with no prompt.
+  guard_removable "$dev" || return 1
   # it must be an xos stick: p1 and p2 carry the fixed PARTUUIDs stick() wrote.
   local ptable
   ptable=$(sfdisk -J "$dev" 2>/dev/null) || { echo "FAIL: cannot read the partition table on $dev" >&2; return 1; }
@@ -1975,12 +2059,8 @@ addstate() {
     || { echo "FAIL: cannot read the partition table on $dev -- flash the image first" >&2; return 1; }
   [ -n "$p2end" ] || { echo "FAIL: no second partition on $dev" >&2; return 1; }
 
-  local model answer
-  model=$(cat "/sys/block/$n/device/model" 2>/dev/null | tr -s ' ' | sed 's/ *$//')
-  echo "  target: $dev  model: ${model:-unknown}  -- p3 goes in the free space after sector $p2end"
-  read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
-  [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
-  unmounted "$dev" || return 1
+  echo "  target: $dev  model: $(disk_model "$dev")  -- p3 goes in the free space after sector $p2end"
+  confirm_model "$dev" || return 1
   sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
 start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
@@ -2106,6 +2186,9 @@ lint() {
 # are already in the shared XOS_CACHE, so the clone builds off the network;
 # get() re-checks their digests, so a poisoned copy still fails loudly. only meaningful on the
 # toolchain the pin was taken with -- same rule G13 already enforces.
+# ────────────────────────────────────────────────────────────────────────────
+# reproducibility -- a clean clone, built and compared to the pin
+# ────────────────────────────────────────────────────────────────────────────
 repro() {
   say "independent rebuild -- clone committed HEAD, build, compare to the pin"
   local d want_img have_img want_sq have_sq
@@ -2140,12 +2223,12 @@ build_all() {
   # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
   # and G11 stays green. a sealed tree short-circuits keys() and skips this.
   if [ -f keys/db.key ]; then seal; fi
-  uki; stick; size; lint
+  uki; stick; gates; lint
 }
 
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb|lint|repro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|repro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|size|boot|bootusb|lint|repro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|gates|boot|bootusb|lint|repro|all}"; exit 1 ;;
 esac

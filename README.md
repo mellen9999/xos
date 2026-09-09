@@ -222,6 +222,10 @@ hints -- and the last level is the machine itself.
     learn scenario    narrative missions against the real machine
     learn autopsy     read your own shell history, name the drills that fit
 
+`learn/install.sh` puts it on this host as a standalone command -- the corpus
+and the tree's own busybox, no stick needed. progress lives under
+`~/.local/state` and re-installing never costs you it.
+
 everything shipped is documented and nothing documented is unshipped -- both
 directions are build gates, not intentions.
 
