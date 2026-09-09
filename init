@@ -80,8 +80,12 @@ fi
 # what they catch is a DIFFERENT validly-signed image -- an old release, a
 # swapped stick -- whose roothash necessarily differs, so its words differ.
 # memorize yours; they change only when the image is re-pinned.
+# the verity roothash off the SIGNED cmdline. read in two places -- the boot
+# fingerprint below and the xos.test probe block -- so it is one function.
+roothash() { sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1; }
+
 fpw=""
-fprh=$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1)
+fprh=$(roothash)
 if [ -n "$fprh" ] && [ -f /usr/share/xos/words ]; then
 	i=1
 	while [ "$i" -le 8 ]; do
@@ -449,7 +453,7 @@ if cmdline_has xos.test; then
 	# proves nothing, which is exactly why the root hash lives on the signed
 	# kernel command line and not in the filesystem.
 	printf 'rootfs-digest: '; sha256sum "${vrootdev:-/nonexistent}" 2>/dev/null | cut -d' ' -f1 | grep . || echo none
-	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
+	printf 'verity-roothash: '; roothash
 	printf 'fingerprint: %s\n' "${fpw:-MISSING (BAD)}"
 	printf 'tether-armed: %s\n' "$XOS_TETHER"
 	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 | grep . || echo none
@@ -959,13 +963,8 @@ console_loop() {
 	done
 }
 
-# how many virtual terminals to open. 6 is the convention every linux ships,
-# and 12 is the ceiling: past Alt+F12 there is no key to reach them and this
-# build has no chvt.
-ttys=$(cmdline_get xos.ttys); case "$ttys" in *[!0-9]*) ttys="" ;; esac
-[ -n "$ttys" ] || ttys=6
-[ "$ttys" -ge 1 ] 2>/dev/null || ttys=6
-[ "$ttys" -le 12 ] 2>/dev/null || ttys=12
+# how many virtual terminals to open -- 6, the convention every linux ships.
+ttys=6
 
 # real hardware: every virtual terminal gets its own shell, so Alt+F1..F6
 # switches between running sessions. under qemu -nographic the fbcon exists but

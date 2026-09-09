@@ -1,31 +1,35 @@
+# the repo holds recipes, never artifacts. the pre-commit hook decides by file
+# magic, not by name -- this list only keeps the working tree readable.
+
+# build trees and downloaded/extracted sources
 src/
 root/
-keys/
-/bzImage
-/busybox
-build.log
-*.img
-*.squashfs
-*.verity
-*.uki
-*.efi
-*.fd
 sysroot/
 esp/
-ovmf-vars.fd
-xos.efi
-xos-signed.efi
-verity.info
-verity.roothash
-/cmdline.txt
-/ta.h
-/ii
-/tlstunnel
-/rootfs.squashfs
-bzImage.config.sha256
+keys/
+keys.local-*/
+arsenal/
+
+# built binaries
+/bzImage
+/busybox
 /abduco
 /cryptsetup
 /wg
 /dropbearmulti
-keys.local-*/
-arsenal/
+/ii
+/tlstunnel
+
+# images and signed objects
+*.img
+*.squashfs
+*.efi
+*.fd
+esp.part
+
+# intermediates
+verity.info
+verity.roothash
+bzImage.config.sha256
+/cmdline.txt
+/ta.h

@@ -166,7 +166,7 @@ unset _bars
 
 rule() { printf '%s\n' "$RULE"; }
 
-# the answer prompt, cmdchamp-style: a bare $ at the far left, white while you
+# the answer prompt: a bare $ at the far left, white while you
 # type and red the moment you drop to vi normal mode. built here where the R/W
 # colour globals are in scope -- inside the editor R is the right-of-cursor
 # buffer, so it cannot see them.

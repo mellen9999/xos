@@ -11,6 +11,12 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     || git config core.hooksPath githooks 2>/dev/null || true
 fi
 
+# pinned tarballs are immutable and digest-checked, so they are shared across
+# every checkout and worktree instead of re-downloaded into each one. src/ then
+# holds only EXTRACTED trees, which make writes into and so must stay per-tree:
+# four sessions build at once. XOS_CACHE=src restores the old single-dir layout.
+XOS_CACHE="${XOS_CACHE:-$HOME/.cache/xos/tarballs}"
+
 KVER="${KVER:-6.18.49}"
 BBVER="${BBVER:-1.38.0}"
 IIVER="${IIVER:-2.0}"
@@ -49,9 +55,9 @@ POPT_SHA512=5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639
 # fix applied at the one place a bug was seen is a fix waiting to be needed at
 # the next. set once, inherited everywhere, so no consumer can drift.
 XCF="-fPIE -Os -isystem $PWD/sysroot/include -ffile-prefix-map=$PWD=xos"
-# the binaries that are not busybox applets. this was written out three separate
-# times -- seed(), and twice inside G24 -- so adding one meant editing three
-# places and forgetting any of them failed confusingly. one list, read everywhere.
+# the binaries that are not busybox applets. this used to be written out at
+# every site that needed it, so adding one meant editing each and forgetting
+# any of them failed confusingly. one list, read everywhere.
 EXTRA_BINS="ii tlstunnel learn abduco cryptsetup wg dropbear dbclient dropbearkey"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
@@ -133,7 +139,7 @@ deps() {
              mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux \
              wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base \
              cmake:cmake flex:flex bison:bison bc:bc pkg-config:pkgconf \
-             partprobe:parted strings:binutils xz:xz; do
+             partprobe:parted strings:binutils objdump:binutils xz:xz; do
     command -v "${cmd%%:*}" >/dev/null 2>&1 || miss+=("${cmd%%:*} (${cmd##*:})")
   done
   # musl is linked into every binary but is NOT built from source here -- it is
@@ -158,7 +164,7 @@ deps() {
 # happens before extraction -- the old bulk `sha256sum -c` ran after only two of
 # five sources had been downloaded, so on a clean clone it failed, and in a tree
 # that already had src/ populated it passed. that is why nobody saw it.
-# pull ONE url into src/$tar, or fail. split out of get() so the fallback
+# pull ONE url into $XOS_CACHE/$tar, or fail. split out of get() so the fallback
 # below is a loop over urls rather than a second copy of the curl line.
 # --retry-all-errors because the transient failures here are resets and TLS
 # handshakes, which plain --retry does not count; --speed-limit turns a
@@ -170,8 +176,8 @@ deps() {
 # dead host is dead is 110s not spent on the host that is up.
 pull() { # $1 url  $2 tarball
   curl -fL --progress-bar --connect-timeout 20 --speed-limit 1024 --speed-time 30 \
-      --retry 2 --retry-delay 2 --retry-all-errors "$1" -o "src/$2" \
-    || { rm -f "src/$2"; return 1; }
+      --retry 2 --retry-delay 2 --retry-all-errors "$1" -o "$XOS_CACHE/$2" \
+    || { rm -f "$XOS_CACHE/$2"; return 1; }
 }
 
 get() {
@@ -193,7 +199,7 @@ get() {
   # the snapshot closest to year 2999 -- always the latest -- so it does not
   # rot the way a pinned year would, and id_ returns the stored bytes rather
   # than a rewritten page.
-  if [ ! -f "src/$tar" ]; then
+  if [ ! -f "$XOS_CACHE/$tar" ]; then
     pull "$url" "$tar" || {
       printf '  %s: %s unreachable -- trying the wayback machine\n' "$tar" "${url#*//}" >&2
       pull "https://web.archive.org/web/2999id_/$url" "$tar"
@@ -204,16 +210,19 @@ get() {
       # turns the next outage into a one-minute fix.
       echo "FAIL: could not fetch $tar from $url or the wayback machine" >&2
       printf '      the url is not the trust anchor here. fetch %s from ANY\n' "$tar" >&2
-      printf '      mirror, drop it at src/%s, and rerun -- the pinned\n' "$tar" >&2
+      printf '      mirror, drop it at %s, and rerun -- the pinned\n' "$XOS_CACHE/$tar" >&2
       printf '      digest %s\n' "$(grep " $tar$" sources.sha256 | cut -d' ' -f1)" >&2
       printf '      and the committed maintainer signature still decide.\n' >&2
       return 1
     }
   fi
   grep -q " $tar$" sources.sha256 || { echo "FAIL: $tar not pinned in sources.sha256" >&2; return 1; }
-  ( cd src && grep " $tar$" ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
+  local want have
+  want=$(grep " $tar$" sources.sha256 | cut -d' ' -f1)
+  have=$(sha256sum < "$XOS_CACHE/$tar" | cut -d' ' -f1)
+  [ -n "$want" ] && [ "$want" = "$have" ] || {
     echo "FAIL: $tar digest mismatch -- refusing to extract" >&2; return 1; }
-  [ -d "src/$dir" ] || tar -C src -xf "src/$tar"
+  [ -d "src/$dir" ] || tar -C src -xf "$XOS_CACHE/$tar"
 }
 
 # verify one tarball against a COMMITTED detached signature and pubkey. the
@@ -230,9 +239,9 @@ sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned finger
   gpg -q --homedir "$gh" --import "$3" 2>/dev/null
   # VALIDSIG + the pinned fingerprint: a swapped pubkey file cannot satisfy this.
   if [ "${5:-}" = xz ]; then
-    xz -dc "src/$1" | gpg --homedir "$gh" --status-fd 1 --verify "$2" - 2>/dev/null | has "VALIDSIG $4" && ok=0
+    xz -dc "$XOS_CACHE/$1" | gpg --homedir "$gh" --status-fd 1 --verify "$2" - 2>/dev/null | has "VALIDSIG $4" && ok=0
   else
-    gpg --homedir "$gh" --status-fd 1 --verify "$2" "src/$1" 2>/dev/null | has "VALIDSIG $4" && ok=0
+    gpg --homedir "$gh" --status-fd 1 --verify "$2" "$XOS_CACHE/$1" 2>/dev/null | has "VALIDSIG $4" && ok=0
   fi
   if [ "$ok" -eq 0 ]; then
     printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)"
@@ -245,7 +254,8 @@ sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned finger
 
 fetch() {
   say "fetching + verifying sources"
-  mkdir -p src
+  local here="$PWD"
+  mkdir -p src "$XOS_CACHE"
 
   # G8 -- every source pinned, verified BEFORE extraction. a verified boot
   # chain rooted in an unverified tarball proves nothing.
@@ -304,8 +314,8 @@ fetch() {
   # completeness: now that every source is present, re-check the whole pinned
   # set. this catches a tarball that is pinned but no longer fetched, which the
   # per-source checks above cannot see.
-  ( cd src && grep -E '\.(tar\.(xz|bz2|gz)|tgz)$' ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
-    echo "FAIL: pinned source set does not match src/" >&2; return 1; }
+  ( cd "$XOS_CACHE" && grep -E '\.(tar\.(xz|bz2|gz)|tgz)$' "$here/sources.sha256" | sha256sum -c --strict - >/dev/null ) || {
+    echo "FAIL: pinned source set does not match $XOS_CACHE" >&2; return 1; }
   printf '  %d sources verified against sources.sha256\n' \
     "$(grep -cE '\.(tar\.(xz|bz2|gz)|tgz)$' sources.sha256)"
 }
@@ -701,9 +711,8 @@ rootfs() {
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios root/usr/share/learn/
   cp learn/skip learn/builtins learn/phrases learn/chains learn/syntax learn/vs root/usr/share/learn/
 
-  # hand-written shims for things busybox lacks
-  # overlay carries the udhcpc script without
-  # which dhcp silently configures nothing. it was optional; under `set -e` a
+  # overlay carries the udhcpc script, without which dhcp silently configures
+  # nothing, and the wordlist init turns the roothash into four spoken words. it was optional; under `set -e` a
   # failing test in an && list does not abort, so a missing overlay just
   # produced a quieter, more broken image.
   [ -d overlay ] || { echo "FAIL: overlay/ missing" >&2; return 1; }
@@ -954,7 +963,7 @@ uki() {
 dbx() {
   [ -f ovmf-vars.fd ] || { echo "FAIL: no ovmf-vars.fd -- run ./build.sh uki first" >&2; return 1; }
   [ -f revoked ] || { echo "FAIL: revoked missing -- it is tracked; do not delete it" >&2; return 1; }
-  local args=() h rest n=0
+  local args=() h n=0
   # `|| [ -n "$h" ]`: read returns nonzero on a final line with no newline,
   # and a hand-edited file ending that way would drop exactly one revocation.
   while read -r h rest || [ -n "$h" ]; do
@@ -1282,13 +1291,13 @@ TODO: write this entry by hand.
 #   G27 levels only use commands already taught, in order
 #   G28 bzImage was built from the on-disk kernel.config
 #   G29 challenge track holds its shape
-#   G30 clock floor is fresh, not stale                    (new)
-#   G31 no test flags on the production cmdline            (new)
+#   G30 clock floor is fresh, not stale
+#   G31 no test flags on the production cmdline
 #   G32 fingerprint wordlist holds its shape (256 unique words)
-#   G33 init remote-access arg-building, run through the real ash   (new)
-#   G34 signed UKI's embedded roothash matches the tree             (new)
-#   G35 first-party scripts parse under the shipped ash             (new)
-#   G36 learn reaches its prompt on a silent terminal, under that ash (new)
+#   G33 init remote-access arg-building, run through the real ash
+#   G34 signed UKI's embedded roothash matches the tree
+#   G35 first-party scripts parse under the shipped ash
+#   G36 learn reaches its prompt on a silent terminal, under that ash
 #   G37 the between-cards pause takes one keypress and gives the tty back
 size() {
   say "gates"
@@ -1888,33 +1897,31 @@ G37
 # boot the WHOLE partitioned stick under qemu -- the exact bytes that get dd'd
 # to a real disk. OVMF finds BOOTX64.EFI on the stick's own ESP (p1); root is
 # resolved by PARTUUID from p2, identically to real hardware. no more fat:esp.
-boot() {
+# both boots are the same firmware and the same stick; only the way the disk is
+# attached differs, so that is the only thing either one spells out.
+qboot() { # $@ -- how to attach the disk
   [ -f ovmf-vars.fd ] || { echo "FAIL: run ./build.sh uki first" >&2; return 1; }
   [ -f stick.img ] || stick || return 1
   qemu-system-x86_64 -machine q35,smm=on -m 256 \
     -global driver=cfi.pflash01,property=secure,value=on \
     -drive if=pflash,format=raw,unit=0,readonly=on,file="$OVMF_CODE" \
     -drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
-    -drive file="${1:-stick.img}",if=virtio,format=raw,readonly=on \
+    "$@" \
     -nic user,model=virtio-net-pci \
     -nographic -no-reboot
+}
+
+boot() {
+  qboot -drive file="${1:-stick.img}",if=virtio,format=raw,readonly=on
 }
 
 # same, but attach the stick as an emulated USB mass-storage device on xHCI --
 # exercises the real boot path (usb enumeration, dm-mod.waitfor polling, the
 # removable-media \EFI\BOOT\BOOTX64.EFI fallback) without any hardware.
 bootusb() {
-  [ -f ovmf-vars.fd ] || { echo "FAIL: run ./build.sh uki first" >&2; return 1; }
-  [ -f stick.img ] || stick || return 1
-  qemu-system-x86_64 -machine q35,smm=on -m 256 \
-    -global driver=cfi.pflash01,property=secure,value=on \
-    -drive if=pflash,format=raw,unit=0,readonly=on,file="$OVMF_CODE" \
-    -drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
-    -device qemu-xhci,id=xhci \
+  qboot -device qemu-xhci,id=xhci \
     -drive if=none,id=stick,format=raw,readonly=on,file="${1:-stick.img}" \
-    -device usb-storage,bus=xhci.0,drive=stick \
-    -nic user,model=virtio-net-pci \
-    -nographic -no-reboot
+    -device usb-storage,bus=xhci.0,drive=stick
 }
 
 
@@ -2096,16 +2103,14 @@ lint() {
 # clock), and compares the result against the SAME committed pin. no signing:
 # the pin covers xos.img and rootfs.squashfs, both born before any key is
 # touched, so a clean clone needs no passphrase and mints no keys. tarballs
-# are pre-copied from src/ to stay off the network; get() re-checks their
-# digests, so a poisoned copy still fails loudly. only meaningful on the
+# are already in the shared XOS_CACHE, so the clone builds off the network;
+# get() re-checks their digests, so a poisoned copy still fails loudly. only meaningful on the
 # toolchain the pin was taken with -- same rule G13 already enforces.
 repro() {
   say "independent rebuild -- clone committed HEAD, build, compare to the pin"
   local d want_img have_img want_sq have_sq
   d=$(mktemp -d /tmp/xos-repro.XXXXXX) || return 1
   git clone -q --depth 1 "file://$PWD" "$d/tree" || { rm -rf "$d"; return 1; }
-  mkdir -p "$d/tree/src"
-  cp src/*.tar.* "$d/tree/src/" 2>/dev/null
   if ! ( cd "$d/tree" && ./build.sh deps && ./build.sh fetch && ./build.sh kernel \
       && ./build.sh headers && ./build.sh busybox && ./build.sh tls && ./build.sh ii_ \
       && ./build.sh abduco && ./build.sh cryptsetup_ && ./build.sh wg_ \

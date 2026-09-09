@@ -947,7 +947,6 @@ uses_flag() {
 	# --help writes optional arguments inline: "-I[SPEC]". the flag is -I.
 	set -- "${1%%[*}"
 	case "$1" in
-		--*)      grep -qE -- "(^|[[:space:]])$1([[:space:]=]|$)" ;;
 		# a range, the way --help writes compression levels: -1..9 means any
 		# single digit in that span, and the answer will use just one of them
 		-[0-9]..[0-9])
@@ -960,6 +959,8 @@ uses_flag() {
 		# a bare letter is tar's mode: `tar -czf` and `tar czf` both create,
 		# and --help documents c/x/t with no dash at all
 		?)        grep -qE -- "(^|[[:space:]])-?[A-Za-z]*$1[A-Za-z]*([[:space:]]|$)" ;;
+		# long flags (--spider) and word flags (-maxdepth) both land here:
+		# neither bundles, so both match as a whole token
 		*)        grep -qE -- "(^|[[:space:]])$1([[:space:]=]|$)" ;;
 	esac
 }
@@ -1699,7 +1700,7 @@ menu() {
 			s) cls; stats; pause_card ;;
 			a) cls; autopsy; pause_card ;;
 			h|'?') cls; usage; pause_card ;;
-			q|:q|Q|"$E_EOT") break ;;   # q or Ctrl-D leaves, as in cmdchamp
+			q|:q|Q|"$E_EOT") break ;;   # q or Ctrl-D leaves
 		esac
 	done
 }

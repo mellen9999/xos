@@ -1,5 +1,6 @@
 # provision-lib.sh -- populate H with the field-kit layout. sourced by
-# provision.sh (H = the mounted p3) and by the test harness (H = a temp dir).
+# provision.sh, where H is the mounted p3. nothing in selftest.sh reaches
+# field/ at all: the whole tree is provisioning, not the signed image.
 populate() {
   H="$1"
   mkdir -p "$H/tools" "$H/wordlists" "$H/docs" "$H/loot"

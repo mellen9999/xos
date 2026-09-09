@@ -7,7 +7,17 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
-SBGUID_T=11111111-2222-3333-4444-555555555555
+
+# these three are build.sh's to define. read them out of it rather than keeping
+# a second copy that drifts: a harness attacking the stick with the wrong ESP
+# size, or enrolling a dbx entry under a different GUID, fails for a reason
+# that has nothing to do with the thing under test.
+bsh() { local v; v=$(grep -m1 "^$1=" build.sh | cut -d= -f2-)
+        [ -n "$v" ] || { echo "cannot read $1 from build.sh" >&2; exit 1; }
+        printf '%s' "$v"; }
+SBGUID_T=$(bsh SBGUID)
+OVMF_CODE=$(bsh OVMF_CODE)
+STICK_ESP_MIB=$(bsh STICK_ESP_MIB)
 pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
@@ -15,10 +25,9 @@ pass=0; fail=0; skip=0; sections=0
 EXPECTED_SECTIONS=19
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
-# p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
-# STICK_ESP_MIB (64). the whole stick is what boots on real hardware, so the
-# harness attacks the stick, not the bare xos.img.
-ROOT_OFF=$(( (1 + 64) * 1024 * 1024 ))
+# p2 (root) starts after the 1 MiB gap + the ESP. the whole stick is what boots
+# on real hardware, so the harness attacks the stick, not the bare xos.img.
+ROOT_OFF=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
 
 # production carries no test hook, so build a test-flavoured UKI + stick for this
 # run and restore the production ones on the way out.
@@ -70,13 +79,19 @@ assert_complete() {
 	fi
 }
 
+# secure-boot firmware with the enrolled keyset, written once. every qemu boot
+# below is this plus however it attaches the disk.
+QEMU_FW=(
+	-global driver=cfi.pflash01,property=secure,value=on
+	-drive "if=pflash,format=raw,unit=0,readonly=on,file=$OVMF_CODE"
+	-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd
+)
+
 # boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
 # verity root resolved by PARTUUID off the stick's p2.
 boot_img() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-drive file="$1",if=virtio,format=raw,readonly=on \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null 2>&1
@@ -92,9 +107,7 @@ boot_refused() {
 	local log=/tmp/xos-refused.$$.log t=0 qp
 	rm -f "$log"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-drive file="$1",if=virtio,format=raw,readonly=on \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null > "$log" 2>&1 &
@@ -108,15 +121,11 @@ boot_refused() {
 	cat "$log"; rm -f "$log"
 }
 
-# same chain but over an emulated xHCI USB mass-storage device -- the real
-# hardware path, including usb enumeration and the dm-mod.waitfor poll.
 # boot with a second virtio disk attached (becomes /dev/vdb), for the p3 test.
 boot_state() {
 	local disk="$1"; shift
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-drive file=stick.img,if=virtio,format=raw,readonly=on \
 		-drive file="$disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot "$@" < /dev/null 2>&1
@@ -125,19 +134,17 @@ boot_state() {
 # boot with the hardware clock forced years into the past. proves the floor.
 boot_backclock() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
 		-rtc base=2010-01-01T00:00:00 \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \
 		-drive file="$1",if=virtio,format=raw,readonly=on \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1
 }
 
+# the same chain over an emulated xHCI USB mass-storage device -- the real
+# hardware path, including usb enumeration and the dm-mod.waitfor poll.
 boot_usb() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-device qemu-xhci,id=xhci \
 		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
 		-device usb-storage,bus=xhci.0,drive=stick \
@@ -336,6 +343,16 @@ grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged r
 grep -q 'sysctls-hardened: yes' <<< "$out" && ok "every hardening sysctl took" || bad "a hardening sysctl is not at its value"
 grep -q 'sysctls-hardened: '  <<< "$out" && ! grep -q 'sysctl FAILED' <<< "$out" \
 	&& ok "no sysctl write failed" || bad "a sysctl write failed at boot (or the probe never ran)"
+# the home must be writable -- it is the tmpfs every session lives on. a probe
+# whose output nobody reads is a test that cannot fail, so read it.
+grep -q 'writable-home: yes (tmpfs)' <<< "$out" \
+	&& ok "the operator's home is writable tmpfs" \
+	|| bad "home is not writable (learn, ssh keys and abduco all need it)"
+# losetup backs the p3 provisioning path; if it cannot attach, A16 fails later
+# for a reason that looks like encryption rather than a missing loop device.
+grep -q 'losetup: ok' <<< "$out" \
+	&& ok "loop device attaches (the p3 provisioning path is usable)" \
+	|| bad "losetup failed: $(grep -oP 'losetup: \K.*' <<< "$out" | head -1)"
 
 echo
 section "A10  boot the stick over emulated USB (the real hardware path)"
@@ -526,6 +543,19 @@ grep -q 'clock-not-before-floor: yes' <<< "$out" \
 	&& ok "the running clock is at or above the floor" \
 	|| bad "the clock is below the floor -- init did not raise it"
 # a machine whose rtc is already sane must make NO network time call -- the
+# the shipped tunnel's own handshake, as init saw it. A15 tests tls-time; this
+# is the layer under it, and it printed unread until now.
+if [ "$net_ok" = yes ]; then
+	grep -q 'tls-handshake: HTTP/1' <<< "$out" \
+		&& ok "init's tls handshake reached an https server through the shipped anchors" \
+		|| bad "tls-handshake did not return HTTP/1: $(grep -oP 'tls-handshake: \K.*' <<< "$out" | head -1)"
+	grep -q 'tls-stderr: none' <<< "$out" \
+		&& ok "the tls tunnel wrote nothing to stderr" \
+		|| bad "tls tunnel stderr: $(grep -oP 'tls-stderr: \K.*' <<< "$out" | head -1)"
+else
+	skipped "no network -- init's tls handshake not evaluated"
+fi
+
 # tls-time pass exists for floored clocks only, and its absence is a privacy
 # property worth pinning.
 grep -q 'tls-time: skipped (rtc sane)' <<< "$out" \
@@ -588,12 +618,18 @@ fi
 grep -q 'recon: first visit to machine' <<< "$b1" \
 	&& ok "boot 1 recorded a recon baseline for this machine" \
 	|| bad "recon did not record a baseline on first visit"
+grep -q 'teststate-write: ok' <<< "$b1" \
+	&& ok "boot 1 wrote the marker into p3 and synced it" \
+	|| bad "boot 1 could not write to p3 (boot 2's read-back proves nothing without this)"
 assert_complete "$b1" "A16 boot 1"
 # boot 2 is the same machine, same disk -- but a pci device has appeared
 # (an xhci controller). recon must read the marker back AND call out the
 # new hardware; a machine that grew a device since your last visit is
 # exactly what recon exists to notice.
 b2=$(boot_state "$p3disk" -device qemu-xhci)
+grep -q 'teststate-open: ok' <<< "$b2" \
+	&& ok "boot 2 reopened the encrypted partition boot 1 made" \
+	|| bad "boot 2 could not open p3 (the marker read below cannot mean anything)"
 grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
 	&& ok "boot 2 read the marker back -- state survived the power cycle" \
 	|| bad "the marker did not survive the reboot"
@@ -669,9 +705,7 @@ else
 	mcopy -o -i /tmp/xos-a18.img@@1M /tmp/xos-a18-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	a18log=/tmp/xos-a18.log; a18qmp=/tmp/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-device qemu-xhci,id=xhci \
 		-drive if=none,id=stick,format=raw,readonly=on,file=/tmp/xos-a18.img \
 		-device usb-storage,bus=xhci.0,drive=stick,id=stickdev \
@@ -760,9 +794,7 @@ else
 	cp stick.img /tmp/xos-a19p.img
 	mcopy -o -i /tmp/xos-a19p.img@@1M /tmp/xos-a19p-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	o19p=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-drive file=/tmp/xos-a19p.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a19disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
@@ -778,9 +810,7 @@ else
 	cp stick.img /tmp/xos-a19n.img
 	mcopy -o -i /tmp/xos-a19n.img@@1M /tmp/xos-a19n-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	o19n=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		-global driver=cfi.pflash01,property=secure,value=on \
-		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		"${QEMU_FW[@]}" \\
 		-drive file=/tmp/xos-a19n.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a19disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
@@ -813,9 +843,7 @@ else
 		local fifo=/tmp/xos-a19.fifo t=0
 		rm -f "$fifo" "$4"; mkfifo "$fifo"
 		timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-			-global driver=cfi.pflash01,property=secure,value=on \
-			-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
-			-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+			"${QEMU_FW[@]}" \\
 			-drive file="$1",if=virtio,format=raw,readonly=on \
 			-drive file="$2",if=virtio,format=raw \
 			-nic user,model=virtio-net-pci -nographic -no-reboot < "$fifo" > "$4" 2>&1 &
