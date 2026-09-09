@@ -276,8 +276,12 @@ _sandbox_fill() {
 	# archive.zip -- a fixed name so unzip lessons don't clash with a @txt@
 	# pool file this same tree already has (extracting over one, with no -o,
 	# would block on the overwrite prompt busybox unzip reads from stdin).
+	# the member is removed once it is inside: leaving it would hit that same
+	# prompt on the extract card, and would make its exists:hello.txt check
+	# true before the learner typed anything.
 	printf 'hello from the archive\n' > hello.txt
 	_fx_zip archive.zip hello.txt hello.txt
+	rm -f hello.txt
 
 	# names.txt -- tar -T reads archive member names from this, one per line;
 	# it has to hold real paths, unlike @txt@'s prose, so it is not a pool.

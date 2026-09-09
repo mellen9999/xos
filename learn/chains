@@ -21,7 +21,7 @@ a: grep refused @log@ | wc -l
 lvl: 06
 ref: grep
 ---
-q: %show% the line where @log@ died
+q: %show% the last FATAL line in @log@
 a: grep FATAL @log@ | tail -1
 lvl: 06
 ref: grep

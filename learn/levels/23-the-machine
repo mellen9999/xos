@@ -141,7 +141,7 @@ ref: dmesg
 teach: dmesg -s
 hint: -s caps how many bytes of the buffer are read, from the end
 ---
-q: %find% every line of the kernel log mentioning verity
+q: %find% every kernel-log line mentioning verity, any capitalisation
 a: dmesg | grep -i verity
 why: live-hw
 ref: dmesg

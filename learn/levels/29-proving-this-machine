@@ -69,7 +69,7 @@ ref: grep
 teach: grep -o
 hint: fail closed. a verified system that carries on after a mismatch is not one
 ---
-q: {what does the kernel say about verity in its boot log|report what the kernel logged about verity while booting|find what the kernel's boot log says about verity}
+q: {what does the kernel's boot log say about verity, any capitalisation|report what the kernel logged about verity, ignoring case|find verity in the kernel's boot log, whatever its capitalisation}
 a: dmesg | grep -i verity
 why: live-hw
 ref: dmesg

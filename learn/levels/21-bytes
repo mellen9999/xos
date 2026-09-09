@@ -51,21 +51,21 @@ ref: hexdump
 teach: hexdump -o
 hint: o for octal, again grouped two bytes at a time
 ---
-q: {you only need @bin@'s header -- dump just its first 32 bytes|check @bin@'s header by dumping only its first 32 bytes|cap the dump of @bin@ at its first 32 bytes, header only}
+q: {@bin@'s header only -- first 32 bytes, hex and text|dump @bin@'s first 32 bytes as hex and text|cap @bin@ at its first 32 bytes, hex and text}
 a: hexdump -C -n 32 @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -n
 hint: -n caps how many bytes hexdump reads, from the start
 ---
-q: {dump @bin@ starting 8 bytes in, skipping the header|skip the first 8 bytes of @bin@ and dump what follows|show @bin@ from byte 8 onward, past its header}
+q: {dump @bin@ from byte 8 on, hex and text|skip @bin@'s first 8 bytes, dump hex and text|show @bin@ from byte 8 onward as hex and text}
 a: hexdump -C -s 8 @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -s
 hint: -s skips that many bytes before the dump begins
 ---
-q: {dump @bin@ without collapsing repeated lines into an asterisk|show every line of @bin@ in full, even repeats|turn off the asterisk hiding repeated lines in @bin@}
+q: {dump @bin@ hex and text, no repeats collapsed to an asterisk|show every line of @bin@ as hex and text, repeats included|hex and text for @bin@, no asterisk for repeats}
 a: hexdump -C -v @bin@
 cmp: ref
 ref: hexdump

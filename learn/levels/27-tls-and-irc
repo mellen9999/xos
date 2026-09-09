@@ -61,7 +61,7 @@ teach: ii -i
 hint: -i points ii at a directory of your choosing instead of the default
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: {join #xos on @host@|hop into #xos on @host@|get onto #xos on @host@}
+q: {join #xos on @host@ by sending /j #xos to its in fifo|write /j #xos into @host@'s in fifo|send the line /j #xos to @host@'s in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in
 why: live-net
 ref: ii
@@ -93,7 +93,7 @@ teach: grep -r
 hint: -r walks every channel directory recursively
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: %list% every channel ii has joined
+q: %list% the channel directories ii has joined -- the ones named #...
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 why: live-net
 ref: find
