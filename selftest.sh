@@ -552,7 +552,9 @@ grep -q 'clock-not-before-floor: yes' <<< "$out" \
 # fault was `resolve ...: Try again`. a gate that cries wolf is a gate you stop
 # reading, so a guest-side network failure SKIPS; only a handshake that came
 # back wrong FAILS.
-tls_err=$(grep -oP 'tls-stderr: \K.*' <<< "$out" | head -1)
+# tr -d '\r': this comes off a serial console, and init strips the CR on the
+# handshake line but not on this one -- "none\r" is not "none".
+tls_err=$(grep -oP 'tls-stderr: \K.*' <<< "$out" | head -1 | tr -d '\r')
 if grep -q 'tls-handshake: HTTP/1' <<< "$out"; then
 	ok "init's tls handshake reached an https server through the shipped anchors"
 	[ "$tls_err" = none ] \
