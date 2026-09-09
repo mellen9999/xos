@@ -1211,6 +1211,12 @@ toolchain() {
     mksquashfs -version 2>&1 | head -1
     veritysetup --version
     sha256sum musl-static-pie.specs | awk '{print $1}'
+    # the EFI stub is not built here -- it comes from the host's systemd and
+    # is then wrapped in the signature. two hosts with different systemd
+    # versions produce different signed bytes from identical source, which is
+    # a toolchain difference, so it belongs in the fingerprint rather than in
+    # the pin: G13 then says "toolchain differs" instead of crying wolf.
+    sha256sum "$STUB" 2>/dev/null | awk '{print $1}'
     umask
   } | sha256sum | awk '{print $1}'
 }
@@ -1218,6 +1224,7 @@ toolchain() {
 pin() {
   say "pinning the bytes this source produces"
   [ -f xos.img ] || { echo "FAIL: no xos.img -- build first" >&2; return 1; }
+  [ -f bzImage ] || { echo "FAIL: no bzImage -- build first" >&2; return 1; }
   # a pin is a claim about COMMITTED source. one taken while a tracked file
   # was modified pinned bytes no clone can rebuild -- repro caught exactly
   # that once (a level file edited between rootfs and pin). refuse the tree
@@ -1235,6 +1242,10 @@ pin() {
     printf 'image     %s\n'   "$(sha256sum < xos.img      | awk '{print $1}')"
     printf 'squashfs  %s\n'   "$(sha256sum < rootfs.squashfs | awk '{print $1}')"
     printf 'roothash  %s\n'   "$(cat verity.roothash)"
+    # the kernel is NOT inside the squashfs, so image/squashfs/roothash can all
+    # match while bzImage differs -- and the kernel is what enforces every
+    # hardening claim the other three rest on. pin it too.
+    printf 'kernel    %s\n'   "$(sha256sum < bzImage | awk '{print $1}')"
     printf 'toolchain %s\n'   "$(toolchain)"
   } > image.sha256
   cat image.sha256
@@ -1428,14 +1439,16 @@ gates() {
   # this is the whole point of a pinned clock, salt and uuid: without it,
   # "reproducible" is a claim in a README that nothing ever checks.
   if [ -f image.sha256 ]; then
-    local want_img have_img want_sq have_sq want_tc have_tc want_rh have_rh
+    local want_img have_img want_sq have_sq want_tc have_tc want_rh have_rh want_kv have_kv
     want_img=$(awk '$1=="image"{print $2}'     image.sha256)
     want_sq=$(awk '$1=="squashfs"{print $2}'   image.sha256)
     want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
     want_rh=$(awk '$1=="roothash"{print $2}'   image.sha256)
+    want_kv=$(awk '$1=="kernel"{print $2}'     image.sha256)
     have_img=$(sha256sum < xos.img | awk '{print $1}')
     have_sq=$(sha256sum < rootfs.squashfs | awk '{print $1}')
     have_rh=$(cat verity.roothash 2>/dev/null)
+    have_kv=$(sha256sum < bzImage 2>/dev/null | awk '{print $1}')
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
       g "G13 reproducible (toolchain differs, not checked)" ok
@@ -1445,20 +1458,27 @@ gates() {
       # check the squashfs and roothash digests too -- pin() records both, so a
       # mismatch localises drift (filesystem vs verity padding/tree), and stops
       # either recorded line from being decoration nothing ever reads.
+      # want_kv is empty on a pin taken before the kernel line existed; treat
+      # that as a stale pin rather than silently skipping the kernel.
       g "G13 image matches committed digest" \
-        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] && echo ok || echo FAIL)"
+        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] \
+           && [ -n "$want_kv" ] && [ "$want_kv" = "$have_kv" ] && echo ok || echo FAIL)"
+      [ -n "$want_kv" ] || printf '    image.sha256 predates the kernel pin -- ./build.sh pin\n' >&2
       [ "$want_img" = "$have_img" ] || \
         printf '    image pinned %s\n    image built  %s\n' "${want_img:0:32}..." "${have_img:0:32}..." >&2
       [ "$want_sq" = "$have_sq" ] || \
         printf '    squashfs pinned %s\n    squashfs built  %s\n' "${want_sq:0:32}..." "${have_sq:0:32}..." >&2
       [ "$want_rh" = "$have_rh" ] || \
         printf '    roothash pinned %s\n    roothash built  %s\n' "${want_rh:0:32}..." "${have_rh:0:32}..." >&2
+      [ -z "$want_kv" ] || [ "$want_kv" = "$have_kv" ] || \
+        printf '    kernel pinned %s\n    kernel built  %s\n' "${want_kv:0:32}..." "${have_kv:0:32}..." >&2
       # the remedy, because it is nearly always this one and `all && pin` can
       # never reach it: the gates run at the END of `all`, so a stale pin fails
       # the run that would have refreshed it. pin cannot move inside `all`
       # either -- taken before the gates it would satisfy G13 by construction
       # and stop meaning anything.
-      [ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] || \
+      [ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] \
+        && [ -n "$want_kv" ] && [ "$want_kv" = "$have_kv" ] || \
         printf '    if this build is the one you meant: ./build.sh pin\n' >&2
     fi
   else
