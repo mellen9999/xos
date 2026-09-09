@@ -15,6 +15,7 @@ ref: ping
 teach: ping -c
 hint: -c sets how many pings to send before stopping
 ---
+setup: every ping here sends three, then stops
 q: {just need loss percent -- ping @ip@ quietly, summary only|ping @ip@ with per-packet output suppressed, summary only|ping @ip@ and print only the final summary}
 a: ping -c 3 -q @ip@
 why: live-net
@@ -22,6 +23,7 @@ ref: ping
 teach: ping -q
 hint: -q suppresses per-packet lines, printing only the final summary
 ---
+setup: every ping here sends three, then stops
 q: {don't flood the link -- ping @ip@ one second apart|ping @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
 a: ping -i 1 -c 3 @ip@
 why: live-net
@@ -29,6 +31,7 @@ ref: ping
 teach: ping -i
 hint: -i sets the interval between packets, in seconds
 ---
+setup: every ping here sends three, then stops
 q: {two interfaces, test one specifically -- ping @ip@ out of @iface@|ping @ip@ through @iface@|send the pings to @ip@ out of @iface@}
 a: ping -I @iface@ -c 3 @ip@
 why: live-net
@@ -36,6 +39,7 @@ ref: ping
 teach: ping -I
 hint: -I picks which interface the pings go out of
 ---
+setup: every ping here sends three, then stops
 q: {probe for MTU trouble -- ping @ip@ with a 1000 byte payload|ping @ip@ with a 1000 byte payload, to probe for MTU trouble|send 1000 byte pings to @ip@ to test for MTU issues}
 a: ping -s 1000 -c 3 @ip@
 why: live-net
@@ -50,6 +54,7 @@ ref: ping
 teach: ping -w
 hint: -w caps the whole run's wall-clock time, in seconds
 ---
+setup: every ping here sends three, then stops
 q: {ping @ip@, waiting at most 2 seconds for each reply|cap the wait for each reply from @ip@ at 2 seconds|ping @ip@, waiting no more than 2 seconds per reply}
 a: ping -W 2 -c 3 @ip@
 why: live-net
@@ -57,6 +62,7 @@ ref: ping
 teach: ping -W
 hint: -W caps how long to wait for each individual reply
 ---
+setup: every ping here sends three, then stops
 q: {is @ip@ on the local segment -- ping with ttl fixed at 5 hops|ping @ip@ with the ttl fixed at 5 hops|send pings to @ip@ that expire after 5 hops}
 a: ping -t 5 -c 3 @ip@
 why: live-net
@@ -64,6 +70,7 @@ ref: ping
 teach: ping -t
 hint: -t sets the ip ttl, capping how many hops a packet can cross
 ---
+setup: every ping here sends three, then stops
 q: {the link may corrupt bits -- ping @ip@ with the pattern ff|ping @ip@ with ff as the byte pattern filling the payload|fill the ping payload to @ip@ with the pattern ff}
 a: ping -p ff -c 3 @ip@
 why: live-net
@@ -71,6 +78,7 @@ ref: ping
 teach: ping -p
 hint: -p fills the payload with a repeating hex pattern you choose
 ---
+setup: every ping here sends three, then stops
 q: {need samples fast -- ping @ip@ as soon as each reply lands|ping @ip@ adaptively, firing as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
 a: ping -A -c 3 @ip@
 why: live-net
@@ -162,7 +170,7 @@ ref: traceroute
 teach: traceroute -r
 hint: -r sends probes directly, bypassing the normal routing tables
 ---
-q: {@ip@ is rate-limiting you -- pause half a second between probes|trace to @ip@ with half a second between probes|space the probes to @ip@ half a second apart}
+q: {@ip@ is rate-limiting you -- pause 500 ms between probes|trace to @ip@ with 500 ms between probes|space the probes to @ip@ 500 ms apart}
 a: traceroute -z 500 @ip@
 why: live-net
 ref: traceroute

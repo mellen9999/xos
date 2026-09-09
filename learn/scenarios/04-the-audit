@@ -24,7 +24,6 @@ hint: -perm -4000 matches the setuid bit; the mode number is octal
 setup: The busiest files in /usr/share/learn/ref are the ones worth reading first.
 q: the ten longest ref pages under /usr/share/learn/ref, longest first
 a: wc -l /usr/share/learn/ref/* | sort -rn | head -n 10
-a: wc -l /usr/share/learn/ref/* | sort -nr | head -n 10
 ref: wc
 cmp: ref
 hint: wc -l on many files also prints a total; sort -rn puts it at the top

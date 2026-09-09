@@ -190,6 +190,7 @@ ref: arp
 teach: arp -D
 hint: -D answers arp requests for an address on another host's behalf
 ---
+setup: three probes, then stop
 q: {is anyone already using the address @ip@ -- ask at the link layer|check at the link layer whether @ip@ is already in use|find out, below ip, whether @ip@ already has an owner}
 a: arping -c 3 @ip@
 why: live-hw
@@ -197,13 +198,15 @@ ref: arping
 teach: arping -c
 hint: arp works below ip, so this finds hosts that will not answer a ping
 ---
+setup: every arping here sends one probe, then stops
 q: {send the arp probe for @ip@ out of @iface@|send the arp probe for @ip@ through @iface@|pick @iface@ as the interface the arp probe for @ip@ goes out of}
-a: arping -I @iface@ -c 3 @ip@
+a: arping -I @iface@ -c 1 @ip@
 why: live-hw
 ref: arping
 teach: arping -I
 hint: -I picks which interface the probe goes out of
 ---
+setup: every arping here sends one probe, then stops
 q: {arping @ip@ quietly, reporting only the exit status|run arping against @ip@ silently, exit status only|arping @ip@ with no output, just the exit status}
 a: arping -q -c 1 @ip@
 why: live-hw
@@ -211,6 +214,7 @@ ref: arping
 teach: arping -q
 hint: -q silences output, leaving just the exit status to check
 ---
+setup: every arping here sends one probe, then stops
 q: {send a duplicate-address-detection probe for @ip@|probe for whether @ip@ is already a duplicate|send a duplicate-address-detection check for @ip@}
 a: arping -D -c 1 @ip@
 why: live-hw
@@ -218,6 +222,7 @@ ref: arping
 teach: arping -D
 hint: -D checks whether an address is already claimed before you use it
 ---
+setup: every arping here sends one probe, then stops
 q: {you just took @ip@ -- announce it unsolicited|announce @ip@ unsolicited|broadcast an unsolicited arp announcement of @ip@}
 a: arping -U -c 1 @ip@
 why: live-hw
@@ -225,6 +230,7 @@ ref: arping
 teach: arping -U
 hint: -U announces your address without being asked
 ---
+setup: every arping here sends one probe, then stops
 q: {arping @ip@ using @ip2@ as the chosen source address|arping @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when arping @ip@}
 a: arping -s @ip2@ -c 1 @ip@
 why: live-hw
@@ -246,6 +252,7 @@ ref: arping
 teach: arping -f
 hint: -f stops at the first reply instead of sending a fixed count
 ---
+setup: every arping here sends one probe, then stops
 q: {send broadcast arp probes for @ip@|send the arp probes for @ip@ to the broadcast address|broadcast the arp probes for @ip@ instead of unicasting them}
 a: arping -b -c 1 @ip@
 why: live-hw
@@ -253,6 +260,7 @@ ref: arping
 teach: arping -b
 hint: -b sends to the broadcast address instead of a unicast one
 ---
+setup: every arping here sends one probe, then stops
 q: {no address of your own yet -- arping @ip@ without claiming a source|arping @ip@ without claiming any source address|run arping against @ip@ so it needs no source address}
 a: arping -A -c 1 @ip@
 why: live-hw

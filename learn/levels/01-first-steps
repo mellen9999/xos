@@ -41,9 +41,8 @@ ref: ls
 teach: ls -l
 hint: the long format flag, then the path
 ---
-q: %list% this directory with sizes in K and M, not raw bytes
+q: %list% this directory in long format, sizes in K and M not raw bytes
 a: ls -lh
-a: ls -hl
 out: ^total
 ref: ls
 teach: ls -h

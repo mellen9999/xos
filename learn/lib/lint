@@ -357,3 +357,113 @@ cmpref_moving() {
 		END { flush() }
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
 }
+
+# ---- spelling folds --------------------------------------------------------
+#
+# grade's flagnorm reduces every spelling of a command to one key, so `tar xzf`
+# and `tar -zxf` meet. that is only safe while no two DIFFERENT commands reduce
+# to the same key -- one collision and a wrong answer starts passing.
+#
+# foldcollide -- prints every group of distinct listed answers sharing a key.
+# answers on the same card are meant to be the same command, so those are the
+# collisions the fold exists to make; any other group is a bug in the fold.
+foldcollide() {
+	awk 'FNR == 1 { blk = 0 } /^---$/ { blk++ }
+	     /^a: / { a = $0; sub(/^a: /, "", a); print FILENAME "#" blk "\t" a }' \
+		"$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null | sort -u > "$TMP/fold.raw"
+	cut -f2 "$TMP/fold.raw" | flagnorm > "$TMP/fold.key"
+	paste "$TMP/fold.key" "$TMP/fold.raw" | sort | awk -F'\t' '
+		{ key = $1; card = $2; ans = $3
+		  if (key != last) { report(); last = key; n = 0; delete cs; delete as }
+		  cs[++n] = card; as[n] = ans }
+		END { report() }
+		function report(   i, same) {
+			if (n < 2) return
+			# the same answer drilled on two cards is not a collision, and
+			# neither is a card listing two spellings on purpose -- the fold
+			# exists to make those meet. only two DIFFERENT commands landing
+			# on one key is a bug.
+			same = 1
+			for (i = 2; i <= n; i++) if (as[i] != as[1]) same = 0
+			if (same) return
+			same = 1
+			for (i = 2; i <= n; i++) if (cs[i] != cs[1]) same = 0
+			if (same) return
+			printf "  two commands fold to one key:\n"
+			for (i = 1; i <= n; i++) printf "    %s  %s\n", cs[i], as[i]
+		}'
+}
+
+# ---- a flag's value is a constant, not dictation ---------------------------
+#
+# lint's named() deliberately exempts flags and the values attached to them:
+# naming a flag in a prompt is dictation. its VALUE is not. `ping -c 3 -q @ip@`
+# behind "ping @ip@ quietly, summary only" cannot be answered -- nothing on the
+# card says three, and the arping run beside it wants -c 1 without saying one.
+# these blocks are graded by string match, so an unnamed value is not vague, it
+# is unanswerable. that hole is what let a whole ping level through.
+#
+# unnamed_value -- prints every ungraded block whose answer passes a value no
+# prompt, setup or hint names. flagnorm marks a value with \001, so a flag
+# that merely looks like one (-type, -maxdepth) is never mistaken for one. a
+# spelled-out small number counts as naming it: "three times" names 3.
+unnamed_value() {
+	awk 'FNR == 1 { flush() }
+	     /^---$/ { flush(); inblk = 1; bf = FILENAME; next }
+	     inblk && /^q: / && q == "" { q = substr($0, 4); ql = FNR }
+	     inblk && /^a: / && a == "" { a = substr($0, 4) }
+	     inblk && /^(setup|hint): / { ctx = ctx " " substr($0, index($0, ":") + 2) }
+	     inblk && /^(out|state|cmp|status): / { graded = 1 }
+	     inblk && /^why: conceptual$/ { conceptual = 1 }
+	     inblk && /^ref: / { rc = substr($0, 6); sub(/ .*/, "", rc) }
+	     END { flush() }
+	     function flush() {
+	         if (inblk && q != "" && !graded && !conceptual)
+	             printf "%s:%d\t%s\t%s\t%s\t%s\n", bf, ql, ctx, q, a, rc
+	         inblk = 0; q = ""; a = ""; ctx = ""; graded = 0; conceptual = 0; rc = ""
+	     }' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null > "$TMP/uv.raw"
+	cut -f4 "$TMP/uv.raw" | flagnorm > "$TMP/uv.key"
+	paste "$TMP/uv.raw" "$TMP/uv.key" | awk -F'\t' -v ref="$REF" '
+		BEGIN { split("zero one two three four five six seven eight nine ten", W, " ")
+		        for (i in W) NUM[W[i]] = i - 1 }
+		# a value only one {a|b|c} branch names is one the roll may never show
+		function inevery(t, qq,   a, b, rest, n, i, br) {
+			a = index(qq, "{"); b = index(qq, "}")
+			if (a == 0 || b < a) return index(qq, t) > 0
+			rest = substr(qq, 1, a - 1) substr(qq, b + 1)
+			if (index(rest, t)) return 1
+			n = split(substr(qq, a + 1, b - a - 1), br, "|")
+			for (i = 1; i <= n; i++) if (!index(br[i], t)) return 0
+			return 1
+		}
+		# a default documented on the ref page for this command is on
+		# screen: the card opens that page on Tab. -p PORT (default 6667)
+		# is knowledge the learner can reach; a count an author picked is not.
+		function inref(v, c,   f, l) {
+			if (c == "") return 0
+			if (!(c in refseen)) {
+				refseen[c] = ""
+				f = ref "/" (c == "." ? "dot" : c)
+				while ((getline l < f) > 0) refseen[c] = refseen[c] " " l
+				close(f)
+			}
+			return refseen[c] ~ ("default[^A-Za-z0-9]*" v "([^A-Za-z0-9]|$)")
+		}
+		function named(v, ctx, q, rc,   w) {
+			if (index(ctx, v) || inevery(v, q)) return 1
+			for (w in NUM) if (NUM[w] == v && (index(ctx, w) || inevery(w, q))) return 1
+			return inref(v, rc)
+		}
+		{
+			n = split($6, t, " "); bad = ""
+			for (i = 1; i <= n; i++) {
+				p = index(t[i], "\001"); if (p == 0) continue
+				v = substr(t[i], p + 1)
+				if (v == "" || v ~ /^@/ || v ~ /^[$]/) continue      # a token or a shell expansion
+				gsub(/^['\''"]|['\''"]$/, "", v)
+				if (v != "" && !named(v, $2, $3, $5))
+					bad = bad (bad ? ", " : "") substr(t[i], 1, p - 1) " " v
+			}
+			if (bad != "") printf "  %s: answer needs %s, named nowhere on the card\n    %s\n", $1, bad, $4
+		}'
+}

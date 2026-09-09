@@ -132,7 +132,7 @@ a: dmesg -n 3
 why: live-hw
 ref: dmesg
 teach: dmesg -n
-hint: -n sets the console log level, not what dmesg itself prints
+hint: -n sets the console log level -- 3 is errors -- not what dmesg prints
 ---
 q: {read only the last 4096 bytes of the kernel buffer|dump just the final 4096 bytes of the kernel buffer|limit the kernel buffer read to its last 4096 bytes}
 a: dmesg -s 4096

@@ -166,7 +166,6 @@ hint: no flag needed -- ln makes a hard link by default
 ---
 q: %make% a symlink @word@-link to @txt@, replacing it if it exists
 a: ln -sf @txt@ @word@-link
-a: ln -fs @txt@ @word@-link
 state: exists:@word@-link
 ref: ln
 teach: ln -f
