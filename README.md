@@ -39,9 +39,17 @@ one key at the top, complete coverage at the bottom.
 
 a signature says who signed an image, never when -- so an old release stays
 bootable forever unless something says otherwise. `revoked` is that something:
-it lists the authenticode digest of every image that must never boot again, and
-`dbx` enrolls the list into firmware. the firmware then refuses the old image
-at exactly the place it refuses an unsigned one. entries are permanent.
+it lists the authenticode digest of every image that must never boot again.
+`./build.sh dbx` writes it two ways -- into the qemu varstore for the
+self-test, and as `/xos-keys/dbx.auth` on the stick, which is the form real
+firmware takes. enroll it in setup mode alongside the keys, **before** `PK.der`,
+since enrolling PK is what turns enforcement on. the firmware then refuses the
+old image at exactly the place it refuses an unsigned one.
+
+adding a revocation to a machine already enforcing means going back to setup
+mode and enrolling again: the shipped `dbx.auth` carries no KEK signature, and
+a machine in user mode only accepts signed variable updates. entries are
+permanent.
 
 ## the stick
 
@@ -99,8 +107,8 @@ signing key (db) under `keys/`; the public halves land on the stick under
 and every later build asks again. `keys/` is gitignored.
 
 1. in firmware setup, clear the existing keys / enter setup mode
-2. enroll `db.der`, then `KEK.der`, then `PK.der` last -- enrolling the PK exits
-   setup mode and turns enforcement on
+2. enroll `db.der`, `KEK.der` and (if present) `dbx.auth`, then `PK.der` last --
+   enrolling the PK exits setup mode and turns enforcement on
 
 no shim and no MOK: you hold the only key, on purpose.
 

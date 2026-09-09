@@ -1024,7 +1024,24 @@ dbx() {
   fi
   virt-fw-vars --input ovmf-vars.fd --output ovmf-vars.fd "${args[@]}" >/dev/null 2>&1 \
     || { echo "FAIL: could not enroll dbx into ovmf-vars.fd" >&2; return 1; }
-  printf '  dbx: %d image(s) revoked in firmware\n' "$n"
+
+  # ovmf-vars.fd is the QEMU varstore and nothing else. for years that was the
+  # only thing revoke() produced, so a revocation held in the test rig and did
+  # nothing whatsoever on real hardware -- the one machine it needed to hold on.
+  # write the enrollable form too, beside the PK/KEK/db the operator already
+  # enrolls from the stick.
+  #
+  # this .auth carries no KEK signature, so it is accepted in SETUP MODE only --
+  # which is exactly the documented order: clear the keys, enroll dbx, db and
+  # KEK, and PK last, because enrolling PK is what turns enforcement on. adding
+  # a revocation to a machine already in user mode means re-enrolling, and the
+  # README says so rather than pretending otherwise.
+  rm -rf dbxauth && mkdir -p dbxauth
+  virt-fw-vars --input ovmf-vars.fd --output-auth dbxauth >/dev/null 2>&1 \
+    && [ -s dbxauth/dbx.auth ] \
+    || { echo "FAIL: could not write an enrollable dbx.auth" >&2; return 1; }
+  printf '  dbx: %d image(s) revoked -- qemu varstore + dbxauth/dbx.auth (%d bytes)\n' \
+    "$n" "$(stat -c%s dbxauth/dbx.auth)"
 }
 
 revoke() {
@@ -1090,6 +1107,14 @@ EOF
   mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/xos-keys
   mcopy -pm -i esp.part xos-signed.efi ::/EFI/BOOT/BOOTX64.EFI
   mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/xos-keys/
+  # the revocation list, in the form firmware can actually take. without this
+  # `revoke` only ever reached the qemu varstore. safe on the unauthenticated
+  # ESP: firmware validates it, and in setup mode it is the operator who
+  # decides to enroll it at all.
+  if [ -s dbxauth/dbx.auth ]; then
+    touch -d "@$SOURCE_DATE_EPOCH" dbxauth/dbx.auth
+    mcopy -pm -i esp.part dbxauth/dbx.auth ::/xos-keys/
+  fi
   dd if=esp.part    of=stick.img bs=1M seek=1                     conv=notrunc status=none
   dd if=xos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
   rm -f esp.part
@@ -1358,13 +1383,14 @@ TODO: write this entry by hand.
 #   G39 both destructive disk paths go through the shared guard
 #   G40 the respawn backoff counts and sleeps as written
 #   G41 a flashed stick yields a p3 that fills the device
+#   G42 a revocation is shipped in a form real firmware can enroll
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=39   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=40   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1704,26 +1730,51 @@ printf 'fail=%s' \"\$_fail\"" 2>&1)
   # on a 16 GB stick, and the type was written as gdisk's 8309, which sfdisk
   # rejects outright -- addstate had never once produced a p3. a sparse file is
   # enough: sfdisk does the same arithmetic on a file as on a block device.
-  local g41=ok f41 free41 p3sz41 p2e41
+  # 1 GiB, not 16: /tmp is tmpfs on this host, so a 16 GB scratch file is 16 GB
+  # of RAM competing with the qemu boots the self-test runs. the property under
+  # test is "p3 fills whatever device it is given", and a device 15x the image
+  # proves that as well as one 240x it. the assertion is proportional for the
+  # same reason -- it should not care what size the stick is.
+  local g41=ok f41 free41 p3sz41 p2e41 dev41=$((1024 * 1024 * 1024 / 512))
   if [ -f stick.img ]; then
     f41=$(mktemp -u /tmp/xos-g41.XXXXXX.img)
-    truncate -s 16G "$f41" 2>/dev/null && dd if=stick.img of="$f41" bs=1M conv=notrunc status=none 2>/dev/null
+    truncate -s $((dev41 * 512)) "$f41" 2>/dev/null && dd if=stick.img of="$f41" bs=1M conv=notrunc status=none 2>/dev/null
     sfdisk --relocate gpt-bak-std "$f41" >/dev/null 2>&1
     free41=$(sfdisk -F "$f41" 2>/dev/null | awk '/^ *[0-9]+ /{print $3; exit}')
-    [ "${free41:-0}" -gt 33000000 ] \
-      || { g41=FAIL; printf '    only %s free sectors after relocate -- the backup GPT still describes the image\n' "${free41:-0}" >&2; }
+    # at least 90% of the device must be free once the backup GPT is at the end
+    [ "${free41:-0}" -gt $((dev41 * 9 / 10)) ] \
+      || { g41=FAIL; printf '    only %s of %s sectors free after relocate -- the backup GPT still describes the image\n' "${free41:-0}" "$dev41" >&2; }
     p2e41=$(partx -g -o END -n 2:2 "$f41" 2>/dev/null | tr -d ' ')
     sfdisk --no-reread -a "$f41" >/dev/null 2>&1 <<G41EOF
 start=$(( ${p2e41:-0} + 1 )), type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
 G41EOF
     p3sz41=$(partx -g -o SECTORS -n 3:3 "$f41" 2>/dev/null | tr -d ' ')
-    [ "${p3sz41:-0}" -gt 33000000 ] \
-      || { g41=FAIL; printf '    p3 is %s sectors on a 16 GB device -- addstate cannot fill the stick\n' "${p3sz41:-0}" >&2; }
+    [ "${p3sz41:-0}" -gt $((dev41 * 9 / 10)) ] \
+      || { g41=FAIL; printf '    p3 is %s of %s sectors -- addstate cannot fill the stick\n' "${p3sz41:-0}" "$dev41" >&2; }
     rm -f "$f41"
   else
     g41=FAIL; printf '    no stick.img to flash\n' >&2
   fi
   g "G41 a flashed stick yields a p3 that fills the device" "$g41"
+
+  # G42 -- a revocation that only reaches the qemu varstore is not a revocation.
+  # dbx() wrote nothing else for as long as revoke has existed, so `./build.sh
+  # revoke` passed every gate, went green in the harness, and left the machine
+  # it was meant to protect completely unchanged. if anything is revoked, the
+  # stick must carry the enrollable list beside the keys.
+  local g42=ok nrev42
+  # grep -c prints 0 AND exits 1 when nothing matches, so `|| echo 0` used to
+  # append a second line and the gate label came out as "(0\n0".
+  nrev42=$(grep -cE '^[0-9a-f]{64}' revoked 2>/dev/null || true); nrev42=${nrev42:-0}
+  if [ "${nrev42:-0}" -eq 0 ]; then
+    g "G42 revocation shipped enrollably (nothing revoked)" ok
+  else
+    [ -s dbxauth/dbx.auth ] \
+      || { g42=FAIL; printf '    %s revoked but no dbxauth/dbx.auth -- run ./build.sh dbx\n' "$nrev42" >&2; }
+    [ -f stick.img ] && { mdir -i stick.img@@$((1024 * 1024)) ::/xos-keys 2>/dev/null | has 'dbx.auth' \
+      || { g42=FAIL; printf '    the stick does not carry /xos-keys/dbx.auth -- revocation would hold in qemu only\n' >&2; }; }
+    g "G42 revocation shipped enrollably ($nrev42 revoked)" "$g42"
+  fi
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and

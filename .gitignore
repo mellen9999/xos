@@ -33,3 +33,4 @@ verity.roothash
 bzImage.config.sha256
 /cmdline.txt
 /ta.h
+dbxauth/

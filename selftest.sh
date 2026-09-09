@@ -887,9 +887,18 @@ else
 
 	a19log=/tmp/xos-a19-typed.log
 	boot_typed /tmp/xos-a19p.img "$a19e" testpass "$a19log"
-	grep -aq 'state unlocked' "$a19log" \
-		&& ok "typed passphrase: the real state_open opened and mounted p3" \
-		|| bad "the production unlock did not accept a typed passphrase"
+	# match the SUCCESS line, not the substring both outcomes share. init says
+	# "state unlocked -- <home> persists across reboots" when it worked and
+	# "state unlocked but the filesystem would not mount -- p3 is damaged" when
+	# it did not, so a bare 'state unlocked' passed this either way: the one
+	# assertion carrying the whole production-unlock claim could not fail.
+	if grep -aq 'state unlocked -- .* persists across reboots' "$a19log"; then
+		ok "typed passphrase: the real state_open opened and mounted p3"
+	elif grep -aq 'state unlocked but' "$a19log"; then
+		bad "p3 unlocked but did not MOUNT -- the filesystem is damaged (this used to read as a pass)"
+	else
+		bad "the production unlock did not accept a typed passphrase"
+	fi
 	grep -aq 'ledger: boot 2 on this state' "$a19log" \
 		&& ok "the production boot counted in the same ledger" \
 		|| bad "ledger did not carry from the provision boot to the real unlock"
