@@ -7,7 +7,7 @@
  */
 
 /* pubkey only. a password prompt on a root-only box is a brute-force target and
- * buys nothing -- there is exactly one key that may enter, titan's, and it is
+ * buys nothing -- there is exactly one key that may enter, the peer's, and it is
  * baked into the read-only image where verity covers it. */
 #define DROPBEAR_SVR_PASSWORD_AUTH 0
 #define DROPBEAR_SVR_PUBKEY_AUTH 1

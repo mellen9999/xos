@@ -828,7 +828,7 @@ if state_open; then
 	# xos dials OUT: wg brings up the tunnel to a peer you control, and dropbear
 	# binds ONLY to the wireguard address, so xos never opens a port on the
 	# network it is plugged into. the host key lives on p3 (a key in the
-	# reproducible image would be a published private key); titan's public key is
+	# reproducible image would be a published private key); the peer's public key is
 	# in authorized_keys, baked into the read-only root where verity covers it.
 	if [ -f "$STATE_DIR/wg0.conf" ] && command -v wg >/dev/null 2>&1; then
 		# keep the prefix length the operator wrote (WireGuard point-to-point is

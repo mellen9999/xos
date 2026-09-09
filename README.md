@@ -101,9 +101,9 @@ off by default, and it can only be switched on from the encrypted state
 partition -- so an attacker holding the stick cannot even see that it exists,
 let alone enable it.
 
-the model is dial-OUT. xos connects to a machine you control (call it titan)
-over wireguard, and the ssh server binds to the wireguard address alone. xos
-never opens a port on the network it is plugged into: `nmap` from that LAN finds
+the model is dial-OUT. xos connects over wireguard to a machine you control --
+its peer -- and the ssh server binds to the wireguard address alone. xos never
+opens a port on the network it is plugged into: `nmap` from that LAN finds
 nothing. you reach xos by sshing back down the tunnel.
 
 three things make a dropped connection survivable, each solving a different
@@ -113,10 +113,10 @@ alive, so you ssh back in and `abduco -a work` straight into what was running.
 
 to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
 
-    /tmp/home/wg0.conf          your wireguard config: private key, titan's
+    /tmp/home/wg0.conf          your wireguard config: private key, the peer's
                                 public key + endpoint, an Address = line
-    authorized_keys             titan's PUBLIC ssh key -- either baked into the
-                                image (`XOS_SSH_KEY=titan.pub ./build.sh all`
+    authorized_keys             the peer's PUBLIC ssh key -- either baked into
+                                the image (`XOS_SSH_KEY=peer.pub ./build.sh all`
                                 puts it at etc/dropbear/authorized_keys, where
                                 verity covers it) or dropped on p3
 
