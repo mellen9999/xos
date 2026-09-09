@@ -98,6 +98,19 @@ PU_ESP=56524c00-0000-4001-8000-000000000001
 PU_ROOT=56524c00-0000-4002-8000-000000000002
 PU_STATE=56524c00-0000-4003-8000-000000000003
 STICK_ESP_MIB=64
+# the layout is FIXED, never derived from this build's image size. p2 used to be
+# sized to xos.img exactly, so p3's start sector moved every time the image did,
+# and `usb` wrote a two-partition GPT over the whole front of the device -- an
+# update forgot p3 entirely even though it never touched one of its bytes. p2 is
+# IMAGE_MAX now: the budget G1/G19 already enforce, spent as real sectors. p1 and
+# p2 therefore occupy the same sectors in every version there will ever be, and
+# p3 begins at a constant sector that a flash stops exactly short of.
+ESP_START_S=2048                                 # 1 MiB, in 512-byte sectors
+ROOT_START_S=$(( (1 + STICK_ESP_MIB) * 2048 ))   # 65 MiB
+ROOT_SIZE_S=$(( IMAGE_MAX / 512 ))               # 8 MiB, whatever the image weighs
+# 1 MiB of slack past p2 holds stick.img's own backup GPT, and doubles as the
+# line a flash never writes past: p3 starts exactly where stick.img ends.
+STATE_START_S=$(( ROOT_START_S + ROOT_SIZE_S + 2048 ))
 # fixed build clock: the same commit must yield the same image, so the
 # artifact can be checked against its source instead of trusted. this is also
 # xos.epoch, the security floor init refuses to boot before -- so it is a
@@ -155,6 +168,34 @@ confirm_model() { # $1 device
   read -rp "  to confirm, type the disk model exactly ('${model:-unknown}'): " answer
   [ "$answer" = "${model:-unknown}" ] || { echo "FAIL: confirmation did not match -- aborted" >&2; return 1; }
   unmounted "$1" || return 1
+}
+
+# tail_parts -- the sfdisk entries for partitions 3.. on a disk, split by whether
+# they begin at or past the BYTES a flash is about to write. "keep" entries lose
+# nothing but their GPT record, so usb() saves them across the write and puts
+# them back; "lose" entries would be overwritten, and usb() refuses rather than
+# discover that afterwards. reads an image file as happily as a block device,
+# which is what lets G43 run the real thing instead of a re-implementation.
+tail_parts() { # $1 device or image  $2 bytes the flash writes  $3 keep|lose
+  # a blank stick has no table to dump, and this file runs under `set -e -o
+  # pipefail`: an unguarded sfdisk exit code here would abort the whole flash
+  # on exactly the disk that has nothing to lose.
+  { sfdisk -d "$1" 2>/dev/null || true; } | awk -v d="$1" -v s="$(( $2 / 512 ))" -v w="$3" '
+    index($0, d) != 1 || !/start=/ { next }
+    { n = substr($1, length(d) + 1); sub(/^p/, "", n)
+      if (n + 0 < 3) next
+      line = $0; sub(/^[^:]*:[ \t]*/, "", line)
+      st = line; sub(/^.*start=[ \t]*/, "", st); sub(/[^0-9].*$/, "", st)
+      if ((st + 0 >= s) == (w == "keep")) print line }'
+}
+
+# luks_at -- does a LUKS header start at this sector? cheap enough to point at
+# one exact place, which is all that is wanted: the old flash orphaned p3 at a
+# known offset, and writing a fresh partition over a live encrypted volume is
+# the one mistake addstate must never make.
+luks_at() { # $1 device or image  $2 sector
+  [ "$( { dd if="$1" bs=512 skip="$2" count=1 status=none 2>/dev/null || true; } \
+        | head -c 6 | od -An -tx1 | tr -d ' \n')" = "4c554b53babe" ]   # "LUKS" 0xbabe
 }
 
 # a missing host tool used to surface as a mid-build failure -- the exact fail
@@ -1076,14 +1117,16 @@ stick() {
   [ -f xos.img ]        || { echo "FAIL: no xos.img -- run ./build.sh verity" >&2; return 1; }
   for k in PK KEK db; do [ -f "keys/$k.der" ] || { echo "FAIL: keys/$k.der missing" >&2; return 1; }; done
 
-  local esp_bytes root_bytes esp_start_s esp_size_s root_start_s root_size_s total
+  local esp_bytes root_bytes esp_size_s total
   esp_bytes=$((STICK_ESP_MIB * 1024 * 1024))
   root_bytes=$(stat -c%s xos.img)                 # already a 4K multiple (verity padded it)
-  esp_start_s=2048                                    # 1 MiB, in 512B sectors
   esp_size_s=$((esp_bytes / 512))
-  root_start_s=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 ))
-  root_size_s=$((root_bytes / 512))                  # exact: root_bytes is a 4K multiple
-  total=$(( root_start_s * 512 + root_bytes + 1024 * 1024 ))   # + 1 MiB backup-GPT slack
+  # p2 is IMAGE_MAX, not this image's size -- see the layout constants. G1 and
+  # G19 keep the image under that number, but a partition silently too small for
+  # its own contents is not a thing this should be able to ship.
+  [ "$root_bytes" -le "$IMAGE_MAX" ] \
+    || { echo "FAIL: xos.img is $root_bytes bytes -- p2 is $IMAGE_MAX and cannot hold it" >&2; return 1; }
+  total=$(( STATE_START_S * 512 ))                # stops exactly where p3 starts
 
   rm -f stick.img
   truncate -s "$total" stick.img
@@ -1094,8 +1137,8 @@ stick() {
   sfdisk stick.img >/dev/null <<EOF
 label: gpt
 label-id: $GPT_DISK
-start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="XOS-ESP"
-start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="XOS-ROOT"
+start=$ESP_START_S, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="XOS-ESP"
+start=$ROOT_START_S, size=$ROOT_SIZE_S, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="XOS-ROOT"
 EOF
 
   # FAT32 in a temp file, then dd into the ESP slot. --invariant drops the
@@ -1118,7 +1161,8 @@ EOF
   dd if=esp.part    of=stick.img bs=1M seek=1                     conv=notrunc status=none
   dd if=xos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
   rm -f esp.part
-  printf '  stick.img: %d bytes (esp %d MiB + root %d bytes)\n' "$(stat -c%s stick.img)" "$STICK_ESP_MIB" "$root_bytes"
+  printf '  stick.img: %d bytes (esp %d MiB + p2 %d fixed, holding %d) -- p3 starts at sector %d\n' \
+    "$(stat -c%s stick.img)" "$STICK_ESP_MIB" "$IMAGE_MAX" "$root_bytes" "$STATE_START_S"
 }
 
 # write stick.img to a real removable disk. this is dd-to-wrong-disk territory,
@@ -1143,8 +1187,33 @@ usb() {
   if [ "$dev_bytes" -gt $((128 * 1024 * 1024 * 1024)) ]; then
     echo "WARN: $dev is $((dev_bytes / 1024 / 1024 / 1024)) GiB -- larger than any usb stick, is this the right disk?" >&2
   fi
+  # a flash writes only the first $img_bytes of the device, so a partition
+  # living past that keeps every byte -- but the fresh GPT that lands on top of
+  # it describes two partitions, and p3's ENTRY is gone. that is how updating a
+  # stick used to be a factory reset. save those entries now and put them back
+  # after the write. everything out there is preserved, not just ours: flashing
+  # has no business orphaning a partition it never writes to.
+  local keep_tail lose_tail
+  keep_tail=$(tail_parts "$dev" "$img_bytes" keep)
+  lose_tail=$(tail_parts "$dev" "$img_bytes" lose)
+  # an xos state partition INSIDE that region is the old layout, where p3 began
+  # right after p2. writing this image would go straight through it, so stop --
+  # a stranger's partitions on a stick being deliberately flashed are a
+  # different matter, and the wipefs warning below already covers those.
+  if printf '%s\n' "$lose_tail" | grep -qi "$PU_STATE"; then
+    echo "FAIL: $dev has an xos state partition inside the region this image writes:" >&2
+    printf '    %s\n' "$lose_tail" >&2
+    echo "  it was placed by the old layout, which put p3 directly after p2; flashing" >&2
+    echo "  would write over it. copy what you need off it, delete that partition" >&2
+    echo "  deliberately, then flash again -- addstate now places p3 past the image," >&2
+    echo "  where an update cannot reach it." >&2
+    return 1
+  fi
+
   model=$(disk_model "$dev")
   echo "  target: $dev  size: $((dev_bytes / 1024 / 1024)) MiB  model: ${model:-unknown}"
+  [ -z "$keep_tail" ] || echo "  keeping $(printf '%s\n' "$keep_tail" | grep -c .) partition(s) past the image -- encrypted state survives this write"
+  [ -z "$lose_tail" ] || echo "  WARNING: $(printf '%s\n' "$lose_tail" | grep -c .) partition(s) sit inside the image region and WILL be destroyed."
   if wipefs -n "$dev" 2>/dev/null | has .; then
     echo "  WARNING: $dev already contains a filesystem/partition signature -- it will be DESTROYED."
   fi
@@ -1165,7 +1234,7 @@ usb() {
   have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct,count_bytes count="$(stat -c%s xos.img)" status=none | sha256sum | awk '{print $1}')
   [ "$want_root" = "$have_root" ] \
     || { echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; }
-  # the image is ~68 MiB; the stick is not. dd copies the GPT verbatim, so the
+  # stick.img is 74 MiB; the stick is not. dd copies the GPT verbatim, so the
   # backup header and the "last usable LBA" still describe the IMAGE, and every
   # sector past it reads as unpartitionable: sfdisk -F reported 0 B free on a
   # 16 GB stick and addstate could not place p3 at all. move the backup header
@@ -1175,6 +1244,26 @@ usb() {
   # and it touches only GPT metadata, which no signature covers.
   sfdisk --relocate gpt-bak-std "$dev" >/dev/null 2>&1 \
     || echo "WARN: could not move the backup GPT to the end of $dev -- addstate may find no free space" >&2
+
+  # and put the saved entries back. their sectors were never written, so the
+  # data is untouched -- only the table forgot them. this is a hard failure, not
+  # a warning: the image boots either way, and an operator who walks away
+  # believing the update kept their state is the whole bug.
+  if [ -n "$keep_tail" ]; then
+    printf '%s\n' "$keep_tail" | sfdisk --no-reread -a "$dev" >/dev/null 2>&1 || true
+    # --no-reread, so tell the kernel yourself -- otherwise ${dev}3 does not
+    # come back as a node and install() offers to create the p3 that is already
+    # sitting there.
+    partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
+    if [ "$(tail_parts "$dev" "$img_bytes" keep)" = "$keep_tail" ]; then
+      say "state partition preserved across the update"
+    else
+      echo "FAIL: the image is written and boots, and p3's DATA is intact -- but its" >&2
+      echo "  partition entry did not come back. re-add it by hand, exactly:" >&2
+      printf '    sfdisk --no-reread -a %s <<EOF\n%s\nEOF\n' "$dev" "$keep_tail" >&2
+      return 1
+    fi
+  fi
   sync
   printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
@@ -1384,13 +1473,14 @@ TODO: write this entry by hand.
 #   G40 the respawn backoff counts and sleeps as written
 #   G41 a flashed stick yields a p3 that fills the device
 #   G42 a revocation is shipped in a form real firmware can enroll
+#   G43 an update preserves p3 -- its entry and its bytes
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=40   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=41   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1726,31 +1816,37 @@ printf 'fail=%s' \"\$_fail\"" 2>&1)
   # G41 -- flashing the stick must leave a device whose free space can actually
   # become p3. no test could call usb()/addstate() (they demand a real removable
   # disk), and both of the bugs this catches shipped for exactly that reason:
-  # dd left the backup GPT describing the 68 MiB IMAGE, so sfdisk saw 0 B free
+  # dd left the backup GPT describing the IMAGE, so sfdisk saw 0 B free
   # on a 16 GB stick, and the type was written as gdisk's 8309, which sfdisk
   # rejects outright -- addstate had never once produced a p3. a sparse file is
   # enough: sfdisk does the same arithmetic on a file as on a block device.
   # 1 GiB, not 16: /tmp is tmpfs on this host, so a 16 GB scratch file is 16 GB
   # of RAM competing with the qemu boots the self-test runs. the property under
   # test is "p3 fills whatever device it is given", and a device 15x the image
-  # proves that as well as one 240x it. the assertion is proportional for the
-  # same reason -- it should not care what size the stick is.
-  local g41=ok f41 free41 p3sz41 p2e41 dev41=$((1024 * 1024 * 1024 / 512))
+  # proves that as well as one 240x it. the assertions are stated as "everything
+  # past the image, less the backup GPT" for the same reason -- exact, and
+  # indifferent to how big the stick is.
+  local g41=ok f41 free41 p3sz41 p2sz41 want41 dev41=$((1024 * 1024 * 1024 / 512))
   if [ -f stick.img ]; then
+    want41=$(( dev41 - STATE_START_S - 2048 ))
     f41=$(mktemp -u /tmp/xos-g41.XXXXXX.img)
     truncate -s $((dev41 * 512)) "$f41" 2>/dev/null && dd if=stick.img of="$f41" bs=1M conv=notrunc status=none 2>/dev/null
     sfdisk --relocate gpt-bak-std "$f41" >/dev/null 2>&1
     free41=$(sfdisk -F "$f41" 2>/dev/null | awk '/^ *[0-9]+ /{print $3; exit}')
-    # at least 90% of the device must be free once the backup GPT is at the end
-    [ "${free41:-0}" -gt $((dev41 * 9 / 10)) ] \
-      || { g41=FAIL; printf '    only %s of %s sectors free after relocate -- the backup GPT still describes the image\n' "${free41:-0}" "$dev41" >&2; }
-    p2e41=$(partx -g -o END -n 2:2 "$f41" 2>/dev/null | tr -d ' ')
+    # every sector past the image must be free once the backup GPT is at the end
+    [ "${free41:-0}" -ge "$want41" ] \
+      || { g41=FAIL; printf '    only %s of %s sectors free after relocate -- the backup GPT still describes the image\n' "${free41:-0}" "$want41" >&2; }
+    # p2 is the same sectors in every version or p3's start is not a constant,
+    # and then no update can preserve it. this is the layout claim itself.
+    p2sz41=$(partx -g -o SECTORS -n 2:2 "$f41" 2>/dev/null | tr -d ' ')
+    [ "${p2sz41:-0}" -eq "$ROOT_SIZE_S" ] \
+      || { g41=FAIL; printf '    p2 is %s sectors, not the fixed %s -- p3 would move with the image\n' "${p2sz41:-0}" "$ROOT_SIZE_S" >&2; }
     sfdisk --no-reread -a "$f41" >/dev/null 2>&1 <<G41EOF
-start=$(( ${p2e41:-0} + 1 )), type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
+start=$STATE_START_S, type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
 G41EOF
     p3sz41=$(partx -g -o SECTORS -n 3:3 "$f41" 2>/dev/null | tr -d ' ')
-    [ "${p3sz41:-0}" -gt $((dev41 * 9 / 10)) ] \
-      || { g41=FAIL; printf '    p3 is %s of %s sectors -- addstate cannot fill the stick\n' "${p3sz41:-0}" "$dev41" >&2; }
+    [ "${p3sz41:-0}" -ge "$want41" ] \
+      || { g41=FAIL; printf '    p3 is %s of %s sectors -- addstate cannot fill the stick\n' "${p3sz41:-0}" "$want41" >&2; }
     rm -f "$f41"
   else
     g41=FAIL; printf '    no stick.img to flash\n' >&2
@@ -1775,6 +1871,83 @@ G41EOF
       || { g42=FAIL; printf '    the stick does not carry /xos-keys/dbx.auth -- revocation would hold in qemu only\n' >&2; }; }
     g "G42 revocation shipped enrollably ($nrev42 revoked)" "$g42"
   fi
+
+  # G43 -- an update must not be a factory reset. `usb` writes stick.img over the
+  # whole front of the device, GPT included, so the new two-partition table
+  # forgets p3 even though the flash never reaches a single one of its bytes.
+  # that is verified behaviour, not a theory: dd was proven to orphan p3. the fix
+  # is the fixed layout (p3 begins where stick.img ends) plus tail_parts, and
+  # this gate runs the real function over a scratch device through a whole
+  # flash -> addstate -> REflash cycle, then checks the entry AND the data.
+  local g43=ok f43 dev43=$((1024 * 1024 * 1024 / 512)) sz43 before43 after43 mark43 gone43
+  if [ -f stick.img ]; then
+    sz43=$(stat -c%s stick.img)
+    f43=$(mktemp -u /tmp/xos-g43.XXXXXX.img)
+    truncate -s $((dev43 * 512)) "$f43" 2>/dev/null \
+      && dd if=stick.img of="$f43" bs=1M conv=notrunc status=none 2>/dev/null
+    sfdisk --relocate gpt-bak-std "$f43" >/dev/null 2>&1
+    sfdisk --no-reread -a "$f43" >/dev/null 2>&1 <<G43EOF
+start=$STATE_START_S, type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
+G43EOF
+    # a byte pattern where p3's luks header would be, so "preserved" has to mean
+    # the data too and not merely a partition entry pointing at rubble.
+    printf 'XOS-G43-STATE' | dd of="$f43" bs=512 seek="$STATE_START_S" conv=notrunc status=none 2>/dev/null
+    before43=$(tail_parts "$f43" "$sz43" keep)
+    [ -n "$before43" ] \
+      || { g43=FAIL; printf '    p3 is not past the flashed region -- an update would write over it\n' >&2; }
+    [ -z "$(tail_parts "$f43" "$sz43" lose)" ] \
+      || { g43=FAIL; printf '    p3 starts INSIDE the region a flash writes\n' >&2; }
+    # the update, byte for byte what usb() does to the device
+    dd if=stick.img of="$f43" bs=1M conv=notrunc status=none 2>/dev/null
+    gone43=$(tail_parts "$f43" "$sz43" keep)
+    [ -z "$gone43" ] \
+      || { g43=FAIL; printf '    the reflash did not drop p3 at all -- this gate is proving nothing\n' >&2; }
+    sfdisk --relocate gpt-bak-std "$f43" >/dev/null 2>&1
+    printf '%s\n' "$before43" | sfdisk --no-reread -a "$f43" >/dev/null 2>&1 || true
+    after43=$(tail_parts "$f43" "$sz43" keep)
+    [ -n "$after43" ] && [ "$after43" = "$before43" ] \
+      || { g43=FAIL; printf '    p3 entry did not come back identical\n      was: %s\n      now: %s\n' "$before43" "$after43" >&2; }
+    mark43=$(dd if="$f43" bs=512 skip="$STATE_START_S" count=1 status=none 2>/dev/null | head -c 13 || true)
+    [ "$mark43" = "XOS-G43-STATE" ] \
+      || { g43=FAIL; printf '    the flash wrote over p3 data -- stick.img reaches past sector %s\n' "$STATE_START_S" >&2; }
+    # the other direction: a stick from the OLD layout, p3 sitting where the
+    # image now writes. usb() must SEE that, not discover it afterwards.
+    rm -f "$f43"; f43=$(mktemp -u /tmp/xos-g43b.XXXXXX.img)
+    truncate -s $((dev43 * 512)) "$f43" 2>/dev/null \
+      && dd if=stick.img of="$f43" bs=1M conv=notrunc status=none 2>/dev/null
+    sfdisk --relocate gpt-bak-std "$f43" >/dev/null 2>&1
+    sfdisk --no-reread -a "$f43" >/dev/null 2>&1 <<G43OLD
+start=$(( ROOT_START_S + ROOT_SIZE_S )), type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
+G43OLD
+    # -i: sfdisk dumps uuids upper-case and PU_STATE is written lower-case here,
+    # which is exactly why usb() greps case-insensitively too.
+    printf '%s' "$(tail_parts "$f43" "$sz43" lose)" | grep -qi "$PU_STATE" \
+      || { g43=FAIL; printf '    a p3 inside the flashed region is not reported as at risk -- the refusal cannot fire\n' >&2; }
+    [ -z "$(tail_parts "$f43" "$sz43" keep)" ] \
+      || { g43=FAIL; printf '    an old-layout p3 was misreported as safe to keep\n' >&2; }
+    # and the orphan guard: addstate must not lay a new p3 over a live volume
+    # whose entry an older flash threw away. both directions, or it is decoration.
+    dd if=/dev/zero of="$f43" bs=512 seek=$(( ROOT_START_S + ROOT_SIZE_S )) count=1 conv=notrunc status=none 2>/dev/null
+    luks_at "$f43" $(( ROOT_START_S + ROOT_SIZE_S )) \
+      && { g43=FAIL; printf '    luks_at says LUKS on a sector that has none\n' >&2; }
+    printf 'LUKS\272\276' | dd of="$f43" bs=512 seek=$(( ROOT_START_S + ROOT_SIZE_S )) conv=notrunc status=none 2>/dev/null
+    luks_at "$f43" $(( ROOT_START_S + ROOT_SIZE_S )) \
+      || { g43=FAIL; printf '    luks_at misses a real LUKS header -- an orphaned p3 would be written over\n' >&2; }
+    rm -f "$f43"
+  else
+    g43=FAIL; printf '    no stick.img to flash\n' >&2
+  fi
+  # and the real path has to still use it -- the same reason G39 exists.
+  local body43; body43=$(sed -n '/^usb() {/,/^}/p' build.sh)
+  printf '%s' "$body43" | has 'keep_tail=$(tail_parts "$dev" "$img_bytes" keep)' \
+    || { g43=FAIL; printf '    usb() no longer saves the partitions past the image\n' >&2; }
+  printf '%s' "$body43" | has '"$keep_tail" | sfdisk --no-reread -a "$dev"' \
+    || { g43=FAIL; printf '    usb() no longer puts the saved partitions back after the write\n' >&2; }
+  printf '%s' "$body43" | has 'grep -qi "\$PU_STATE"' \
+    || { g43=FAIL; printf '    usb() no longer refuses a p3 inside the region it writes\n' >&2; }
+  printf '%s' "$(sed -n '/^addstate() {/,/^}/p' build.sh)" | has 'luks_at "\$dev"' \
+    || { g43=FAIL; printf '    addstate() no longer checks for an orphaned state volume\n' >&2; }
+  g "G43 an update preserves p3, entry and data" "$g43"
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and
@@ -2173,16 +2346,39 @@ addstate() {
   # stick is repaired rather than refused.
   sfdisk --relocate gpt-bak-std "$dev" >/dev/null 2>&1 || true
 
-  # p2 must already be there; p3 goes in the free space after it.
+  # p3 goes at a FIXED sector -- the first one past stick.img -- not wherever
+  # this build's p2 happens to end. that constant is the whole reason an update
+  # can preserve it: `usb` writes exactly up to here and stops, and restores the
+  # entry afterwards. placing it at p2end+1 (what this used to do) puts it under
+  # the next image's backup GPT slack.
   local p2end
   p2end=$(partx -g -o END -n 2:2 "$dev" 2>/dev/null | tr -d ' ') \
     || { echo "FAIL: cannot read the partition table on $dev -- flash the image first" >&2; return 1; }
   [ -n "$p2end" ] || { echo "FAIL: no second partition on $dev" >&2; return 1; }
+  [ "$p2end" -lt "$STATE_START_S" ] \
+    || { echo "FAIL: p2 ends at sector $p2end, at or past the fixed state start $STATE_START_S" >&2
+         echo "  -- this stick was not flashed by this build. reflash it first." >&2; return 1; }
+  local dev_s; dev_s=$(cat "/sys/block/$(basename "$dev")/size" 2>/dev/null || echo 0)
+  [ "$dev_s" -gt $((STATE_START_S + 2048)) ] \
+    || { echo "FAIL: $dev has no room past sector $STATE_START_S for a state partition" >&2; return 1; }
 
-  echo "  target: $dev  model: $(disk_model "$dev")  -- p3 goes in the free space after sector $p2end"
+  # a stick flashed by the old code lost p3's ENTRY -- the two-partition GPT
+  # went over it -- while every byte of p3 stayed exactly where it was, at
+  # p2end+1. creating a fresh p3 now would write over a live encrypted volume.
+  # the entry is the only thing missing, so hand back the line that restores it.
+  if luks_at "$dev" $((p2end + 1)); then
+    echo "FAIL: a LUKS header sits at sector $((p2end + 1)) with no partition entry." >&2
+    echo "  an older flash orphaned it; the data is intact. put the entry back rather" >&2
+    echo "  than create a new p3 over it:" >&2
+    printf '    sfdisk --no-reread -a %s <<EOF\n    start=%s, type=%s, uuid=%s, name="XOS-STATE"\n    EOF\n' \
+      "$dev" "$((p2end + 1))" "$PT_LUKS" "$PU_STATE" >&2
+    return 1
+  fi
+
+  echo "  target: $dev  model: $(disk_model "$dev")  -- p3 starts at sector $STATE_START_S and fills the rest"
   confirm_model "$dev" || return 1
-  sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space after p2, or an unreadable table)" >&2; return 1; }
-start=$((p2end + 1)), type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
+  sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK || { echo "FAIL: sfdisk could not add p3 to $dev (no free space at sector $STATE_START_S, or an unreadable table)" >&2; return 1; }
+start=$STATE_START_S, type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
   partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
   sleep 1
@@ -2250,8 +2446,18 @@ stick_install() {
   # keeping a second copy of the careful part.
   usb "$dev" || return 1
 
-  # offer persistent state. declining leaves a perfectly good ephemeral stick.
+  # offer persistent state -- unless the flash just preserved one, which is the
+  # normal case for an update. prompting there would walk into addstate's
+  # refusal to reformat an existing p3 and read as a failure.
   echo
+  local ep3="${dev}3"; [ -b "$ep3" ] || ep3="${dev}p3"
+  if [ -b "$ep3" ]; then
+    echo "  encrypted state (p3) was already here and came through the update intact --"
+    echo "  unlock it at boot as usual."
+    echo
+    printf '  \033[1;32minstall complete\033[0m\n'
+    return 0
+  fi
   local ans
   read -rp "  add encrypted persistent state (p3) now? [y/N]: " ans
   case "$ans" in

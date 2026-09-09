@@ -54,8 +54,14 @@ permanent.
 ## the stick
 
     p1 ESP 64 MiB   signed UKI + your public keys
-    p2     ~8 MiB   verity root -- the fort
+    p2      8 MiB   verity root -- the fort. fixed, never sized to the image
     p3     rest     LUKS2 + hmac-sha256, encrypted state (~15.9 GB on a 16 GB stick)
+
+those sectors are the same in every version there will ever be, which is what
+makes an update an update: `./build.sh install /dev/sdX` over a stick you
+already use rewrites p1 and p2, stops exactly where p3 begins, and puts p3's
+partition entry back. it refuses to write at all if it finds anything of yours
+inside the region the image covers.
 
 boot it from your firmware's boot menu. the root is named by PARTUUID, never
 `/dev/sda`, and the kernel waits for that partition -- the same signed image
