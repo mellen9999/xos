@@ -304,6 +304,23 @@ get() {
   [ -d "src/$dir" ] || tar -C src -xf "$XOS_CACHE/$tar"
 }
 
+# judge one gpg --status-fd stream against the pinned fingerprint.
+#   0 good   2 valid, but the key has expired   3 the key is REVOKED   1 no match
+# the fingerprint on its own is not enough. gpg prints VALIDSIG for an expired
+# and for a revoked key just as happily as for a live one, so matching that line
+# alone means a leaked maintainer key goes on verifying forever -- and expiry and
+# revocation are the only two things that ever limit that damage. GOODSIG is the
+# line that means good *now*. every pattern is anchored to the status prefix so a
+# user id carrying the word GOODSIG cannot spoof a verdict.
+sigok() { # $1 pinned fingerprint  [gpg status stream on stdin]
+  local st; st=$(cat)
+  if ! printf '%s\n' "$st" | has "VALIDSIG $1"; then return 1; fi
+  if printf '%s\n' "$st" | has '^\[GNUPG:\] REVKEYSIG'; then return 3; fi
+  if printf '%s\n' "$st" | has '^\[GNUPG:\] GOODSIG'; then return 0; fi
+  if printf '%s\n' "$st" | has '^\[GNUPG:\] EXPKEYSIG'; then return 2; fi
+  return 1
+}
+
 # verify one tarball against a COMMITTED detached signature and pubkey. the
 # digest pin (G8) already stops later substitution; this anchors what the
 # first sighting WAS to the maintainer's key instead of trust-on-first-use.
@@ -311,24 +328,39 @@ get() {
 # $5=xz: kernel.org signs the UNCOMPRESSED tar (one .tar.sign covers .gz and
 # .xz), so the tarball is decompressed into gpg's stdin. a truncated or
 # corrupt .xz cannot pass: gpg sees a short stream and the signature fails.
-sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned fingerprint  [$5 xz]
+# $6=expired-ok: this upstream signs releases with a key it let expire. the
+# exception is per-source, printed on every build, and never covers revocation
+# -- a revoked key means the private half is presumed stolen, which is the one
+# case a fingerprint pin cannot save you from.
+sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned fingerprint  [$5 xz]  [$6 expired-ok]
   command -v gpg >/dev/null 2>&1 || {
     printf '  %s: gpg not installed -- signature not checked (digest pin still enforced)\n' "$1"; return 0; }
-  local gh ok=1; gh=$(mktemp -d) || return 1
+  local gh st rc=0; gh=$(mktemp -d) || return 1
   gpg -q --homedir "$gh" --import "$3" 2>/dev/null
-  # VALIDSIG + the pinned fingerprint: a swapped pubkey file cannot satisfy this.
   if [ "${5:-}" = xz ]; then
-    xz -dc "$XOS_CACHE/$1" | gpg --homedir "$gh" --status-fd 1 --verify "$2" - 2>/dev/null | has "VALIDSIG $4" && ok=0
+    st=$( { xz -dc "$XOS_CACHE/$1" | gpg --homedir "$gh" --status-fd 1 --verify "$2" - 2>/dev/null; } || true)
   else
-    gpg --homedir "$gh" --status-fd 1 --verify "$2" "$XOS_CACHE/$1" 2>/dev/null | has "VALIDSIG $4" && ok=0
+    st=$(gpg --homedir "$gh" --status-fd 1 --verify "$2" "$XOS_CACHE/$1" 2>/dev/null || true)
   fi
-  if [ "$ok" -eq 0 ]; then
-    printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)"
-    rm -rf "$gh"
-  else
-    rm -rf "$gh"
-    echo "FAIL: $1 does not match the committed maintainer signature" >&2; return 1
-  fi
+  rm -rf "$gh"
+  printf '%s\n' "$st" | sigok "$4" || rc=$?
+  case "$rc" in
+    0) printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)" ;;
+    2) local exp; exp=$(printf '%s\n' "$st" | sed -n 's/^\[GNUPG:\] KEYEXPIRED \([0-9]*\).*/\1/p' | head -1)
+       [ -n "$exp" ] && exp=$(date -u -d "@$exp" +%Y-%m-%d 2>/dev/null) || exp="an unknown date"
+       [ "${6:-}" = expired-ok ] || {
+         echo "FAIL: $1 is signed by a key that expired on $exp" >&2
+         echo "  the signature is the maintainer's, but an expired key stops limiting" >&2
+         echo "  the damage of a leak. refresh sigs/ from upstream, or mark this source" >&2
+         echo "  expired-ok in fetch() once you have decided that is acceptable." >&2
+         return 1; }
+       printf '  \033[1;33m%s: signed by a key that expired on %s -- accepted by an explicit\033[0m\n' "$1" "$exp"
+       printf '  \033[1;33m  exception in fetch(); fingerprint and digest are still pinned\033[0m\n' ;;
+    3) echo "FAIL: $1 is signed by a REVOKED key -- the private half is presumed stolen" >&2
+       echo "  there is no exception for this. do not build against this tarball." >&2
+       return 1 ;;
+    *) echo "FAIL: $1 does not match the committed maintainer signature" >&2; return 1 ;;
+  esac
 }
 
 fetch() {
@@ -365,7 +397,10 @@ fetch() {
   sigver "cryptsetup-$CSVER.tar.xz" "sigs/cryptsetup-$CSVER.tar.sign" sigs/cryptsetup-release-key.asc "$CS_FPR" xz
   get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
       "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
-  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR"
+  # lvm2 signs releases with a key it let expire on 2022-06-09 and has not
+  # extended on any keyserver -- checked, not assumed. the fingerprint pin and
+  # the digest pin both still apply; only the freshness of the key is waived.
+  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR" "" expired-ok
   # popt: ftp.rpm.org is plain http (its tls certificate is for another
   # name). fedora's source cache carries the identical bytes over tls, at a
   # url that names their sha512 -- so the host cannot serve anything else there.
@@ -1475,13 +1510,14 @@ TODO: write this entry by hand.
 #   G42 a revocation is shipped in a form real firmware can enroll
 #   G43 an update preserves p3 -- its entry and its bytes
 #   G44 a planted digest cannot buy a pass from the revocation check
+#   G45 a source signed by an expired or revoked key is refused
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=42   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=43   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -2011,6 +2047,71 @@ G43OLD
   printf '%s' "$(sed -n '/^addstate() {/,/^}/p' build.sh)" | has 'luks_at "\$dev"' \
     || { g43=FAIL; printf '    addstate() no longer checks for an orphaned state volume\n' >&2; }
   g "G43 an update preserves p3, entry and data" "$g43"
+
+  # G45 -- a dead maintainer key must not keep verifying. gpg prints VALIDSIG for
+  # an expired key and for a revoked one exactly as it does for a live one, so
+  # matching that line alone -- which sigver did -- means a leaked key goes on
+  # passing forever, and expiry and revocation are the only things that ever
+  # limit that damage. two layers: the verdicts, against recorded status text, so
+  # this holds on a host without gpg; then the same verdicts against keys really
+  # generated here, so a gpg that renames a status line is caught too.
+  local g45=ok r45=0
+  local F45=DEADBEEF0000000000000000000000000000CAFE
+  r45=0; printf '[GNUPG:] GOODSIG AAAA Some One\n[GNUPG:] VALIDSIG %s x\n' "$F45" | sigok "$F45" || r45=$?
+  [ "$r45" = 0 ] || { g45=FAIL; printf '    sigok refuses a good signature (rc %s)\n' "$r45" >&2; }
+  r45=0; printf '[GNUPG:] EXPKEYSIG AAAA Some One\n[GNUPG:] KEYEXPIRED 1654819200\n[GNUPG:] VALIDSIG %s x\n' "$F45" | sigok "$F45" || r45=$?
+  [ "$r45" = 2 ] || { g45=FAIL; printf '    an expired key is not flagged (rc %s, wanted 2)\n' "$r45" >&2; }
+  r45=0; printf '[GNUPG:] REVKEYSIG AAAA Some One\n[GNUPG:] VALIDSIG %s x\n' "$F45" | sigok "$F45" || r45=$?
+  [ "$r45" = 3 ] || { g45=FAIL; printf '    a revoked key is not flagged (rc %s, wanted 3)\n' "$r45" >&2; }
+  r45=0; printf '[GNUPG:] GOODSIG AAAA Some One\n[GNUPG:] VALIDSIG %s x\n' 0000000000000000000000000000000000000000 | sigok "$F45" || r45=$?
+  [ "$r45" = 1 ] || { g45=FAIL; printf '    a signature by an unpinned key is accepted (rc %s)\n' "$r45" >&2; }
+  # the uid is free text that travels with the key -- it must not spoof a verdict
+  r45=0; printf '[GNUPG:] EXPKEYSIG AAAA GOODSIG Impersonator\n[GNUPG:] VALIDSIG %s x\n' "$F45" | sigok "$F45" || r45=$?
+  [ "$r45" = 2 ] || { g45=FAIL; printf '    a user id spoofed the verdict (rc %s, wanted 2)\n' "$r45" >&2; }
+
+  if command -v gpg >/dev/null 2>&1; then
+    local h45 fpr45 st45
+    for k45 in live expired; do
+      h45=$(mktemp -d) || continue
+      chmod 700 "$h45"; printf 'payload\n' > "$h45/f"
+      # a key made and used two years ago with a one-day life is expired now
+      local age45=""; [ "$k45" = expired ] && age45=--faked-system-time=20240101T000000!
+      gpg -q --batch --homedir "$h45" --pinentry-mode loopback --passphrase '' $age45 \
+        --quick-gen-key 'xos gate <g45@invalid>' default default \
+        "$([ "$k45" = expired ] && echo seconds=86400 || echo never)" 2>/dev/null
+      gpg -q --batch --homedir "$h45" --pinentry-mode loopback --passphrase '' $age45 \
+        --detach-sign -o "$h45/f.sig" "$h45/f" 2>/dev/null
+      fpr45=$(gpg --batch --homedir "$h45" --with-colons -k 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')
+      st45=$(gpg --batch --homedir "$h45" --status-fd 1 --verify "$h45/f.sig" "$h45/f" 2>/dev/null || true)
+      r45=0; printf '%s\n' "$st45" | sigok "${fpr45:-none}" || r45=$?
+      if [ "$k45" = live ]; then
+        [ "$r45" = 0 ] || { g45=FAIL; printf '    real gpg: a live key does not verify (rc %s)\n' "$r45" >&2; }
+        # gpg writes a revocation certificate at generation time, so revoking the
+        # same key needs no interactive step
+        sed 's/^:-----BEGIN/-----BEGIN/' "$h45"/openpgp-revocs.d/*.rev 2>/dev/null \
+          | gpg -q --batch --homedir "$h45" --import 2>/dev/null || true
+        st45=$(gpg --batch --homedir "$h45" --status-fd 1 --verify "$h45/f.sig" "$h45/f" 2>/dev/null || true)
+        r45=0; printf '%s\n' "$st45" | sigok "${fpr45:-none}" || r45=$?
+        [ "$r45" = 3 ] || { g45=FAIL; printf '    real gpg: a REVOKED key is not refused (rc %s, wanted 3)\n' "$r45" >&2; }
+      else
+        [ "$r45" = 2 ] || { g45=FAIL; printf '    real gpg: an EXPIRED key is not flagged (rc %s, wanted 2)\n' "$r45" >&2; }
+      fi
+      rm -rf "$h45"
+    done
+  else
+    printf '    gpg absent -- the recorded-status verdicts ran, the live-gpg layer did not\n' >&2
+  fi
+
+  # and the real path has to still route through it, with revocation inescapable
+  local body45; body45=$(sed -n '/^sigver() {/,/^}/p' build.sh)
+  printf '%s' "$body45" | has 'sigok "\$4"' \
+    || { g45=FAIL; printf '    sigver() no longer judges the status stream through sigok\n' >&2; }
+  printf '%s' "$body45" | has 'REVOKED key' \
+    || { g45=FAIL; printf '    sigver() no longer refuses a revoked key outright\n' >&2; }
+  local n45; n45=$(sed -n '/^fetch() {/,/^}/p' build.sh | grep -c 'expired-ok' || true)
+  [ "${n45:-0}" -eq 1 ] \
+    || { g45=FAIL; printf '    %s source(s) waive key expiry -- exactly 1 (lvm2) is accounted for\n' "${n45:-0}" >&2; }
+  g "G45 expired or revoked source key refused" "$g45"
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and

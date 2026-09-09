@@ -154,7 +154,14 @@ before a byte is written.
   missing its hardening params, a stick whose partitions don't match the built
   artifacts, a plaintext signing key on disk, an image listed in `revoked`
 - **sources** -- a tarball whose digest misses `sources.sha256`, or (with gpg)
-  one that misses its maintainer's committed signature and pinned fingerprint
+  one that misses its maintainer's committed signature and pinned fingerprint,
+  or one signed by a key that has expired or been revoked. gpg prints its
+  "valid signature" line for a dead key exactly as it does for a live one, and
+  expiry is the only thing that ever stops a leaked key signing forever, so the
+  fingerprint match is not on its own enough. revocation is never waivable.
+  lvm2 is the one source that signs with a key it let expire (2022-06-09, still
+  not extended on any keyserver); that waiver is named in `fetch()` and printed
+  in yellow on every build, and its fingerprint and digest are pinned as ever
 - **reproducibility** -- image, filesystem or verity hash off `image.sha256` on
   the pinned toolchain
 - **the shell** -- a second shell parser, a `/bin/sh` that is not busybox ash,
