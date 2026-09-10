@@ -1,5 +1,5 @@
 #!/bin/sh
-# provision.sh -- lay the field kit onto an xos stick's p3.
+# provision.sh -- lay the arsenal onto an xos stick's p3.
 #
 # run AFTER `build.sh usb /dev/sdX` (flash) and `build.sh addstate /dev/sdX`
 # (encrypted p3). this opens p3, mounts it, and copies in the layout: xexec,
@@ -23,7 +23,7 @@ MNT=/run/xosprov
 [ -b "$DEV" ] || { echo "not a block device: $DEV" >&2; exit 1; }
 cryptsetup isLuks "$DEV" || { echo "$DEV is not LUKS -- is that p3?" >&2; exit 1; }
 
-echo "provisioning field kit onto $DEV"
+echo "provisioning arsenal onto $DEV"
 cryptsetup open "$DEV" "$MAP"
 cleanup() { umount "$MNT" 2>/dev/null || true; cryptsetup close "$MAP" 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM

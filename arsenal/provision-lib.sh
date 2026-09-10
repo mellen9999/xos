@@ -1,6 +1,6 @@
-# provision-lib.sh -- populate H with the field-kit layout. sourced by
+# provision-lib.sh -- populate H with the arsenal layout. sourced by
 # provision.sh, where H is the mounted p3. nothing in selftest.sh reaches
-# field/ at all: the whole tree is provisioning, not the signed image.
+# arsenal/ at all: the whole tree is provisioning, not the signed image.
 populate() {
   H="$1"
   mkdir -p "$H/tools" "$H/wordlists" "$H/docs" "$H/loot"
@@ -23,7 +23,7 @@ populate() {
       fi
     done
   else
-    echo "  note: no arsenal at $ARSENAL -- run field/build-arsenal.sh first"
+    echo "  note: no arsenal at $ARSENAL -- run arsenal/build-arsenal.sh first"
   fi
   [ -n "${XOS_WORDLISTS:-}" ] && [ -d "$XOS_WORDLISTS" ] && cp -rf "$XOS_WORDLISTS/." "$H/wordlists/"
   [ -n "${XOS_DOCS:-}" ] && [ -d "$XOS_DOCS" ] && cp -rf "$XOS_DOCS/." "$H/docs/"

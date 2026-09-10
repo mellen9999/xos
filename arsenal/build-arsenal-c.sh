@@ -41,7 +41,7 @@ log() { echo "[c-build] $*"; }
 # WHY THIS IS AN ARSENAL TOOL, NOT A ROOTFS COMPONENT: a browser is capability,
 # and xos's rule is that capability rides p3 (carried), never the signed image.
 # putting links in build.sh would widen the verity-checked trust surface for no
-# reason -- the fort must stay a fort. see field/README.md.
+# reason -- the fort must stay a fort. see README.md.
 ( set -e; log links
   mkdir -p /s && wget -qO- http://links.twibright.com/download/links-2.30.tar.bz2 | tar xj -C /s
   cd /s/links-2.30
@@ -125,7 +125,7 @@ echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 built=0
 for b in masscan tcpdump links mutool frotz; do [ -f "$OUT/$b" ] && built=$((built+1)); done
 [ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
-echo "note: refresh field/arsenal.lock after (sha256 + sizes)."
+echo "note: refresh arsenal/arsenal.lock after (sha256 + sizes)."
 
 # ── nmap phase-2b: resume here ────────────────────────────────────────────────
 # the recipe below gets 7.95 through configure and every object; it FAILS only at

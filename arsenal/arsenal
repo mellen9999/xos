@@ -1,10 +1,10 @@
 #!/bin/sh
-# arsenal -- list what this field kit can actually DO. run it on xos to see every
+# arsenal -- list what the arsenal can actually DO. run it on xos to see every
 # carried tool, one line each, with how to run it. reads ~/tools/ (the truth: what
 # is really here), annotates from arsenal-catalog, and cross-checks arsenal.lock so
 # a tool that is attested-but-missing or present-but-unattested shows LOUD instead
 # of hiding. p3 is noexec, so invoke as `sh ~/tools/arsenal` (or the `arsenal`
-# shell alias the field kit installs).
+# shell alias provisioning installs).
 #
 # WHY THIS EXISTS: a capability nobody can find is the same as not having it. links,
 # mutool, kiwix, frotz -- all were invisible until you already knew the name. this
@@ -31,7 +31,7 @@ for f in "$T"/*; do
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"
   printf '  %-13s %s\n' "$b" "$d"
 done
-[ -n "$present" ] || printf '  (nothing in %s -- run field/provision.sh)\n' "$T"
+[ -n "$present" ] || printf '  (nothing in %s -- run arsenal/provision.sh)\n' "$T"
 
 # integrity: anything in the lock that is NOT on disk is a LOUD miss, not a shrug.
 if [ -f "$LOCK" ]; then

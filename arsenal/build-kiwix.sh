@@ -49,4 +49,4 @@ for b in kiwix-serve kiwix-search; do
 done
 echo "staged: kiwix-serve + kiwix-search $KIWIXVER (static-PIE musl)"
 echo "size: $(du -sh "$OUT/kiwix-serve" "$OUT/kiwix-search" | tr '\n' ' ')"
-echo "note: keep field/arsenal.lock in step (sha256 + sizes)."
+echo "note: keep arsenal/arsenal.lock in step (sha256 + sizes)."

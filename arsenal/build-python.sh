@@ -17,7 +17,7 @@
 #
 # both artifacts are PINNED and verified: the tarball against a known sha256
 # (fail-closed -- a wrong hash aborts), sqlmap to an exact revision. edit the
-# three pins below to move versions; keep field/arsenal.lock in step.
+# three pins below to move versions; keep arsenal/arsenal.lock in step.
 set -eu
 OUT="${1:-arsenal}"; mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 REL=20260901; PYVER=3.12.14

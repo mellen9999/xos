@@ -255,23 +255,91 @@ and the tree's own busybox, no stick needed. progress lives under
 everything shipped is documented and nothing documented is unshipped -- both
 directions are build gates, not intentions.
 
-## the field kit
+## the arsenal
 
 the signed root is the fort. p3 is what you carry: an operator key, wireguard
-home, offline docs, wordlists, static tools, loot. capability comes from what
-you carry and what you plug in, never from widening the fort.
+home, offline docs, wordlists, static tools, loot -- capability comes from
+what you carry and what you plug in, never from widening the fort. rough
+split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists, 1-2 GB docs, the rest
+loot.
 
-carried binaries can't run from noexec p3 directly -- `field/xexec` opens a
-single-use exec surface (write-once, then read-only, torn down on exit) to run
-one tool at a time. a hardware write-protect switch is a per-boot mode: ON =
-vault (run in RAM, zero trace), OFF = work (persist loot).
+carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
+single-use exec surface: tmpfs mounted exec, the tool copied in, the mount
+flipped read-only, torn down on exit. `xexec -t dir entry` stages a whole
+interpreter tree instead of one binary, which is how carried python runs --
+its `.so` extensions need dlopen, and noexec p3 can't give that directly.
 
-the host's internal disks stay invisible, so booting on a compromised machine
-cannot touch you and you cannot touch it. reach a drive over usb instead: a
-passive usb<->sata/nvme adapter makes a dead laptop's disk `/dev/sda`, imaged
-block-level or mounted read-only.
+a hardware write-protect switch is a per-boot mode: on is vault (stick
+unalterable, runs in ram, zero trace, nothing persists), off is work (p3
+unlocks read-write, loot persists).
 
-layout, playbook and the kali tool matrix: `field/README.md`.
+built and pinned, sha256 and source in `arsenal/arsenal.lock`:
+
+| tool | does |
+|---|---|
+| ffuf | web fuzzer -- brute paths, params, vhosts against a target |
+| httpx | fast http prober -- which hosts/ports answer, titles, tech |
+| nuclei | template-driven vuln and misconfig scanner |
+| subfinder | passive subdomain discovery |
+| dnsx | fast dns toolkit -- resolve, bruteforce, record types |
+| gobuster | dir/dns/vhost brute-forcer |
+| chisel | tcp/udp tunnel over http -- pivot through a firewall |
+| masscan | internet-scale port scanner, fast and stateless |
+| tcpdump | packet capture and inspection on the wire |
+| links | text-mode browser -- reads served zims and any html/http, no gui |
+| mutool | pdf reader -- `draw -F txt` turns a pdf into readable text |
+| frotz | z-machine interpreter -- plays the carried interactive-fiction library |
+| python | full cpython 3.12 -- scripting, a repl, `http.server` |
+| sqlmap | automated sql-injection detection and exploitation |
+| kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
+| kiwix-search | greps the zim corpus without a server |
+
+`sh ~/tools/arsenal` lists every carried tool on the stick itself, one line
+each, and cross-checks `arsenal.lock` so an attested-but-missing or
+present-but-unattested binary shows up loud instead of hiding.
+
+capability vs a full kali install: a lean static CLI kit reaches most of it
+without the ~600 packages and a desktop, none of it provable.
+
+    capability          kali                 xos
+    ----------------    -----------------    --------------------------------
+    net/forensics base  nc, dd, dig, ssh     shipped: nc netstat nslookup wget
+                                              tftp telnet ip arp ping traceroute
+                                              dbclient wg tlstunnel cryptsetup
+                                              dd losetup blkid strings tar sha*
+    port/host scan      nmap, masscan        masscan built; nmap deferred (musl c++)
+    packet capture      tcpdump, tshark      tcpdump built; tshark out (glib)
+    web fuzz/recon      ffuf, gobuster       ffuf gobuster nuclei httpx  built
+    recon suite         amass, subfinder     subfinder dnsx naabu        (go)
+    pivot / tunnel      chisel, socat        chisel built; ligolo/socat next
+    brute / crack       hydra, john          hydra, john (musl); hashcat out (gpu)
+    reversing           radare2, gdb         radare2 / rizin (musl); gdb hard
+    exploit framework   metasploit           out (ruby+db) -- sliver + carried python
+    python tooling      sqlmap, impacket     built: carried python 3.12 via xexec -t
+    wireless            aircrack, wifite     out -- no wifi drivers, by design
+    gpu cracking        hashcat              out -- passive/headless hardware
+    gui                 burp, wireshark      out -- no gui
+
+wireless, gpu, gui and metasploit-the-framework are out on principle --
+drivers, hardware, provability -- not for lack of trying.
+
+playbook: attest (clean boot, prove it -- learn 29 / scenario 10), unlock p3,
+reach disks over usb only (the host's internal nvme/sata never enumerates,
+by design), run tools through xexec, phone home over the wireguard tunnel
+and ssh back down it.
+
+two things here don't rebuild from source: your p3 secrets and your signing
+keys. back both up offline, apart from the stick and from each other -- a
+fireproof metal plate, ideally split. everything else -- image, stick,
+tools -- rebuilds from source, that's what reproducible builds buy you. a
+write-protect switch has to be confirmed hardware, not a firmware toggle, or
+vault mode is fiction. concrete gear beyond the stick itself: a passive
+usb<->sata/nvme adapter (reach a host's internal disk), a usb-a<->usb-c
+adapter (plug into anything), a second cloned stick stored apart.
+
+provisioning: `build.sh usb /dev/sdX`, `build.sh addstate /dev/sdX`, then
+`arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the
+arsenal. idempotent -- re-run to update.
 
 ## limits
 
