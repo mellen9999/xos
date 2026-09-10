@@ -12,7 +12,7 @@ brief: actually proves, and what it does not.
 setup: Start with the claim. The root filesystem is not trusted because it
 setup: looks right; it is trusted because every block read out of it is
 setup: checked against a hash tree.
-q: %show% from /proc/mounts that / is a read-only squashfs on device-mapper
+q: %show% that / is a read-only squashfs on device-mapper, from /proc/mounts
 a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
 cmp: ref
 ref: awk
@@ -79,7 +79,7 @@ hint: three [ -e ] / cat checks, joined with $() inside one printf
 ---
 setup: And nothing writable may be executable, or the read-only root is a
 setup: formality.
-q: %show% from /proc/mounts every writable filesystem, and if it is noexec
+q: %show% every writable filesystem from /proc/mounts, and if it is noexec
 a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
 why: live-hw
 ref: awk

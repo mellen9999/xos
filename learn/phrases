@@ -9,10 +9,13 @@
 # belongs inline as {a|b|c} in that one question.
 
 # --- put something on the screen ---
-show = print | show | display | output | write out | print out
+# "write out" and "print out" are gone on purpose: they mean writing to a file
+# or to paper, and every question here asks for something on the screen. they
+# read as an instruction to redirect -- exactly the wrong thing to teach.
+show = print | show | display | output
 
 # --- enumerate directory-ish contents ---
-list = list | show | print out | show me
+list = list | show | show me
 
 # --- locate something ---
 find = find | locate | hunt down | track down | search for | dig out

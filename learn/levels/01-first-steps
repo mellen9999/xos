@@ -26,7 +26,7 @@ ref: ls
 teach: ls
 hint: two letters
 ---
-q: %show% the current directory -- don't skip the hidden dotfiles
+q: %list% everything in the current directory, hidden dotfiles included
 a: ls -a
 cmp: ref
 ref: ls
@@ -110,7 +110,7 @@ ref: cd
 teach: cd
 hint: cd with no argument already means home
 ---
-q: %show% the hidden files here, but skip the . and .. clutter
+q: %list% the hidden files here, but skip the . and .. clutter
 a: ls -A
 why: fixture-cost
 ref: ls
