@@ -277,7 +277,7 @@ q_load() {
 # ---- the question loop ----------------------------------------------------
 
 ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
-	local key tier input tries=0 revealed=0 _said
+	local key tier input tries=0 _said
 	q_load "$1" "$2" || return 1
 	ED_OPEN=                  # every question starts with no panel open
 	# a meta reply (?, blank, the man/tab words) re-asks the same line: wipe its
@@ -306,8 +306,9 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
 	Q_ROWS=$(( Q_ROWS + (2 + ${#Q_PROMPT}) / ${COLS:-80} + 1 ))
 	# the two panels you can open at a card: ? for the hint, Tab for the
-	# reference, either key again closes it. there is no skip -- two misses
-	# reveal the answer, and a card you don't know is a card worth missing.
+	# reference, either key again closes it. there is no skip and no try
+	# limit -- a wrong line is wiped and you type another, for as long as it
+	# takes, because the card is only learned once you have written it.
 	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- in help, not here.
 	[ "$MODE" = learn ] && { note "? hint${SEP}tab ref"; Q_ROWS=$(( Q_ROWS + 1 )); }
 
@@ -362,8 +363,9 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		esac
 
 		if correct "$input"; then
-			# the miss is already banked; typing the shown answer just moves on
-			[ "$revealed" = 1 ] && return 1
+			# the miss is already banked; getting there afterwards still counts
+			# as the miss it was, however many tries it took
+			[ "$tries" -gt 0 ] && return 1
 			card_grade "$key" 1
 			tier=$(card_tier "$key")
 			S_RIGHT=$((S_RIGHT + 1)); S_STREAK=$((S_STREAK + 1))
@@ -377,27 +379,22 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			return 0
 		fi
 
-		if [ "$revealed" = 1 ]; then
-			no "not it yet. type the line above."
-			continue
-		fi
-		tries=$((tries + 1))
-		if [ "$tries" -ge 2 ] || [ "$MODE" != learn ]; then
-			# the card demotes once per question, on the final miss -- not once
-			# per try, or two wrong guesses at one question drop it two tiers
+		# the card demotes once per question, on the first miss -- not once
+		# per try, or a card fought with for a while would drop several tiers
+		if [ "$tries" = 0 ]; then
 			card_grade "$key" 0
 			S_WRONG=$((S_WRONG + 1)); S_STREAK=0
-			[ "$MODE" = learn ] && coach_miss "$input"
+		fi
+		tries=$((tries + 1))
+		if [ "$MODE" != learn ]; then
 			no "wrong"
 			reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
-			[ "$MODE" = learn ] || return 1
-			# the answer is on the screen; the question stays until you have
-			# typed it yourself. reading it teaches nothing -- writing it does.
-			note "type it to move on"
-			revealed=1
-			continue
+			return 1
 		fi
-		no "not that. one more try."
+		# learn mode says nothing on a miss: the typed line is wiped and the
+		# prompt keeps its place, so the screen stays where it was and you try
+		# again. the hint and reference panels are the way out, not a reveal.
+		_meta_clear
 	done
 }
 
@@ -1445,6 +1442,35 @@ c' 20)" = 3 ] || exit 1
 	[ -z "$_wide" ] || { printf '%s\n' "$_wide" >&2
 		echo "FAIL: $(printf '%s\n' "$_wide" | grep -c .) prompt(s) wider than 76 columns" >&2
 		bad=$((bad+1)); }
+
+	# the question loop: learn mode has no try limit and says nothing on a
+	# miss -- the line is wiped and you type again. a regression that printed
+	# per try, or banked the card once per try, would walk the screen down and
+	# demote a fought-with card several tiers. drive a real card with two
+	# wrong lines and read back what it printed and what it banked.
+	_qout=$( ( CARDS="$TMP/loopcards"; SESSION_SEEN="$TMP/loopsession"
+	           : > "$CARDS"; : > "$SESSION_SEEN"
+	           MODE=learn S_RIGHT=0 S_WRONG=0 S_STREAK=0
+	           ask "$(level_ids | head -1)" 1 >/dev/null 2>&1 <<-'EOF'
+		definitely not the answer
+		still not the answer
+		quit
+	EOF
+	           printf 'rc=%s wrong=%s\n' "$?" "$S_WRONG" ) )
+	case "$_qout" in
+		"rc=2 wrong=1") ;;
+		*) echo "FAIL ask: two misses then quit gave '$_qout', wanted 'rc=2 wrong=1'" >&2
+		   bad=$((bad+1)) ;;
+	esac
+	_qsay=$( ( CARDS="$TMP/loopcards2"; SESSION_SEEN="$TMP/loopsession2"
+	           : > "$CARDS"; : > "$SESSION_SEEN"; MODE=learn
+	           ask "$(level_ids | head -1)" 1 2>&1 <<-'EOF'
+		definitely not the answer
+		quit
+	EOF
+	         ) | grep -cE 'wrong|one more try|type it to move on' )
+	[ "$_qsay" = 0 ] \
+		|| { echo "FAIL ask: learn mode printed $_qsay line(s) on a miss" >&2; bad=$((bad+1)); }
 
 	# a cmp: ref block whose answer cannot repeat fails the build at random
 	_moving=$(cmpref_moving)
