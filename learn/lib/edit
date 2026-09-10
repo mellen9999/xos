@@ -152,9 +152,9 @@ _ed_panel_load() {
 	# what is left of the screen under the answer line, once the block above it
 	# has taken its own. ask() counts those rows as it prints them (Q_ROWS) --
 	# guessing at a flat number let a question with a long setup push the panel
-	# off the bottom. one row is held back for the miss line a wrong answer
-	# prints under it. getting this wrong costs the question its place on the
-	# screen, never the redraw its footing.
+	# off the bottom. two rows of slack are held back so the panel never sits
+	# flush against the bottom edge. getting this wrong costs the question its
+	# place on the screen, never the redraw its footing.
 	max=$(( ${TERM_LINES:-24} - lrows - ${Q_ROWS:-6} - 2 ))
 	[ "$max" -ge 3 ] || max=3
 	# the frame: a rule directly under the answer line and another under the
@@ -175,6 +175,11 @@ _ed_panel_load() {
 		hint)
 			src=${Q_HINT:-}
 			[ -n "$src" ] || src="no hint for this one -- Tab for the reference"
+			# after a miss the hint carries the diagnosis of the line that
+			# missed: what it printed against what was wanted. the hint stays
+			# on top -- it is one row and it is what you asked for; the
+			# diagnosis is the detail, and detail is what the fitter may cut.
+			[ -n "${Q_WHY:-}" ] && src="$src$NL$NL$Q_WHY"
 			suf="hint$N" ;;
 	esac
 	fit=$(printf '%s\n' "$src" | _ed_panel_fit "$w" "$max" "  $D" "$suf")
