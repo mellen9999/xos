@@ -48,14 +48,14 @@ ref: tar
 teach: tar -j
 hint: j pipes the archive through bzip2 instead of gzip
 ---
-q: %get% archive/export.tar into the current directory
+q: %unpack% archive/export.tar into the current directory
 a: tar -xf archive/export.tar
 why: fixture-cost
 ref: tar
 teach: tar x
 hint: x extracts; with no -C it lands in the current directory
 ---
-q: %get% archive/site-backup.tar.gz into @dir@, not scattered here
+q: %unpack% archive/site-backup.tar.gz into @dir@, not scattered here
 a: tar -xzf archive/site-backup.tar.gz -C @dir@
 why: fixture-cost
 ref: tar
@@ -76,7 +76,7 @@ ref: tar
 teach: tar --exclude
 hint: --exclude takes a pattern and skips anything that matches it
 ---
-q: %get% archive/site-backup.tar.gz without its top-level wrapper
+q: %unpack% archive/site-backup.tar.gz without its top-level wrapper
 a: tar -xzf archive/site-backup.tar.gz --strip-components 1
 why: fixture-cost
 ref: tar
@@ -84,7 +84,7 @@ teach: tar --strip-components
 hint: --strip-components N removes that many leading path segments
 ---
 setup: your last extraction half-finished and left files behind
-q: %get% archive/site-backup.tar.gz overwriting anything in the way
+q: %unpack% archive/site-backup.tar.gz overwriting anything in the way
 a: tar -xzf archive/site-backup.tar.gz --overwrite
 why: fixture-cost
 ref: tar
@@ -105,14 +105,14 @@ ref: tar
 teach: tar --no-recursion
 hint: --no-recursion archives a directory entry itself without descending into it
 ---
-q: %get% archive/site-backup.tar.gz without trusting its recorded modes
+q: %unpack% archive/site-backup.tar.gz without trusting its recorded modes
 a: tar -xzf archive/site-backup.tar.gz --no-same-permissions
 why: fixture-cost
 ref: tar
 teach: tar --no-same-permissions
 hint: --no-same-permissions applies your umask instead of the recorded modes
 ---
-q: %get% archive/site-backup.tar.gz without resolving owners to fake names
+q: %unpack% archive/site-backup.tar.gz without resolving owners to fake names
 a: tar -xzf archive/site-backup.tar.gz --numeric-owner
 why: fixture-cost
 ref: tar

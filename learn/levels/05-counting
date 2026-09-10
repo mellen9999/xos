@@ -158,7 +158,7 @@ ref: uniq
 teach: uniq -w
 hint: w limits the comparison to the first N characters of each line
 ---
-q: %find% the length of the longest line in @log@
+q: %show% the length of the longest line in @log@
 a: wc -L @log@
 out: [0-9]
 cmp: ref

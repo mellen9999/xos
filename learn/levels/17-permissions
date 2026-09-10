@@ -13,7 +13,7 @@ brief: these matter for what you write to tmpfs and to disks you mount -- not
 brief: for defending this machine from you.
 ---
 setup: you just wrote @script@ and ./@script@ says permission denied
-q: %make% @script@ executable
+q: make @script@ executable
 a: chmod +x @script@
 state: mode:@script@:755
 ref: chmod
@@ -63,7 +63,7 @@ ref: chmod
 teach: chmod
 hint: = sets the listed permissions exactly, and an empty list means none
 ---
-q: %make% everything under @dir@ readable, subdirectories included
+q: make everything under @dir@ readable, subdirectories included
 a: chmod -R a+r @dir@
 why: primitive-cost
 ref: chmod

@@ -83,14 +83,14 @@ ref: grep
 teach: grep -q
 hint: a leading ! flips the status
 ---
-q: %make% a broken step stop the whole script instead of continuing silently
+q: make a broken step stop the whole script instead of continuing silently
 a: set -e
 why: conceptual
 ref: set
 teach: set -e
 hint: -e makes any failing command end the script immediately
 ---
-q: %make% a typo'd variable name fail loudly instead of expanding to empty
+q: make a typo'd variable name fail loudly instead of expanding to empty
 a: set -u
 why: conceptual
 ref: set
@@ -104,14 +104,14 @@ ref: cd
 teach: cd
 hint: || only runs its right side when the left side's exit status is nonzero -- cd fails cleanly when the target is missing
 ---
-q: %make% the shell show each command as it runs, for debugging
+q: make the shell show each command as it runs, for debugging
 a: set -x
 why: conceptual
 ref: set
 teach: set -x
 hint: this is the shell debugger, and it is usually enough
 ---
-q: %turn% command tracing back off
+q: {turn command tracing back off|stop tracing each command}
 a: set +x
 why: conceptual
 ref: set

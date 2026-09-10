@@ -26,6 +26,10 @@ count = count | tally | total up | add up
 # --- pull a piece out of something ---
 get = extract | pull out | grab | get | isolate | pick out | carve out
 
+# --- open an archive. its own group: "carve out site-backup.tar.gz into build"
+# is not something anyone would say, and %get% is for a field in a line ---
+unpack = extract | unpack
+
 # --- create ---
 make = make | create | set up | build | spin up
 
