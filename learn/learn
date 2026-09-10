@@ -1485,6 +1485,13 @@ c' 20)" = 3 ] || exit 1
 	  case "$ED_PANEL" in *"the hint"*"yours"*) exit 0 ;; *) exit 1 ;; esac ) \
 		|| { echo "FAIL ask: the hint panel drops the miss diagnosis" >&2; bad=$((bad+1)); }
 
+	# a phrase macro standing in for a phrasal verb renders as nonsense for
+	# every member but one
+	_part=$(macro_particle)
+	[ -z "$_part" ] || { printf '%s\n' "$_part" >&2
+		echo "FAIL: a phrase macro is followed by a particle -- say the verb outright" >&2
+		bad=$((bad+1)); }
+
 	# a cmp: ref block whose answer cannot repeat fails the build at random
 	_moving=$(cmpref_moving)
 	[ -z "$_moving" ] || { printf '%s\n' "$_moving" >&2

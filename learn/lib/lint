@@ -234,6 +234,22 @@ lint() {
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }
 
+# ---- macro grammar --------------------------------------------------------
+#
+# a phrase macro is only a macro if EVERY member fits the sentence. the way it
+# stops being one is a particle: "%turn% on vi keybindings" renders "convert on
+# vi keybindings", "%count% up from 1 to 10" renders "add up up from 1 to 10".
+# the verb in those sentences is phrasal or causative and belongs to exactly
+# one member, so the card must say it outright. this catches the shape, not
+# every wrong pairing -- grammar is still read by hand, member by member.
+#
+# macro_particle -- prints every prompt whose macro is followed by a particle.
+macro_particle() {
+	grep -nE '^q: %[a-z]+% (on|off|up|out|in|into|back|down|over|away|through) ' \
+		"$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null |
+		sed 's/^/  /'
+}
+
 # ---- prompt width ---------------------------------------------------------
 #
 # a question that wraps costs the reference panel a row and reads as a
