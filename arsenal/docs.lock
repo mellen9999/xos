@@ -1,0 +1,5 @@
+# docs.lock -- staged 2026-09-11T00:04Z
+# source  pin  size
+exploit-db  gitlab.com/exploit-database/exploitdb@ef58d5f4e31fefec0e36298c0b3e718801afdeb8  539M
+man-pages   kernel.org/man-pages-6.19+sha256:88a7c42ad2e03d8b96dc72d95e451f2d875ff0f43103a8eb8ac8242133bdcb05+gpg:4BB26DF6EF466E6956003022EB89995CC290C2A9  20M
+rfc-bundle  rsync.rfc-editor.org::rfcs-text-only(unpinned,point-in-time)  550M

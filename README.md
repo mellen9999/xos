@@ -260,8 +260,10 @@ directions are build gates, not intentions.
 the signed root is the fort. p3 is what you carry: an operator key, wireguard
 home, offline docs, wordlists, static tools, loot -- capability comes from
 what you carry and what you plug in, never from widening the fort. rough
-split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists, 1-2 GB docs, the rest
-loot.
+split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
+Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2
+GB docs (an exploit-db mirror, the man-pages reference, an rfc text bundle),
+the rest loot.
 
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount
@@ -338,8 +340,10 @@ usb<->sata/nvme adapter (reach a host's internal disk), a usb-a<->usb-c
 adapter (plug into anything), a second cloned stick stored apart.
 
 provisioning: `build.sh usb /dev/sdX`, `build.sh addstate /dev/sdX`, then
-`arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the
-arsenal. idempotent -- re-run to update.
+optionally `arsenal/build-wordlists.sh` / `arsenal/build-docs.sh` to stage
+wordlists/docs, then `arsenal/provision.sh /dev/sdX3` opens p3 and lays down
+`tools/` + the arsenal -- write-protect off (work mode) first, since p3 has
+to be writable. idempotent -- re-run to update.
 
 ## limits
 

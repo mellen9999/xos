@@ -25,8 +25,18 @@ populate() {
   else
     echo "  note: no arsenal at $ARSENAL -- run arsenal/build-arsenal.sh first"
   fi
-  [ -n "${XOS_WORDLISTS:-}" ] && [ -d "$XOS_WORDLISTS" ] && cp -rf "$XOS_WORDLISTS/." "$H/wordlists/"
-  [ -n "${XOS_DOCS:-}" ] && [ -d "$XOS_DOCS" ] && cp -rf "$XOS_DOCS/." "$H/docs/"
+  # the lock files travel like arsenal.lock does: they live beside the build
+  # scripts (arsenal/), not inside the staging dir the caller points to.
+  if [ -n "${XOS_WORDLISTS:-}" ] && [ -d "$XOS_WORDLISTS" ]; then
+    cp -rf "$XOS_WORDLISTS/." "$H/wordlists/"
+    wl="${SELF:-$(dirname "$0")}/wordlists.lock"
+    [ -f "$wl" ] && install -m 0644 "$wl" "$H/wordlists/wordlists.lock"
+  fi
+  if [ -n "${XOS_DOCS:-}" ] && [ -d "$XOS_DOCS" ]; then
+    cp -rf "$XOS_DOCS/." "$H/docs/"
+    dl="${SELF:-$(dirname "$0")}/docs.lock"
+    [ -f "$dl" ] && install -m 0644 "$dl" "$H/docs/docs.lock"
+  fi
   chmod 700 "$H"; sync
   echo "  tools:     $(ls "$H/tools" 2>/dev/null | tr '\n' ' ')"
   echo "  list them: sh $H/tools/arsenal"

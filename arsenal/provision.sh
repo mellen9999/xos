@@ -8,8 +8,10 @@
 # needs root (cryptsetup + mount). points:
 #   $1              the p3 partition, e.g. /dev/sdb3
 #   XOS_ARSENAL     built tools dir      (default ~/.local/share/xos-arsenal)
-#   XOS_WORDLISTS   optional staging dir -> ~/wordlists
-#   XOS_DOCS        optional staging dir -> ~/docs
+#   XOS_WORDLISTS   optional staging dir -> ~/wordlists (populate via
+#                   arsenal/build-wordlists.sh)
+#   XOS_DOCS        optional staging dir -> ~/docs (populate via
+#                   arsenal/build-docs.sh)
 set -eu
 . "$(cd "$(dirname "$0")" && pwd)/provision-lib.sh"
 DEV="${1:-}"

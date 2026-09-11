@@ -48,3 +48,38 @@ printf '  kiwix-serve  serve zims:  ~/tools/xexec kiwix-serve --port 8080 /run/m
 printf '  mutool       read a pdf:  ~/tools/xexec mutool draw -F txt FILE.pdf | less\n'
 printf '  links        browse the served zim or any html/http\n'
 printf '  frotz        play interactive fiction:  ~/tools/xexec frotz /run/media/*/XOS-KNOW/games/if/spider-and-web.z5\n'
+
+# wordlists/ and docs/ ride beside tools/ on p3, staged by build-wordlists.sh
+# and build-docs.sh (never auto-populated like tools/ is from a lock, since
+# these are optional). same loud-miss philosophy as the tool check above: a
+# lock with nothing behind it is a bigger problem than no lock at all.
+P3="$(dirname "$T")"
+report_staged() {  # $1 label  $2 dir  $3 lock basename  $4 build script
+  d="$2"; lock="$d/$3"
+  has=""
+  for e in "$d"/*; do
+    [ -e "$e" ] || continue
+    [ "$(basename "$e")" = "$3" ] && continue   # the lock itself doesn't count as content
+    has=1; break
+  done
+  if [ -n "$has" ]; then
+    printf '\n%s (%s):\n' "$1" "$(du -sh "$d" 2>/dev/null | cut -f1)"
+    return 0
+  elif [ -f "$lock" ]; then
+    printf '\n%s:\n  ! %s present but %s is empty -- re-run arsenal/%s\n' "$1" "$3" "$d" "$4"
+  fi
+  return 1
+}
+
+if report_staged wordlists "$P3/wordlists" wordlists.lock build-wordlists.sh; then
+  W="$P3/wordlists"
+  printf '  ffuf -w %s/Discovery/Web-Content/common.txt -u https://TARGET/FUZZ\n' "$W"
+  printf '  hydra -P %s/rockyou.txt ssh://TARGET\n' "$W"
+fi
+
+if report_staged docs "$P3/docs" docs.lock build-docs.sh; then
+  D="$P3/docs"
+  printf '  searchsploit <term>                     (%s/exploitdb)\n' "$D"
+  printf '  man -M %s/man-pages-*/ <page>\n' "$D"
+  printf '  grep -ril "<topic>" %s/rfcs/\n' "$D"
+fi
