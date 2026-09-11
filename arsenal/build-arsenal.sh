@@ -26,23 +26,29 @@ set -- \
   "subfinder=github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.16.0" \
   "dnsx=github.com/projectdiscovery/dnsx/cmd/dnsx@v1.3.1" \
   "gobuster=github.com/OJ/gobuster/v3@v3.8.2" \
-  "chisel=github.com/jpillora/chisel@v1.12.1"
+  "chisel=github.com/jpillora/chisel@v1.12.1" \
+  "pspy=github.com/dominicbreuker/pspy@v1.2.1"
 
 mkdir -p "$OUT"
-BIN="$(mktemp -d)"; trap 'rm -rf "$BIN"' EXIT
+BIN="$(mktemp -d)"; NEWLOCK="$(mktemp)"
+trap 'rm -rf "$BIN"; rm -f "$NEWLOCK"' EXIT
 export CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS=-trimpath GOBIN="$BIN"
 
 # the lock is shared: build-arsenal-c.sh and build-python.sh also record their
 # tools in it. preserve THEIR lines (and the header) so a Go rebuild refreshes
 # only the Go set instead of wiping the whole attestation.
-gonames="ffuf httpx nuclei subfinder dnsx gobuster chisel"
+gonames="ffuf httpx nuclei subfinder dnsx gobuster chisel pspy"
 gore=$(printf '%s' "$gonames" | tr ' ' '|')
 carry=""
 [ -f "$LOCK" ] && carry=$(grep -Ev "^($gore)[[:space:]]" "$LOCK" 2>/dev/null | grep -Ev '^[[:space:]]*#' || true)
 
-: > "$LOCK"
+# built into a scratch file, not $LOCK directly: a go install failure partway
+# through the loop must leave the real lock untouched. writing straight into
+# $LOCK would truncate it before this point and, under set -eu, exit before
+# the carry-forward below ever ran -- silently losing every C/python/sqlmap
+# attestation line on the very next successful build.
 printf '# arsenal.lock -- Go set refreshed %s\n# tool  source  bytes  sha256\n' \
-  "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$LOCK"
+  "$(date -u +%Y-%m-%dT%H:%MZ)" > "$NEWLOCK"
 
 for spec in "$@"; do
   name=${spec%%=*}; mod=${spec#*=}
@@ -55,11 +61,12 @@ for spec in "$@"; do
   ver=$(go version -m "$src" 2>/dev/null | awk '$1=="mod"{print $3; exit}')
   cp "$src" "$OUT/$name"; rm -f "$src"
   sz=$(stat -c%s "$OUT/$name"); sh=$(sha256sum < "$OUT/$name" | cut -d' ' -f1)
-  printf '%-12s %s@%s  %s  %s\n' "$name" "${mod%@*}" "${ver:-?}" "$sz" "$sh" >> "$LOCK"
+  printf '%-12s %s@%s  %s  %s\n' "$name" "${mod%@*}" "${ver:-?}" "$sz" "$sh" >> "$NEWLOCK"
 done
 
 # re-attach the C/python/sqlmap lines a prior run of the other scripts recorded.
-[ -n "$carry" ] && printf '%s\n' "$carry" >> "$LOCK"
+[ -n "$carry" ] && printf '%s\n' "$carry" >> "$NEWLOCK"
+mv "$NEWLOCK" "$LOCK"
 
 echo
 echo "== arsenal built into $OUT/ =="

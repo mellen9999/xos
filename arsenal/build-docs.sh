@@ -1,8 +1,8 @@
 #!/bin/sh
 # build-docs.sh -- stage offline reference docs for ~/docs/: exploit-db,
-# man-pages, an rfc bundle. three independent sub-fetches; one failing does
-# not hide or skip the others, and any failure exits this script non-zero
-# after all three have been attempted.
+# man-pages, gtfobins, an rfc bundle. four independent sub-fetches; one
+# failing does not hide or skip the others, and any failure exits this
+# script non-zero after all four have been attempted.
 #
 # needs: git, wget, tar, xz, sha256sum, rsync. gpg is used if present (see
 # docs_manpages below); its absence downgrades that pin, it does not block.
@@ -106,6 +106,31 @@ docs_manpages() {
   echo "  man-pages: staged man-pages-$ver/"
 }
 
+# -- gtfobins: offline living-off-the-land / privesc reference --------------
+# pairs with pspy (arsenal-catalog): pspy finds the SUID binary or cron job,
+# this says what to do with it. same commit-pin-and-verify shape as
+# exploit-db above -- small enough (~2.4MB, 478 binaries) that there is no
+# tarball/cache tier to bother with, just a shallow clone at a pinned commit.
+docs_gtfobins() {
+  pin=acd524623f9c406acedd2754ebd9c2431f3675ad
+  repo=https://github.com/GTFOBins/GTFOBins.github.io.git
+  d="$OUT/gtfobins"
+  if [ -d "$d/.git" ] && [ "$(git -C "$d" rev-parse HEAD 2>/dev/null || true)" = "$pin" ]; then
+    echo "  gtfobins: already at pinned commit $pin"
+    return 0
+  fi
+  rm -rf "$d"
+  git clone --quiet --no-checkout "$repo" "$d"
+  git -C "$d" fetch --quiet origin "$pin" --depth 1
+  git -C "$d" checkout --quiet "$pin"
+  got=$(git -C "$d" rev-parse HEAD)
+  [ "$got" = "$pin" ] || {
+    echo "FAIL: gtfobins HEAD $got does not match pinned $pin" >&2
+    return 1
+  }
+  echo "  gtfobins: verified @ $pin"
+}
+
 # -- rfc bundle: the protocol reference ---------------------------------------
 # rfc-editor.org retired its bulk RFC-all.tar.gz some years back (verified
 # 2026-09-10: the path 404s, and the current /retrieve/bulk/ page documents
@@ -138,6 +163,7 @@ docs_rfcs() {
 
 docs_exploitdb || FAILED=1
 docs_manpages  || FAILED=1
+docs_gtfobins  || FAILED=1
 docs_rfcs      || FAILED=1
 
 LOCK="$HERE/docs.lock"
@@ -149,6 +175,8 @@ LOCK="$HERE/docs.lock"
   [ -d "$OUT/man-pages-6.19" ] && printf 'man-pages   kernel.org/man-pages-6.19+sha256:%s+gpg:%s  %s\n' \
     "88a7c42ad2e03d8b96dc72d95e451f2d875ff0f43103a8eb8ac8242133bdcb05" "4BB26DF6EF466E6956003022EB89995CC290C2A9" \
     "$(du -sh "$OUT/man-pages-6.19" | cut -f1)"
+  [ -d "$OUT/gtfobins" ] && printf 'gtfobins    github.com/GTFOBins/GTFOBins.github.io@%s  %s\n' \
+    "$(git -C "$OUT/gtfobins" rev-parse HEAD 2>/dev/null || echo unknown)" "$(du -sh "$OUT/gtfobins" | cut -f1)"
   [ -d "$OUT/rfcs" ] && printf 'rfc-bundle  rsync.rfc-editor.org::rfcs-text-only(unpinned,point-in-time)  %s\n' \
     "$(du -sh "$OUT/rfcs" | cut -f1)"
 } > "$LOCK"
@@ -159,6 +187,7 @@ column -t "$LOCK" 2>/dev/null | sed 's/^/  /' || sed 's/^/  /' "$LOCK"
 echo "  total: $(du -sh "$OUT" | cut -f1)"
 echo "  use:  searchsploit <term>"
 echo "        man -M $OUT/man-pages-6.19 <page>"
+echo "        rg -i '<binary>' $OUT/gtfobins/_gtfobins/  (or: jq . $OUT/gtfobins/api.json)"
 echo "        grep -ril '<topic>' $OUT/rfcs/"
 
 [ "$FAILED" -eq 0 ] || { echo "FAIL: one or more sub-fetches failed -- see above" >&2; exit 1; }

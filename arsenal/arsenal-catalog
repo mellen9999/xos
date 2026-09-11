@@ -17,3 +17,9 @@ mutool	pdf reader (mupdf) -- `draw -F txt|html` turns any pdf into readable text
 kiwix-serve	serve offline zims (wikipedia, survival docs) on localhost for links
 kiwix-search	grep the zims from the cli without a server
 frotz	z-machine interpreter -- plays the if/ interactive-fiction story files
+whois	who registered this domain/ip -- the one basic busybox doesn't ship
+hydra	online service login brute-forcer (ssh/http/ftp/...)
+john	offline password hash cracker (bleeding-jumbo, cpu-only)
+pspy	watch processes/cron without root -- local privesc enumeration
+jq	json parser/filter -- for the json every other tool here emits
+rg	ripgrep -- fast search over the staged corpora and loot

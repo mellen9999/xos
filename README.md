@@ -262,8 +262,8 @@ home, offline docs, wordlists, static tools, loot -- capability comes from
 what you carry and what you plug in, never from widening the fort. rough
 split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
 Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2
-GB docs (an exploit-db mirror, the man-pages reference, an rfc text bundle),
-the rest loot.
+GB docs (an exploit-db mirror, the man-pages reference, gtfobins, an rfc text
+bundle), the rest loot.
 
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount
@@ -291,6 +291,12 @@ built and pinned, sha256 and source in `arsenal/arsenal.lock`:
 | links | text-mode browser -- reads served zims and any html/http, no gui |
 | mutool | pdf reader -- `draw -F txt` turns a pdf into readable text |
 | frotz | z-machine interpreter -- plays the carried interactive-fiction library |
+| whois | who registered this domain/ip -- the one basic busybox doesn't ship |
+| hydra | online service login brute-forcer (ssh/http/ftp/...) |
+| john | offline password hash cracker (bleeding-jumbo, cpu-only) |
+| pspy | watch processes/cron without root -- local privesc enumeration |
+| jq | json parser/filter -- for the json every other tool here emits |
+| rg | ripgrep -- fast search over the staged corpora and loot |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
@@ -314,7 +320,7 @@ without the ~600 packages and a desktop, none of it provable.
     web fuzz/recon      ffuf, gobuster       ffuf gobuster nuclei httpx  built
     recon suite         amass, subfinder     subfinder dnsx naabu        (go)
     pivot / tunnel      chisel, socat        chisel built; ligolo/socat next
-    brute / crack       hydra, john          hydra, john (musl); hashcat out (gpu)
+    brute / crack       hydra, john          built (musl); hashcat out (gpu)
     reversing           radare2, gdb         radare2 / rizin (musl); gdb hard
     exploit framework   metasploit           out (ruby+db) -- sliver + carried python
     python tooling      sqlmap, impacket     built: carried python 3.12 via xexec -t
