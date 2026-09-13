@@ -16,10 +16,21 @@
 
 POOLS="$ROOT/pools"
 SUBST=""            # path to the rolled sed script; set by ctx_init
+SUBST_HI=""         # the same roll, with every value fenced for display
+
+# the fence. a rolled value is the one thing on a card the learner must type
+# back letter for letter -- "make build the directory you're standing in" is a
+# sentence about a directory called build, and nothing on screen said so. the
+# two bytes are chosen for what they are not: \001 and \002 cannot be typed,
+# appear in no pool and mean nothing to a terminal, so no value can be mistaken
+# for a fence and no fence can survive into a file or an answer unnoticed.
+HI1=$(printf '\001')
+HI2=$(printf '\002')
 
 ctx_init() {
 	SUBST="$TMP/subst"
-	: > "$SUBST"
+	SUBST_HI="$TMP/subst.hi"
+	: > "$SUBST"; : > "$SUBST_HI"
 }
 
 # token_pools -- "TOKEN POOL" for every substitution roll() makes, read out of
@@ -80,11 +91,12 @@ sub() {
 			echo "learn: pool value is not sed-safe: $2" >&2; return 1 ;;
 	esac
 	printf 's|@%s@|%s|g\n' "$1" "$2" >> "$SUBST"
+	printf 's|@%s@|%s%s%s|g\n' "$1" "$HI1" "$2" "$HI2" >> "$SUBST_HI"
 }
 
 # roll -- fresh context for one question.
 roll() {
-	: > "$SUBST"
+	: > "$SUBST"; : > "$SUBST_HI"
 
 	# the fixture seed rides along with the roll: the sandbox's file contents
 	# are generated from it, so every question runs against fresh data and the
@@ -130,8 +142,15 @@ roll() {
 # PHRASES points at learn/phrases; loaded once, passed to render's awk.
 PHRASES="$ROOT/phrases"
 
-render() {
-	sed -f "$SUBST" | awk -v seed="$1" -v pf="$PHRASES" '
+# render is the plain pass -- answers, expected output, the state a grader
+# checks -- and render_named the display one, where each rolled value comes out
+# fenced. one seed drives both, so the {a|b|c} branch a prompt shows is the
+# branch its stripped twin was measured on.
+render()       { _render "$SUBST"    "$1"; }
+render_named() { _render "$SUBST_HI" "$1"; }
+
+_render() {
+	sed -f "$1" | awk -v seed="$2" -v pf="$PHRASES" '
 		BEGIN {
 			srand(seed)
 			# load %macro% -> alternatives from the phrases file. a macro asked

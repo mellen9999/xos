@@ -60,6 +60,31 @@ elif [ "$_tier" = mono ]; then
 	G=$B  Y=$B  C=$B  W=$B  D=
 fi
 
+# a rolled name inside a question: the file, the directory, the word the answer
+# has to type back letter for letter. it is the one thing in a sentence that is
+# not English, and until it was marked "make build the directory you're standing
+# in" opened with what read as the command `make`.
+#
+# marked, not coloured, for the same reason as everything else here: MONO has
+# bold and nothing more, so the prose around a name gives up its own colour to
+# leave bold free to mean this. where the terminal has no attributes at all --
+# NO_COLOR, dumb, a pipe -- the mark becomes the quotes a person would have
+# typed, because the distinction is the sentence and it cannot be dropped.
+case "$_tier" in
+	none)   HI_ON="'"   HI_OFF="'" ;;
+	mono)   HI_ON=$B    HI_OFF=    ;;   # W is already bold here; saying it twice
+	*)      HI_ON=$B$W  HI_OFF=    ;;   # costs a serial line four bytes a name
+esac
+
+# hi_expand BASE -- fences to marks, on stdin. BASE is the styling of the text
+# the name sits in, which the closing mark has to hand back: a name inside the
+# dim hint panel must leave the rest of that row dim, not reset to live text.
+hi_expand() { sed -e "s/$HI1/$HI_ON/g" -e "s/$HI2/$HI_OFF$N${1:-}/g"; }
+
+# hi_strip -- the same text with the fences gone: what gets measured, matched
+# and written down. every width, every grader and every ledger sees this one.
+hi_strip() { tr -d "$HI1$HI2"; }
+
 # synchronised output: the editor reprints the whole answer line on every
 # keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
 # redraw in these markers tells the terminal to paint it in one frame. unknown

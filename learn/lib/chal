@@ -42,7 +42,7 @@ chal_ask() {
 	local input
 	blk_load "$CHAINS" "$1" || return 1
 	Q_CMP=ref
-	printf '  %s%s%s %s%s%s\n' "$D" "$1" "$N" "$W" "$Q_PROMPT" "$N"
+	printf '  %s%s%s %s\n' "$D" "$1" "$N" "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
 	while :; do
 		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
 		if ! clock_read "$CHAL_LIMIT"; then

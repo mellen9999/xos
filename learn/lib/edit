@@ -173,7 +173,10 @@ _ed_panel_load() {
 			src=$(PANEL_ROWS=$max ref_panel_text "$(printf '%s\n' "${Q_ANSWERS:-}" | head -1)")
 			suf="${Q_REF:-}$N" ;;
 		hint)
-			src=${Q_HINT:-}
+			# expanded before the fit, not after: the fitter measures a row
+			# with the escapes stripped out, so a marked name costs the panel
+			# nothing, and it cuts whole lines, so no mark is ever halved.
+			src=$(printf '%s' "${Q_HINT:-}" | hi_expand "$D")
 			[ -n "$src" ] || src="no hint for this one -- Tab for the reference"
 			# after a miss the hint carries the diagnosis of the line that
 			# missed: what it printed against what was wanted. the hint stays

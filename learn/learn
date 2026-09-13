@@ -258,15 +258,20 @@ blk_load() {
 	# must never offer the answer on screen as an "example" of the command
 	Q_SRC="${1##*/}:$2"
 	Q_TPL=$(sed -n 's/^q: \{0,1\}//p' "$blk")
-	Q_PROMPT=$(printf '%s\n' "$Q_TPL" | render "$seed")
+	# what the learner reads is rendered once, fenced, and the plain copy is
+	# taken from it by stripping -- not rendered a second time. two renders
+	# would be two rolls of the same alternations and the prompt on screen
+	# could name one file while everything measured against it named another.
+	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | render_named "$seed")
+	Q_PROMPT=$(printf '%s\n' "$Q_PROMPT_HI" | hi_strip)
 	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATUS=$(sed -n 's/^status: \{0,1\}//p' "$blk" | head -1)
 	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
 	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
-	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render "$seed" | head -1)
-	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render "$seed")
+	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render_named "$seed" | head -1)
+	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render_named "$seed")
 	[ -n "$Q_PROMPT" ]
 }
 
@@ -304,11 +309,18 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	# off the bottom of the screen.
 	Q_ROWS=3                  # status bar, its rule, the answer line itself
 	if [ -n "$Q_SETUP" ]; then
+		# wrapped while still fenced and expanded after: fold counts the two
+		# fence bytes, which costs a name's line two columns of a 76-column
+		# wrap, where expanding first would hand fold whole escape sequences to
+		# count and tear the paragraph. the row count is taken from the same
+		# text, and marks change no line's existence.
 		_said=$(printf '%s\n' "$Q_SETUP" | say)
-		printf '%s\n\n' "$_said"
-		Q_ROWS=$(( Q_ROWS + 1 + $(printf '%s\n' "$_said" | _prows "${COLS:-80}") ))
+		printf '%s\n' "$_said" | hi_expand; echo
+		Q_ROWS=$(( Q_ROWS + 1 + $(printf '%s\n' "$_said" | hi_strip | _prows "${COLS:-80}") ))
 	fi
-	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+	# the prose keeps the terminal's own foreground so the names in it can have
+	# the bold: on a vt320 that is the only difference there is.
+	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
 	Q_ROWS=$(( Q_ROWS + (2 + ${#Q_PROMPT}) / ${COLS:-80} + 1 ))
 	# the two panels you can open at a card: ? for the hint, Tab for the
 	# reference, either key again closes it. there is no skip and no try
@@ -350,7 +362,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 					if [ "$ED_OPEN" = hint ]; then ED_OPEN=; else ED_OPEN=hint; fi
 					_meta_clear
 				elif [ -n "$Q_HINT" ]; then
-					note "$Q_HINT"
+					note "$(printf '%s' "$Q_HINT" | hi_expand "$D")"
 				else
 					note "no hint. try: learn ref $Q_REF"
 				fi
@@ -1119,6 +1131,25 @@ st_block() {
 	# unrendered placeholder: a @name@ with no pool behind it
 	case "$Q_PROMPT$Q_ANSWERS" in
 		*@*@*) echo "FAIL $lbl: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1)) ;;
+	esac
+
+	# a fence is a display mark and must never reach anything that is run,
+	# matched or written down: an answer carrying one would be graded against
+	# bytes no learner can type.
+	case "$Q_ANSWERS$Q_OUT$Q_STATE$Q_PROMPT" in
+		*"$HI1"*|*"$HI2"*) echo "FAIL $lbl: display fence leaked into an answer or a grader" >&2; bad=$((bad+1)) ;;
+	esac
+	# and the two copies of the question must be the same sentence: one roll,
+	# one set of {a|b|c} branches, marks the only difference between them.
+	[ "$Q_PROMPT" = "$(printf '%s' "$Q_PROMPT_HI" | hi_strip)" ] \
+		|| { echo "FAIL $lbl: marked and plain prompt disagree" >&2; bad=$((bad+1)); }
+	# a question that names a rolled value must show the learner which word it
+	# is -- the whole point of the fence, asserted where it can go quiet.
+	case "$Q_TPL" in
+		*@*@*) case "$Q_PROMPT_HI" in
+			*"$HI1"*) ;;
+			*) echo "FAIL $lbl: prompt rolls a name but marks none of it" >&2; bad=$((bad+1)) ;;
+		esac ;;
 	esac
 
 	# ref must be a command we ship
