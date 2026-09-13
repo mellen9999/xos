@@ -37,7 +37,12 @@ mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
 # run on -- every block load after a ctrl-c failed, every remaining question
 # was graded wrong against a blank reveal. the tty is put back too: a kill
 # mid-keystroke leaves it in the editor's raw read.
-cleanup() { rm -rf "$TMP" "${SANDBOX:-}" 2>/dev/null; }
+cleanup() {
+	# the boss clock is a child: a ctrl-c that left it running would go on
+	# writing seconds over whatever the shell drew next.
+	[ -n "${CLOCK_PID:-}" ] && kill "$CLOCK_PID" 2>/dev/null
+	rm -rf "$TMP" "${SANDBOX:-}" 2>/dev/null
+}
 trap cleanup EXIT
 trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
@@ -317,8 +322,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			# tradition, and a real test: thirty seconds is long enough to type
 			# what you know and far too short to go and look it up. no editor
 			# under the clock -- just type.
-			printf '%s$%s ' "$W" "$N"
-			if ! IFS= read -t "$BOSS_LIMIT" -r input; then
+			printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
+			if ! clock_read "$BOSS_LIMIT"; then
 				echo
 				no "out of time."
 				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
@@ -327,7 +332,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			fi
 			# a bare read is cooked-mode, not the vi editor -- Tab is not
 			# intercepted, so it would land in the answer as a literal tab
-			input=$(printf '%s' "$input" | tr -d '\t')
+			input=$(printf '%s' "$CLOCK_LINE" | tr -d '\t')
 		else
 			# full vi-mode line editing with history (falls back to a plain read
 			# when stdin is not a terminal, e.g. the build's own checks).
@@ -364,8 +369,10 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 
 		if correct "$input"; then
 			# the miss is already banked; getting there afterwards still counts
-			# as the miss it was, however many tries it took
-			[ "$tries" -gt 0 ] && return 1
+			# as the miss it was, however many tries it took -- but it is still
+			# the right line, and a card that answers a correct line with silence
+			# reads as one more miss to whoever just typed it.
+			[ "$tries" -gt 0 ] && { ok "correct${SEP}${D}counted as a miss${N}"; return 1; }
 			card_grade "$key" 1
 			tier=$(card_tier "$key")
 			S_RIGHT=$((S_RIGHT + 1)); S_STREAK=$((S_STREAK + 1))
@@ -439,7 +446,7 @@ boss_round() {
 	for n in $(shuffle_n "$nq" 5); do
 		k=$((k + 1))
 		cls
-		statusbar "BOSS: $bname" "${BOSS_LIMIT}s each" "$k" "5" "$right"
+		statusbar "BOSS: $bname" "no hints" "$k" "5" "$right"
 		ask "$id" "$n"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" = 0 ] && right=$((right + 1))
@@ -673,7 +680,7 @@ daily() {
 	rnd "$nq"; idx=$((REPLY + 1))
 	BOSS_LIMIT=$(boss_limit "$lvl")   # the clock that level's own boss runs
 	cls
-	statusbar "daily" "$day  ${BOSS_LIMIT}s  no hints" 1 1
+	statusbar "daily" "$day  no hints" 1 1 ""
 	MODE=boss
 	ask "$lvl" "$idx"; rc=$?
 	MODE=learn

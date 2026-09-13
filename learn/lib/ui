@@ -166,12 +166,20 @@ unset _bars
 
 rule() { printf '%s\n' "$RULE"; }
 
-# the answer prompt: a bare $ at the far left, white while you
+# the character a shell puts at the front of its prompt: # for root, $ for
+# anyone else. xos boots as root and busybox prints "# " there, so a learner
+# drilling against a $ would be learning a prompt this machine never shows.
+# asked of the system rather than pinned, since learn also runs on a host where
+# the answer is the other one.
+PROMPT_CH='$'
+[ "$(id -u 2>/dev/null || echo 1)" = 0 ] && PROMPT_CH='#'
+
+# the answer prompt: a bare prompt character at the far left, white while you
 # type and red the moment you drop to vi normal mode. built here where the R/W
 # colour globals are in scope -- inside the editor R is the right-of-cursor
 # buffer, so it cannot see them.
-PROMPT_INS=$(printf '%s$ %s' "$W" "$N")
-PROMPT_NORM=$(printf '%s$ %s' "$R" "$N")
+PROMPT_INS=$(printf '%s%s %s' "$W" "$PROMPT_CH" "$N")
+PROMPT_NORM=$(printf '%s%s %s' "$R" "$PROMPT_CH" "$N")
 
 hdr() {
 	printf '\n%s%s%s %s\n' "$B$M" "$1" "$N" "${D}$2$N"
@@ -187,9 +195,9 @@ no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
 note() { printf '  %s%s%s\n' "$D" "$1" "$N"; }
 
 # the answer a miss or a skip reveals, shown the way you would have typed it:
-# a dim $ at the far left, the command in yellow -- the same shape as the live
-# prompt, so the eye reads it as "this is what belonged on that line".
-reveal() { printf '%s$ %s%s%s%s\n' "$D" "$N" "$Y" "$1" "$N"; }
+# a dim prompt at the far left, the command in yellow -- the same shape as the
+# live prompt, so the eye reads it as "this is what belonged on that line".
+reveal() { printf '%s%s %s%s%s%s\n' "$D" "$PROMPT_CH" "$N" "$Y" "$1" "$N"; }
 
 # ---- flashcard screen -----------------------------------------------------
 #
@@ -221,18 +229,76 @@ bar() {
 # visible width is known here, so the coloured escapes never shear the layout.
 statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 	[ -t 1 ] || return 0
-	local title="$1" sub="$2" done="$3" tot="$4" right="$5" bw=16 lt rt padw
+	# right is optional, and says so above: under set -u a caller that leaves it
+	# off -- daily did -- dies here rather than drawing a bar without a score.
+	local title="$1" sub="$2" done="$3" tot="$4" right="${5:-}" bw=16 lt rt padw
 	lt="  $title  $sub"
 	rt=" $done/$tot"
 	[ -n "$right" ] && rt="$rt  +$right"
 	padw=$(( COLS - ${#lt} - bw - ${#rt} ))
 	[ "$padw" -ge 1 ] 2>/dev/null || padw=1
+	# where a clock may tick: the gap this bar is about to pad, two columns past
+	# the subtitle. published rather than guessed at, because only this function
+	# knows the widths -- and zeroed when the gap is too narrow to hold one, so
+	# a clock never lands on top of the bar.
+	SB_CLOCK_COL=0
+	[ "$padw" -ge 6 ] && SB_CLOCK_COL=$(( ${#lt} + 3 ))
 	printf '  %s%s%s  %s%s%s%*s' "$B$W" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
 	bar "$done" "$tot" "$bw"
 	printf ' %s%s/%s%s' "$D" "$done" "$tot" "$N"
 	[ -n "$right" ] && printf '  %s+%s%s' "$G" "$right" "$N"
 	printf '\n'
 	rule
+}
+
+# ---- the clock ------------------------------------------------------------
+#
+# a timed question used to print "30s" once and then sit silently on a blocking
+# read, so the one number the mode is built around never moved. it moves now: a
+# child redraws the seconds in the cell statusbar left for it, once a second,
+# with the cursor saved and restored around every tick so the line being typed
+# is never touched. it is killed the moment the read returns, and it never
+# starts where there is no terminal to draw on -- selftest runs a boss round,
+# and nothing automated may gain a child or a second of wall clock from this.
+#
+# the bar is always drawn onto a freshly cleared screen, so its row is 1.
+CLOCK_ROW=1
+SB_CLOCK_COL=0
+CLOCK_PID=
+CLOCK_LINE=
+
+_clock_cell() {  # LEFT -- the seconds, dim, and loud for the last five
+	local c=$D
+	[ "$1" -le 5 ] && c=$R
+	printf '%s\0337\033[%d;%dH%s%2ds%s\0338%s' "$SYNC_BEG" \
+		"$CLOCK_ROW" "$SB_CLOCK_COL" "$c" "$1" "$N" "$SYNC_END"
+}
+
+# clock_read SECS -- read one line under a visible clock. the line lands in
+# CLOCK_LINE; a non-zero return means the time ran out.
+clock_read() {
+	local secs=$1 left=$1 rc
+	CLOCK_PID=
+	if [ -t 0 ] && [ -t 1 ] && [ "$SB_CLOCK_COL" -gt 0 ]; then
+		( while [ "$left" -gt 0 ]; do
+			_clock_cell "$left"; sleep 1; left=$((left - 1))
+		done ) &
+		CLOCK_PID=$!
+	fi
+	IFS= read -t "$secs" -r CLOCK_LINE; rc=$?
+	clock_stop
+	return $rc
+}
+
+# stop the ticker and take the cell back. safe to call with no clock running,
+# which is what makes it safe on the interrupt path.
+clock_stop() {
+	[ -n "$CLOCK_PID" ] || return 0
+	kill "$CLOCK_PID" 2>/dev/null
+	wait "$CLOCK_PID" 2>/dev/null
+	CLOCK_PID=
+	[ "$SB_CLOCK_COL" -gt 0 ] && printf '\0337\033[%d;%dH   \0338' "$CLOCK_ROW" "$SB_CLOCK_COL"
+	return 0
 }
 
 # between cards: one keypress moves on, q leaves. the prompt names only the

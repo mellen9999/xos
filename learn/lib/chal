@@ -15,6 +15,11 @@
 CHAINS="$ROOT/chains"
 CHAL_BEST="$STATE/challenge"
 
+# every stage runs the same clock, and it is named once: the number was written
+# out in three places -- the read, the header and the status bar -- so changing
+# it meant changing a promise the read did not keep.
+CHAL_LIMIT=30
+
 # a rank for a run. the ladder is the reward -- the same reason the
 # curriculum has bosses. terminal-flavoured, no cutesy tiers.
 chal_rank() {
@@ -39,12 +44,13 @@ chal_ask() {
 	Q_CMP=ref
 	printf '  %s%s%s %s%s%s\n' "$D" "$1" "$N" "$W" "$Q_PROMPT" "$N"
 	while :; do
-		printf '%s$%s ' "$W" "$N"
-		if ! IFS= read -t 30 -r input; then
+		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
+		if ! clock_read "$CHAL_LIMIT"; then
 			echo; no "out of time."
 			reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 			return 1
 		fi
+		input=$CLOCK_LINE
 		case "$input" in
 			quit|:q) return 2 ;;
 			'')      continue ;;
@@ -80,7 +86,7 @@ challenge() {
 	nq=$(chal_nq)
 
 	cls
-	hdr "$(sed -n '/^---$/q; s/^name: \{0,1\}//p' "$CHAINS")" "${nq} stages  30s each  one life"
+	hdr "$(sed -n '/^---$/q; s/^name: \{0,1\}//p' "$CHAINS")" "${nq} stages  ${CHAL_LIMIT}s each  one life"
 	sed -n '/^---$/q; s/^brief: \{0,1\}//p' "$CHAINS" | say
 	pause_card || return 2
 
@@ -88,7 +94,7 @@ challenge() {
 	i=1
 	while [ "$i" -le "$nq" ]; do
 		cls
-		statusbar "the gauntlet" "30s each  one life" "$i" "$nq" "$score"
+		statusbar "the gauntlet" "one life" "$i" "$nq" "$score"
 		chal_ask "$i"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" != 0 ] && { pause_card; break; }
