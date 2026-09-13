@@ -228,6 +228,70 @@ anchors and the case for each part are in `SOURCES.md`.
 | ii | irc, as files in a directory |
 | learn | the curriculum |
 
+## the arsenal
+
+capability rides p3 -- an operator key, wireguard home, offline docs, wordlists,
+static tools, loot -- and comes from what you carry and plug in, never from
+widening the signed fort. built and pinned, sha256 + source in
+`arsenal/arsenal.lock`:
+
+| tool | does |
+|---|---|
+| ffuf | web fuzzer -- brute paths, params, vhosts against a target |
+| httpx | fast http prober -- which hosts/ports answer, titles, tech |
+| nuclei | template-driven vuln and misconfig scanner |
+| subfinder | passive subdomain discovery |
+| dnsx | fast dns toolkit -- resolve, bruteforce, record types |
+| gobuster | dir/dns/vhost brute-forcer |
+| masscan | internet-scale port scanner, fast and stateless |
+| nmap | host/service/version/os scan + nse scripting -- what masscan can't |
+| tcpdump | packet capture and inspection on the wire |
+| chisel | tcp/udp tunnel over http -- pivot through a firewall |
+| socat | swiss-army socket relay -- pivot, port-forward, tls-wrap, listen |
+| ligolo | reverse-tunnel pivot -- proxy (operator) + agent (target) |
+| hydra | online service login brute-forcer (ssh/http/ftp/...) |
+| john | offline password hash cracker (bleeding-jumbo, cpu-only) |
+| pspy | watch processes/cron without root -- local privesc enumeration |
+| links | text-mode browser -- reads served zims and any html/http, no gui |
+| mutool | pdf reader -- `draw -F txt` turns a pdf into readable text |
+| frotz | z-machine interpreter -- plays the carried interactive-fiction library |
+| whois | who registered this domain/ip -- the one basic busybox doesn't ship |
+| jq | json parser/filter -- for the json every other tool here emits |
+| rg | ripgrep -- fast search over the staged corpora and loot |
+| python | full cpython 3.12 -- scripting, a repl, `http.server` |
+| sqlmap | automated sql-injection detection and exploitation |
+| kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
+| kiwix-search | greps the zim corpus without a server |
+
+`sh ~/tools/arsenal` lists every carried tool on the stick itself, one line
+each, and cross-checks `arsenal.lock` so an attested-but-missing or
+present-but-unattested binary shows up loud instead of hiding.
+
+a lean static cli kit reaches most of a full kali install without the ~600
+packages and a desktop -- and unlike kali, every byte of it is reproducible and
+attested:
+
+| area | kali | xos |
+|---|---|---|
+| net/forensics base | nc, dd, dig, ssh | nc netstat nslookup wget tftp telnet ip arp ping traceroute dbclient wg tlstunnel cryptsetup dd losetup blkid strings tar sha* |
+| port/host scan | nmap, masscan | masscan nmap (musl) |
+| packet capture | tcpdump, tshark | tcpdump; tshark not built (glib/static) |
+| web fuzz/recon | ffuf, gobuster | ffuf gobuster nuclei httpx |
+| recon suite | amass, subfinder | subfinder dnsx (go) |
+| pivot / tunnel | chisel, socat | chisel socat ligolo (musl+go) |
+| brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
+| reversing | radare2, gdb | gdb not built (static link); strings + python cover triage |
+| exploit framework | metasploit | out (ruby+db) -- carried python covers it |
+| python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
+| wireless | aircrack, wifite | out -- no wifi drivers, by design |
+| gpu cracking | hashcat | out -- passive/headless |
+| gui | burp, wireshark | out -- no gui |
+
+two states behind the gaps: **out** is excluded on principle -- wireless, gpu,
+gui and metasploit want drivers, hardware or a runtime xos won't carry, so they
+are never coming. **not built** is buildable static-musl but not yet done (gdb,
+tshark) -- a statement of the current toolset, not a promise of the next one.
+
 ## learn
 
 teaches the whole shipped command surface -- the ~180 applets, builtins and
@@ -255,21 +319,17 @@ and the tree's own busybox, no stick needed. progress lives under
 everything shipped is documented and nothing documented is unshipped -- both
 directions are build gates, not intentions.
 
-## the arsenal
+## carrying it
 
-the signed root is the fort. p3 is what you carry: an operator key, wireguard
-home, offline docs, wordlists, static tools, loot. capability comes from what
-you carry and plug in, never from widening the fort. rough split of a 16 GB
-stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
-Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2
+rough split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset
+-- Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2
 GB docs (exploit-db mirror, man-pages, gtfobins, an rfc text bundle), the rest
 loot.
 
 the knowledge payload is bigger and never needs exec, so it rides a separate
 exFAT stick labelled `XOS-KNOW` instead of p3, everything read-only. xos builds
 the readers, never the content: kiwix (serve + search) and frotz ship from
-source, but the zims are reference payload you populate yourself -- the readers
-are built for this set, it is not a fixed manifest.
+source, but the zims are reference payload you populate yourself.
 
 | payload | what | source |
 |---|---|---|
@@ -279,7 +339,7 @@ are built for this set, it is not a fixed manifest.
 | maps | offline map zims | you supply |
 | `games/if` | the interactive fiction frotz plays | staged + pinned |
 
-the one payload xos does stage is the game library: morale is a supply, and
+the one payload xos stages is the game library: morale is a supply, and
 interactive fiction is the one genre a text-only box runs natively.
 `arsenal/build-games.sh` fetches the freeware stories from the IF Archive,
 verifies each against a sha256 pin and writes `arsenal/games.lock` -- infocom's
@@ -288,89 +348,32 @@ zork is still copyright, so you drop your own copy into `games/if/` by hand.
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount
 flipped read-only, torn down on exit. `xexec -t dir entry` stages a whole
-interpreter tree instead of one binary, which is how carried python runs --
-its `.so` extensions need dlopen, and noexec p3 can't give that directly.
+interpreter tree instead of one binary, which is how carried python runs -- its
+`.so` extensions need dlopen, and noexec p3 can't give that directly.
 
 a hardware write-protect switch is a per-boot mode: on is vault (stick
-unalterable, runs in ram, zero trace, nothing persists), off is work (p3
-unlocks read-write, loot persists).
-
-built and pinned, sha256 and source in `arsenal/arsenal.lock`:
-
-| tool | does |
-|---|---|
-| ffuf | web fuzzer -- brute paths, params, vhosts against a target |
-| httpx | fast http prober -- which hosts/ports answer, titles, tech |
-| nuclei | template-driven vuln and misconfig scanner |
-| subfinder | passive subdomain discovery |
-| dnsx | fast dns toolkit -- resolve, bruteforce, record types |
-| gobuster | dir/dns/vhost brute-forcer |
-| chisel | tcp/udp tunnel over http -- pivot through a firewall |
-| masscan | internet-scale port scanner, fast and stateless |
-| tcpdump | packet capture and inspection on the wire |
-| links | text-mode browser -- reads served zims and any html/http, no gui |
-| mutool | pdf reader -- `draw -F txt` turns a pdf into readable text |
-| frotz | z-machine interpreter -- plays the carried interactive-fiction library |
-| whois | who registered this domain/ip -- the one basic busybox doesn't ship |
-| hydra | online service login brute-forcer (ssh/http/ftp/...) |
-| john | offline password hash cracker (bleeding-jumbo, cpu-only) |
-| pspy | watch processes/cron without root -- local privesc enumeration |
-| jq | json parser/filter -- for the json every other tool here emits |
-| rg | ripgrep -- fast search over the staged corpora and loot |
-| python | full cpython 3.12 -- scripting, a repl, `http.server` |
-| sqlmap | automated sql-injection detection and exploitation |
-| kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
-| kiwix-search | greps the zim corpus without a server |
-
-`sh ~/tools/arsenal` lists every carried tool on the stick itself, one line
-each, and cross-checks `arsenal.lock` so an attested-but-missing or
-present-but-unattested binary shows up loud instead of hiding.
-
-capability vs a full kali install: a lean static CLI kit reaches most of it
-without the ~600 packages and a desktop, none of it provable.
-
-| area | kali | xos |
-|---|---|---|
-| net/forensics base | nc, dd, dig, ssh | nc netstat nslookup wget tftp telnet ip arp ping traceroute dbclient wg tlstunnel cryptsetup dd losetup blkid strings tar sha* |
-| port/host scan | nmap, masscan | masscan; nmap not built (c++ static-pie link) |
-| packet capture | tcpdump, tshark | tcpdump; tshark not built (glib) |
-| web fuzz/recon | ffuf, gobuster | ffuf gobuster nuclei httpx |
-| recon suite | amass, subfinder | subfinder dnsx naabu (go) |
-| pivot / tunnel | chisel, socat | chisel; ligolo, socat not built |
-| brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
-| reversing | radare2, gdb | radare2/rizin (musl); gdb not built (hard on musl) |
-| exploit framework | metasploit | out (ruby+db) -- sliver + carried python cover it |
-| python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
-| wireless | aircrack, wifite | out -- no wifi drivers, by design |
-| gpu cracking | hashcat | out -- passive/headless |
-| gui | burp, wireshark | out -- no gui |
-
-two states behind the gaps: **out** is excluded on principle -- wireless, gpu,
-gui and metasploit want drivers, hardware or a runtime xos won't carry, so they
-are never coming. **not built** is buildable static-musl but not yet done
-(nmap, tshark, gdb, ligolo, socat) -- a statement of the current toolset, not a
-promise of the next one.
+unalterable, runs in ram, zero trace, nothing persists), off is work (p3 unlocks
+read-write, loot persists).
 
 playbook: attest (clean boot, prove it -- learn 29 / scenario 10), unlock p3,
-reach disks over usb only (the host's internal nvme/sata never enumerates,
-by design), run tools through xexec, phone home over the wireguard tunnel
-and ssh back down it.
+reach disks over usb only (the host's internal nvme/sata never enumerates, by
+design), run tools through xexec, phone home over the wireguard tunnel and ssh
+back down it.
 
-two things here don't rebuild from source: your p3 secrets and your signing
-keys. back both up offline, apart from the stick and from each other -- a
-fireproof metal plate, ideally split. everything else -- image, stick,
-tools -- rebuilds from source, that's what reproducible builds buy you. a
-write-protect switch has to be confirmed hardware, not a firmware toggle, or
-vault mode is fiction. concrete gear beyond the stick itself: a passive
-usb<->sata/nvme adapter (reach a host's internal disk), a usb-a<->usb-c
-adapter (plug into anything), a second cloned stick stored apart.
+two things never rebuild from source: your p3 secrets and your signing keys.
+back both up offline, apart from the stick and each other -- a fireproof metal
+plate, ideally split. everything else -- image, stick, tools -- rebuilds from
+source. a write-protect switch has to be confirmed hardware, not a firmware
+toggle, or vault mode is fiction. gear beyond the stick: a passive
+usb<->sata/nvme adapter (reach a host's internal disk), a usb-a<->usb-c adapter,
+a second cloned stick stored apart.
 
 provisioning: `build.sh usb /dev/sdX`, `build.sh addstate /dev/sdX`, then
 optionally `arsenal/build-wordlists.sh` / `arsenal/build-docs.sh` to stage
 wordlists/docs (and `arsenal/build-games.sh` for the if library onto the
 XOS-KNOW stick), then `arsenal/provision.sh /dev/sdX3` opens p3 and lays down
-`tools/` + the arsenal -- write-protect off (work mode) first, since p3 has
-to be writable. idempotent -- re-run to update.
+`tools/` + the arsenal -- write-protect off (work mode) first, since p3 has to be
+writable. idempotent -- re-run to update.
 
 ## limits
 
