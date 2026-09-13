@@ -31,16 +31,27 @@ mv "$stage/busybox" "$share/busybox"
 mv "$stage/learn"   "$share/learn"
 rm -rf "$stage" "$share/learn.old"
 
-cat > "$bindir/learn" <<WRAP
-#!/bin/sh
-# xos learn -- the shell curriculum, standalone. corpus + static-pie busybox
-# copied out of the xos tree; runs anywhere, no stick required. progress saves
-# under ~/.local/state. regenerate with learn/install.sh in the xos repo.
-ROOT="\${XDG_DATA_HOME:-\$HOME/.local/share}/xos-learn"
-export LEARN_ROOT="\$ROOT/learn"
-exec "\$ROOT/busybox" ash "\$ROOT/learn/learn" "\$@"
-WRAP
+# the applet names, rebuilt every install: the answers run with these ahead of
+# the host's own on PATH, so a card is graded by the commands the image has and
+# not by whatever gnu coreutils prints this year. rebuilt rather than patched,
+# because a busybox that lost an applet would otherwise leave a dead symlink
+# that fails in the middle of a card.
+rm -rf "$share/bb"; mkdir -p "$share/bb"
+"$share/busybox" --install -s "$share/bb" 2>/dev/null ||
+	for a in $("$share/busybox" --list); do ln -sf "$share/busybox" "$share/bb/$a"; done
+
+# what this corpus is, written where it can be read back: an install that
+# claims to be current and is not is the failure mode this whole file is about.
+(cd "$src" && git rev-parse --short HEAD 2>/dev/null || echo unknown) > "$share/VERSION"
+
+# one wrapper, kept in the tree beside the corpus: install.sh and push both
+# copy this same file, so learn behaves identically however it got here.
+cp "$src/learn/wrapper" "$bindir/learn"
 chmod +x "$bindir/learn"
 
-echo "install: learn -> $bindir/learn (corpus + busybox in $share)"
+# it is not installed until it runs: a corpus that copied but cannot start is
+# exactly what a silent installer hides.
+"$bindir/learn" stats >/dev/null 2>&1 || { echo "install: learn does not run after the copy" >&2; exit 1; }
+
+echo "install: learn -> $bindir/learn ($(cat "$share/VERSION"), corpus + busybox in $share)"
 case ":$PATH:" in *":$bindir:"*) ;; *) echo "install: note -- $bindir is not on PATH" >&2 ;; esac

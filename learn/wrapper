@@ -1,0 +1,18 @@
+#!/bin/sh
+# xos learn -- the shell curriculum, standalone. no stick required.
+#
+# the corpus and a busybox live in one share dir; the applet symlinks go on
+# PATH ahead of everything else and the answers run under that ash, so a card
+# is graded by the same commands the stick has. installed under a host's own
+# coreutils instead, a third of the questions grade against output the image
+# never prints -- ps, sha256sum -c, diff, free all differ.
+#
+# put here, not written out by the installer, because there are two installers
+# -- install.sh for this machine, push for anything with an ssh port -- and a
+# wrapper that drifts between them is a learn that grades differently
+# depending on how it arrived.
+R="${XDG_DATA_HOME:-$HOME/.local/share}/xos-learn"
+export LEARN_ROOT="$R/learn"
+export LEARN_SH="$R/bb/ash"
+PATH="$R/bb:$PATH"; export PATH
+exec "$R/bb/ash" "$R/learn/learn" "$@"

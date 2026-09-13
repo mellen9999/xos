@@ -1,0 +1,69 @@
+#!/bin/sh
+# push [HOST...] -- install or refresh learn on a remote host over ssh.
+#
+# install.sh puts learn on THIS machine and carries the tree's own static-pie
+# busybox with it. That binary is x86-64, so it cannot go to a phone: this
+# ships the corpus and uses the HOST's busybox instead. Same idea either way --
+# a hand-copied corpus drifts, and an out-of-date one is worse than none
+# because it teaches the old answers.
+#
+# hosts default to $LEARN_HOSTS, or titan. run it after every landed change to
+# learn/ -- cpd does.
+#
+# progress (cards, passed levels, answer history) lives under ~/.local/state on
+# the host and is never touched here: refreshing never costs a streak.
+set -eu
+
+src=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+[ -x "$src/learn/learn" ] || { echo "push: no learn at $src/learn" >&2; exit 1; }
+
+# the stamp is what makes "it is up to date" checkable instead of hopeful: the
+# commit the corpus came from, written beside it and read back after the copy.
+ver=$(git -C "$src" rev-parse --short HEAD 2>/dev/null || echo unknown)
+dirty=$(git -C "$src" status --porcelain -- learn 2>/dev/null | head -1)
+[ -z "$dirty" ] || ver="$ver-dirty"
+
+rc=0
+for host in ${*:-${LEARN_HOSTS:-titan}}; do
+	printf 'push: %s ... ' "$host"
+	# one ssh, one tar on the wire, everything decided on the far end where
+	# the answers about PATH and busybox actually live.
+	if tar czf - -C "$src" learn | ssh -o BatchMode=yes -o ConnectTimeout=10 "$host" "
+		set -eu
+		command -v busybox >/dev/null || { echo 'no busybox -- pkg install busybox' >&2; exit 3; }
+		R=\$HOME/.local/share/xos-learn
+		mkdir -p \"\$R\" \"\$R/bb\"
+		# staged and renamed, so a learn running mid-push never reads half a
+		# corpus. the old tree goes only once the new one is in place.
+		rm -rf \"\$R/.staging\" \"\$R/learn.old\"
+		mkdir -p \"\$R/.staging\"
+		tar xzf - -C \"\$R/.staging\"
+		[ -e \"\$R/learn\" ] && mv \"\$R/learn\" \"\$R/learn.old\"
+		mv \"\$R/.staging/learn\" \"\$R/learn\"
+		rm -rf \"\$R/.staging\" \"\$R/learn.old\"
+		printf '%s\n' '$ver' > \"\$R/VERSION\"
+		# applet symlinks, refreshed every push: a busybox upgrade can add
+		# applets, and a dangling name from an older one is a command that
+		# fails in the middle of a card.
+		rm -rf \"\$R/bb\"; mkdir -p \"\$R/bb\"
+		busybox --install -s \"\$R/bb\" 2>/dev/null ||
+			for a in \$(busybox --list); do ln -sf \"\$(command -v busybox)\" \"\$R/bb/\$a\"; done
+		# termux keeps its own bin on PATH and no ~/.local/bin; everywhere else
+		# it is the other way round.
+		if [ -n \"\${PREFIX:-}\" ] && [ -d \"\$PREFIX/bin\" ]; then b=\$PREFIX/bin; else b=\$HOME/.local/bin; fi
+		mkdir -p \"\$b\"
+		# the wrapper ships INSIDE the corpus, so this host and the machine that
+		# ran install.sh get the same one -- see learn/wrapper.
+		cp \"\$R/learn/wrapper\" \"\$b/learn\"
+		chmod +x \"\$b/learn\"
+		# it is not installed until it runs: a corpus that unpacked but cannot
+		# start is the failure this whole script exists to catch.
+		LEARN_ROOT=\"\$R/learn\" \"\$R/bb/ash\" \"\$R/learn/learn\" stats >/dev/null 2>&1 ||
+			{ echo 'learn does not run after the copy' >&2; exit 4; }
+		printf 'ok %s -> %s/learn\n' \"\$(cat \"\$R/VERSION\")\" \"\$b\"
+	"; then :; else
+		rc=1
+		echo "push: $host NOT updated -- its corpus is stale" >&2
+	fi
+done
+exit $rc
