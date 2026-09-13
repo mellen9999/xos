@@ -8,7 +8,11 @@ subfinder	passive subdomain discovery
 dnsx	fast dns toolkit -- resolve, bruteforce, record types
 gobuster	dir/dns/vhost brute-forcer
 chisel	tcp/udp tunnel over http -- pivot / port-forward through a firewall
+socat	swiss-army socket relay -- pivot, port-forward, tls-wrap, listen
+ligolo-proxy	pivot -- operator-side proxy for ligolo-ng tun tunnels
+ligolo-agent	pivot -- target-side agent for ligolo-ng, dropped on a foothold
 masscan	internet-scale port scanner (fast, stateless)
+nmap	host/service/version/os scan + nse scripting -- what masscan can't
 tcpdump	packet capture + inspection on the wire
 links	text-mode web browser -- reads served zims and any html/http, no gui
 python	full cpython 3.12 -- scripting, a repl, http.server, the swiss knife

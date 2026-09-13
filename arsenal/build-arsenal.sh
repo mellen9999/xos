@@ -27,7 +27,9 @@ set -- \
   "dnsx=github.com/projectdiscovery/dnsx/cmd/dnsx@v1.3.1" \
   "gobuster=github.com/OJ/gobuster/v3@v3.8.2" \
   "chisel=github.com/jpillora/chisel@v1.12.1" \
-  "pspy=github.com/dominicbreuker/pspy@v1.2.1"
+  "pspy=github.com/dominicbreuker/pspy@v1.2.1" \
+  "ligolo-proxy=github.com/nicocha30/ligolo-ng/cmd/proxy@v0.9.1" \
+  "ligolo-agent=github.com/nicocha30/ligolo-ng/cmd/agent@v0.9.1"
 
 mkdir -p "$OUT"
 BIN="$(mktemp -d)"; NEWLOCK="$(mktemp)"
@@ -37,7 +39,7 @@ export CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS=-trimpath GOBIN="$BIN"
 # the lock is shared: build-arsenal-c.sh and build-python.sh also record their
 # tools in it. preserve THEIR lines (and the header) so a Go rebuild refreshes
 # only the Go set instead of wiping the whole attestation.
-gonames="ffuf httpx nuclei subfinder dnsx gobuster chisel pspy"
+gonames="ffuf httpx nuclei subfinder dnsx gobuster chisel pspy ligolo-proxy ligolo-agent"
 gore=$(printf '%s' "$gonames" | tr ' ' '|')
 carry=""
 [ -f "$LOCK" ] && carry=$(grep -Ev "^($gore)[[:space:]]" "$LOCK" 2>/dev/null | grep -Ev '^[[:space:]]*#' || true)

@@ -8,23 +8,12 @@
 # machine's wireguard/firewalled network.
 #
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
-# regen, or by hand). builds masscan + tcpdump + links + mutool + frotz + whois
-# + hydra + john + jq + rg, all static (rg is static-PIE, see its block).
-# NOTE: masscan + tcpdump embed a build-id, so their arsenal.lock sha drifts per
-# build (size is stable) -- a point-in-time attestation. links + mutool are
+# regen, or by hand). builds masscan + tcpdump + socat + nmap + links + mutool +
+# frotz + whois + hydra + john + jq + rg, all static (rg is static-PIE, see its
+# block; nmap is C++, its block documents the static-musl fix).
+# NOTE: masscan + tcpdump + nmap embed a build-id, so their arsenal.lock sha
+# drifts per build (size is stable) -- a point-in-time attestation. links + mutool are
 # bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
-#
-# nmap is NOT built here: nmap 7.95 is C++ and its static-musl link fights
-# Alpine's PIE-default toolchain. progress made (phase-2b picks up here):
-#   - compile every object -fno-pie -fno-PIC (kills the initial R_X86_64_32 /
-#     __TMC_END__ against a PIE-compiled object)
-#   - point configure at the SYSTEM static libz (--with-libz=/usr): the bundled
-#     zlib insists on building libz.so, which -static cannot link ("undefined
-#     reference to main" from crt1 linking a .so)
-#   - keep bundled pcre2 (builds a .a, fine); 7.95 needs pcre2 not legacy pcre
-# with those, configure + most objects build, but the final parallel link still
-# does not emit a static binary -- the remaining fix is a serial per-lib flag
-# pass to pin the last offending object. masscan covers fast scanning until then.
 set -eu
 OUT="${1:-arsenal}"; mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)  # absolute: -v below must not double-prefix $PWD
 command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
@@ -71,6 +60,20 @@ log() { echo "[c-build] $*"; }
   cd /s/tcpdump-4.99.5 && ./configure >/s/td.log 2>&1 && make -j"$(nproc)" LDFLAGS="-static" >>/s/td.log 2>&1
   file tcpdump | grep -q "statically linked" || { echo "not static"; exit 1; }
   cp tcpdump /out/tcpdump ) || log "tcpdump FAILED"
+
+# socat 1.8.0.3 -- the swiss-army relay: the pivot/tunnel half alongside chisel.
+# openssl-libs-static is already in the apk set, so OPENSSL addresses (socat's
+# tls) compile in; --disable-readline drops the one interactive-only dep that
+# would otherwise drag ncurses into the static link for no field value.
+( set -e; log socat
+  mkdir -p /s
+  wget -qO- http://www.dest-unreach.org/socat/download/socat-1.8.0.3.tar.gz | tar xz -C /s     || wget -qO- "https://web.archive.org/web/2999id_/http://www.dest-unreach.org/socat/download/socat-1.8.0.3.tar.gz" | tar xz -C /s
+  cd /s/socat-1.8.0.3
+  ./configure --disable-readline CFLAGS="-O2 -static" LDFLAGS="-static" >/s/socat.log 2>&1
+  make -j"$(nproc)" >>/s/socat.log 2>&1
+  file socat | grep -q "statically linked" || { echo "not static"; tail -20 /s/socat.log; exit 1; }
+  strip socat
+  cp socat /out/socat ) || log "socat FAILED"
 
 # mupdf/mutool 1.24.10 -- the PDF reader for xos. `mutool draw -F txt` turns any
 # pdf (the survival floor: where-there-is-no-doctor, FM 21-76, every datasheet on
@@ -188,6 +191,50 @@ log() { echo "[c-build] $*"; }
   strip target/release/rg
   cp target/release/rg /out/rg ) || log "ripgrep FAILED"
 
+# nmap 7.95 -- host/service/version/OS detection + NSE, the scanner masscan
+# can't be. C++, and the static-musl link was the long-standing blocker; the
+# real fix turned out to be prerequisites, not a per-lib link pass:
+#   - bundled libpcre regenerates aclocal.m4 on build, so automake/autoconf/
+#     libtool must be present (they're in the apk set above) or `make` dies at
+#     aclocal-1.16 long before any link.
+#   - every object -fno-pie -fno-PIC + LDFLAGS="-static -no-pie" defeats
+#     Alpine's PIE-default toolchain (a PIE object in a -static link throws
+#     R_X86_64_32 / __TMC_END__).
+#   - system static libs via --with-{libz,openssl,libpcap}=/usr; the bundled
+#     zlib otherwise insists on a libz.so that -static can't link.
+# with those, a plain parallel `make` emits a static nmap -- no serial pass.
+( set -e; log nmap
+  mkdir -p /s
+  wget -qO- https://nmap.org/dist/nmap-7.95.tar.bz2 | tar xj -C /s
+  cd /s/nmap-7.95
+  F="-O2 -fno-pie -fno-PIC"
+  ./configure --without-zenmap --without-ndiff --without-nping --without-libssh2 \
+    --with-libz=/usr --with-openssl=/usr --with-libpcap=/usr \
+    CC=gcc CXX=g++ CFLAGS="$F" CXXFLAGS="$F" LDFLAGS="-static -no-pie" >/s/nmap.log 2>&1
+  make -j"$(nproc)" >>/s/nmap.log 2>&1
+  file nmap | grep -q "statically linked" || { echo "not static"; tail -30 /s/nmap.log; exit 1; }
+  strip nmap
+  cp nmap /out/nmap ) || log "nmap FAILED"
+
+# gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
+# (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final
+# `gdb` executable links dynamic-PIE against ld-musl even with LDFLAGS="-static
+# -no-pie" at configure and --with-static-standard-libraries: gdb's own gdb/
+# Makefile does not thread LDFLAGS into the executable link, so -static never
+# reaches it. the fix is a per-subdir relink pass (make -C gdb ... LDFLAGS=
+# "-static -no-pie") after the build, deferred. low priority: a headless field
+# kit rarely runs an interactive C debugger, and the crash-triage floor is
+# covered by strings + the carried python.
+#
+# tshark -- DEFERRED (glib/static). wireshark 4.4.8's cmake finds every static
+# dep in Alpine (glib-static, pcre2-dev, c-ares-static, libgcrypt-static,
+# libpcap-dev, libffi, libintl.a), but a global CMAKE_EXE_LINKER_FLAGS="-static"
+# breaks cmake's own feature probes -- the libpcap check links a -static test
+# that fails ("pcap_lib_version - not found" -> "need libpcap 0.8 or later")
+# before the build starts. static wireshark needs the probes run dynamic and
+# only tshark's final link forced static, which its cmake doesn't cleanly
+# support. deferred; tcpdump covers capture on-box.
+#
 # nethack -- DEFERRED (roguelike, would be the morale S-tier). two blockers, both
 # solvable in a follow-up pass:
 #   1. build: passing CFLAGS="...-static" wholesale clobbers nethack's own
@@ -201,7 +248,7 @@ log() { echo "[c-build] $*"; }
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|links|mutool|frotz|whois|hydra|john|jq|rg)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to
@@ -209,21 +256,7 @@ echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # a builder that ships nothing must fail, not shrink -- the same rule as rootfs().
 # john ships as a tree (john/john inside), not a lone file -- checked with -e.
 built=0
-for b in masscan tcpdump links mutool frotz whois hydra jq rg; do [ -f "$OUT/$b" ] && built=$((built+1)); done
+for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg; do [ -f "$OUT/$b" ] && built=$((built+1)); done
 [ -f "$OUT/john/john" ] && built=$((built+1))
 [ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
 echo "note: refresh arsenal/arsenal.lock after (sha256 + sizes)."
-
-# ── nmap phase-2b: resume here ────────────────────────────────────────────────
-# the recipe below gets 7.95 through configure and every object; it FAILS only at
-# the final static link (see the note up top). uncomment inside the docker block
-# and finish the per-lib flag pass. deps to apk add: openssl-dev
-# openssl-libs-static zlib-static zlib-dev libpcap-dev linux-headers.
-#
-#   wget -qO- https://nmap.org/dist/nmap-7.95.tar.bz2 | tar xj && cd nmap-7.95
-#   F="-O2 -fno-pie -fno-PIC"
-#   ./configure --without-zenmap --without-ndiff --without-nping --without-libssh2 \
-#     --with-libz=/usr --with-openssl=/usr --with-libpcap=/usr \
-#     CC=gcc CXX=g++ CFLAGS="$F" CXXFLAGS="$F" LDFLAGS="-static -no-pie"
-#   make -j"$(nproc)"        # <-- last object still won't link static; make serial
-#   file nmap | grep -q "statically linked" && cp nmap /out/nmap
