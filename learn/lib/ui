@@ -6,6 +6,7 @@
 #   R wrong   G correct   Y the answer   U a heading   M a banner
 #   C what you type -- flags, operators, keys
 #   W a name or a value        D the frame, and everything quiet
+#   V reverse video: the one MARK, and the same on every terminal that has it
 #
 # three tiers, because xos is driven from a linux console, over ssh from
 # whatever the far end runs, and down a serial line from whatever is bolted to
@@ -65,16 +66,28 @@ fi
 # not English, and until it was marked "make build the directory you're standing
 # in" opened with what read as the command `make`.
 #
-# marked, not coloured, for the same reason as everything else here: MONO has
-# bold and nothing more, so the prose around a name gives up its own colour to
-# leave bold free to mean this. where the terminal has no attributes at all --
-# NO_COLOR, dumb, a pipe -- the mark becomes the quotes a person would have
-# typed, because the distinction is the sentence and it cannot be dropped.
-case "$_tier" in
-	none)   HI_ON="'"   HI_OFF="'" ;;
-	mono)   HI_ON=$B    HI_OFF=    ;;   # W is already bold here; saying it twice
-	*)      HI_ON=$B$W  HI_OFF=    ;;   # costs a serial line four bytes a name
-esac
+# reverse video, and the SAME reverse video on every tier that has attributes --
+# one look down a serial line and on a modern terminal, because a mark that
+# changes with the terminal is two marks to learn. it was bold, which a vt320
+# renders as a shade more phosphor: invisible on the hardware the tier exists
+# for, which put the name back into the prose. where there are no attributes at
+# all -- NO_COLOR, dumb, a pipe -- the mark becomes the quotes a person would
+# have typed, because the distinction is the sentence and it cannot be dropped.
+#
+# 0 before the 7: the mark must not inherit what it sits in. a name in the dim
+# hint panel would otherwise swap DIM against the background and come out a grey
+# smear; reset first and the swap is always the terminal's own two colours.
+# one sequence either way, and SGR 0 has existed since the vt100.
+#
+# _ui_hi TIER -- a function for the same reason _ui_tier is one: so the one
+# thing that must be identical across tiers can be asserted without a terminal.
+_ui_hi() {
+	case "$1" in
+		none) HI_ON="'"                  HI_OFF="'" ;;
+		*)    HI_ON=$(printf '\033[0;7m') HI_OFF=    ;;
+	esac
+}
+_ui_hi "$_tier"
 
 # hi_expand BASE -- fences to marks, on stdin. BASE is the styling of the text
 # the name sits in, which the closing mark has to hand back: a name inside the
@@ -200,11 +213,19 @@ PROMPT_CH='$'
 [ "$(id -u 2>/dev/null || echo 1)" = 0 ] && PROMPT_CH='#'
 
 # the answer prompt: a bare prompt character at the far left, white while you
-# type and red the moment you drop to vi normal mode. built here where the R/W
-# colour globals are in scope -- inside the editor R is the right-of-cursor
-# buffer, so it cannot see them.
+# type and reversed the moment you drop to vi normal mode -- the same mark a
+# name in the question wears, and the same one /etc/shrc puts on the shell's own
+# prompt. built here where the V/W globals are in scope -- inside the editor R
+# is the right-of-cursor buffer, so it cannot see them.
+#
+# the space sits OUTSIDE the reverse, or the mode reads as a two-cell block
+# instead of a character. either way the prompt is two columns wide, which the
+# editor hardcodes when it counts the rows the answer line spends. and the
+# reverse opens off a reset, like every other mark here: the row above it may
+# be a dim hint panel, and a mode marker that came out grey-on-grey once would
+# be a mode marker nobody trusts again.
 PROMPT_INS=$(printf '%s%s %s' "$W" "$PROMPT_CH" "$N")
-PROMPT_NORM=$(printf '%s%s %s' "$R" "$PROMPT_CH" "$N")
+PROMPT_NORM=$(printf '%s%s%s%s ' "$N" "$V" "$PROMPT_CH" "$N")
 
 hdr() {
 	printf '\n%s%s%s %s\n' "$B$M" "$1" "$N" "${D}$2$N"

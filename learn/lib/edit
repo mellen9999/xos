@@ -223,10 +223,12 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	# or reference reopened here is the one they left up, not a blank slate.
 	_ed_panel_load
 
-	# the prompt colour tracks the mode: white while you
-	# type, red the instant you drop to normal mode, so the mode is legible
-	# without a separate indicator. PROMPT_INS/NORM come from ui, where the red
-	# global is not shadowed by this function's R (the right-of-cursor buffer).
+	# the prompt tracks the mode: white while you type, reversed the instant you
+	# drop to normal mode, so the mode is legible without a separate indicator
+	# -- and reversed rather than coloured because that is the one mark a vt320
+	# shows as loudly as anything else does. PROMPT_INS/NORM come from ui,
+	# built where the globals are not shadowed by this function's R (the
+	# right-of-cursor buffer).
 	# a variable, not a $(...): that was a fork per keystroke in the file
 	# whose header promises none
 	_ed_pr() { if [ "$mode" = normal ]; then _pr="$PROMPT_NORM"; else _pr="$PROMPT_INS"; fi; }

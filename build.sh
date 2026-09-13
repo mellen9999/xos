@@ -912,14 +912,17 @@ set -o vi
 # patched line editor wears PS1_CMD in command mode and PS1 while inserting.
 #
 # \[ \] fence the escapes out of the prompt's measured width, or every redraw
-# lands short. the vt-series has no colour and drops the sequence without a
-# word, so there the mark is reverse video -- the same closed list lib/ui keeps.
+# lands short. the mark is reverse video on every terminal that has attributes
+# -- one look on a vt320 and on a modern one, the same rule learn/lib/ui keeps
+# for the names in a question. no model list here: reverse is the one attribute
+# every terminal from the vt100 on has, so there is nothing to sort terminals
+# into, and the copy of that list this file used to carry could drift from the
+# one in lib/ui unwatched. 0 before the 7 so a program that exited with an
+# attribute still set cannot bleed into the mark.
 _e=$(printf '\033')
 case "${TERM:-dumb}" in
-	vt241*|vt340*|vt525*) _m="$_e[31m" ;;
-	vt*|*-m|*-mono|*-nc)  _m="$_e[7m"  ;;
-	dumb|'')              _m=""        ;;
-	*)                    _m="$_e[31m" ;;
+	dumb|'') _m=""          ;;
+	*)       _m="$_e[0;7m"  ;;
 esac
 PS1='\w \$ '
 [ -n "$_m" ] && PS1_CMD="\\w \\[$_m\\]\\\$\\[$_e[0m\\] "
