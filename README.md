@@ -266,24 +266,24 @@ GB docs (exploit-db mirror, man-pages, gtfobins, an rfc text bundle), the rest
 loot.
 
 the knowledge payload is bigger and never needs exec, so it rides a separate
-exFAT stick labelled `XOS-KNOW` instead of p3 -- kiwix serves the zims, frotz
-plays the stories, everything read-only. what it carries:
+exFAT stick labelled `XOS-KNOW` instead of p3, everything read-only. xos builds
+the readers, never the content: kiwix (serve + search) and frotz ship from
+source, but the zims are reference payload you populate yourself -- the readers
+are built for this set, it is not a fixed manifest.
 
-| payload | what |
-|---|---|
-| wikipedia | offline zim -- `kiwix-serve` for `links`, or `kiwix-search` from the cli |
-| where-there-is-no-doctor | field medicine when there's no signal and no clinic |
-| ifixit | repair guides for hardware in the field |
-| maps | offline map zims |
-| `games/if` | the interactive-fiction library frotz plays -- anchorhead, spider-and-web staged, zork by hand |
+| payload | what | source |
+|---|---|---|
+| wikipedia | offline zim -- `kiwix-search` from the cli, or `kiwix-serve` + `links` | you supply |
+| where-there-is-no-doctor | field medicine when there's no signal and no clinic | you supply |
+| ifixit | hardware repair guides for the field | you supply |
+| maps | offline map zims | you supply |
+| `games/if` | the interactive fiction frotz plays | staged + pinned |
 
-morale is a supply: interactive fiction is the one game genre a text-only box
-runs natively, so the if/ story files ship as the carried game library.
+the one payload xos does stage is the game library: morale is a supply, and
+interactive fiction is the one genre a text-only box runs natively.
 `arsenal/build-games.sh` fetches the freeware stories from the IF Archive,
-verifies each against a sha256 pin and writes `arsenal/games.lock`; infocom's
+verifies each against a sha256 pin and writes `arsenal/games.lock` -- infocom's
 zork is still copyright, so you drop your own copy into `games/if/` by hand.
-the sticks are otherwise operator-populated -- the zim set above is the
-reference payload the readers are built for, not a fixed manifest.
 
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount
