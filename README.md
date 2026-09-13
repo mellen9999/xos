@@ -332,21 +332,24 @@ without the ~600 packages and a desktop, none of it provable.
 | area | kali | xos |
 |---|---|---|
 | net/forensics base | nc, dd, dig, ssh | nc netstat nslookup wget tftp telnet ip arp ping traceroute dbclient wg tlstunnel cryptsetup dd losetup blkid strings tar sha* |
-| port/host scan | nmap, masscan | masscan; nmap deferred (musl c++) |
-| packet capture | tcpdump, tshark | tcpdump; tshark out (glib) |
+| port/host scan | nmap, masscan | masscan; nmap not built (musl c++) |
+| packet capture | tcpdump, tshark | tcpdump; tshark not built (glib) |
 | web fuzz/recon | ffuf, gobuster | ffuf gobuster nuclei httpx |
 | recon suite | amass, subfinder | subfinder dnsx naabu (go) |
-| pivot / tunnel | chisel, socat | chisel; ligolo/socat next |
-| brute / crack | hydra, john | hydra john (musl); hashcat out (gpu) |
-| reversing | radare2, gdb | radare2/rizin (musl); gdb hard |
-| exploit framework | metasploit | out (ruby+db) -- sliver + carried python |
+| pivot / tunnel | chisel, socat | chisel; ligolo, socat not built |
+| brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
+| reversing | radare2, gdb | radare2/rizin (musl); gdb not built (hard on musl) |
+| exploit framework | metasploit | out (ruby+db) -- sliver + carried python cover it |
 | python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
 | wireless | aircrack, wifite | out -- no wifi drivers, by design |
 | gpu cracking | hashcat | out -- passive/headless |
 | gui | burp, wireshark | out -- no gui |
 
-wireless, gpu, gui and metasploit-the-framework are out on principle --
-drivers, hardware, provability -- not for lack of trying.
+two states behind the gaps: **out** is excluded on principle -- wireless, gpu,
+gui and metasploit want drivers, hardware or a runtime xos won't carry, so they
+are never coming. **not built** is buildable static-musl but not yet done
+(nmap, tshark, gdb, ligolo, socat) -- a statement of the current toolset, not a
+promise of the next one.
 
 playbook: attest (clean boot, prove it -- learn 29 / scenario 10), unlock p3,
 reach disks over usb only (the host's internal nvme/sata never enumerates,
