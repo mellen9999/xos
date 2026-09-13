@@ -332,7 +332,7 @@ without the ~600 packages and a desktop, none of it provable.
 | area | kali | xos |
 |---|---|---|
 | net/forensics base | nc, dd, dig, ssh | nc netstat nslookup wget tftp telnet ip arp ping traceroute dbclient wg tlstunnel cryptsetup dd losetup blkid strings tar sha* |
-| port/host scan | nmap, masscan | masscan; nmap not built (musl c++) |
+| port/host scan | nmap, masscan | masscan; nmap not built (c++ static-pie link) |
 | packet capture | tcpdump, tshark | tcpdump; tshark not built (glib) |
 | web fuzz/recon | ffuf, gobuster | ffuf gobuster nuclei httpx |
 | recon suite | amass, subfinder | subfinder dnsx naabu (go) |
