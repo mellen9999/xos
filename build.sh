@@ -135,6 +135,36 @@ has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 # ────────────────────────────────────────────────────────────────────────────
 # helpers -- shell traps, disk guards, and the one place each lives
 # ────────────────────────────────────────────────────────────────────────────
+# patch_tree DIR PATCHDIR -- apply every patch in PATCHDIR to an unpacked
+# source tree, once.
+#
+# src/ survives between builds, so this has to tell an unpatched tree from one
+# it has already patched, and it does it with a stamp rather than by asking
+# patch(1). asking was the first attempt and it was wrong in the silent
+# direction: `patch -R --dry-run` on an UNPATCHED tree prints "Unreversed
+# patch detected! Ignoring -R", dry-runs it forwards instead, succeeds, and
+# reports the tree as already patched -- so the build shipped a stock binary
+# and said "patch already applied" while doing it. a stamp cannot be talked
+# into the wrong answer, and it dies with the tree: get() only extracts when
+# the directory is missing, so a fresh extract is a fresh stamp directory.
+#
+# a patch that does not apply is fatal. upstream moved under a change we
+# carry, and the build stops there rather than quietly dropping it.
+patch_tree() {
+  local d=$1 pd=$2 p n
+  [ -d "$pd" ] || return 0
+  mkdir -p "$d/.xos-patched"
+  for p in "$pd"/*.patch; do
+    [ -f "$p" ] || continue
+    n=${p##*/}
+    [ -f "$d/.xos-patched/$n" ] && continue
+    patch -d "$d" -p1 --batch --forward --silent < "$p" \
+      || { echo "FAIL: $n does not apply to $d" >&2; return 1; }
+    : > "$d/.xos-patched/$n"
+    echo "  patched: $n"
+  done
+}
+
 unmounted() {
   local m
   m=$(lsblk -nro MOUNTPOINTS "$1" 2>/dev/null) \
@@ -519,6 +549,7 @@ busybox() {
   say "building busybox $BBVER (${BBMODE:-trim})"
   [ -d sysroot/include/linux ] || headers
   local d="src/busybox-$BBVER"
+  patch_tree "$d" patches/busybox || return 1
   make -C "$d" defconfig >/dev/null
 
   # static-PIE: plain -static is an ASLR downgrade (fixed load address), so we
@@ -874,6 +905,25 @@ rootfs() {
   # command surface (and the learn corpus that must cover it) stays fixed.
   cat > root/etc/shrc <<'SHRC'
 set -o vi
+# which vi mode you are in, written where you are already looking. busybox
+# does not change the cursor shape and echoes nothing on Esc, so on a terminal
+# without a block cursor -- a vt320 down a serial line most of all -- the two
+# modes are indistinguishable until a keystroke does the wrong thing. the
+# patched line editor wears PS1_CMD in command mode and PS1 while inserting.
+#
+# \[ \] fence the escapes out of the prompt's measured width, or every redraw
+# lands short. the vt-series has no colour and drops the sequence without a
+# word, so there the mark is reverse video -- the same closed list lib/ui keeps.
+_e=$(printf '\033')
+case "${TERM:-dumb}" in
+	vt241*|vt340*|vt525*) _m="$_e[31m" ;;
+	vt*|*-m|*-mono|*-nc)  _m="$_e[7m"  ;;
+	dumb|'')              _m=""        ;;
+	*)                    _m="$_e[31m" ;;
+esac
+PS1='\w \$ '
+[ -n "$_m" ] && PS1_CMD="\\w \\[$_m\\]\\\$\\[$_e[0m\\] "
+unset _e _m
 scrub() {
 	echo "reading every verity-covered byte -- a rotten block panics the machine, and that is the alarm working"
 	local d dev=""
@@ -1511,13 +1561,14 @@ TODO: write this entry by hand.
 #   G43 an update preserves p3 -- its entry and its bytes
 #   G44 a planted digest cannot buy a pass from the revocation check
 #   G45 a source signed by an expired or revoked key is refused
+#   G46 every carried patch is in the tree, and its effect is in the binary
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=43   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=44   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -2408,6 +2459,26 @@ G37
     grep -qF "$tfword" cmdline.txt && tf=$((tf+1))
   done
   g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"
+
+  # G46 -- a carried patch is the easiest thing in this repo to lose: src/ is
+  # not in git, the patch applies to a tree nobody reads afterwards, and a
+  # stock binary looks exactly like a patched one. it was lost once already,
+  # to a patch(1) idempotence check that answered "already applied" about a
+  # tree it had never touched. so: every patch is stamped in the tree it
+  # belongs to, and the one effect it exists for is proved in the binary and
+  # in the shell profile that drives it.
+  local g46=ok p pn
+  for p in patches/busybox/*.patch; do
+    [ -f "$p" ] || continue
+    pn=${p##*/}
+    [ -f "src/busybox-$BBVER/.xos-patched/$pn" ] \
+      || { g46=FAIL; printf '    busybox patch not applied: %s\n' "$pn" >&2; }
+  done
+  strings busybox 2>/dev/null | has '^PS1_CMD$' \
+    || { g46=FAIL; printf '    built busybox does not look up PS1_CMD\n' >&2; }
+  grep -q 'PS1_CMD=' root/etc/shrc 2>/dev/null \
+    || { g46=FAIL; printf '    /etc/shrc never sets PS1_CMD\n' >&2; }
+  g "G46 carried patches applied and in effect" "$g46"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed.

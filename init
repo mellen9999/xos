@@ -442,6 +442,10 @@ if cmdline_has xos.test; then
 	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 | grep . || echo "MISSING (BAD)"
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
 	printf 'shell-vi-default: '; printf 'set +o\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q 'o vi' && echo yes || echo "no (BAD)"
+	# vi mode with nothing on screen to say so is the mode you lose track of.
+	# the patched line editor reads PS1_CMD out of the shell, so the variable
+	# existing in an interactive shell is what proves the pair is wired up.
+	printf 'shell-vi-prompt: '; printf 'echo "${PS1_CMD:-unset}"\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q '\[' && echo yes || echo "no (BAD)"
 	printf 'no-bash: '; if [ -e /bin/bash ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	# a pty is the thing every multiplexer and every ssh session needs. prove one
 	# can actually be allocated, not merely that the config claims to allow it.

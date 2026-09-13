@@ -1,0 +1,121 @@
+vi command mode is invisible on a terminal without a block cursor.
+
+busybox tracks the mode in a local flag and never tells the prompt: the
+prompt is parsed once at the top of read_line_input() and only the buffer
+is redrawn afterwards, so Esc and i look identical on the screen. On a
+vt-series terminal over a serial line -- no cursor shape, no colour --
+there is nothing at all to read the mode from.
+
+This makes the prompt carry it. When PS1_CMD is exported the editor wears
+that prompt in command mode and PS1 while inserting, repainting the line
+in place exactly as redraw() does. Shells that do not set PS1_CMD behave
+as before, and nothing changes when vi editing is compiled out.
+--- a/libbb/lineedit.c
++++ b/libbb/lineedit.c
+@@ -2153,6 +2153,42 @@
+ }
+ #endif /* FEATURE_EDITING_FANCY_PROMPT */
+ 
++#if ENABLE_FEATURE_EDITING_VI
++/* vi command mode can be told apart by the prompt, when the shell sets
++ * PS1_CMD: the editor wears that prompt while in command mode and PS1 while
++ * inserting. The mode is otherwise invisible -- the cursor does not change
++ * shape and nothing is echoed -- so on a terminal without a block cursor
++ * there is no way at all to see which mode you are in.
++ *
++ * PS1_CMD is read through sh_get_var, the same door PS1's own \w goes
++ * through: it is a shell variable, and a shell's variables are not in the
++ * environment unless something exported them into a child.
++ *
++ * The prompt is redrawn where it stands, exactly as redraw() does it: up to
++ * the first prompt line, repaint prompt and buffer, clear the tail, put the
++ * cursor back where the typist left it.
++ */
++static const char *prompt_ins_mode;
++static const char *prompt_cmd_mode;
++
++static void put_prompt_for_mode(int cmdmode)
++{
++	unsigned sv_cursor;
++
++	if (!prompt_cmd_mode)
++		return;
++	sv_cursor = cursor;
++	if (cmdedit_y > 0)
++		fprintf(stderr, ESC"[%uA", cmdedit_y);
++	bb_putchar_stderr('\r');
++	cmdedit_y = 0;
++	parse_and_put_prompt(cmdmode ? prompt_cmd_mode : prompt_ins_mode);
++	put_till_end_and_adv_cursor();
++	fputs(SEQ_CLEAR_TILL_END_OF_SCREEN, stderr);
++	input_backward(command_len - sv_cursor);
++}
++#endif
++
+ #if ENABLE_FEATURE_EDITING_WINCH
+ static void cmdedit_setwidth(void)
+ {
+@@ -2559,6 +2595,17 @@
+ 	/* Get width (before printing prompt) */
+ 	cmdedit_termw = get_terminal_width(STDIN_FILENO);
+ 	/* Print out the command prompt, optionally ask where cursor is */
++#if ENABLE_FEATURE_EDITING_VI
++	prompt_ins_mode = prompt;
++	prompt_cmd_mode = NULL;
++# if EDITING_HAS_sh_get_var
++	if ((state->flags & VI_MODE) && state->sh_get_var) {
++		prompt_cmd_mode = state->sh_get_var("PS1_CMD");
++		if (prompt_cmd_mode && !prompt_cmd_mode[0])
++			prompt_cmd_mode = NULL; /* set but empty: no second prompt */
++	}
++# endif
++#endif
+ 	parse_and_put_prompt(prompt);
+ 	ask_terminal();
+ 
+@@ -2724,18 +2771,22 @@
+ #if ENABLE_FEATURE_EDITING_VI
+ 		case 'i'|VI_CMDMODE_BIT:
+ 			vi_cmdmode = 0;
++			put_prompt_for_mode(0);
+ 			break;
+ 		case 'I'|VI_CMDMODE_BIT:
+ 			input_backward(cursor);
+ 			vi_cmdmode = 0;
++			put_prompt_for_mode(0);
+ 			break;
+ 		case 'a'|VI_CMDMODE_BIT:
+ 			input_forward();
+ 			vi_cmdmode = 0;
++			put_prompt_for_mode(0);
+ 			break;
+ 		case 'A'|VI_CMDMODE_BIT:
+ 			put_till_end_and_adv_cursor();
+ 			vi_cmdmode = 0;
++			put_prompt_for_mode(0);
+ 			break;
+ 		case 'x'|VI_CMDMODE_BIT:
+ 			input_delete(1);
+@@ -2766,12 +2817,14 @@
+ 			break;
+ 		case 'C'|VI_CMDMODE_BIT:
+ 			vi_cmdmode = 0;
++			put_prompt_for_mode(0);
+ 			/* fall through */
+ 		case 'D'|VI_CMDMODE_BIT:
+ 			goto clear_to_eol;
+ 
+ 		case 'c'|VI_CMDMODE_BIT:
+ 			vi_cmdmode = 0;
++			put_prompt_for_mode(0);
+ 			/* fall through */
+ 		case 'd'|VI_CMDMODE_BIT: {
+ 			int nc, sc;
+@@ -2856,6 +2909,7 @@
+ 				/* insert mode --> command mode */
+ 				vi_cmdmode = 1;
+ 				input_backward(1);
++				put_prompt_for_mode(1);
+ 			}
+ 			break;
+ #endif /* FEATURE_COMMAND_EDITING_VI */
