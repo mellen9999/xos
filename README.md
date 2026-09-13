@@ -258,12 +258,12 @@ directions are build gates, not intentions.
 ## the arsenal
 
 the signed root is the fort. p3 is what you carry: an operator key, wireguard
-home, offline docs, wordlists, static tools, loot -- capability comes from
-what you carry and what you plug in, never from widening the fort. rough
-split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
+home, offline docs, wordlists, static tools, loot. capability comes from what
+you carry and plug in, never from widening the fort. rough split of a 16 GB
+stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
 Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2
-GB docs (an exploit-db mirror, the man-pages reference, gtfobins, an rfc text
-bundle), the rest loot.
+GB docs (exploit-db mirror, man-pages, gtfobins, an rfc text bundle), the rest
+loot.
 
 the knowledge payload is bigger and never needs exec, so it rides a separate
 exFAT stick labelled `XOS-KNOW` instead of p3 -- kiwix serves the zims, frotz
@@ -329,24 +329,21 @@ present-but-unattested binary shows up loud instead of hiding.
 capability vs a full kali install: a lean static CLI kit reaches most of it
 without the ~600 packages and a desktop, none of it provable.
 
-    capability          kali                 xos
-    ----------------    -----------------    --------------------------------
-    net/forensics base  nc, dd, dig, ssh     shipped: nc netstat nslookup wget
-                                              tftp telnet ip arp ping traceroute
-                                              dbclient wg tlstunnel cryptsetup
-                                              dd losetup blkid strings tar sha*
-    port/host scan      nmap, masscan        masscan built; nmap deferred (musl c++)
-    packet capture      tcpdump, tshark      tcpdump built; tshark out (glib)
-    web fuzz/recon      ffuf, gobuster       ffuf gobuster nuclei httpx  built
-    recon suite         amass, subfinder     subfinder dnsx naabu        (go)
-    pivot / tunnel      chisel, socat        chisel built; ligolo/socat next
-    brute / crack       hydra, john          built (musl); hashcat out (gpu)
-    reversing           radare2, gdb         radare2 / rizin (musl); gdb hard
-    exploit framework   metasploit           out (ruby+db) -- sliver + carried python
-    python tooling      sqlmap, impacket     built: carried python 3.12 via xexec -t
-    wireless            aircrack, wifite     out -- no wifi drivers, by design
-    gpu cracking        hashcat              out -- passive/headless hardware
-    gui                 burp, wireshark      out -- no gui
+| area | kali | xos |
+|---|---|---|
+| net/forensics base | nc, dd, dig, ssh | nc netstat nslookup wget tftp telnet ip arp ping traceroute dbclient wg tlstunnel cryptsetup dd losetup blkid strings tar sha* |
+| port/host scan | nmap, masscan | masscan; nmap deferred (musl c++) |
+| packet capture | tcpdump, tshark | tcpdump; tshark out (glib) |
+| web fuzz/recon | ffuf, gobuster | ffuf gobuster nuclei httpx |
+| recon suite | amass, subfinder | subfinder dnsx naabu (go) |
+| pivot / tunnel | chisel, socat | chisel; ligolo/socat next |
+| brute / crack | hydra, john | hydra john (musl); hashcat out (gpu) |
+| reversing | radare2, gdb | radare2/rizin (musl); gdb hard |
+| exploit framework | metasploit | out (ruby+db) -- sliver + carried python |
+| python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
+| wireless | aircrack, wifite | out -- no wifi drivers, by design |
+| gpu cracking | hashcat | out -- passive/headless |
+| gui | burp, wireshark | out -- no gui |
 
 wireless, gpu, gui and metasploit-the-framework are out on principle --
 drivers, hardware, provability -- not for lack of trying.
