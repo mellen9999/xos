@@ -54,38 +54,6 @@ ref: ping
 teach: ping -w
 hint: -w caps the whole run's wall-clock time, in seconds
 ---
-setup: every ping here sends three, then stops
-q: {ping @ip@, waiting at most 2 seconds for each reply|cap the wait for each reply from @ip@ at 2 seconds|ping @ip@, waiting no more than 2 seconds per reply}
-a: ping -W 2 -c 3 @ip@
-why: live-net
-ref: ping
-teach: ping -W
-hint: -W caps how long to wait for each individual reply
----
-setup: every ping here sends three, then stops
-q: {is @ip@ on the local segment -- ping with ttl fixed at 5 hops|ping @ip@ with the ttl fixed at 5 hops|send pings to @ip@ that expire after 5 hops}
-a: ping -t 5 -c 3 @ip@
-why: live-net
-ref: ping
-teach: ping -t
-hint: -t sets the ip ttl, capping how many hops a packet can cross
----
-setup: every ping here sends three, then stops
-q: {the link may corrupt bits -- ping @ip@ with the pattern ff|ping @ip@ with ff as the byte pattern filling the payload|fill the ping payload to @ip@ with the pattern ff}
-a: ping -p ff -c 3 @ip@
-why: live-net
-ref: ping
-teach: ping -p
-hint: -p fills the payload with a repeating hex pattern you choose
----
-setup: every ping here sends three, then stops
-q: {need samples fast -- ping @ip@ as soon as each reply lands|ping @ip@ adaptively, firing as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
-a: ping -A -c 3 @ip@
-why: live-net
-ref: ping
-teach: ping -A
-hint: -A sends the next ping as soon as the last reply arrives, instead of waiting
----
 q: pings aren't getting through -- %show% the path to @ip@
 a: traceroute @ip@
 why: live-net
@@ -106,20 +74,6 @@ why: live-net
 ref: traceroute
 teach: traceroute -m
 hint: -m caps the maximum number of hops traced
----
-q: {three probes per hop is too slow -- trace @ip@ with one|trace to @ip@ sending just one probe per hop|cut the probes per hop to @ip@ to one, not the default three}
-a: traceroute -q 1 @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -q
-hint: -q sets how many probes are sent per hop, default is three
----
-q: {start the trace to @ip@ at hop 5, skipping the first four|trace to @ip@ starting from hop 5|skip the first four hops tracing to @ip@, start at hop 5}
-a: traceroute -f 5 @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -f
-hint: -f sets the starting ttl, skipping the earlier hops
 ---
 q: {a firewall may drop udp -- trace @ip@ with icmp echo|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
 a: traceroute -I @ip@
@@ -142,61 +96,12 @@ ref: traceroute
 teach: traceroute -s
 hint: -s sets the source address the probes claim to be from
 ---
-q: {firewall may treat this port differently -- trace @ip@, port @port@|trace to @ip@ targeting port @port@|aim the trace to @ip@ at destination port @port@}
-a: traceroute -p @port@ @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -p
-hint: -p sets the destination port the probes target
----
 q: {trace to @ip@, waiting at most 2 seconds for each probe|cap each probe's wait time at 2 seconds while tracing to @ip@|trace to @ip@, waiting no more than 2 seconds per probe}
 a: traceroute -w 2 @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -w
 hint: -w caps how long to wait for each probe's reply
----
-q: {trace to @ip@ showing every packet received|trace to @ip@ verbosely, printing every packet received|run a verbose trace to @ip@, showing every packet}
-a: traceroute -v @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -v
-hint: -v prints every packet received, not just the summary
----
-q: {trace to @ip@ bypassing the normal routing tables|trace to @ip@, skipping the normal routing tables|send trace probes to @ip@ direct, bypassing routing}
-a: traceroute -r @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -r
-hint: -r sends probes directly, bypassing the normal routing tables
----
-q: {@ip@ is rate-limiting you -- pause 500 ms between probes|trace to @ip@ with 500 ms between probes|space the probes to @ip@ 500 ms apart}
-a: traceroute -z 500 @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -z
-hint: -z pauses between probes, in milliseconds
----
-q: {trace to @ip@ with the first probe's ttl set to 1|set the first probe's ttl to 1, tracing to @ip@|give the very first probe to @ip@ a ttl of 1}
-a: traceroute -t 1 @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -t
-hint: -t sets the ttl of the very first probe
----
-q: {trace to @ip@ with 60 byte probe packets|set the probe packet length to 60, tracing to @ip@|make each probe packet to @ip@ 60 bytes long}
-a: traceroute -l 60 @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -l
-hint: -l sets the length of the probe packets themselves
----
-q: {fragmentation may break the path to @ip@ -- forbid it on the probes|trace to @ip@ with fragmentation disabled|forbid the trace packets to @ip@ from being fragmented}
-a: traceroute -F @ip@
-why: live-net
-ref: traceroute
-teach: traceroute -F
-hint: -F sets the don't-fragment bit on the trace packets
 ---
 q: {site loads by ip but not by name -- look up @host@'s address|resolve @host@ to its address|find the address @host@ resolves to}
 a: nslookup @host@

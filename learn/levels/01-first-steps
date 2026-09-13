@@ -86,7 +86,7 @@ ref: echo
 teach: echo
 hint: a dollar sign in front of the name
 ---
-q: {change into @dir@|move your working directory to @dir@|make @dir@ the directory you're standing in}
+q: {change into @dir@|move your working directory to @dir@|put yourself inside @dir@}
 a: cd @dir@
 a: cd @dir@/
 a: cd ./@dir@

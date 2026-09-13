@@ -80,13 +80,6 @@ ref: seq
 teach: seq -s
 hint: -s sets the separator seq prints between numbers
 ---
-q: %show% 1 to 10 zero-padded to equal width
-a: seq -w 1 10
-cmp: ref
-ref: seq
-teach: seq -w
-hint: -w pads every number to the same width using leading zeros
----
 q: {read @txt@ line by line, printing each line as you go|use a while read loop to print every line of @txt@|iterate over @txt@ one line at a time, echoing each}
 a: while read -r line; do echo "$line"; done < @txt@
 cmp: ref

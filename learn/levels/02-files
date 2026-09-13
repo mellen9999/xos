@@ -247,10 +247,3 @@ why: primitive-cost
 ref: mktemp
 teach: mktemp -u
 hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
----
-q: %make% a temp file that stays silent if it fails
-a: mktemp -q
-why: primitive-cost
-ref: mktemp
-teach: mktemp -q
-hint: q suppresses the error message on failure

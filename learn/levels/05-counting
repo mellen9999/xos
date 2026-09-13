@@ -150,18 +150,3 @@ cmp: ref
 ref: uniq
 teach: uniq -i
 hint: sort -f groups case-insensitively, uniq -i then collapses it
----
-q: {collapse duplicates in @txt@ using just the first 6 characters|collapse duplicate lines of @txt@, comparing only 6 characters|remove duplicates from @txt@, comparing just the first 6 chars}
-a: sort @txt@ | uniq -w 6
-cmp: ref
-ref: uniq
-teach: uniq -w
-hint: w limits the comparison to the first N characters of each line
----
-q: %show% the length of the longest line in @log@
-a: wc -L @log@
-out: [0-9]
-cmp: ref
-ref: wc
-teach: wc -L
-hint: capital L -- reports the longest line's length, not a count of lines

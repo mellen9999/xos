@@ -67,26 +67,12 @@ ref: wget
 teach: wget --post-data
 hint: --post-data sends the string as the request body over POST
 ---
-q: {POST @txt@'s contents to @host@/submit|upload @txt@'s body to @host@/submit as a post|push @txt@'s body to @host@/submit}
-a: wget --post-file @txt@ http://@host@/submit
-why: fixture-cost
-ref: wget
-teach: wget --post-file
-hint: --post-file reads the POST body from a file instead of a literal string
----
 q: {land file.txt in @dir@, pulling it from @host@|drop file.txt into @dir@ fetching from @host@|save file.txt into @dir@ instead, from @host@}
 a: wget -P @dir@ http://@host@/file.txt
 why: fixture-cost
 ref: wget
 teach: wget -P
 hint: -P sets the directory the download is saved into
----
-q: {spoof the user agent as xos fetching file.txt from @host@|pretend to be xos pulling file.txt from @host@|fake the user agent as xos grabbing file.txt from @host@}
-a: wget -U xos http://@host@/file.txt
-why: fixture-cost
-ref: wget
-teach: wget -U
-hint: -U overrides the user-agent string wget sends
 ---
 q: {give up on file.txt after 10 silent seconds from @host@|cap the wait on file.txt at 10s from @host@|abandon file.txt if @host@ stays quiet 10s}
 a: wget -T 10 http://@host@/file.txt
@@ -139,13 +125,6 @@ ref: telnet
 teach: telnet -l
 hint: -l sends a login name as soon as the connection opens
 ---
-q: {telnet into @host@, logging in automatically as the current user|connect to @host@ with telnet and let it send your username for you|telnet to @host@ with automatic login}
-a: telnet -a @host@
-why: live-net
-ref: telnet
-teach: telnet -a
-hint: -a hands the server $USER as the login name, no prompt
----
 setup: tftp has no login and no encryption -- exactly what firmware on
 setup: embedded gear still expects. The remote file is file.txt throughout.
 q: {fetch a file over tftp from @host@|download a file using tftp from @host@|use tftp to fetch a file from @host@}
@@ -163,13 +142,6 @@ ref: tftp
 teach: tftp -p
 teach: tftp -l
 hint: -p puts a file, -l names the local file to send
----
-q: {fetch file.txt from @host@ over tftp in 1024 byte blocks|speed up file.txt's tftp fetch from @host@, block size 1024|pull file.txt from @host@ over tftp using 1024 byte blocks}
-a: tftp -b 1024 -g -r file.txt @host@
-why: live-net
-ref: tftp
-teach: tftp -b
-hint: -b sets the block size used for the transfer
 ---
 setup: ftpget and ftpput both name the local file local.txt and the remote
 setup: one remote.txt, and the password is secret. Only the flag changes.
@@ -246,20 +218,6 @@ ref: udhcpc
 teach: udhcpc -q
 hint: -q exits once a lease is obtained instead of staying resident
 ---
-q: {try three times on @iface@ before giving up|make three attempts at a lease on @iface@ before giving up|retry the dhcp request on @iface@ three times, then stop}
-a: udhcpc -i @iface@ -t 3
-why: live-net
-ref: udhcpc
-teach: udhcpc -t
-hint: -t sets how many times to retry before giving up
----
-q: {wait one second between lease attempts on @iface@|space dhcp retry attempts on @iface@ one second apart|pause one second between each retry on @iface@}
-a: udhcpc -i @iface@ -T 1
-why: live-net
-ref: udhcpc
-teach: udhcpc -T
-hint: -T sets the pause between retry attempts, in seconds
----
 q: {watch udhcpc negotiate a lease on @iface@ instead of it backgrounding|keep udhcpc on @iface@ in front of you instead of letting it daemonize|run the dhcp client on @iface@ so you can watch it work, not backgrounded}
 a: udhcpc -i @iface@ -f
 why: live-net
@@ -280,10 +238,3 @@ why: live-net
 ref: udhcpc
 teach: udhcpc -s
 hint: -s names a script to run once the lease is obtained
----
-q: {release the current lease on @iface@ on exit|hand @iface@'s lease back to the server on exit|release the dhcp lease on @iface@ when udhcpc quits}
-a: udhcpc -i @iface@ -R
-why: live-net
-ref: udhcpc
-teach: udhcpc -R
-hint: -R releases the lease back to the server when udhcpc exits

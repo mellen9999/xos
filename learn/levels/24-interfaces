@@ -207,28 +207,12 @@ teach: arping -I
 hint: -I picks which interface the probe goes out of
 ---
 setup: every arping here sends one probe, then stops
-q: {arping @ip@ quietly, reporting only the exit status|run arping against @ip@ silently, exit status only|arping @ip@ with no output, just the exit status}
-a: arping -q -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -q
-hint: -q silences output, leaving just the exit status to check
----
-setup: every arping here sends one probe, then stops
 q: {send a duplicate-address-detection probe for @ip@|probe for whether @ip@ is already a duplicate|send a duplicate-address-detection check for @ip@}
 a: arping -D -c 1 @ip@
 why: live-hw
 ref: arping
 teach: arping -D
 hint: -D checks whether an address is already claimed before you use it
----
-setup: every arping here sends one probe, then stops
-q: {you just took @ip@ -- announce it unsolicited|announce @ip@ unsolicited|broadcast an unsolicited arp announcement of @ip@}
-a: arping -U -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -U
-hint: -U announces your address without being asked
 ---
 setup: every arping here sends one probe, then stops
 q: {arping @ip@ using @ip2@ as the chosen source address|arping @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when arping @ip@}
@@ -244,29 +228,6 @@ why: live-hw
 ref: arping
 teach: arping -w
 hint: -w caps the total time arping will run
----
-q: {keep arping @ip@ until a reply arrives, then stop|arping @ip@ until the first reply, then stop|stop arping @ip@ as soon as a reply comes back}
-a: arping -f @ip@
-why: live-hw
-ref: arping
-teach: arping -f
-hint: -f stops at the first reply instead of sending a fixed count
----
-setup: every arping here sends one probe, then stops
-q: {send broadcast arp probes for @ip@|send the arp probes for @ip@ to the broadcast address|broadcast the arp probes for @ip@ instead of unicasting them}
-a: arping -b -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -b
-hint: -b sends to the broadcast address instead of a unicast one
----
-setup: every arping here sends one probe, then stops
-q: {no address of your own yet -- arping @ip@ without claiming a source|arping @ip@ without claiming any source address|run arping against @ip@ so it needs no source address}
-a: arping -A -c 1 @ip@
-why: live-hw
-ref: arping
-teach: arping -A
-hint: -A lets arping run without claiming a source address
 ---
 q: {work out the network settings for the address @ip@/24|derive the network settings for @ip@/24|break down @ip@/24 into its network settings}
 a: ipcalc @ip@/24
@@ -302,10 +263,3 @@ cmp: ref
 ref: ipcalc
 teach: ipcalc -p
 hint: -p converts a dotted netmask into its prefix length
----
-q: {ipcalc output for @ip@/24, no hostnames, script-friendly|run ipcalc on @ip@/24 with no hostnames, for scripting|strip ipcalc's output for @ip@/24 to script form}
-a: ipcalc -s @ip@/24
-cmp: ref
-ref: ipcalc
-teach: ipcalc -s
-hint: -s silences ipcalc's extra explanatory output

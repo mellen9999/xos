@@ -22,13 +22,6 @@ ref: cat
 teach: cat -n
 hint: n numbers every line, including blanks
 ---
-q: give @txt@ line numbers, but skip the blank ones
-a: cat -b @txt@
-cmp: ref
-ref: cat
-teach: cat -b
-hint: like -n but skips numbering blank lines
----
 q: %show% @cfg@ to spot trailing whitespace on each line
 a: cat -e @cfg@
 cmp: ref
@@ -157,10 +150,3 @@ why: interactive
 ref: tail
 teach: tail -F
 hint: capital F reopens the name; lowercase f holds the old file open forever
----
-q: %show% every string in @bin@ with its offset in octal
-a: strings -o @bin@
-cmp: ref
-ref: strings
-teach: strings -o
-hint: o prints the offset before every string found

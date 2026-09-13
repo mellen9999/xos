@@ -105,20 +105,6 @@ ref: id
 teach: id -g
 hint: -g limits output to just the numeric gid
 ---
-q: %show% every group id you belong to, not just your primary one
-a: id -G
-why: primitive-cost
-ref: id
-teach: id -G
-hint: -G lists every group id you belong to, not just the primary
----
-q: %show% your real uid, not the effective one a setuid program would show
-a: id -ur
-why: primitive-cost
-ref: id
-teach: id -r
-hint: -r combined with -u asks for the real id rather than the effective one
----
 q: %show% the default permission mask new files are created with
 a: umask
 out: ^[0-7]{3,4}$
@@ -169,13 +155,6 @@ out: Size
 ref: stat
 teach: stat -L
 hint: -L follows the link and reports on its target instead of the link itself
----
-q: you need @txt@'s stat info on one line, script-friendly
-a: stat -t @txt@
-out: ^[^ ]+ [0-9]+ [0-9]+ [0-9a-f]+
-ref: stat
-teach: stat -t
-hint: -t packs every field onto one line, script-friendly
 ---
 q: {back-date @txt@'s timestamp to 2024-03-01 instead of right now|@txt@ needs to look like it was last touched on 2024-03-01|stamp @txt@ with 2024-03-01, not the current time}
 a: touch -d 2024-03-01 @txt@

@@ -8,13 +8,6 @@ brief:
 brief: /proc is the habit worth forming. Nearly everything a monitoring tool
 brief: reports, it read out of a file in there, and so can you.
 ---
-q: {what kernel is this|which kernel is running|name the kernel this machine is running}
-a: uname -s
-out: Linux
-ref: uname
-teach: uname -s
-hint: -s prints only the kernel name, the shortest of uname's fields
----
 q: {you just booted this stick -- get everything uname knows, in one line|dump every field uname knows about, on one line|report the full uname summary in a single line}
 a: uname -a
 out: Linux
@@ -43,34 +36,6 @@ ref: uname
 teach: uname -n
 hint: -n is the node's network hostname, same field hostname reports
 ---
-q: {old, unpatched build? -- report the kernel's build version string|report the kernel's build version string|what build string does the kernel report}
-a: uname -v
-cmp: ref
-ref: uname
-teach: uname -v
-hint: -v is the kernel's build string -- when and how it was compiled
----
-q: {the operating system name|what operating system is this, according to uname|report the os name uname knows}
-a: uname -o
-cmp: ref
-ref: uname
-teach: uname -o
-hint: -o names the operating system, distinct from the kernel name
----
-q: {the processor type|what processor type does uname report|report the processor type}
-a: uname -p
-why: live-hw
-ref: uname
-teach: uname -p
-hint: -p reports the processor type, when the kernel knows it
----
-q: {the hardware platform|what hardware platform does uname report|report the machine's hardware platform}
-a: uname -i
-why: live-hw
-ref: uname
-teach: uname -i
-hint: -i reports the hardware platform, distinct from -m's architecture
----
 q: {this machine's hostname|what is this machine's hostname|report the current hostname}
 a: hostname
 why: live-hw
@@ -92,13 +57,6 @@ ref: hostname
 teach: hostname -f
 hint: -f prints the fully qualified name, domain included
 ---
-q: {just the dns domain part|only the dns domain, without the host|report just the domain part of the hostname}
-a: hostname -d
-why: live-hw
-ref: hostname
-teach: hostname -d
-hint: -d prints only the domain part, no host
----
 q: {the ip addresses this host resolves to|which ip addresses does this hostname resolve to|report the ip addresses this host's name maps to}
 a: hostname -i
 why: live-hw
@@ -113,33 +71,12 @@ ref: dmesg
 teach: dmesg
 hint: dmesg alone dumps the whole kernel ring buffer
 ---
-q: {kernel messages with the raw log level markers left in|dump the kernel log leaving the raw level prefixes in place|show kernel messages without stripping their raw level markers}
-a: dmesg -r
-why: live-hw
-ref: dmesg
-teach: dmesg -r
-hint: -r keeps the raw <N> facility/level prefix on each line
----
-q: {clean buffer before the next test -- print the ring buffer, then clear it|print the kernel ring buffer, then empty it|dump the kernel ring buffer and clear it once printed}
-a: dmesg -c
-why: live-hw
-ref: dmesg
-teach: dmesg -c
-hint: -c prints the buffer then empties it
----
 q: {set the console log level so only errors reach the screen|limit what reaches the console to error-level kernel messages|turn the console log level down to errors only}
 a: dmesg -n 3
 why: live-hw
 ref: dmesg
 teach: dmesg -n
 hint: -n sets the console log level -- 3 is errors -- not what dmesg prints
----
-q: {read only the last 4096 bytes of the kernel buffer|dump just the final 4096 bytes of the kernel buffer|limit the kernel buffer read to its last 4096 bytes}
-a: dmesg -s 4096
-why: live-hw
-ref: dmesg
-teach: dmesg -s
-hint: -s caps how many bytes of the buffer are read, from the end
 ---
 q: %find% every kernel-log line mentioning verity, any capitalisation
 a: dmesg | grep -i verity
@@ -183,13 +120,6 @@ ref: date
 teach: date -I[SPEC]
 hint: -I is a shortcut for iso 8601 output, no format string needed
 ---
-q: {the date in rfc 2822 form, the one email headers use|report the date the way email headers format it, rfc 2822|print today's date in rfc 2822 form}
-a: date -R
-out: [0-9]{2}:[0-9]{2}:[0-9]{2} [-+][0-9]{4}$
-ref: date
-teach: date -R
-hint: -R formats the date the way rfc 2822 (email headers) expects
----
 q: {the modification time of @txt@ rather than the time now|report @txt@'s modification time instead of the current time|when was @txt@ last modified, not what time is it now}
 a: date -r @txt@
 why: live-hw
@@ -203,13 +133,6 @@ out: 2024|Mar
 ref: date
 teach: date -d
 hint: -d parses the string you give instead of reading the clock
----
-q: {parse 2024-03-01 with an explicit input format, printing epoch seconds|parse 2024-03-01 with an input format you specify, as epoch seconds|interpret 2024-03-01 with a format you name, printed as epoch seconds}
-a: date -D "%Y-%m-%d" -d 2024-03-01 +%s
-out: ^[0-9]{10}$
-ref: date
-teach: date -D
-hint: -D names the format of the input date, paired with -d
 ---
 q: {how long has this machine been up, straight from the kernel|report uptime straight from the kernel, not a wrapper around it|read this machine's uptime directly out of the kernel}
 a: cat /proc/uptime
@@ -302,13 +225,6 @@ ref: watch
 teach: watch -n
 hint: -n sets the interval in seconds
 ---
-q: {watch df with the header line suppressed|watch df but drop its header line|rerun df under watch with no header shown}
-a: watch -t df
-why: live-hw
-ref: watch
-teach: watch -t
-hint: -t hides watch's own header/title line
----
 q: {wait two seconds and then continue|pause for two seconds before continuing|block for two seconds, then carry on}
 a: sleep 2
 status: 0
@@ -329,13 +245,6 @@ why: live-hw
 ref: lspci
 teach: lspci -k
 hint: -k adds which kernel module claims each device
----
-q: you're piping this into a script -- %list% pci devices, easy to parse
-a: lspci -m
-why: live-hw
-ref: lspci
-teach: lspci -m
-hint: -m switches to a machine-parseable, script-friendly format
 ---
 q: something's plugged in and you don't know what -- %list% every usb device
 a: lsusb

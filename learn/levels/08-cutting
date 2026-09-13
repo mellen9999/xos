@@ -47,13 +47,6 @@ ref: cut
 teach: cut -f
 hint: a trailing dash with no end number means to the end of the line
 ---
-q: %show% @csv@'s count then name, in that order, not re-sorted
-a: cut -D -d, -f4,1 @csv@
-out: 42,gateway
-ref: cut
-teach: cut -D
-hint: without -D, cut always prints selected fields back in ascending order; -D keeps them (and any duplicates) exactly as you listed them
----
 q: @log@ opens with a 10-char date -- %show% just that date
 a: cut -c1-10 @log@
 out: ^2024-03-01$
@@ -81,13 +74,6 @@ out: ^gateway$
 ref: cut
 teach: cut -s
 hint: without -s, a line with no delimiter is printed whole
----
-q: %show% name and status from @csv@ joined by a colon, not a comma
-a: cut -d, -f1,3 -O: @csv@
-out: ^gateway:up$
-ref: cut
-teach: cut -O
-hint: -O sets the OUTPUT delimiter, separate from -d which sets the input one
 ---
 q: {uppercase everything in @txt@|%turn% @txt@ to upper case|make @txt@ all capitals}
 a: tr a-z A-Z < @txt@

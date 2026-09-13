@@ -403,3 +403,80 @@ fdisk -s                 # print sizes and exit; blockdev/lsblk territory
 fdisk -T                 # force dos over a hybrid gpt; one-off recovery knob
 fdisk -t                 # partition type selector at creation; not drilled
 watch -x                 # exec instead of sh -c; quoting nuance, look it up
+
+# ── 2026-09-13 cull: real, supported, and not worth a card ──
+# every flag below works. none of them does anything the card teaching its
+# sibling does not already do, or it is a knob you look up on the day you need
+# it. a curriculum that drills all of them is not more complete, it is longer.
+
+# a unit or a single field, where the whole is already taught
+free -b          # bytes; -h is the one you read
+free -k          # ditto
+free -m          # ditto
+du -b            # ditto, against du -h
+du -m            # ditto
+df -m            # ditto, against df -h
+df -a            # pseudo-filesystems in the list; noise on a repair
+uname -i         # one field of uname -a
+uname -o         # ditto
+uname -p         # ditto
+uname -s         # ditto
+uname -v         # ditto
+id -G            # every group id; id and id -g carry the question
+id -r            # real rather than effective; su/sudo territory, absent here
+hostname -d      # domain half of hostname -f
+seq -w           # pad to equal width; a formatting knob
+wc -L            # longest line length; a curiosity, not a count
+
+# a second way to print the same bytes
+hexdump -b       # octal bytes; -C is the dump anyone reads
+hexdump -c       # ditto, characters
+hexdump -d       # ditto, decimal
+hexdump -o       # ditto, octal shorts
+hexdump -x       # ditto, hex shorts
+hexdump -f       # format string from a file; -e is the taught spelling
+cat -b           # number nonblank lines only; -n is the one to know
+strings -o       # offset in octal; -t is the taught, legible form
+date -R          # rfc-2822 output; -I is the format worth having
+date -D          # input format for -d; busybox-only, and rarely needed
+stat -t          # terse one-line output; -c FMT is the scriptable form
+cut -D           # busybox-only, do not sort -f fields; a corner of a corner
+cut -O           # busybox-only output delimiter spelling
+uniq -w          # compare only the first N characters; -f/-s territory
+
+# a knob on a network tool, where the tool itself is the lesson
+traceroute -f    # first ttl to probe
+traceroute -F    # set don't-fragment
+traceroute -l    # display the ttl of each packet
+traceroute -p    # base udp port
+traceroute -q    # probes per hop
+traceroute -r    # bypass the routing table
+traceroute -t    # type of service byte
+traceroute -v    # verbose
+traceroute -z    # pause between probes
+ping -A          # adaptive interval; -i is the interval you choose
+ping -p          # payload pattern
+ping -t          # ttl to set
+ping -W          # per-reply timeout; -w bounds the whole run
+arping -A        # arp reply instead of request
+arping -U        # unsolicited announce; -D is the check worth running
+arping -b        # broadcast-only, never unicast
+arping -f        # quit on the first reply
+arping -q        # quiet
+udhcpc -R        # release the lease on exit
+udhcpc -t        # discover attempts before giving up
+udhcpc -T        # seconds between them
+tftp -b          # block size
+telnet -a        # attempt automatic login
+wget -U          # user agent string
+wget --post-file # post a file's contents; --post-data is the taught half
+lspci -m         # machine-readable output; -k names the driver, which is why you look
+ipcalc -s        # silence errors
+dmesg -c         # clear the ring buffer after printing -- destroys evidence
+dmesg -r         # raw, with facility numbers left in
+dmesg -s         # buffer size to read
+xargs -E         # end-of-file string
+xargs -p         # prompt before each run; -t shows what ran
+xargs -s         # max command-line length
+mktemp -q        # quiet
+watch -t         # hide the header line

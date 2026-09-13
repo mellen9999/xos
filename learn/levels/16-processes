@@ -161,27 +161,6 @@ ref: free
 teach: free -h
 hint: -h scales the numbers to whichever unit reads best
 ---
-q: %show% memory in megabytes
-a: free -m
-out: Mem: *[0-9]{3,5}[^0-9]
-ref: free
-teach: free -m
-hint: -m reports every figure in megabytes
----
-q: %show% memory in kilobytes
-a: free -k
-out: Mem: *[0-9]{7,9}[^0-9]
-ref: free
-teach: free -k
-hint: -k reports every figure in kilobytes
----
-q: %show% memory in raw bytes
-a: free -b
-out: Mem: *[0-9]{10,13}[^0-9]
-ref: free
-teach: free -b
-hint: -b reports every figure in raw bytes
----
 q: {how many processors does this machine have|ask nproc how many processors are available|find out how many CPUs you have to work with}
 a: nproc
 cmp: ref

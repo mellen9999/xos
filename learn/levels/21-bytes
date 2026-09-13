@@ -16,41 +16,6 @@ ref: hexdump
 teach: hexdump -C
 hint: C is the canonical format, and the only one worth memorising
 ---
-q: %show% @bin@ as one-byte octal values
-a: hexdump -b @bin@
-cmp: ref
-ref: hexdump
-teach: hexdump -b
-hint: b for byte -- one-byte octal display, unlike the two-byte forms below
----
-q: %show% @bin@ as characters, escaping anything unprintable
-a: hexdump -c @bin@
-cmp: ref
-ref: hexdump
-teach: hexdump -c
-hint: c is for character -- unprintable bytes show as C-style escapes
----
-q: %show% @bin@ as two-byte decimal values
-a: hexdump -d @bin@
-cmp: ref
-ref: hexdump
-teach: hexdump -d
-hint: d for decimal, grouped two bytes at a time
----
-q: %show% @bin@ as two-byte hex values
-a: hexdump -x @bin@
-out: [0-9a-f]
-ref: hexdump
-teach: hexdump -x
-hint: x for hex, but grouped two bytes at a time, unlike -C
----
-q: %show% @bin@ as two-byte octal values
-a: hexdump -o @bin@
-cmp: ref
-ref: hexdump
-teach: hexdump -o
-hint: o for octal, again grouped two bytes at a time
----
 q: {@bin@'s header only -- first 32 bytes, hex and text|dump @bin@'s first 32 bytes as hex and text|cap @bin@ at its first 32 bytes, hex and text}
 a: hexdump -C -n 32 @bin@
 cmp: ref
@@ -78,13 +43,6 @@ out: [0-9a-f]
 ref: hexdump
 teach: hexdump -e
 hint: -e takes a format string, the same kind -f reads from a file
----
-q: {dump @bin@ using the format string in fmt.txt|dump @bin@ with the format read from fmt.txt|point hexdump at fmt.txt and dump @bin@ with it}
-a: hexdump -f fmt.txt @bin@
-out: [0-9a-f]{2} [0-9a-f]{2}
-ref: hexdump
-teach: hexdump -f
-hint: -f points hexdump at a file holding the format string -- fmt.txt already exists in this sandbox
 ---
 q: {dump @txt@ in octal with od, the older tool that does the same job|use od, hexdump's older cousin, to dump @txt@ in octal|show @txt@ in octal using od rather than hexdump}
 a: od @txt@
