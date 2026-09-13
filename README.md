@@ -265,6 +265,26 @@ Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2
 GB docs (an exploit-db mirror, the man-pages reference, gtfobins, an rfc text
 bundle), the rest loot.
 
+the knowledge payload is bigger and never needs exec, so it rides a separate
+exFAT stick labelled `XOS-KNOW` instead of p3 -- kiwix serves the zims, frotz
+plays the stories, everything read-only. what it carries:
+
+| payload | what |
+|---|---|
+| wikipedia | offline zim -- `kiwix-serve` for `links`, or `kiwix-search` from the cli |
+| where-there-is-no-doctor | field medicine when there's no signal and no clinic |
+| ifixit | repair guides for hardware in the field |
+| maps | offline map zims |
+| `games/if` | the interactive-fiction library frotz plays -- anchorhead, spider-and-web staged, zork by hand |
+
+morale is a supply: interactive fiction is the one game genre a text-only box
+runs natively, so the if/ story files ship as the carried game library.
+`arsenal/build-games.sh` fetches the freeware stories from the IF Archive,
+verifies each against a sha256 pin and writes `arsenal/games.lock`; infocom's
+zork is still copyright, so you drop your own copy into `games/if/` by hand.
+the sticks are otherwise operator-populated -- the zim set above is the
+reference payload the readers are built for, not a fixed manifest.
+
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount
 flipped read-only, torn down on exit. `xexec -t dir entry` stages a whole
@@ -347,7 +367,8 @@ adapter (plug into anything), a second cloned stick stored apart.
 
 provisioning: `build.sh usb /dev/sdX`, `build.sh addstate /dev/sdX`, then
 optionally `arsenal/build-wordlists.sh` / `arsenal/build-docs.sh` to stage
-wordlists/docs, then `arsenal/provision.sh /dev/sdX3` opens p3 and lays down
+wordlists/docs (and `arsenal/build-games.sh` for the if library onto the
+XOS-KNOW stick), then `arsenal/provision.sh /dev/sdX3` opens p3 and lays down
 `tools/` + the arsenal -- write-protect off (work mode) first, since p3 has
 to be writable. idempotent -- re-run to update.
 

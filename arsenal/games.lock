@@ -1,0 +1,5 @@
+# games.lock -- interactive-fiction library staged 2026-09-13T03:19Z
+# freeware only; infocom zork is copyright and operator-supplied by hand
+# name  source  sha256  size
+spider-and-web  ifarchive.org/if-archive/games/zcode/Tangle.z5  dd5b510fb04daaa2fa9a40fc94414eee3719a72e274c77288b41629e32470817  216K
+anchorhead  ifarchive.org/if-archive/games/zcode/anchor.z8  c2f28a4ddd9367c260946926a33c73a4b0cc38b1f327646cc1202182a28a10ff  508K
