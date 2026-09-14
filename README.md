@@ -357,6 +357,7 @@ is the post-build attestation, source + sha256:
 | radare2 | reverse a binary offline -- disassemble, analyse, hex-edit (r2/rabin2/rax2) |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
+| impacket | windows/ad attack suite -- secretsdump, ntlmrelayx, psexec, kerberos (70 tools, pure-python) |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
 | kiwix-search | greps the zim corpus without a server |
 

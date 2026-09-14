@@ -17,6 +17,7 @@ tcpdump	packet capture + inspection on the wire
 links	text-mode web browser -- reads served zims and any html/http, no gui
 python	full cpython 3.12 -- scripting, a repl, http.server, the swiss knife
 sqlmap	automated sql-injection detection + exploitation
+impacket	windows/ad attack suite -- secretsdump, ntlmrelayx, psexec, kerberos (70 tools)
 mutool	pdf reader (mupdf) -- `draw -F txt|html` turns any pdf into readable text
 kiwix-serve	serve offline zims (wikipedia, survival docs) on localhost for links
 kiwix-search	grep the zims from the cli without a server

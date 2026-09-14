@@ -1,0 +1,42 @@
+# impacket.requirements -- INPUT integrity pins for the carried impacket suite,
+# the pip-native twin of arsenal.pins. build-python.sh installs these into the
+# carried python's site-packages with `pip install --require-hashes --no-deps`,
+# so pip refuses ANY wheel whose sha256 is not one named here -- fail-closed,
+# before a byte of it is imported. --no-deps means this list is the COMPLETE
+# resolved tree (21 dists), not a seed for pip to resolve further; a new
+# transitive dep can never sneak in unpinned.
+#
+# WHY WHEELS, NOT AN sdist BUILD. impacket is pure python; its only native deps
+# (pycryptodomex, cryptography, cffi, markupsafe, charset-normalizer) all ship
+# prebuilt musllinux_1_2_x86_64 wheels on PyPI. so the whole suite installs with
+# ZERO compilation -- pip just unpacks musl .so's into the interpreter that runs
+# them. those .so ride the python tree onto xexec's exec-tmpfs (p3 is noexec; a
+# separate libs dir could not be dlopen'd), so impacket lives in python/, and
+# ~/tools/impacket/ carries only the pure-python runnable example scripts.
+#
+# to move a version: re-resolve in a musl cp312 env
+#   pip download --only-binary=:all: --dest w impacket==<v> && pip hash w/*.whl
+# and rewrite this file, then keep arsenal.lock in step.
+#
+# resolved 2026-09-14 for cpython 3.12 / musllinux_1_2_x86_64.
+blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
+cffi==2.1.1 --hash=sha256:210019b6c7cf07f081b4c54635c8cf744377001350e29cc0f81c4377b4797735
+charset_normalizer==3.5.1 --hash=sha256:ba501e667c17d8411f98e67a022d9604ef179aff0e459b7e292c796837c13573
+click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+cryptography==50.0.1 --hash=sha256:9ebcdd5519be9b652a46f507817a74591774fc3d6923ac364e4dfa64e36b291b
+dnspython==2.8.0 --hash=sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af
+flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
+impacket==0.13.1 --hash=sha256:3e5349c1209cdd3b90bff6f8b61c0d89aea0f3dbba6ad02ad254b9d3ef2301d0
+itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
+jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
+ldap3==2.9.1 --hash=sha256:5869596fc4948797020d3f03b7939da938778a0f9e2009f7a072ccf92b8e8d70
+ldapdomaindump==0.10.0 --hash=sha256:3797259596df7a5e1fda98388c96b1d94196f5da5551f1af1aaeedda0c9f5a11
+markupsafe==3.0.3 --hash=sha256:77f0643abe7495da77fb436f50f8dab76dbc6e5fd25d39589a0f1fe6548bfa2b
+pyasn1==0.6.4 --hash=sha256:deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b
+pyasn1_modules==0.4.2 --hash=sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a
+pycparser==3.0 --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+pycryptodomex==3.23.0 --hash=sha256:55ccbe27f049743a4caf4f4221b166560d3438d0b1e5ab929e07ae1702a4d6fd
+pyopenssl==26.4.0 --hash=sha256:f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c
+six==1.17.0 --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
+typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+werkzeug==3.1.8 --hash=sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50

@@ -46,6 +46,16 @@ if [ -f "$LOCK" ]; then
   [ -n "$miss" ] && printf '\n  ! attested in arsenal.lock but MISSING here:%s\n' "$miss"
 fi
 
+# python tools are pure .py run BY the carried interpreter: xexec stages the
+# python tree (with its .so, incl impacket's deps) onto the exec surface, then
+# runs the script off p3. the generic `xexec <name>` line above does not fit
+# them, so spell the tree form out.
+if [ -d "$T/python" ]; then
+  printf '\npython tools (run via the carried interpreter):\n'
+  [ -d "$T/sqlmap" ]   && printf '  sqlmap    ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/sqlmap/sqlmap.py -u TARGET\n'
+  [ -d "$T/impacket" ] && printf '  impacket  ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/impacket/secretsdump.py -h   (70 tools in ~/tools/impacket/)\n'
+fi
+
 printf '\nreaders (offline knowledge):\n'
 printf '  kiwix-serve  serve zims:  ~/tools/xexec kiwix-serve --port 8080 /run/media/*/XOS-KNOW/zim/*.zim  -> links http://localhost:8080\n'
 printf '  mutool       read a pdf:  ~/tools/xexec mutool draw -F txt FILE.pdf | less\n'
