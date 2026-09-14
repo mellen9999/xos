@@ -2845,7 +2845,20 @@ lint() {
 # ────────────────────────────────────────────────────────────────────────────
 repro() {
   say "independent rebuild -- clone committed HEAD, build, compare to the pin"
-  local d want_img have_img want_sq have_sq
+  local d want_img have_img want_sq have_sq want_tc have_tc
+  # fail fast, and honestly: reproducibility is verifiable only on the toolchain
+  # the pin was taken with. on any other gcc/squashfs-tools/systemd the bytes
+  # differ for innocent reasons, so a rebuild here would build for an hour and
+  # then cry "NOT REPRODUCIBLE" about nothing -- the exact wolf G13 stopped
+  # crying. so check the toolchain FIRST and skip the build if it differs.
+  want_tc=$(awk '$1=="toolchain"{print $2}' image.sha256 2>/dev/null)
+  have_tc=$(toolchain)
+  if [ -n "$want_tc" ] && [ "$want_tc" != "$have_tc" ]; then
+    printf '  \033[1;33munverified\033[0m -- this toolchain is not the one the pin was\n' >&2
+    printf '  taken with, so a byte difference would prove nothing. rebuild on the\n' >&2
+    printf '  pinned toolchain to verify (see G13, SOURCES.md). skipping the build.\n' >&2
+    return 2
+  fi
   d=$(mktemp -d /tmp/xos-repro.XXXXXX) || return 1
   git clone -q --depth 1 "file://$PWD" "$d/tree" || { rm -rf "$d"; return 1; }
   if ! ( cd "$d/tree" && ./build.sh deps && ./build.sh fetch && ./build.sh kernel \
