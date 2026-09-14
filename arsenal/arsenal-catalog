@@ -30,3 +30,6 @@ rg	ripgrep -- fast search over the staged corpora and loot
 zstd	decompress .zst images/firmware/payloads nothing else here reads
 ddrescue	image a dying disk -- copy what reads, log the bad ranges, resume
 strace	trace a binary's syscalls -- files, connections, why it exits
+testdisk	rebuild a lost or corrupt partition table and its boot sectors
+photorec	carve files back off a formatted or damaged filesystem by signature
+smartctl	read a drive's SMART health -- is it dying before you trust or wipe it

@@ -29,3 +29,6 @@ rg          ripgrep@14.1.1(musl-static-pie)  5757920  ad380bab0de07ac6b515d39263
 zstd        zstd@1.5.6(musl-static)  1004608  bcd53dfd7117661b18b9a9d308fc26f219a33bcc26e7df896ac95c029ec8565e
 ddrescue    ddrescue@1.28(musl-static)  1130440  290ae167814298351ca19f9f29cc16982a9d142b2fb09e242bf04f59d6afc776
 strace      strace@6.13(musl-static)  1423440  25764b26f9582abdc66603dd8c2873f0da0c63f6346a260261a46425ecf83db8
+testdisk    testdisk@7.2(musl-static)  955864  173891be895cc1550c47cc23dbb71ab778f28700c868bd73c91a701b6599a08f
+photorec    testdisk@7.2(musl-static)  1039544  9ca24deb4e927a4b710c19145a42d220b9643ab18e21a5d5a993bff22096ec0b
+smartctl    smartmontools@7.4(musl-static)  1937448  1815699f40c9aaa5f54e9d3bd7ff70789105cbda3c7acea4c7fc2a169b99cf1b

@@ -9,9 +9,11 @@
 #
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
 # regen, or by hand). builds masscan + tcpdump + socat + nmap + links + mutool +
-# frotz + whois + hydra + john + jq + rg + zstd + ddrescue + strace, all static
-# (rg is static-PIE, see its block; nmap is C++, its block documents the static-
-# musl fix). zstd/ddrescue/strace are the recovery/forensics flank.
+# frotz + whois + hydra + john + jq + rg + zstd + ddrescue + strace + testdisk +
+# photorec + smartctl, all static (rg is static-PIE, see its block; nmap is C++,
+# its block documents the static-musl fix). the last six are the recovery/
+# forensics/triage flank: read a .zst, image a dying disk, trace a binary,
+# rebuild a partition table, carve files back, read a drive's SMART health.
 # NOTE: masscan + tcpdump + nmap embed a build-id, so their arsenal.lock sha
 # drifts per build (size is stable) -- a point-in-time attestation. links + mutool are
 # bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
@@ -32,7 +34,7 @@ docker run --rm -i --network host -v "$OUT":/out -v "$SELF/arsenal.pins":/pins:r
 apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static \
   ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo \
-  file lzip xz linux-headers >/dev/null 2>&1
+  file lzip xz linux-headers e2fsprogs-dev e2fsprogs-static util-linux-dev >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # ---- integrity: read the pins, verify before build ------------------------
@@ -312,6 +314,40 @@ clone_pinned() {
   strip src/strace
   cp src/strace /out/strace ) || log "strace FAILED"
 
+# testdisk + photorec 7.2 -- the recovery pair: testdisk rebuilds a lost or
+# corrupt partition table and its boot sectors, photorec carves files back off
+# a formatted or damaged filesystem by signature. exactly the job that starts
+# once ddrescue has imaged the failing disk over usb. ntfs/jpeg/ewf/reiser
+# support is dropped so the static link needs only ncurses + e2fsprogs (both
+# .a in the apk set); the tui still runs over a serial console.
+( set -e; log testdisk
+  mkdir -p /s && fetch testdisk /s/td.tar.bz2 && tar xj -C /s -f /s/td.tar.bz2
+  cd /s/testdisk-7.2
+  ./configure --without-ntfs --without-ntfs3g --without-jpeg --without-ewf --without-reiserfs \
+    CFLAGS="-O2" LDFLAGS="-static" >/s/td.log 2>&1
+  make -j"$(nproc)" >>/s/td.log 2>&1
+  for b in testdisk photorec; do
+    file "src/$b" | grep -q "statically linked" || { echo "$b not static"; tail -12 /s/td.log; exit 1; }
+    strip "src/$b"; cp "src/$b" "/out/$b"
+  done
+  ./src/testdisk /version 2>&1 | head -1 || true ) || log "testdisk FAILED"
+
+# smartctl 7.4 -- SMART health for a disk reached over the usb-sata/nvme adapter:
+# reallocated sectors, pending sectors, self-test log -- whether a drive is dying
+# before you trust or wipe it. smartd (the daemon) is not built; a field kit reads
+# health on demand, it does not run a monitor. the nvme-devicescan probe is off so
+# the static link does not want libnvme.
+( set -e; log smartctl
+  mkdir -p /s && fetch smartmontools /s/sm.tgz && tar xz -C /s -f /s/sm.tgz
+  cd /s/smartmontools-7.4
+  ./configure --without-libcap-ng --without-libsystemd --without-selinux --without-nvme-devicescan \
+    CXXFLAGS="-O2" LDFLAGS="-static" >/s/sm.log 2>&1
+  make -j"$(nproc)" smartctl >>/s/sm.log 2>&1
+  file smartctl | grep -q "statically linked" || { echo "not static"; tail -12 /s/sm.log; exit 1; }
+  ./smartctl --version | head -1
+  strip smartctl
+  cp smartctl /out/smartctl ) || log "smartctl FAILED"
+
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
 # (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final
 # `gdb` executable links dynamic-PIE against ld-musl even with LDFLAGS="-static
@@ -344,7 +380,7 @@ clone_pinned() {
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to
