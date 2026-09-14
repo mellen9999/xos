@@ -1,0 +1,7 @@
+truncate
+Usage: truncate [-c] -s SIZE FILE...
+
+Shrink or extend files to a size.
+
+	-c	Do not create files
+	-s SIZE

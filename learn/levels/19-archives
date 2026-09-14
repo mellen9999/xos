@@ -252,3 +252,69 @@ status: 0
 ref: unzip
 teach: unzip -t
 hint: -t tests the archive's integrity without extracting anything
+---
+q: %unpack% firmware.tar.xz into @dir@ with tar
+a: tar -xJf firmware.tar.xz -C @dir@
+why: fixture-cost
+ref: tar
+teach: tar -J
+hint: -J routes the archive through xz, the way -z does for gzip and -j for bzip2
+---
+q: decompress @word@.xz with xz, keeping the .xz file as well
+a: xz -dk @word@.xz
+why: fixture-cost
+ref: xz
+teach: xz -d
+teach: xz -k
+hint: -d decompresses; -k keeps the .xz instead of replacing it with the output
+---
+q: decompress @word@.xz to stdout with xz, writing nothing to disk
+a: xz -dc @word@.xz
+why: fixture-cost
+ref: xz
+teach: xz -c
+hint: -c sends the result to stdout; pair it with -d to decompress there
+---
+q: check @word@.xz is intact with xz, without unpacking it
+a: xz -t @word@.xz
+why: fixture-cost
+ref: xz
+teach: xz -t
+hint: -t tests the compressed stream and stays silent unless it is corrupt
+---
+q: decompress @word@.xz with unxz, the plain decompressor
+a: unxz @word@.xz
+why: fixture-cost
+ref: unxz
+teach: unxz
+hint: unxz is xz -d under another name -- it only ever decompresses
+---
+q: {stream @word@.xz to the screen with xzcat|%show% @word@.xz's contents with xzcat, without unpacking it to disk}
+a: xzcat @word@.xz
+why: fixture-cost
+ref: xzcat
+teach: xzcat
+hint: xzcat is xz -dc -- decompress straight to stdout, as zcat does for gzip
+---
+q: pack @txt@ into a newc-format archive out.cpio with cpio
+a: echo @txt@ | cpio -o -H newc > out.cpio
+state: exists:out.cpio
+ref: cpio
+teach: cpio -o
+teach: cpio -H
+hint: -o creates from a list of names on stdin; -H newc picks the portable format
+---
+q: %list% what is inside archive.cpio with cpio, without extracting
+a: cpio -t < archive.cpio
+out: manifest.txt
+ref: cpio
+teach: cpio -t
+hint: -t lists the members; feed the archive in on stdin
+---
+q: extract archive.cpio with cpio, creating the directories its members need
+a: cpio -id < archive.cpio
+state: exists:rescue/manifest.txt
+ref: cpio
+teach: cpio -i
+teach: cpio -d
+hint: -i extracts from stdin; -d makes the leading directories as it goes

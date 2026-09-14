@@ -1,0 +1,9 @@
+unxz
+Usage: unxz [-cfk] [FILE]...
+
+Decompress .xz files (or stdin).
+
+	-c	Write to stdout
+	-f	Force
+	-k	Keep input files
+	-t	Test integrity

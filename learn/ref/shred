@@ -1,0 +1,10 @@
+shred
+Usage: shred [-fuz] [-n N] [-s SIZE] FILE...
+
+Overwrite, then optionally delete, files.
+
+	-f	Chmod to ensure writability
+	-s SIZE	Size to write
+	-n N	Overwrite N times (default 3)
+	-z	Final overwrite with zeros
+	-u	Remove file

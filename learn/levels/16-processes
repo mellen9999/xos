@@ -273,3 +273,30 @@ out: KILL
 ref: killall
 teach: killall -l
 hint: -l lists the signal names killall recognizes
+---
+q: run a shell in new mount, net and pid namespaces with unshare
+a: unshare -r -m -n -p sh
+why: root
+ref: unshare
+teach: unshare -r
+teach: unshare -m
+teach: unshare -n
+teach: unshare -p
+hint: -r maps you to root; -m -n -p give the new shell its own mounts, network and pids
+---
+q: unshare a new pid namespace and fork so the shell becomes pid 1 inside it
+a: unshare -f -p sh
+why: root
+ref: unshare
+teach: unshare -f
+hint: a pid namespace only takes effect for children, so -f forks before exec
+---
+q: enter pid 1's mount, net and pid namespaces with nsenter
+a: nsenter -t 1 -m -n -p sh
+why: root
+ref: nsenter
+teach: nsenter -t
+teach: nsenter -m[FILE]
+teach: nsenter -n[FILE]
+teach: nsenter -p[FILE]
+hint: -t names the process to borrow namespaces from; -m -n -p pick which ones

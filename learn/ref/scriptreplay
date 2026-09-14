@@ -1,0 +1,4 @@
+scriptreplay
+Usage: scriptreplay TIMINGFILE [TYPESCRIPT [DIVISOR]]
+
+Replay a recorded terminal session.

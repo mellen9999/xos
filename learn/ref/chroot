@@ -1,0 +1,4 @@
+chroot
+Usage: chroot NEWROOT [PROG ARGS]
+
+Run a program with a new root directory.

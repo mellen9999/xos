@@ -178,3 +178,24 @@ why: root
 ref: setuidgid
 teach: setuidgid
 hint: setuidgid USER PROG switches to USER's uid and gid, then runs PROG -- learn runs your answers this way
+---
+q: make @txt@ immutable with chattr
+a: chattr +i @txt@
+why: root
+ref: chattr
+teach: chattr
+hint: +i makes it unchangeable even by root; chattr -i clears it again
+---
+q: set @txt@ append-only with chattr
+a: chattr +a @txt@
+why: root
+ref: chattr
+teach: chattr
+hint: +a is the append-only attribute, useful for a tamper-resistant log
+---
+q: %list% @txt@'s ext2 file attributes with lsattr
+a: lsattr @txt@
+why: root
+ref: lsattr
+teach: lsattr
+hint: lsattr prints the attribute letters chattr would set, in one fixed column

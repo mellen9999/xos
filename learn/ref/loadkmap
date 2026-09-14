@@ -1,0 +1,4 @@
+loadkmap
+Usage: loadkmap < keymap
+
+Load a binary keyboard map from stdin.

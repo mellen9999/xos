@@ -224,7 +224,6 @@ gunzip -f
 gunzip -k
 tar -a          # pick compression by file extension
 tar -h          # follow symlinks when creating
-tar -J          # xz
 tar --lzma
 tar -m          # do not restore mtime
 tar -o          # do not restore owner
@@ -480,3 +479,97 @@ xargs -p         # prompt before each run; -t shows what ran
 xargs -s         # max command-line length
 mktemp -q        # quiet
 watch -t         # hide the header line
+
+# ── 2026-09-14: flags on the newly-shipped recovery/forensics applets ──
+# the applets themselves are taught; these are the knobs that add no capability
+# a sibling card does not already carry, or that a concept card names in prose.
+
+# xz family: unxz and xzcat ARE xz -d and xz -dc, so their flags are the same
+# lesson twice; xz -f overwrites without asking.
+xz -f           # danger -- replaces the input's place without confirming
+unxz -c         # xzcat is this spelling
+unxz -f         # danger, and force is not drilled anywhere
+unxz -k         # keep-input is drilled on xz
+unxz -t         # test-integrity is drilled on xz
+
+# cpio: the operation modes (-o/-i/-t) and -H/-d are taught; the rest are
+# owner/format knobs or the stdin<->-F choice already made by redirection.
+cpio -F         # names a file instead of stdin/stdout; the < > redirect is taught
+cpio -0         # NUL-terminated input, pairs with find -print0
+cpio -L         # dereference symlinks when archiving
+cpio -R         # set owner on created files; root only
+cpio -m         # restore mtime; like tar -m, a knob
+cpio -p         # pass-through copy mode; -o/-i cover the archive idea
+cpio -u         # overwrite existing files on extract
+cpio -v         # verbose
+cpio --ignore-devno      # reproducible-archive knob
+cpio --renumber-inodes   # reproducible-archive knob
+
+# chattr/lsattr: the +/-/= modifier carries the attributes (i, a, ...) that are
+# the whole point; lsattr just reads them back, so its flags are display knobs.
+chattr -+        # the [-+=Aac...] modifier cluster, a --help token, not a flag
+chattr -R       # recurse; the attribute is the lesson
+chattr -p       # set a project number; niche
+chattr -v       # set a version/generation number; niche
+lsattr -R       # recurse
+lsattr -a       # include dotfiles
+lsattr -d       # list a directory's own attrs, not its contents
+lsattr -l       # spell the flag names out; cosmetic
+lsattr -p       # show project id
+lsattr -v       # show version/generation number
+
+# shred: -n/-u/-z shape the overwrite; -f/-s are guards and a size knob.
+shred -f        # chmod to force writability; a guard, not the idea
+shred -s        # write exactly SIZE bytes; the file's own length is the default
+
+# script: -a/-c/-q shape the recording; -t writes timing, -f flushes.
+script -f       # flush after every write; a durability knob
+script -t       # send timing to stderr
+script -t[FILE] # send timing to a file -- same -t, with an argument
+
+# nsenter: -t plus the mount/net/pid namespaces carry it; the rest select the
+# same way (uts/ipc/user) or set credentials and directories.
+nsenter --preserve-credentials  # leave uids/gids untouched; a credential knob
+nsenter -F      # don't fork before exec; a process-handling corner
+nsenter -G      # set gid in the namespace; a credential knob
+nsenter -S      # set uid in the namespace; a credential knob
+nsenter -U[FILE] # user namespace; unshare -r is the taught user-ns lesson
+nsenter -i[FILE] # sysv ipc namespace; -m/-n/-p carry the idea
+nsenter -r[DIR]  # set root dir; chroot is the taught idea
+nsenter -u[FILE] # uts namespace; -m/-n/-p carry the idea
+nsenter -w[DIR]  # set working dir; a convenience knob
+
+# unshare: -r and the mount/net/pid namespaces carry it; long spellings repeat
+# the short flags, and the rest are the same select-a-namespace idea.
+unshare --ipc[         # long spelling of -i, itself covered by -m/-n/-p
+unshare --mount[       # long spelling of -m
+unshare --mount-proc[  # mount /proc first; named in the pid-namespace card's prose
+unshare --net[         # long spelling of -n
+unshare --pid[         # long spelling of -p
+unshare --propagation  # set mount propagation; a mount-namespace knob
+unshare --setgroups    # gate the setgroups syscall; a user-namespace knob
+unshare --user[        # long spelling of -U; -r maps to root and implies it
+unshare --uts[         # long spelling of -u
+unshare -U      # user namespace; -r maps you to root inside it and implies -U
+unshare -i      # sysv ipc namespace; -m/-n/-p carry the idea
+unshare -u      # uts namespace; -m/-n/-p carry the idea
+
+# hwclock: -s/-w/-u are the read/write/timezone; the rest pick a device or an
+# alternate spelling.
+hwclock -f              # name a specific rtc device
+hwclock -l              # assume the rtc is local time; -u (UTC) is the taught one
+hwclock --systz         # set the kernel timezone; a one-off boot knob
+hwclock --param-get     # read a raw rtc parameter
+hwclock --param-set     # write a raw rtc parameter
+
+# blkdiscard: -s (secure) and -l (length) are the lesson; -o is an offset knob.
+blkdiscard -o           # byte offset into the device; -l bounds the range
+
+# mountpoint: -q gives the scriptable exit status; the rest print device ids.
+mountpoint -d           # print the filesystem's major:minor
+mountpoint -n           # print the backing device name
+mountpoint -x           # print a device's major:minor instead of testing a dir
+
+# fallocate/truncate: -l and -s set the size; -o/-c are offset and a create-guard.
+fallocate -o            # offset of the range; -l sets its length
+truncate -c             # refuse to create a missing file; -s is the size itself

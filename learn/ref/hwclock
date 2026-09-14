@@ -1,0 +1,15 @@
+hwclock
+Usage: hwclock [-ul] [-f DEV] [-s|-w|--systz|--param-get PARAM|--param-set PARAM=VAL]
+
+Show or set the hardware clock (RTC).
+
+	-f DEV	Use this device (e.g. /dev/rtc2)
+	-u	Assume RTC is kept in UTC
+	-l	Assume RTC is kept in local time
+		(if neither is given, read from /etc/adjtime)
+	-s	Set system time from RTC
+	-w	Set RTC from system time
+	--systz	Set in-kernel timezone, correct system time
+		if RTC is kept in local time
+	--param-get PARAM	Get RTC parameter
+	--param-set PARAM=VAL	Set RTC parameter

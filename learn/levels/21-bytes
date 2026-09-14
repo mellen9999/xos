@@ -141,3 +141,38 @@ why: interactive
 ref: hexedit
 teach: hexedit
 hint: hexdump shows you bytes; this is how you change them
+---
+q: securely erase @txt@ with shred, then remove it
+a: shred -u @txt@
+state: gone:@txt@
+ref: shred
+teach: shred -u
+hint: shred overwrites the bytes first; -u then unlinks the file
+---
+q: overwrite @txt@ seven times with shred before removing it
+a: shred -n 7 -u @txt@
+state: gone:@txt@
+ref: shred
+teach: shred -n
+hint: -n sets how many overwrite passes; the default is three
+---
+q: shred @txt@ with a final zero pass, then remove it
+a: shred -z -u @txt@
+state: gone:@txt@
+ref: shred
+teach: shred -z
+hint: -z adds a last zero pass, hiding that shredding happened at all
+---
+q: %make% a 1-megabyte file sparse.img with truncate
+a: truncate -s 1M sparse.img
+state: exists:sparse.img
+ref: truncate
+teach: truncate -s
+hint: -s sets the size; the file reads as that many bytes without using the space
+---
+q: preallocate 64 kilobytes of real space for blob.bin with fallocate
+a: fallocate -l 64k blob.bin
+state: exists:blob.bin
+ref: fallocate
+teach: fallocate -l
+hint: -l is the length to reserve; unlike truncate this claims the blocks now

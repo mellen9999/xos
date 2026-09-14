@@ -292,6 +292,17 @@ _sandbox_fill() {
 	_fx_zip archive.zip hello.txt hello.txt
 	rm -f hello.txt
 
+	# archive.cpio -- a fixed newc-format archive for the cpio list/extract
+	# lessons. unlike an .xz (the image ships no compressor to build one), cpio
+	# -o is itself in the image, so this is generated here, not committed. it
+	# holds one member under a subdirectory so the -d "make leading dirs on
+	# extract" lesson has a directory to create; the member is removed after so
+	# the extract card's exists: check is false until the learner types it.
+	mkdir -p rescue
+	printf 'recovered\n' > rescue/manifest.txt
+	printf 'rescue/manifest.txt\n' | cpio -o -H newc > archive.cpio 2>/dev/null
+	rm -rf rescue
+
 	# names.txt -- tar -T reads archive member names from this, one per line;
 	# it has to hold real paths, unlike @txt@'s prose, so it is not a pool.
 	printf 'notes.txt\ntodo.txt\nreadme.txt\n' > names.txt

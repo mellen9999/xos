@@ -1,0 +1,4 @@
+xzcat
+Usage: xzcat [FILE]...
+
+Decompress .xz files to stdout.

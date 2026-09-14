@@ -1,0 +1,10 @@
+xz
+Usage: xz -d [-cfk] [FILE]...
+
+Decompress .xz files (or stdin).
+
+	-d	Decompress
+	-c	Write to stdout
+	-f	Force
+	-k	Keep input files
+	-t	Test integrity

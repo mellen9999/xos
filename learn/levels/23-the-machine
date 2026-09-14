@@ -315,3 +315,74 @@ why: live-hw
 ref: microcom
 teach: microcom -t
 hint: -t sets an idle timeout in milliseconds before it gives up
+---
+q: set the system clock from the rtc, as UTC, with hwclock
+a: hwclock -s -u
+why: root
+ref: hwclock
+teach: hwclock -s
+teach: hwclock -u
+hint: -s sets the system time from the rtc; -u says the rtc keeps UTC, not local time
+---
+q: write the system time back to the hardware clock with hwclock
+a: hwclock -w
+why: root
+ref: hwclock
+teach: hwclock -w
+hint: -w is the reverse of -s: it stores the current system time into the rtc
+---
+q: read the 32-bit word at physical address 0x1000 with devmem
+a: devmem 0x1000
+why: root
+ref: devmem
+teach: devmem
+hint: devmem peeks (or pokes) a physical address directly, for hardware you can't reach otherwise
+---
+q: load the keymap in @word@.bmap with loadkmap
+a: loadkmap < @word@.bmap
+why: live-hw
+ref: loadkmap
+teach: loadkmap
+hint: loadkmap reads a binary keymap on stdin; dumpkmap writes the current one out
+---
+q: save the console's current keyboard map to keymap.bin with dumpkmap
+a: dumpkmap > keymap.bin
+why: live-hw
+ref: dumpkmap
+teach: dumpkmap
+hint: dumpkmap prints the binary table loadkmap would read back in
+---
+q: %list% the scsi and usb-storage devices the kernel sees, with lsscsi
+a: lsscsi
+why: live-hw
+ref: lsscsi
+teach: lsscsi
+hint: lsscsi names each scsi/usb disk and its host, the layer under lsblk
+---
+q: record this whole session to session.log with script, quietly
+a: script -q session.log
+why: interactive
+ref: script
+teach: script -q
+hint: script logs everything printed to the terminal into a typescript file
+---
+q: capture just the output of uname into session.log with script
+a: script -c uname session.log
+why: interactive
+ref: script
+teach: script -c
+hint: -c runs one PROG and records only it, instead of a whole interactive shell
+---
+q: append this session to session.log with script
+a: script -a session.log
+why: interactive
+ref: script
+teach: script -a
+hint: -a appends to the typescript; without it script starts the file fresh
+---
+q: replay the recorded session.log at its original speed, with scriptreplay
+a: scriptreplay timing session.log
+why: fixture-cost
+ref: scriptreplay
+teach: scriptreplay
+hint: scriptreplay reads the timing file script wrote and plays the typescript back

@@ -1,0 +1,7 @@
+fallocate
+Usage: fallocate [-o OFS] -l LEN FILE
+
+Preallocate real space for a file.
+
+	-o OFS	Offset of range
+	-l LEN	Length of range

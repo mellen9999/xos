@@ -1,0 +1,4 @@
+lsscsi
+Usage: lsscsi
+
+List the SCSI and USB-storage devices the kernel sees.

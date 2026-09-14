@@ -1,0 +1,8 @@
+blkdiscard
+Usage: blkdiscard [-o OFS] [-l LEN] [-s] DEVICE
+
+Discard sectors on a block device.
+
+	-o OFS	Byte offset into device
+	-l LEN	Number of bytes to discard
+	-s	Perform a secure discard

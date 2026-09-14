@@ -1,0 +1,9 @@
+script
+Usage: script [-afq] [-t[FILE]] [-c PROG] [OUTFILE]
+
+Record a terminal session to a file.
+
+	-a	Append output
+	-c PROG	Run PROG, not shell
+	-q	Quiet
+	-t[FILE] Send timing to stderr or FILE

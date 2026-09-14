@@ -1,0 +1,11 @@
+lsattr
+Usage: lsattr [-Radlpv] [FILE]...
+
+List ext2 file attributes.
+
+	-R	Recurse
+	-a	Include names starting with .
+	-d	List directory names, not contents
+	-l	List long flag names
+	-p	List project ID
+	-v	List version/generation number

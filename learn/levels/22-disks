@@ -442,3 +442,52 @@ why: root
 ref: mkdosfs
 teach: mkdosfs -n
 hint: -n sets the volume label
+---
+q: %list% the block devices as a tree with lsblk
+a: lsblk
+why: live-hw
+ref: lsblk
+teach: lsblk
+hint: lsblk draws every disk and its partitions; what it shows is the machine you booted on
+---
+q: is /proc a mountpoint? ask mountpoint
+a: mountpoint /proc
+out: is a mountpoint
+ref: mountpoint
+teach: mountpoint
+hint: mountpoint says whether a path is where a filesystem is attached
+---
+q: quietly confirm /proc is a mountpoint with mountpoint, exit status only
+a: mountpoint -q /proc
+status: 0
+ref: mountpoint
+teach: mountpoint -q
+hint: -q prints nothing and answers in the exit status -- zero when it is a mount
+---
+q: run a shell inside the rootfs at /mnt with chroot
+a: chroot /mnt sh
+why: root
+ref: chroot
+teach: chroot
+hint: chroot runs PROG with NEWROOT as / -- the way you repair a broken install
+---
+q: have the kernel re-read /dev/sdb's partition table with partprobe
+a: partprobe /dev/sdb
+why: root
+ref: partprobe
+teach: partprobe
+hint: partprobe asks the kernel to rescan the table without a reboot
+---
+q: securely discard every sector of the ssd /dev/sdb with blkdiscard
+a: blkdiscard -s /dev/sdb
+why: root
+ref: blkdiscard
+teach: blkdiscard -s
+hint: -s asks the drive for a secure discard, not just a plain trim
+---
+q: discard the first 1G of /dev/sdb with blkdiscard
+a: blkdiscard -l 1G /dev/sdb
+why: root
+ref: blkdiscard
+teach: blkdiscard -l
+hint: -l bounds how many bytes to discard, from the start unless -o moves it

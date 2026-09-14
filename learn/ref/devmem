@@ -1,0 +1,8 @@
+devmem
+Usage: devmem ADDRESS [WIDTH [VALUE]]
+
+Read or write a physical memory address.
+
+	ADDRESS	Address to act upon
+	WIDTH	Width (8/16/...)
+	VALUE	Data to be written

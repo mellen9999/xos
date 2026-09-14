@@ -1,0 +1,31 @@
+chattr
+Usage: chattr [-R] [-v VERSION] [-p PROJID] [-+=AacDdijsStTu] FILE...
+
+Change ext2 file attributes.
+
+	-R	Recurse
+	-v NUM	Set version/generation number
+	-p NUM	Set project number
+Modifiers:
+	-,+,=	Remove/add/set attributes
+Attributes:
+	A	No atime
+	a	Append only
+	C	No copy-on-write
+	c	Compressed
+	D	Synchronous dir updates
+	d	Don't backup with dump
+	E	Encrypted
+	e	File uses extents
+	F	Case-insensitive dir
+	I	Indexed dir
+	i	Immutable
+	j	Write data to journal first
+	N	File is stored in inode
+	P	Hierarchical project ID dir
+	S	Synchronous file updates
+	s	Zero storage when deleted
+	T	Top of dir hierarchy
+	t	Don't tail-merge with other files
+	u	Allow undelete
+	V	Verity

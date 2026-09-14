@@ -1,0 +1,4 @@
+dumpkmap
+Usage: dumpkmap > keymap
+
+Print the current binary keyboard map.

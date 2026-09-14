@@ -33,3 +33,22 @@ mke2fs mkdosfs
 # least privilege: learn runs every answer as nobody through this, so a typo
 # in a lesson meets file permissions instead of the encrypted state partition.
 setuidgid
+# reading what the stick could not open: the kernel and every doc tarball ship
+# as .xz, so xz/unxz/xzcat close a real functional hole. chroot enters and
+# repairs a rootfs recovered over the usb path; lsblk is the one clear tree of
+# what is actually attached, where fdisk/blkid only answer about one device.
+xz unxz xzcat chroot lsblk
+# forensics on a mounted host: nsenter/unshare step into its namespaces,
+# chattr/lsattr read and clear the immutable bit, cpio opens an initramfs,
+# devmem reads physical memory when nothing higher-level can.
+nsenter unshare chattr lsattr cpio devmem
+# trace-free by hand: shred overwrites a file on p3 or an attached disk;
+# script/scriptreplay record an engagement to loot as a replayable typescript.
+shred script scriptreplay
+# the field: loadkmap/dumpkmap for a non-us keyboard, hwclock to set the clock
+# from the rtc so tls certificate validity holds before any network exists.
+loadkmap dumpkmap hwclock
+# disk work the usb-forensics path needs: blkdiscard wipes an ssd, partprobe
+# re-reads a table fdisk just changed, mountpoint tests a mount from a script,
+# lsscsi names the scsi/usb devices, fallocate/truncate size a file or an image.
+blkdiscard partprobe mountpoint lsscsi fallocate truncate
