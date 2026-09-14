@@ -139,7 +139,10 @@ from the other side: a clean clone of HEAD, built and compared to the pin.
 the repo holds recipes, never artifacts -- the pre-commit hook refuses any
 staged file whose magic says ELF, PE or squashfs. `build.sh` points
 `core.hooksPath` at `githooks/` every run, so a fresh clone is walled from its
-first build.
+first build. a pre-push hook runs the cheap half of the gate suite -- every
+first-party script parsed, shellcheck clean -- before anything reaches origin
+(`XOS_NOVERIFY=1` to override for a WIP branch); the building gates and the
+self-test stay a deliberate `./build.sh gates` / `./selftest.sh`.
 
 ## what the build enforces
 
