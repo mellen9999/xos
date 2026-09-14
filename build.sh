@@ -1931,7 +1931,7 @@ G44EOF
   # even parse is a boot- or lease-time failure no other gate can see, because
   # init and the dhcp hook only ever run on the stick.
   local g35=ok bb35 f35 e35
-  bb35=./busybox; [ -x "$bb35" ] || bb35=$(command -v busybox 2>/dev/null)
+  bb35=./busybox; [ -x "$bb35" ] || bb35=$(type -P busybox 2>/dev/null)
   for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script; do
     e35=$("$bb35" ash -n "$f35" 2>&1) \
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
@@ -2839,6 +2839,44 @@ lint() {
   return 0
 }
 
+ci() {
+  # the checks that need neither the signing key nor a full image build, in one
+  # command a self-hosted runner, a timer, or the pre-push hook can call. the
+  # signed image gates and the qemu self-test are ./build.sh gates and
+  # ./selftest.sh -- those need the key and belong in a manual or tagged tier.
+  # this is the cheap-to-run, expensive-to-inherit half: a script that will not
+  # parse, a shellcheck error, a corpus authoring defect. no network, no root.
+  say "ci -- buildless checks (no key, no image)"
+  local rc=0 f chk bb
+  lint || rc=1
+  # parse every first-party script under the shell its shebang names -- the
+  # same coverage as gates G35/G38/G48, but runnable before anything is built.
+  # type -P, not command -v: build.sh defines a busybox() build function, and
+  # command -v would return THAT (and the parse loop would build busybox instead
+  # of parsing). -P forces a PATH lookup for the real binary.
+  bb=./busybox; [ -x "$bb" ] || bb=$(type -P busybox 2>/dev/null || true)
+  say "parsing every first-party script"
+  for f in build.sh selftest.sh init learn/learn learn/lib/* \
+           overlay/usr/share/udhcpc/default.script githooks/pre-commit githooks/pre-push \
+           learn/install.sh learn/push learn/wrapper \
+           arsenal/*.sh arsenal/arsenal arsenal/xexec; do
+    [ -f "$f" ] || continue
+    case "$(head -1 "$f")" in
+      *bash) chk="bash -n" ;;
+      *)     [ -n "$bb" ] && chk="$bb ash -n" || chk="sh -n" ;;
+    esac
+    $chk "$f" 2>/dev/null || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f" >&2; rc=1; }
+  done
+  [ "$rc" -eq 0 ] && printf '  every script parses\n'
+  # the learn authoring ledger: pure static analysis, no busybox needed. it is
+  # advisory by design (see lib/lint) -- printed so drift shows in the ci log,
+  # never a hard fail, so it cannot breed filler.
+  [ -d learn/ref ] && { say "learn authoring ledger"; LEARN_ROOT="$PWD/learn" ./learn/learn lint 2>&1 || true; }
+  [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
+                  || printf '\033[1;31m  ci: FAILED\033[0m\n'
+  return $rc
+}
+
 # build_all -- the whole pipeline, front to back. a real function (not just a
 # case arm) so other commands (stick_install on a clean tree) can call it too.
 # repro -- the claim, actually tested. G13 compares THIS tree's artifacts to
@@ -2906,7 +2944,7 @@ build_all() {
 
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|repro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|ci|repro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|gates|boot|bootusb|lint|repro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|gates|boot|bootusb|lint|ci|repro|all}"; exit 1 ;;
 esac
