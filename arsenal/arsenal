@@ -14,18 +14,63 @@ T="${XOS_TOOLS:-$HOME/tools}"
 [ -d "$T" ] || T=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)   # run from inside the dir
 CAT="$T/arsenal-catalog"
 LOCK="$T/arsenal.lock"
+PLAY="$T/arsenal-playbook"
 
 desc() {  # one-line description for $1 from the catalog, or a blank
   [ -f "$CAT" ] || { echo ""; return; }
   awk -F'\t' -v n="$1" '$1==n{ $1=""; sub(/^\t/,""); print; found=1 } END{ if(!found) print "" }' "$CAT"
 }
 
-printf '=== xos arsenal ===  run a tool:  ~/tools/xexec <name> [args]\n\n'
+# how a tool is invoked through xexec -- a static binary vs a python tree.
+runform() {
+  case "$1" in
+    impacket) echo "sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/impacket/<tool>.py" ;;
+    sqlmap)   echo "sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/sqlmap/sqlmap.py" ;;
+    python)   echo "sh ~/tools/xexec -t ~/tools/python bin/python3" ;;
+    cc)       echo "sh ~/tools/xexec -t ~/tools/cc cc" ;;
+    *)        echo "sh ~/tools/xexec $1" ;;
+  esac
+}
+
+show_chains() {  # the mission workflows, tools wired end-to-end
+  [ -f "$PLAY" ] || { echo "no playbook at $PLAY -- run arsenal/provision.sh" >&2; return 1; }
+  printf '=== arsenal chains ===  learn one end-to-end, not tool-by-tool\n'
+  awk '
+    /^# ==== TOOLS/ { exit }
+    /^# ==== CHAINS/ { on=1; next }
+    !on { next }
+    /^:/ { line=$0; sub(/^:/,"",line); n=line; sub(/[ \t].*/,"",n)
+           tag=line; sub(/^[^ \t]+[ \t]+/,"",tag)
+           printf "\n-- %s --  %s\n", n, tag; next }
+    /^\t/ { sub(/^\t/,"  "); print }
+  ' "$PLAY"
+  printf '\none tool: sh ~/tools/arsenal <name>\n'
+}
+
+show_tool() {  # one tool's canonical recipes
+  [ -f "$PLAY" ] || { echo "no playbook at $PLAY -- run arsenal/provision.sh" >&2; return 1; }
+  run=$(runform "$1")
+  printf '%s -- %s\n' "$1" "$(desc "$1")"
+  printf 'run:  %s ARGS\n\n' "$run"
+  got=$(awk -F'\t' -v n="$1" '$1==n{ print "  "$2 }' "$PLAY")
+  if [ -n "$got" ]; then printf '%s\n' "$got"
+  else printf '  (no recipe yet -- try  %s -h)\n' "$run"; fi
+}
+
+case "${1:-}" in
+  chains)  show_chains; exit $? ;;
+  "")      ;;                                  # no arg -> the full listing below
+  -h|--help) printf 'usage: arsenal            list every tool\n       arsenal chains     the mission workflows\n       arsenal <tool>     that tool'\''s recipes\n'; exit 0 ;;
+  *)       show_tool "$1"; exit $? ;;
+esac
+
+printf '=== xos arsenal ===  run:  ~/tools/xexec <name> [args]\n'
+printf 'how to use it:  arsenal <name> (recipes)   arsenal chains (workflows)\n\n'
 present=""
 for f in "$T"/*; do
   [ -e "$f" ] || continue
   b=$(basename "$f")
-  case "$b" in arsenal|arsenal.lock|arsenal-catalog|xexec) continue ;; esac
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec) continue ;; esac
   present="$present $b "
   d=$(desc "$b")
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"

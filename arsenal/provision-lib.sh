@@ -9,6 +9,7 @@ populate() {
   # p3 (capability), so the signed image never changes when the arsenal does.
   install -m 0755 "${SELF:-$(dirname "$0")}/arsenal" "$H/tools/arsenal"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-catalog" "$H/tools/arsenal-catalog"
+  install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-playbook" "$H/tools/arsenal-playbook"  # the how-to
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
     for f in "$ARSENAL"/*; do
       b=$(basename "$f")

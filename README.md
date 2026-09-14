@@ -335,7 +335,7 @@ is the post-build attestation, source + sha256:
 | tcpdump | packet capture and inspection on the wire |
 | chisel | tcp/udp tunnel over http -- pivot through a firewall |
 | socat | swiss-army socket relay -- pivot, port-forward, tls-wrap, listen |
-| ligolo | reverse-tunnel pivot -- proxy (operator) + agent (target) |
+| ligolo-proxy / ligolo-agent | reverse-tunnel pivot -- proxy (operator) + agent (target) |
 | hydra | online service login brute-forcer (ssh/http/ftp/...) |
 | john | offline password hash cracker (bleeding-jumbo, cpu-only) |
 | pspy | watch processes/cron without root -- local privesc enumeration |
@@ -363,7 +363,10 @@ is the post-build attestation, source + sha256:
 
 `sh ~/tools/arsenal` lists every carried tool on the stick itself, one line each,
 and cross-checks `arsenal.lock` so an attested-but-missing or present-but-unattested
-binary shows up loud instead of hiding.
+binary shows up loud instead of hiding. `arsenal <tool>` prints that tool's
+canonical recipes and `arsenal chains` the mission workflows (recon, web, crack,
+pivot, ad, forensics, reverse) wired end-to-end -- the offline how-to, in
+`arsenal-playbook`; the base cli it sits on is taught by `learn`.
 
 a lean static cli kit reaches most of a full kali install without the ~600 packages
 and a desktop -- and unlike kali, every byte of it is reproducible and attested:
