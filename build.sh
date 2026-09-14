@@ -1422,21 +1422,27 @@ verity() {
 ' "$(stat -c%s xos.img)" "$rh"
 }
 
-toolchain() {
-  { gcc --version | head -1
-    ld --version | head -1
-    mksquashfs -version 2>&1 | head -1
-    veritysetup --version
-    sha256sum musl-static-pie.specs | awk '{print $1}'
-    # the EFI stub is not built here -- it comes from the host's systemd and
-    # is then wrapped in the signature. two hosts with different systemd
-    # versions produce different signed bytes from identical source, which is
-    # a toolchain difference, so it belongs in the fingerprint rather than in
-    # the pin: G13 then says "toolchain differs" instead of crying wolf.
-    sha256sum "$STUB" 2>/dev/null | awk '{print $1}'
-    umask
-  } | sha256sum | awk '{print $1}'
+# the toolchain identity, line by line. the fingerprint (toolchain(), below) is
+# a hash of exactly this stream, and pin() records these same lines as comments
+# in image.sha256 -- so a stranger reading the pin knows which gcc/binutils/
+# squashfs-tools to install to reproduce the bytes, not just an opaque hash.
+# ONE source of truth for both: change a line here and the fingerprint moves
+# with it. keep the order and format frozen -- the hash is taken over it.
+toolchain_versions() {
+  gcc --version | head -1
+  ld --version | head -1
+  mksquashfs -version 2>&1 | head -1
+  veritysetup --version
+  sha256sum musl-static-pie.specs | awk '{print $1}'
+  # the EFI stub is not built here -- it comes from the host's systemd and
+  # is then wrapped in the signature. two hosts with different systemd
+  # versions produce different signed bytes from identical source, which is
+  # a toolchain difference, so it belongs in the fingerprint rather than in
+  # the pin: G13 then says "toolchain differs" instead of crying wolf.
+  sha256sum "$STUB" 2>/dev/null | awk '{print $1}'
+  umask
 }
+toolchain() { toolchain_versions | sha256sum | awk '{print $1}'; }
 
 pin() {
   say "pinning the bytes this source produces"
@@ -1464,6 +1470,11 @@ pin() {
     # hardening claim the other three rest on. pin it too.
     printf 'kernel    %s\n'   "$(sha256sum < bzImage | awk '{print $1}')"
     printf 'toolchain %s\n'   "$(toolchain)"
+    # the fingerprint above is opaque; these comment lines say what it is, so a
+    # stranger can install the same toolchain and rebuild the exact bytes. read
+    # by nothing (the parsers key on the first word), there for a human.
+    echo "# toolchain this pin was taken with -- install these to reproduce:"
+    toolchain_versions | sed 's/^/#   /'
   } > image.sha256
   cat image.sha256
 }
