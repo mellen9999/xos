@@ -38,6 +38,9 @@ if [ -f "$LOCK" ]; then
   miss=""
   while read -r name _rest; do
     case "$name" in ''|'#'*) continue ;; esac
+    # file's magic db rides beside file but installs to $HOME/.magic.mgc (where
+    # libmagic auto-discovers it), not into tools/, so check it there.
+    [ "$name" = file.mgc ] && { [ -f "$(dirname "$T")/.magic.mgc" ] || miss="$miss $name"; continue; }
     case "$present" in *" $name "*) ;; *) miss="$miss $name" ;; esac
   done < "$LOCK"
   [ -n "$miss" ] && printf '\n  ! attested in arsenal.lock but MISSING here:%s\n' "$miss"

@@ -16,6 +16,10 @@ populate() {
         install -m 0644 "$f" "$H/tools/arsenal.lock"     # the attestation travels
         continue
       fi
+      if [ "$b" = file.mgc ]; then
+        install -m 0644 "$f" "$H/.magic.mgc"             # libmagic auto-discovers $HOME/.magic.mgc
+        continue
+      fi
       if [ -d "$f" ]; then
         rm -rf "$H/tools/$b"; cp -a "$f" "$H/tools/$b"   # a tree: python/, sqlmap/
       else

@@ -33,3 +33,4 @@ strace	trace a binary's syscalls -- files, connections, why it exits
 testdisk	rebuild a lost or corrupt partition table and its boot sectors
 photorec	carve files back off a formatted or damaged filesystem by signature
 smartctl	read a drive's SMART health -- is it dying before you trust or wipe it
+file	identify an unknown blob by content -- where strings only shows text

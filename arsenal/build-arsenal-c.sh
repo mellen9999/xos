@@ -10,10 +10,12 @@
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
 # regen, or by hand). builds masscan + tcpdump + socat + nmap + links + mutool +
 # frotz + whois + hydra + john + jq + rg + zstd + ddrescue + strace + testdisk +
-# photorec + smartctl, all static (rg is static-PIE, see its block; nmap is C++,
-# its block documents the static-musl fix). the last six are the recovery/
-# forensics/triage flank: read a .zst, image a dying disk, trace a binary,
-# rebuild a partition table, carve files back, read a drive's SMART health.
+# photorec + smartctl + file, all static (rg is static-PIE, see its block; nmap
+# is C++, its block documents the static-musl fix). the last seven are the
+# recovery/forensics/triage flank: read a .zst, image a dying disk, trace a
+# binary, rebuild a partition table, carve files back, read a drive's SMART
+# health, identify an unknown blob. `file` also emits file.mgc (its magic db),
+# which provision drops at $HOME/.magic.mgc for libmagic to auto-discover.
 # NOTE: masscan + tcpdump + nmap embed a build-id, so their arsenal.lock sha
 # drifts per build (size is stable) -- a point-in-time attestation. links + mutool are
 # bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
@@ -348,6 +350,27 @@ clone_pinned() {
   strip smartctl
   cp smartctl /out/smartctl ) || log "smartctl FAILED"
 
+# file 5.46 -- identify an unknown blob by content: the one forensics staple the
+# arsenal lacked, where strings only shows text. ships two artifacts: the static
+# binary and its compiled magic database (file.mgc, ~10MB). provision drops the
+# db at $HOME/.magic.mgc, which libmagic auto-discovers with no env or wrapper --
+# verified. decompression (zlib/bz2/xz/zstd) is off so the static link stays lean:
+# file names the outer type, and the carried zstd/gunzip/xz open it to re-file.
+# NOTE: file uses libtool, which drops a plain -static, so the executable link
+# needs -all-static (libtool's own flag) to come out static.
+( set -e; log file
+  mkdir -p /s && fetch file /s/file.tgz && tar xz -C /s -f /s/file.tgz
+  cd /s/file-5.46
+  ./configure --disable-shared --enable-static --disable-libseccomp \
+    --disable-zlib --disable-bzlib --disable-xzlib --disable-zstdlib --disable-lzlib \
+    CFLAGS="-O2" >/s/file.log 2>&1
+  make -j"$(nproc)" LDFLAGS="-all-static" >>/s/file.log 2>&1
+  file src/file | grep -q "statically linked" || { echo "not static"; file src/file; tail -8 /s/file.log; exit 1; }
+  MAGIC=magic/magic.mgc ./src/file src/file | grep -q ELF || { echo "magic db not working"; exit 1; }
+  strip src/file
+  cp src/file /out/file
+  cp magic/magic.mgc /out/file.mgc ) || log "file FAILED"
+
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
 # (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final
 # `gdb` executable links dynamic-PIE against ld-musl even with LDFLAGS="-static
@@ -380,7 +403,7 @@ clone_pinned() {
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to

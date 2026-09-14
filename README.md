@@ -351,6 +351,7 @@ is the post-build attestation, source + sha256:
 | testdisk | rebuild a lost or corrupt partition table and its boot sectors |
 | photorec | carve files back off a formatted or damaged filesystem by signature |
 | smartctl | a drive's SMART health -- is it dying before you trust or wipe it |
+| file | identify an unknown blob by content -- where strings only shows text |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
@@ -373,7 +374,7 @@ and a desktop -- and unlike kali, every byte of it is reproducible and attested:
 | pivot / tunnel | chisel, socat | chisel socat ligolo (musl+go) |
 | brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
 | disk recovery | ddrescue, testdisk | ddrescue testdisk photorec smartctl (musl) |
-| reversing | radare2, gdb | strace (musl); gdb/radare2 not built; strings + python cover the rest |
+| reversing | radare2, gdb | strace file (musl); gdb/radare2 not built; strings + python cover the rest |
 | exploit framework | metasploit | out (ruby+db) -- carried python covers it |
 | python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
 | wireless | aircrack, wifite | out -- no wifi drivers, by design |

@@ -32,3 +32,5 @@ strace      strace@6.13(musl-static)  1423440  25764b26f9582abdc66603dd8c2873f0d
 testdisk    testdisk@7.2(musl-static)  955864  173891be895cc1550c47cc23dbb71ab778f28700c868bd73c91a701b6599a08f
 photorec    testdisk@7.2(musl-static)  1039544  9ca24deb4e927a4b710c19145a42d220b9643ab18e21a5d5a993bff22096ec0b
 smartctl    smartmontools@7.4(musl-static)  1937448  1815699f40c9aaa5f54e9d3bd7ff70789105cbda3c7acea4c7fc2a169b99cf1b
+file        file@5.46(musl-static)  285360  37930cc801ca1cfadf0836e030a5de4c77890dda816a4d43e1745e4f649c5717
+file.mgc    file@5.46(magic-db)  10355472  d8f9ea8a75992831593c3ae417435fbc89d444b0bb80e9c8d638675c8bc09b88
