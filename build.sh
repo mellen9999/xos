@@ -1567,13 +1567,14 @@ TODO: write this entry by hand.
 #   G46 every carried patch is in the tree, and its effect is in the binary
 #   G47 every arsenal source is pinned before build, no fetch bypasses it
 #   G48 the remaining first-party scripts parse (the commit hook, arsenal)
+#   G49 the install entry point writes only through the guarded disk paths
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0 skipped=0
-  local EXPECTED_GATES=46   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=47   # roster above, minus G8/G9 (checked elsewhere)
   # a gate is ok, FAIL, or SKIP. SKIP is for a check that cannot run here and
   # whose result would be meaningless if forced -- G13 on a foreign toolchain.
   # it is counted (so the truncation guard still holds) and reported, but it
@@ -1975,6 +1976,31 @@ G44EOF
     done
   done
   g "G39 destructive disk paths share one guard" "$g39"
+
+  # G49 -- stick_install() is the command a user actually runs (./build.sh
+  # install), yet no test can call it: it demands a real removable disk. so
+  # nothing watched what it does, and what it does is decide where the bytes
+  # go. it must never grow a raw write of its own -- every byte reaches the
+  # disk through usb() or addstate(), the two paths G39 proves are guarded by
+  # guard_removable + confirm_model. a dd or sfdisk inlined here would write
+  # around both guards, past the model confirmation, onto whatever /dev the
+  # detection picked. so: it calls the guarded delegates, and holds no
+  # block-write primitive itself.
+  local g49=ok body49
+  body49=$(sed -n '/^stick_install() {/,/^}/p' build.sh)
+  if [ -z "$body49" ]; then
+    g49=FAIL; printf '    stick_install() not found\n' >&2
+  else
+    for need49 in detect_removable 'usb "' 'addstate "'; do
+      printf '%s' "$body49" | has "$need49" \
+        || { g49=FAIL; printf '    stick_install no longer calls %s\n' "$need49" >&2; }
+    done
+    # a raw write here bypasses usb()/addstate() and their guards entirely.
+    printf '%s' "$body49" | grep -nE '(^|[^[:alnum:]_])(dd|sfdisk|wipefs|mkfs\.[a-z0-9]+|blockdev|partprobe)[[:space:]]|luksFormat|of=/dev|>[[:space:]]*"?/dev/' \
+      | grep -v '#' >&2 \
+      && { g49=FAIL; printf '    stick_install writes a raw device directly -- must go through usb()/addstate()\n' >&2; }
+  fi
+  g "G49 install writes only through the guarded paths" "$g49"
 
   # G40 -- the respawn backoff, run for real. it is written once now, but the
   # dropbear copy it replaced was never reached by any boot, healthy or not, so
