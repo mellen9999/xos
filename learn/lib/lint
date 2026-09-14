@@ -173,7 +173,8 @@ lint() {
 			# question teaches; it counts as graded and asserts nothing.
 			# state:/cmp:/status: make a block strong whatever its out: says.
 			if (weak && !strong && k != "chain") { nweak++; fw2[bf]++ }
-			for (t in atok) if (!(t in qtok) && !inevery(t, q)) { nounnamed++; fu[bf]++; break }
+			for (t in atok) if (!(t in qtok) && !inevery(t, q)) { nounnamed++; fu[bf]++;
+				if (verbose == "-vv") printf "  %s: token %s\n    %s\n", bf, t, q > "/dev/stderr"; break }
 			# same idea one level down: a literal the answer types that the
 			# prompt, its setup and its hint never name is not merely vague,
 			# it is unanswerable. a conceptual block is exempt -- there the

@@ -106,7 +106,7 @@ ref: grep
 teach: grep -B
 hint: B for before, followed by the count
 ---
-q: %show% 2 lines of context around each @sev@ match, with grep
+q: %show% @sev@ in @log@ plus 2 lines of context, with grep
 a: grep -C 2 @sev@ @log@
 out: @sev@
 ref: grep
