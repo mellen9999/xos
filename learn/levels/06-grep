@@ -154,6 +154,7 @@ hint: the pipe inside the pattern means OR; -E is what lets you write it unescap
 q: {grep @log@ for @sev@ quietly -- just an exit status|grep @sev@ in @log@ silently, via exit status|grep @log@ for @sev@ without printing anything}
 a: grep -q @sev@ @log@
 status: 0
+cmp: ref
 ref: grep
 teach: grep -q
 hint: this is the form you use inside an if

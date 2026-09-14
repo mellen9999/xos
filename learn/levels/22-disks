@@ -463,6 +463,7 @@ hint: mountpoint says whether a path is where a filesystem is attached
 q: quietly confirm /proc is a mountpoint with mountpoint, exit status only
 a: mountpoint -q /proc
 status: 0
+cmp: ref
 ref: mountpoint
 teach: mountpoint -q
 hint: -q prints nothing and answers in the exit status -- zero when it is a mount

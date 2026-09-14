@@ -11,6 +11,7 @@ brief: reports, it read out of a file in there, and so can you.
 q: {you just booted this stick -- get everything uname knows, in one line|dump every field uname knows about, on one line|report the full uname summary in a single line}
 a: uname -a
 out: Linux
+cmp: ref
 ref: uname
 teach: uname -a
 hint: -a strings together everything uname knows into one line
@@ -25,6 +26,7 @@ hint: -r isolates just the kernel release/version number
 q: {the machine's hardware architecture|what hardware architecture is this machine|report this machine's cpu architecture}, with uname
 a: uname -m
 out: x86_64|[a-z0-9_]+
+cmp: ref
 ref: uname
 teach: uname -m
 hint: -m reports the cpu architecture uname was built for
@@ -172,6 +174,7 @@ hint: tty with no arguments prints the path of your controlling terminal
 q: {test whether this is a terminal at all, silently|silently check whether this session is attached to a terminal|find out, with no output, whether stdin is a terminal}, with tty
 a: tty -s
 status: 1
+cmp: ref
 ref: tty
 teach: tty -s
 hint: -s suppresses output, useful only for its exit status
