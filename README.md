@@ -215,6 +215,85 @@ the one attack surface this knowingly accepts: the usb-net drivers (rndis,
 cdc-ether) that make tethering work parse whatever a plugged-in device claims
 to be. reachable only by physically plugging something in.
 
+## when it refuses
+
+every alarm below is a designed refusal, not a malfunction. the rule is the
+same throughout: xos fails loud and stops rather than continuing quietly, so a
+message here means the check worked. what to do, in order of how alarming it is.
+
+**the machine panics with `dm-verity device corrupted`.** a verity-covered byte
+did not match the signed root hash -- the root filesystem was altered, or the
+medium is failing. it is never safe to boot this stick again as-is. reflash from
+source on a machine you trust (`./build.sh install /dev/sdX`); your p3 survives a
+reflash. if a fresh flash still panics, the flash medium is dying -- replace it.
+run `scrub` on a stick you suspect to read every covered byte on demand rather
+than waiting to hit the bad one.
+
+**the banner speaks the wrong fingerprint words.** the four words are derived
+from the root hash; different words mean a different or superseded image, no
+words at all mean a tampered one that will not verify. do not unlock p3 on it.
+compare against the words you wrote down; if they are wrong, this is not your
+current stick -- set it aside and boot the one whose words match.
+
+**`recon: MACHINE ... CHANGED since your last visit`.** the dmi/pci/usb/cpu
+inventory differs from the last time you unlocked on this machine -- new
+hardware, a firmware change, or a different host wearing the same identity. read
+the `gone:`/`new:` diff. if you expected it (you moved to a new machine, added a
+dongle), run `recon_accept` at the shell to make the current inventory the
+baseline. if you did not expect it, treat the host as suspect and do not unlock
+p3 -- the alarm repeats every boot until accepted, so it never clears itself.
+
+**the boot ledger reads lower than you left it** (`boot 44` when you left 47).
+p3 was rolled back to an older snapshot -- someone restored a previous state
+partition, which erases whatever you did since. the current bytes are kept
+beside the count, not overwritten. assume the p3 contents are not what you left;
+anything written since the rolled-back boot is gone.
+
+**the stick powers the machine off within seconds of unplugging.** the dead-man
+switch, working as designed -- the boot device left the usb bus. plug it back in
+and boot again. to run without it (a machine that renumbers usb under load),
+boot with `xos.notether`.
+
+**LUKS unlock keeps saying the passphrase is wrong.** three tries, then it gives
+up. the passphrase is only ever what you set at `addstate` time -- there is no
+recovery and no backdoor by design. if it is genuinely lost, the state is
+unrecoverable; reflash and `addstate` a fresh p3. check you are unlocking the
+boot stick and not another encrypted disk that happens to be attached (init
+prefers the boot stick, but names what it found).
+
+**wireguard/ssh never come up after unlock.** they start only when p3 holds
+`wg0.conf` and an `authorized_keys` (or a baked-in key); a missing or malformed
+`wg0.conf` is silent by design (an attacker holding the stick must not learn the
+tunnel exists). check the two files at the root of p3 (`/tmp/home`), then re-unlock.
+auth attempts land in `/tmp/ssh.log` (tmpfs, gone at reboot).
+
+**a build gate prints `FAIL` / `GATES FAILED`.** the message names the gate and
+the mismatch; nothing was flashed. common ones: `G13 ... image matches committed
+digest FAIL` after an intentional change means the pin is stale -- `./build.sh
+pin` if this build is the one you meant. `G13 reproducible (needs the pinned
+toolchain) SKIP` (yellow, not a failure) means this gcc/systemd is not the one
+the pin was taken with, so reproducibility could not be checked here.
+
+**the self-test prints `RESTORE FAILED -- the tree may still hold a TEST
+uki/stick`.** a `selftest.sh` run was interrupted before it put the production
+artifacts back, leaving test-flavoured signed images in the tree. rebuild before
+shipping anything: `./build.sh unlock && ./build.sh verity && ./build.sh uki &&
+./build.sh stick && ./build.sh lock`. G31 refuses a production cmdline carrying a
+test flag, so a real build catches it too.
+
+**`./build.sh repro` says `NOT REPRODUCIBLE`.** a clean clone of HEAD built
+different bytes than `image.sha256` on the *same* toolchain -- source and pin
+disagree. if you changed the source, re-pin; if you did not, something in the
+tree is not what was committed. `unverified` (yellow) instead means the toolchain
+differs and nothing was checked -- rebuild on the pinned toolchain to get a real
+answer.
+
+**the arsenal build refuses a source** (`sha256 mismatch` / `commit ... not
+checked out`). a pinned tarball or repo no longer matches `arsenal/arsenal.pins`
+-- upstream moved a tag, replaced a tarball, or the download was tampered. do not
+loosen the pin to make it build. confirm the new artifact is legitimate, then
+update the pin in `arsenal/arsenal.pins` in a visible diff.
+
 ## the parts
 
 anchors and the case for each part are in `SOURCES.md`.
