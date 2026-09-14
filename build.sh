@@ -2725,7 +2725,18 @@ SFDISK
   [ -b "$p3" ] || { echo "FAIL: p3 did not appear as ${dev}3 or ${dev}p3" >&2; return 1; }
 
   echo "  formatting p3 as LUKS2 with hmac-sha256 integrity -- you will be asked for a passphrase"
-  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 --label XOS-STATE "$p3" || return 1
+  # pin the KDF explicitly instead of taking cryptsetup's adaptive default. two
+  # reasons, both about a stick formatted here but unlocked elsewhere:
+  #   portability -- the adaptive default sizes argon2 to THIS host's RAM (up to
+  #     a few GiB on the build box). a stick formatted that way needs that much
+  #     free at unlock, so it can silently fail to open on smaller field
+  #     hardware. 512 MiB is unlockable on anything that boots xos (which runs
+  #     from RAM) and is still ~8x the OWASP argon2id floor.
+  #   downgrade-proofing -- if a future cryptsetup weakens its default, this
+  #     line does not move with it. argon2id/512MiB/4-lane, recorded here.
+  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 \
+    --pbkdf argon2id --pbkdf-memory 524288 --pbkdf-parallel 4 \
+    --label XOS-STATE "$p3" || return 1
   cryptsetup open "$p3" xosstate_setup || return 1
   make_ext4 /dev/mapper/xosstate_setup || { cryptsetup close xosstate_setup; return 1; }
   cryptsetup close xosstate_setup
