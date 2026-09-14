@@ -45,8 +45,10 @@ naming these is the point -- it's what keeps the effort honest.
 - **rubber-hose / coercion.** there is no deniability layer and no hidden volume
   by design. a passphrase you can be forced to give up isn't a defense we pretend
   to offer.
-- **the usb-net parsers (rndis, cdc-ether).** knowingly accepted attack surface,
-  reachable only by physically plugging a device in. documented, not defended.
+- **the usb-net parsers (rndis, cdc-ether) and usb-serial parsers (ftdi, cp210x,
+  ch341, pl2303, cdc-acm).** knowingly accepted attack surface, reachable only by
+  physically plugging a device in, and none can bind a disk. documented, not
+  defended.
 - **hardware implants / evil-maid firmware below our chain.** recon catches a
   *changed* host; it can't vouch for one that was hostile from the factory.
 

@@ -1436,8 +1436,11 @@ verity() {
   # boot-and-limp). page_alloc.shuffle=1 activates SHUFFLE_PAGE_ALLOCATOR. the
   # rest of the hardening is compiled in (lockdown, kstack offset, slab), which
   # is stronger than a cmdline flag -- there is no runtime knob left to flip.
+  # console=ttyS0,19200: a hardware serial terminal (a vt320 on a com port) tops
+  # out at 19200 baud and receives garbage above it, so the early-boot kernel
+  # console speaks at a rate it can render. init sets usb-serial lines to match.
   local dev="PARTUUID=$PU_ROOT"
-  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 xos.epoch=%s console=tty0 console=ttyS0,115200%s\n' \
+  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 xos.epoch=%s console=tty0 console=ttyS0,19200%s\n' \
     "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$SOURCE_DATE_EPOCH" "$testflag" > cmdline.txt
 
   printf '  xos.img: %d bytes  root hash: %s

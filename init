@@ -172,6 +172,13 @@ export XDG_DATA_HOME=/tmp/home/.local/share
 export XDG_CONFIG_HOME=/tmp/home/.config
 export XDG_STATE_HOME=/tmp/home/.local/state
 export TERM=linux
+# a serial terminal (a vt320 over a usb-serial dongle or a com port) is not a
+# linux console: it wants TERM=vt320 and a line rate it can keep up with. these
+# drive the serial consoles set up further down; the fbcon terminals stay
+# TERM=linux. both are overridable on the signed cmdline for other hardware --
+# xos.term=vt220, xos.baud=9600 -- and default to a real vt320's own limits.
+SERIAL_TERM=$(cmdline_get xos.term); SERIAL_TERM=${SERIAL_TERM:-vt320}
+SERIAL_BAUD=$(cmdline_get xos.baud); SERIAL_BAUD=${SERIAL_BAUD:-19200}
 # ENV points every interactive ash at an rc file. that is how vi editing
 # becomes the DEFAULT -- you never type `set -o vi`; the shell is already in it.
 export ENV=/etc/shrc
@@ -960,6 +967,17 @@ console_loop() {
 	# power off before the console is ever set up. the console-health probe
 	# below now exercises this path.
 	_dev=$1; _fail=0
+	# the terminal type follows the device: a serial line reaches a real vt320,
+	# a virtual terminal is the linux fbcon. /dev/console is whichever the kernel
+	# made primary -- read the last name in its active list to tell which.
+	case "$_dev" in
+		/dev/tty[0-9]*) _term=linux ;;
+		/dev/ttyS*|/dev/ttyUSB*|/dev/ttyACM*) _term=$SERIAL_TERM ;;
+		/dev/console)
+			_ca=$(cat /sys/class/tty/console/active 2>/dev/null); _ca=${_ca##* }
+			case "$_ca" in ttyS*|ttyUSB*|ttyACM*) _term=$SERIAL_TERM ;; *) _term=linux ;; esac ;;
+		*) _term=$SERIAL_TERM ;;
+	esac
 	# health beacon (bounded -- single line, overwritten): proves this loop is
 	# running with a real device, which the empty-$_dev bug made impossible.
 	[ -n "$_dev" ] && printf '%s\n' "$_dev" >> /tmp/console.up 2>/dev/null
@@ -972,7 +990,7 @@ console_loop() {
 		# status here is the SHELL's, and `exit 1` used to hand the operator a
 		# second shell with no controlling terminal -- the exact regression
 		# above. cttyhack is manifest-gated; a missing applet is a build failure.
-		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
+		TERM=$_term setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
 		# a console nothing is attached to returns EOF instantly and would
 		# respawn forever. this machine may be passive-cooled; back off instead.
 		respawn_wait "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))"
@@ -1000,6 +1018,23 @@ fi
 # the serial/primary console gets a supervised session too, so losing the line
 # no longer takes PID 1 down with it.
 console_loop /dev/console &
+
+# serial terminals -- a usb-serial adapter (ttyUSB*, ttyACM*) reaching a real
+# terminal like a vt320. these enumerate on xhci during boot and are never the
+# kernel console, so init lines them itself: the vt baud, 8N1, no hardware flow
+# control, xon/xoff so the terminal can pause a fast scroll, and a fixed 80x24
+# because a serial line reports no window size. plug the adapter in before boot.
+# the device backing /dev/console is already supervised above -- don't drive it
+# twice.
+_conreal=$(cat /sys/class/tty/console/active 2>/dev/null); _conreal=${_conreal##* }
+for _s in /dev/ttyUSB* /dev/ttyACM*; do
+	[ -c "$_s" ] || continue
+	[ "${_s#/dev/}" = "$_conreal" ] && continue
+	stty -F "$_s" "$SERIAL_BAUD" cs8 -parenb -cstopb -crtscts ixon ixoff \
+		rows 24 cols 80 2>/dev/null
+	console_loop "$_s" &
+	spawned=$((spawned + 1))
+done
 
 if cmdline_has xos.test; then
 	# the console loops set a health beacon when they start with a real device.

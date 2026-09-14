@@ -107,6 +107,25 @@ wireguard roams, so a changed ip resumes rather than resets, and abduco keeps th
 session alive: ssh back in, `abduco -a work`, into what was running.
 `dropbearkey`, `dbclient` and `wg` ship for driving it by hand.
 
+## serial terminal
+
+xos drives a real hardware terminal -- a vt320 on the desk -- as a first-class
+console. plug it into a com port, or into a usb-serial adapter (ftdi, cp210x,
+ch341, pl2303, or a cdc-acm device); both enumerate without a firmware blob.
+
+each serial line gets its own supervised login shell at **19200 8N1, xon/xoff,
+80x24, `TERM=vt320`** -- a vt320's own limits, and the rate it can render (above
+19200 it receives garbage). the kernel's early-boot console speaks 19200 too, so
+a com-wired terminal is legible from the first message, not just once init runs.
+the fbcon virtual terminals stay `TERM=linux`; only the serial lines are vt320.
+
+the usb adapter enumerates during boot, so **plug it in before booting**. two
+signed-cmdline knobs cover other hardware: `xos.term=vt220`, `xos.baud=9600`.
+
+nothing on screen is utf-8: the banner and `learn` degrade to ascii on a terminal
+that reports no utf-8, so box-drawing and colour never reach a glass that can't
+render them.
+
 ## secure boot
 
 `./build.sh all` generates a platform key (PK), key-exchange key (KEK) and
@@ -219,8 +238,10 @@ the set rides the hash tree.
   panics on the spot, a clean pass means every byte still matches
 
 the one attack surface this knowingly accepts: the usb-net drivers (rndis,
-cdc-ether) that make tethering work parse whatever a plugged-in device claims to
-be. reachable only by physically plugging something in.
+cdc-ether) that make tethering work, and the usb-serial drivers (ftdi, cp210x,
+ch341, pl2303, cdc-acm) that reach a hardware terminal, parse whatever a
+plugged-in device claims to be. reachable only by physically plugging something
+in, and none of them can bind a disk.
 
 ## when it refuses
 
