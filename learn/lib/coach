@@ -99,6 +99,8 @@ coach_miss() {
 	# (grade's tier 2 requires it) -- a real diagnosis, not a guess.
 	case "${Q_REF:-}" in
 		''|sh|ash) ;;
+		'['|test) printf '%s\n' "$_ci" | answer_cmds | grep -qxE '\[|test' \
+			|| _c_row wants "a test -- [ ] or test" ;;
 		*) printf '%s\n' "$_ci" | answer_cmds | grep -qxF -- "$Q_REF" \
 			|| _c_row wants "to run $Q_REF" ;;
 	esac

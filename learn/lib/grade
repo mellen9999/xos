@@ -294,6 +294,11 @@ correct() {
 	# `wc -l f`, `wc -l < f`, `cat f | wc -l` all use wc. grammar questions
 	# (Q_REF is the shell itself) have no single command to require, so they
 	# fall back to their listed forms.
+	#
+	# the demand is paid for on the card: selftest's unnamed_cmd gate (lib/lint)
+	# fails the build unless the prompt or its setup names this command, so a
+	# rejected route is always the learner reaching for another tool, never a
+	# requirement they had no way to read.
 	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || [ -n "${Q_STATUS:-}" ] \
 		|| [ "${Q_CMP:-}" = ref ] || return 1
 	# build the tree if this process has not yet. this used to test a flag
@@ -304,6 +309,10 @@ correct() {
 	printf '%s\n' "$1" | unsafe && return 1
 	case "${Q_REF:-}" in
 		''|sh|ash) : ;;   # grammar/builtin question: no one command to demand
+		# [ and test are one builtin under two spellings, and a prompt cannot
+		# name a bracket the way it names a command -- so a card demanding
+		# either accepts either, and the choice is never a trap.
+		'['|test)  printf '%s\n' "$1" | answer_cmds | grep -qxE '\[|test' || return 1 ;;
 		*) printf '%s\n' "$1" | answer_cmds | grep -qxF -- "$Q_REF" || return 1 ;;
 	esac
 

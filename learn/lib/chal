@@ -4,8 +4,11 @@
 # whole curriculum, in the order the levels taught them, getting harder as it
 # goes. thirty seconds a stage, one life, no hints, no reference. grading is
 # always by reference -- the chain's own answer runs against the same seeded
-# tree, and yours must print exactly what it printed -- so ANY correct
-# pipeline passes, and nothing else does.
+# tree, and yours must print exactly what it printed -- so any pipeline that
+# runs the stage's ref: command and prints those bytes passes, and nothing
+# else does. the stage names that command in its prompt, like every other
+# card: under a clock, with no reference to open, guessing which tool was
+# meant is the one thing that cannot be part of the test.
 #
 # the shape is enforced, not intended: `learn challenge check` runs at build
 # time (G29) and fails if the track is short, a stage is not a chain, the

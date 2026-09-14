@@ -7,6 +7,12 @@
 # format:  %name% = one | two | three
 # keep members boringly interchangeable; cleverness that fits one sentence only
 # belongs inline as {a|b|c} in that one question.
+#
+# a macro carries the INTENT, never the tool: %show% can render print, show,
+# display or output, so it can never be what tells a learner the card wants
+# echo. naming the command is the card's own job -- selftest's unnamed_cmd
+# gate blanks every macro span before it looks, so a member that happens to
+# spell a command (find, in %find%) counts for nothing.
 
 # --- put something on the screen ---
 # "write out" and "print out" are gone on purpose: they mean writing to a file
