@@ -959,6 +959,39 @@ coverage() {
 # the last one is the expensive check and the one that catches content bugs no
 # amount of reading finds: a question teaching a flag this build compiled out.
 
+# drop_flag FLAG -- the answer on stdin with FLAG removed, still runnable.
+# used only by the necessity check below: prove a graded card rejects its own
+# answer once the flag it teaches is gone. bundle- and value-aware through
+# flagnorm -- a value flag leaves with its value, a bundle loses just its
+# letter -- so `ls -lh` minus -h is `ls -l`, `cut -d, -f1` minus -d is
+# `cut -f1`. a long flag (--spider) is a whole token and drops whole. all the
+# letters of a multi-letter teach token (-rn) go, since that is what the card
+# claims to teach.
+drop_flag() {
+	case "$1" in
+		--*) sed "s/\(^\| \)$1\([ =]\|\$\)/\1\2/g" | tr -s ' ' | sed 's/^ //; s/ $//' ;;
+		*)   flagnorm | awk -v fs="${1#-}" '{
+			n = split($0, t, " "); out = ""
+			for (i = 1; i <= n; i++) {
+				if (substr(t[i], 1, 1) == "-" && index(fs, substr(t[i], 2, 1)) > 0) continue
+				out = (out == "" ? t[i] : out " " t[i])
+			}
+			print out
+		}' | tr '\001' ' ' | tr -s ' ' | sed 's/^ //; s/ $//' ;;
+	esac
+}
+
+# _answer_listed KEY -- is KEY the flagnorm of one of this card's listed
+# answers? a degraded answer that lands on a listed alternative was accepted
+# on purpose (tier 1), never a leak.
+_answer_listed() {
+	printf '%s\n' "$Q_ANSWERS" | while IFS= read -r _la; do
+		[ -n "$_la" ] || continue
+		[ "$(printf '%s\n' "$_la" | norm | flagnorm)" = "$1" ] && exit 9
+	done
+	[ $? -eq 9 ]
+}
+
 # uses_flag FLAG -- does an answer on stdin actually use this flag?
 # short flags bundle: `sort -rn` uses -n without ever containing the two
 # characters "-n". long flags and word flags (-maxdepth, --spider) do not
@@ -1232,6 +1265,48 @@ st_block() {
 		if [ -s "$TMP/cr.$$" ]; then cat "$TMP/cr.$$" >&2; bad=$((bad + $(grep -c . "$TMP/cr.$$"))); fi
 		rm -f "$TMP/cr.$$"
 	fi
+}
+
+# necessity -- the deep audit selftest deliberately does NOT gate. for every
+# graded card, drop the flag the card teaches and re-grade its own answer: if
+# the card still says correct, out:/state:/status: never captured what the flag
+# does, so an answer missing the very flag the card exists to teach passes
+# anyway. that is the `ls -l` slipping past `out: ^total` bug, asked corpus-wide.
+#
+# advisory by nature, never a gate: some taught flags have no observable effect
+# for a grader to hold onto -- a quiet -q, a force -f with nothing to overwrite,
+# a preserve -p, a -1 that only matters to a tty. a hard gate would force those
+# cards to grow gamey fixtures to satisfy it, the exact filler lib/lint refuses
+# to breed. so this prints a report to read after touching a graded card, not a
+# pass/fail. cmp: ref cards are exempt (full-output compare makes every
+# output-changing flag load-bearing already); ungraded cards are exempt (they
+# accept only the spellings listed). run it under a busybox PATH + LEARN_SH so a
+# host run mirrors the image the answers really execute on.
+necessity() {
+	local id nq i lbl _cA _dg
+	sandbox_build || die "cannot build sandbox at $SANDBOX"
+	for id in $(level_ids); do
+		nq=$(level_nq "$id"); i=1
+		while [ "$i" -le "$nq" ]; do
+			if q_load "$id" "$i" \
+			   && grep -qE '^(out|state|status):' "$TMP/blk" \
+			   && [ "${Q_CMP:-}" != ref ]; then
+				lbl="$id/$i"
+				sed -n 's/^teach: \{0,1\}//p' "$TMP/blk" | while read -r tcmd tflags; do
+					[ -n "$tcmd" ] || continue
+					for flag in $tflags; do
+						_cA=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+						_dg=$(printf '%s\n' "$_cA" | drop_flag "$flag")
+						[ -n "$_dg" ] && [ "$_dg" != "$_cA" ] || continue
+						_answer_listed "$(printf '%s\n' "$_dg" | norm | flagnorm)" && continue
+						printf '%s\n' "$_dg" | unsafe && continue
+						correct "$_dg" && printf '%s\t%s %s\taccepts: %s\n' "$lbl" "$tcmd" "$flag" "$_dg"
+					done
+				done
+			fi
+			i=$((i + 1))
+		done
+	done
 }
 
 selftest() {
@@ -1837,6 +1912,7 @@ case "${1:-}" in
 	list)     surface ;;
 	stats)    stats ;;
 	selftest) selftest ;;
+	necessity) necessity ;;
 	daily)    daily; session_summary ;;
 	place)    place; session_summary ;;
 	lint)     shift; lint "${1:-}" ;;
