@@ -36,14 +36,14 @@ hint: c creates a new archive; f names the file to write it to
 ---
 q: %make% a gzip-compressed bundle.tar.gz containing @dir@, with tar
 a: tar -czf bundle.tar.gz @dir@
-state: exists:bundle.tar.gz
+state: gz:bundle.tar.gz
 ref: tar
 teach: tar -z
 hint: z pipes the archive through gzip as it's written
 ---
 q: %make% a bzip2-compressed bundle.tar.bz2 containing @dir@, with tar
 a: tar -cjf bundle.tar.bz2 @dir@
-state: exists:bundle.tar.bz2
+state: bz:bundle.tar.bz2
 ref: tar
 teach: tar -j
 hint: j pipes the archive through bzip2 instead of gzip
@@ -192,7 +192,7 @@ hint: -9 is the tightest compression level; -1 is the fastest
 ---
 q: {compress @txt@ with bzip2 into out.bz2, @txt@ untouched|send @txt@'s bytes, compressed with bzip2, to out.bz2, unchanged|bzip2 @txt@ down to out.bz2, keeping the source file as is}
 a: bzip2 -c @txt@ > out.bz2
-state: exists:out.bz2
+state: exists:@txt@
 ref: bzip2
 teach: bzip2 -c
 hint: -c writes the compressed bytes to stdout instead of replacing the file

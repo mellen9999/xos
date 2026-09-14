@@ -250,10 +250,12 @@ run_answer() {
 
 # check_state SPEC -- did the answer leave the tree in the right shape?
 # `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
-# point. five forms, which between them cover every mutating command xos has:
+# point. seven forms, which between them cover every mutating command xos has:
 #   exists:PATH        the path is there afterwards
 #   gone:PATH          the path is not
 #   link:PATH          the path is there and is a symbolic link
+#   gz:PATH            the path is there and is valid gzip data
+#   bz:PATH            the path is there and is valid bzip2 data
 #   match:PATH:ERE     the path is there and its contents match
 #   mode:PATH:OCTAL    the path is there and carries exactly these bits
 check_state() {
@@ -263,6 +265,10 @@ check_state() {
 		# a symlink specifically -- exists: cannot tell `ln -s` from a hard link,
 		# since both leave a name that -e finds
 		link:*)   [ -L "$SANDBOX/${1#link:}" ] ;;
+		# actually gzip/bzip2 compressed, not just present under that name --
+		# exists: cannot tell `tar -czf x.tgz` from a plain `tar -cf x.tgz`
+		gz:*)     gzip  -t "$SANDBOX/${1#gz:}" 2>/dev/null ;;
+		bz:*)     bzip2 -t "$SANDBOX/${1#bz:}" 2>/dev/null ;;
 		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
 		          [ -e "$SANDBOX/$_p" ] && grep -qE -- "$_e" "$SANDBOX/$_p" 2>/dev/null ;;
 		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _m=${_r#*:}
