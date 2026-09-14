@@ -331,7 +331,18 @@ get() {
   have=$(sha256sum < "$XOS_CACHE/$tar" | cut -d' ' -f1)
   [ -n "$want" ] && [ "$want" = "$have" ] || {
     echo "FAIL: $tar digest mismatch -- refusing to extract" >&2; return 1; }
-  [ -d "src/$dir" ] || tar -C src -xf "$XOS_CACHE/$tar"
+  # extract only when the tree is COMPLETE, not merely present. a bare `[ -d ]`
+  # skips re-extraction the moment src/$dir exists for any reason -- an
+  # interrupted tar, or patch_tree's own `mkdir -p $d/.xos-patched` landing
+  # first -- leaving a source-less tree that every later build fails on with a
+  # cryptic "patch does not apply", forever, until someone deletes it by hand.
+  # gate on a sentinel only a finished extraction writes, and wipe any partial
+  # tree before redoing it, so an interrupted build self-heals on the next run.
+  if [ ! -f "src/$dir/.xos-extracted" ]; then
+    rm -rf "src/$dir"
+    tar -C src -xf "$XOS_CACHE/$tar"
+    : > "src/$dir/.xos-extracted"
+  fi
 }
 
 # judge one gpg --status-fd stream against the pinned fingerprint.
