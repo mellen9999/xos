@@ -135,7 +135,7 @@ hint: -k keeps the original file alongside the new .gz
 ---
 q: {gzip @txt@ into out.gz, @txt@ itself untouched|with gzip, send @txt@'s compressed bytes to out.gz, unchanged|send @txt@'s gzip output to out.gz, @txt@ left alone}
 a: gzip -c @txt@ > out.gz
-state: exists:out.gz
+state: exists:@txt@
 ref: gzip
 teach: gzip -c
 hint: -c writes the compressed bytes to stdout, leaving the file untouched
@@ -164,6 +164,7 @@ hint: gunzip is the inverse of gzip, replacing the .gz with the original
 q: {make z.gz from @txt@, then confirm it isn't corrupt, with gunzip|verify z.gz, gzipped from @txt@, decompresses clean, with gunzip|check z.gz, from @txt@, isn't corrupt, no output, with gunzip}
 a: gzip -c @txt@ > z.gz && gunzip -t z.gz
 status: 0
+state: exists:z.gz
 ref: gunzip
 teach: gunzip -t
 hint: -t verifies the archive's integrity without writing any output
@@ -206,6 +207,7 @@ hint: bunzip2 is bzip2's inverse, same relationship gunzip has to gzip
 q: {bzip2 @txt@ to z.bz2, then confirm it isn't corrupt, with bunzip2|verify z.bz2, bzip2'd from @txt@, decompresses clean, with bunzip2|make sure z.bz2, from @txt@, isn't corrupt, with bunzip2}
 a: bzip2 -c @txt@ > z.bz2 && bunzip2 -t z.bz2
 status: 0
+state: exists:z.bz2
 ref: bunzip2
 teach: bunzip2 -t
 hint: -t tests integrity without writing any decompressed output
@@ -250,6 +252,7 @@ hint: -p extracts one named file to stdout instead of writing it
 q: {you just downloaded archive.zip -- make sure it isn't corrupt, with unzip|verify archive.zip is intact without extracting anything, with unzip|check archive.zip's integrity before you unpack it, with unzip}
 a: unzip -t archive.zip
 status: 0
+cmp: ref
 ref: unzip
 teach: unzip -t
 hint: -t tests the archive's integrity without extracting anything
