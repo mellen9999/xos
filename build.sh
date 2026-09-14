@@ -1566,13 +1566,14 @@ TODO: write this entry by hand.
 #   G45 a source signed by an expired or revoked key is refused
 #   G46 every carried patch is in the tree, and its effect is in the binary
 #   G47 every arsenal source is pinned before build, no fetch bypasses it
+#   G48 the remaining first-party scripts parse (the commit hook, arsenal)
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0 skipped=0
-  local EXPECTED_GATES=45   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=46   # roster above, minus G8/G9 (checked elsewhere)
   # a gate is ok, FAIL, or SKIP. SKIP is for a check that cannot run here and
   # whose result would be meaningless if forced -- G13 on a foreign toolchain.
   # it is counted (so the truncation guard still holds) and reported, but it
@@ -1936,6 +1937,30 @@ G44EOF
       || { g38=FAIL; printf '    %s does not parse: %s\n' "$f38" "$e38" >&2; }
   done
   g "G38 build scripts parse under bash" "$g38"
+
+  # G48 -- the scripts G35 and G38 do not name: the commit hook, the arsenal
+  # builders, and the on-stick helpers (arsenal, xexec, the learn installers).
+  # the hook is the sharp one -- it IS gate G9, and a syntax error in it makes
+  # git skip it silently, so the guard would wave through the artifacts and
+  # keys it exists to stop. each script is parsed under the shell its shebang
+  # names: bash for the hook, the shipped ash for the rest (a stricter POSIX
+  # check that also catches a bashism smuggled into a #!/bin/sh file).
+  local g48=ok f48 e48 chk48
+  for f48 in githooks/pre-commit learn/install.sh learn/push learn/wrapper \
+             arsenal/*.sh arsenal/arsenal arsenal/xexec; do
+    [ -f "$f48" ] || continue
+    case "$(head -1 "$f48")" in *bash) chk48="bash -n" ;; *) chk48="$bb35 ash -n" ;; esac
+    e48=$($chk48 "$f48" 2>&1) \
+      || { g48=FAIL; printf '    %s does not parse: %s\n' "$f48" "$e48" >&2; }
+  done
+  # build-arsenal-c.sh wraps a busybox-ash build in a quoted heredoc; the outer
+  # parse never looks inside it, so parse the INNER block on its own under ash.
+  if [ -f arsenal/build-arsenal-c.sh ]; then
+    e48=$(awk "/<<'INNER'/{f=1;next} /^INNER\$/{f=0} f" arsenal/build-arsenal-c.sh \
+          | "$bb35" ash -n /dev/stdin 2>&1) \
+      || { g48=FAIL; printf '    build-arsenal-c.sh INNER block does not parse: %s\n' "$e48" >&2; }
+  fi
+  g "G48 remaining first-party scripts parse" "$g48"
 
   # G39 -- the only two functions here that write to a raw block device must
   # both go through the shared guard. they were near-identical copies, which is
