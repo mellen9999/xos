@@ -1,0 +1,38 @@
+# arsenal.pins -- INPUT integrity pins for arsenal/build-arsenal-c.sh, checked
+# BEFORE anything is built. this is the opposite end of arsenal.lock: the lock
+# ATTESTS the output after the build (and drifts per build for the tools that
+# embed a build-id), so it can never gate the input. a post-build attestation
+# cannot stop a swapped tarball -- by the time it is written the swap already
+# compiled and ran. these pins can.
+#
+# WHY A DIGEST, NOT HTTPS, IS THE ANCHOR. same reasoning as build.sh get():
+# the url only decides where the bytes arrive from, the sha256 decides whether
+# they are the right bytes. so a source whose host has no working TLS (socat's
+# dest-unreach.org serves a cert for another domain entirely) is still safe
+# over plain http once the digest is pinned -- and the build-arsenal-c.sh
+# fetch() falls back to the wayback machine's copy of the SAME url, because a
+# mirror cannot make a bad tarball pass this check.
+#
+# git sources pin the COMMIT, which is itself a sha1 over the tree: a moved tag
+# (masscan/whois/hydra/jq/rg all pin a tag, which upstream can re-point) or a
+# moved branch head (frotz ships no release, so it was cloning an UNPINNED HEAD
+# -- a silent new-code-every-build hole this closes) fails the rev-parse check.
+#
+# these digests were first observed on 2026-09-13 from each project's canonical
+# host over https where the host offered a valid cert. upgrading an entry to a
+# maintainer signature (nmap and tcpdump both publish one) is the follow-up;
+# fetch-time enforcement is the floor this establishes.
+#
+# name        kind  ref                                                                     sha256 (url) | commit (git)
+links         url   https://links.twibright.com/download/links-2.30.tar.bz2                 c4631c6b5a11527cdc3cb7872fc23b7f2b25c2b021d596be410dadb40315f166
+tcpdump       url   https://www.tcpdump.org/release/tcpdump-4.99.5.tar.gz                   8c75856e00addeeadf70dad67c9ff3dd368536b2b8563abf6854d7c764cd3adb
+socat         url   http://www.dest-unreach.org/socat/download/socat-1.8.0.3.tar.gz         a9f9eb6cfb9aa6b1b4b8fe260edbac3f2c743f294db1e362b932eb3feca37ba4
+mupdf         url   https://github.com/ArtifexSoftware/mupdf-downloads/releases/download/1.24.10/mupdf-1.24.10-source.tar.gz  939285b5f97caf770fd46cbe7e6cc3a695ab19bb5bfaf5712904549cef390b7b
+nmap          url   https://nmap.org/dist/nmap-7.95.tar.bz2                                  e14ab530e47b5afd88f1c8a2bac7f89cd8fe6b478e22d255c5b9bddb7a1c5778
+masscan       git   https://github.com/robertdavidgraham/masscan                            06902c40d1494881c17b7968ef530e1d6bbd320c
+frotz         git   https://github.com/DavidGriffith/frotz                                  fe66e2ef738354f5e2fe37c7c01b1781ef659acd
+whois         git   https://github.com/rfc1036/whois                                        1024386831c8ee4e0ae24026fa932771bf369fe9
+hydra         git   https://github.com/vanhauser-thc/thc-hydra                              714b051867365c724faf7f505c59dd0b0389ca58
+john          git   https://github.com/openwall/john                                        9a336d800a091bec9650c29282485145f31c9ffc
+jq            git   https://github.com/jqlang/jq                                            71c2ab509a8628dbbad4bc7b3f98a64aa90d3297
+rg            git   https://github.com/BurntSushi/ripgrep                                   4649aa9700619f94cf9c66876e9549d83420e16c

@@ -14,15 +14,63 @@
 # NOTE: masscan + tcpdump + nmap embed a build-id, so their arsenal.lock sha
 # drifts per build (size is stable) -- a point-in-time attestation. links + mutool are
 # bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
+#
+# INTEGRITY: every source is pinned in arsenal.pins and checked BEFORE it builds
+# -- a tarball by sha256, a git repo by commit. that file is the input anchor;
+# arsenal.lock stays the post-build output attestation. the pins are mounted at
+# /pins inside the container; fetch()/clone_pinned() below refuse a source that
+# is not in them or does not match. G47 fails the whole build if a fetch here
+# ever names a tool the pins file does not.
 set -eu
 OUT="${1:-arsenal}"; mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)  # absolute: -v below must not double-prefix $PWD
+SELF=$(cd "$(dirname "$0")" && pwd)                            # holds arsenal.pins
+[ -f "$SELF/arsenal.pins" ] || { echo "no arsenal.pins beside $0 -- refusing to build unpinned" >&2; exit 1; }
 command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
 
-docker run --rm -i --network host -v "$OUT":/out alpine:3.20 sh -e <<'INNER'
+docker run --rm -i --network host -v "$OUT":/out -v "$SELF/arsenal.pins":/pins:ro alpine:3.20 sh -e <<'INNER'
 apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static \
   ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
+
+# ---- integrity: read the pins, verify before build ------------------------
+PINS=/pins
+pin() { awk -v n="$1" -v k="$2" '$1==n && $2==k {print $(f=="ref"?3:4)}' f="$3" "$PINS"; }
+
+# fetch NAME OUTFILE -- download the pinned url to OUTFILE and verify its sha256
+# before anyone extracts it. the wayback machine holds the SAME url's bytes, so
+# it is a safe fallback: the digest, not the host, is what this trusts.
+fetch() {
+  n="$1"; out="$2"
+  url=$(pin "$n" url ref); want=$(pin "$n" url sha)
+  [ -n "$url" ] && [ -n "$want" ] || { echo "$n: no url pin in arsenal.pins" >&2; return 1; }
+  wget -qO "$out" "$url" \
+    || wget -qO "$out" "https://web.archive.org/web/2999id_/$url" \
+    || { echo "$n: $url unreachable (tried wayback too)" >&2; return 1; }
+  have=$(sha256sum < "$out" | cut -d' ' -f1)
+  [ "$want" = "$have" ] || { echo "$n: sha256 mismatch -- refusing to build" >&2
+                             echo "   want $want" >&2; echo "   got  $have" >&2; return 1; }
+  log "$n: sha256 ok"
+}
+
+# clone_pinned NAME DEST -- clone the pinned repo and check out the pinned
+# commit exactly, asserting HEAD is that commit. defeats a re-pointed tag and a
+# moved branch head alike; github serves a fetch-by-sha so no full history is
+# pulled. no source here builds until its commit is the one the pin names.
+clone_pinned() {
+  n="$1"; dest="$2"
+  repo=$(pin "$n" git ref); commit=$(pin "$n" git commit)
+  [ -n "$repo" ] && [ -n "$commit" ] || { echo "$n: no git pin in arsenal.pins" >&2; return 1; }
+  git init -q "$dest"
+  ( cd "$dest"
+    git config advice.detachedHead false
+    git remote add origin "$repo"
+    git fetch -q --depth 1 origin "$commit" 2>/dev/null || git fetch -q origin
+    git checkout -q "$commit"
+    [ "$(git rev-parse HEAD)" = "$commit" ] ) \
+    || { echo "$n: commit $commit not checked out -- refusing to build" >&2; return 1; }
+  log "$n: commit $commit ok"
+}
 
 # links 2.30 -- the reader. text-mode (no X/fb): a zim is served by kiwix-serve
 # on localhost and reads perfectly as text, so the graphics libs (and their
@@ -33,7 +81,7 @@ log() { echo "[c-build] $*"; }
 # putting links in build.sh would widen the verity-checked trust surface for no
 # reason -- the fort must stay a fort. see README.md.
 ( set -e; log links
-  mkdir -p /s && wget -qO- http://links.twibright.com/download/links-2.30.tar.bz2 | tar xj -C /s
+  mkdir -p /s && fetch links /s/links.tar.bz2 && tar xj -C /s -f /s/links.tar.bz2
   cd /s/links-2.30
   # graphics off keeps the dep set to zlib+ssl, both of which apk ships as .a;
   # -static then links clean where a graphics build would drag in libpng/jpeg.
@@ -49,14 +97,14 @@ log() { echo "[c-build] $*"; }
 
 # masscan 1.3.2 -- self-contained, static
 ( set -e; log masscan
-  git clone --depth 1 -b 1.3.2 https://github.com/robertdavidgraham/masscan /s/m >/dev/null 2>&1
+  clone_pinned masscan /s/m
   make -C /s/m -j"$(nproc)" CFLAGS="-O2 -static" LDFLAGS="-static" >/s/m.log 2>&1
   file /s/m/bin/masscan | grep -q "statically linked" || { echo "not static"; exit 1; }
   cp /s/m/bin/masscan /out/masscan ) || log "masscan FAILED"
 
 # tcpdump 4.99.5 -- apk's libpcap-dev already ships libpcap.a, so just link -static
 ( set -e; log tcpdump
-  wget -qO- https://www.tcpdump.org/release/tcpdump-4.99.5.tar.gz | tar xz -C /s
+  mkdir -p /s && fetch tcpdump /s/tcpdump.tgz && tar xz -C /s -f /s/tcpdump.tgz
   cd /s/tcpdump-4.99.5 && ./configure >/s/td.log 2>&1 && make -j"$(nproc)" LDFLAGS="-static" >>/s/td.log 2>&1
   file tcpdump | grep -q "statically linked" || { echo "not static"; exit 1; }
   cp tcpdump /out/tcpdump ) || log "tcpdump FAILED"
@@ -65,9 +113,10 @@ log() { echo "[c-build] $*"; }
 # openssl-libs-static is already in the apk set, so OPENSSL addresses (socat's
 # tls) compile in; --disable-readline drops the one interactive-only dep that
 # would otherwise drag ncurses into the static link for no field value.
+# dest-unreach.org serves a cert for another domain, so the pin is over http --
+# the sha256 is the anchor, exactly as build.sh get() argues.
 ( set -e; log socat
-  mkdir -p /s
-  wget -qO- http://www.dest-unreach.org/socat/download/socat-1.8.0.3.tar.gz | tar xz -C /s     || wget -qO- "https://web.archive.org/web/2999id_/http://www.dest-unreach.org/socat/download/socat-1.8.0.3.tar.gz" | tar xz -C /s
+  mkdir -p /s && fetch socat /s/socat.tgz && tar xz -C /s -f /s/socat.tgz
   cd /s/socat-1.8.0.3
   ./configure --disable-readline CFLAGS="-O2 -static" LDFLAGS="-static" >/s/socat.log 2>&1
   make -j"$(nproc)" >>/s/socat.log 2>&1
@@ -82,8 +131,7 @@ log() { echo "[c-build] $*"; }
 # system libs. big (~40MB) because it carries a full pdf+font+js stack -- the only
 # thing that reads a pdf on a browserless box, and the stick has room.
 ( set -e; log mutool
-  wget -qO m.tgz https://github.com/ArtifexSoftware/mupdf-downloads/releases/download/1.24.10/mupdf-1.24.10-source.tar.gz     || wget -qO m.tgz "https://web.archive.org/web/2999id_/https://mupdf.com/downloads/archive/mupdf-1.24.10-source.tar.gz"
-  mkdir -p /s && tar xz -C /s -f m.tgz
+  mkdir -p /s && fetch mupdf m.tgz && tar xz -C /s -f m.tgz
   cd /s/mupdf-1.24.10-source
   # no explicit target: the default build emits build/release/mutool linked
   # against the bundled thirdparty libs. HAVE_X11/GLUT=no drops the GUI viewer.
@@ -98,12 +146,14 @@ log() { echo "[c-build] $*"; }
 # one ~200KB binary plays the entire if/ story library carried on the knowledge
 # stick (zork, anchorhead, spider-and-web). "dumb" = pure stdout, so it needs no
 # curses and runs even on a busybox console. capability -> p3, same rule as links.
+# frotz ships no release tag, so the pin is a commit -- it was cloning an
+# unpinned HEAD before, new code on every build with nothing recording which.
 ( set -e; log frotz
-  git clone --depth 1 https://github.com/DavidGriffith/frotz /s/frotz >/s/frotz.log 2>&1
+  clone_pinned frotz /s/frotz
   cd /s/frotz
   # -fcommon: frotz's dumb port keeps tentative defs (f_setup, do_more_prompts)
   # in a shared header; gcc>=10 defaults -fno-common and multiply-defines them.
-  make dfrotz CFLAGS="-O2 -static -fcommon" LDFLAGS="-static" PKG_CONFIG=false >>/s/frotz.log 2>&1
+  make dfrotz CFLAGS="-O2 -static -fcommon" LDFLAGS="-static" PKG_CONFIG=false >/s/frotz.log 2>&1
   file dfrotz | grep -q "statically linked" || { echo "not static"; tail -12 /s/frotz.log; exit 1; }
   strip dfrotz; cp dfrotz /out/frotz ) || log "frotz FAILED"
 
@@ -113,7 +163,7 @@ log() { echo "[c-build] $*"; }
 # drops out clean instead of fighting a static link (an explicit
 # HAVE_LIBIDN=0 make var is refused outright -- see the Makefile).
 ( set -e; log whois
-  git clone --depth 1 -b v5.6.6 https://github.com/rfc1036/whois /s/whois >/s/whois.log 2>&1
+  clone_pinned whois /s/whois
   cd /s/whois
   make CFLAGS="-O2 -static" LDFLAGS="-static" >>/s/whois.log 2>&1
   file whois | grep -q "statically linked" || { echo "not static"; tail -20 /s/whois.log; exit 1; }
@@ -125,7 +175,7 @@ log() { echo "[c-build] $*"; }
 # explicitly: configure's own static-link probe for -lssl fails without it
 # even though openssl-libs-static is installed.
 ( set -e; log hydra
-  git clone --depth 1 -b v9.5 https://github.com/vanhauser-thc/thc-hydra /s/hydra >/s/hydra.log 2>&1
+  clone_pinned hydra /s/hydra
   cd /s/hydra
   ./configure >>/s/hydra.log 2>&1 || true
   make CFLAGS="-O2 -static" LDFLAGS="-static" -j"$(nproc)" >>/s/hydra.log 2>&1
@@ -145,9 +195,8 @@ log() { echo "[c-build] $*"; }
 # 40MB, a mode this kit's dictionary+rules workflow doesn't use) and
 # password.lst (redundant with the staged rockyou.txt/SecLists).
 ( set -e; log john
-  git clone https://github.com/openwall/john /s/john >/s/john.log 2>&1
-  cd /s/john && git checkout -q 9a336d800a091bec9650c29282485145f31c9ffc >>/s/john.log 2>&1
-  cd src
+  clone_pinned john /s/john
+  cd /s/john/src
   ./configure --disable-openmp CFLAGS="-O2 -static" LDFLAGS="-static" \
     LIBS="-lssl -lcrypto" >>/s/john.log 2>&1
   make -sj"$(nproc)" >>/s/john.log 2>&1
@@ -165,7 +214,7 @@ log() { echo "[c-build] $*"; }
 # which does. LDFLAGS="-static" at configure time is still needed so that
 # probe itself passes.
 ( set -e; log jq
-  git clone --depth 1 -b jq-1.7.1 https://github.com/jqlang/jq /s/jq >/s/jq.log 2>&1
+  clone_pinned jq /s/jq
   cd /s/jq
   git submodule update --init >>/s/jq.log 2>&1
   autoreconf -fi >>/s/jq.log 2>&1
@@ -183,7 +232,7 @@ log() { echo "[c-build] $*"; }
 # so it's checked the same way build-kiwix.sh does: no INTERP segment, not
 # a `file` string match.
 ( set -e; log ripgrep
-  git clone --depth 1 -b 14.1.1 https://github.com/BurntSushi/ripgrep /s/rg >/s/rg.log 2>&1
+  clone_pinned rg /s/rg
   cd /s/rg
   RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --locked >>/s/rg.log 2>&1
   readelf -l target/release/rg 2>/dev/null | grep -q INTERP \
@@ -204,8 +253,7 @@ log() { echo "[c-build] $*"; }
 #     zlib otherwise insists on a libz.so that -static can't link.
 # with those, a plain parallel `make` emits a static nmap -- no serial pass.
 ( set -e; log nmap
-  mkdir -p /s
-  wget -qO- https://nmap.org/dist/nmap-7.95.tar.bz2 | tar xj -C /s
+  mkdir -p /s && fetch nmap /s/nmap.tar.bz2 && tar xj -C /s -f /s/nmap.tar.bz2
   cd /s/nmap-7.95
   F="-O2 -fno-pie -fno-PIC"
   ./configure --without-zenmap --without-ndiff --without-nping --without-libssh2 \

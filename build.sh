@@ -1565,13 +1565,14 @@ TODO: write this entry by hand.
 #   G44 a planted digest cannot buy a pass from the revocation check
 #   G45 a source signed by an expired or revoked key is refused
 #   G46 every carried patch is in the tree, and its effect is in the binary
+#   G47 every arsenal source is pinned before build, no fetch bypasses it
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=44   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=45   # roster above, minus G8/G9 (checked elsewhere)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -2482,6 +2483,30 @@ G37
   grep -q 'PS1_CMD=' root/etc/shrc 2>/dev/null \
     || { g46=FAIL; printf '    /etc/shrc never sets PS1_CMD\n' >&2; }
   g "G46 carried patches applied and in effect" "$g46"
+
+  # G47 -- the arsenal is not the signed image, but README calls it "built and
+  # pinned", and a pin is only a pin if it is checked BEFORE the build. the
+  # arsenal.lock is written AFTER, and drifts per build for the tools that
+  # embed a build-id, so it can never gate an input. arsenal.pins can: every
+  # C tool build-arsenal-c.sh fetches must resolve to a line in it, and no
+  # wget/curl/git-clone may sit outside the two helpers that enforce it -- the
+  # same "one guard, nothing bypasses it" shape as G39. socat was fetched over
+  # cleartext http with no digest at all before this; frotz cloned an unpinned
+  # branch head, new code every build.
+  local g47=ok acs=arsenal/build-arsenal-c.sh pins=arsenal/arsenal.pins raw t body
+  if [ -f "$acs" ] && [ -f "$pins" ]; then
+    body=$(awk '/^fetch\(\) \{/{s=1} /^clone_pinned\(\) \{/{s=1} s&&/^}/{s=0;next} !s' "$acs" \
+           | grep -vE '^[[:space:]]*#')
+    raw=$(printf '%s\n' "$body" | grep -nE '(^[[:space:]]*|[;&|(][[:space:]]*)(wget|curl)[[:space:]]|git[[:space:]]+clone' || true)
+    [ -z "$raw" ] || { g47=FAIL; printf '    fetch outside the pinned helpers:\n%s\n' "$raw" >&2; }
+    for t in $(grep -vE '^[[:space:]]*#' "$acs" | grep -oE '(fetch|clone_pinned) [a-z][a-z0-9]*' | awk '{print $2}' | sort -u); do
+      grep -qE "^${t}[[:space:]]+(url|git)[[:space:]]" "$pins" \
+        || { g47=FAIL; printf '    %s fetched but not pinned in arsenal.pins\n' "$t" >&2; }
+    done
+  else
+    g47=FAIL; printf '    arsenal build script or pins file missing (%s / %s)\n' "$acs" "$pins" >&2
+  fi
+  g "G47 arsenal sources pinned before build" "$g47"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed.

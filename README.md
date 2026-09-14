@@ -232,8 +232,9 @@ anchors and the case for each part are in `SOURCES.md`.
 
 capability rides p3 -- an operator key, wireguard home, offline docs, wordlists,
 static tools, loot -- and comes from what you carry and plug in, never from
-widening the signed fort. built and pinned, sha256 + source in
-`arsenal/arsenal.lock`:
+widening the signed fort. every C source is pinned in `arsenal/arsenal.pins`
+and checked before it builds -- a tarball by sha256, a git repo by commit (gate
+G47); `arsenal/arsenal.lock` is the post-build attestation, source + sha256:
 
 | tool | does |
 |---|---|
