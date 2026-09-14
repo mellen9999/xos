@@ -36,7 +36,9 @@ docker run --rm -i --network host -v "$OUT":/out -v "$SELF/arsenal.pins":/pins:r
 apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static \
   ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo \
-  file lzip xz linux-headers e2fsprogs-dev e2fsprogs-static util-linux-dev >/dev/null 2>&1
+  file lzip xz linux-headers e2fsprogs-dev e2fsprogs-static util-linux-dev \
+  rustup fontconfig-dev fontconfig-static freetype-dev freetype-static \
+  expat-static libpng-static brotli-static xz-static xz-dev >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # ---- integrity: read the pins, verify before build ------------------------
@@ -371,6 +373,31 @@ clone_pinned() {
   cp src/file /out/file
   cp magic/magic.mgc /out/file.mgc ) || log "file FAILED"
 
+# binwalk 3.1.0 -- firmware carving: scan a blob for embedded filesystems,
+# bootloaders, compressed streams and keys, and map where each begins. the v3
+# rewrite is rust. two knots, both handled here:
+#   * it uses std::path::absolute (rust >= 1.79); alpine 3.20 ships 1.78, so this
+#     block installs a current stable toolchain via rustup rather than bump the
+#     base image out from under every other tool.
+#   * a plain crt-static in RUSTFLAGS makes proc-macros fail to build on a musl
+#     host; naming --target x86_64-unknown-linux-musl explicitly splits host
+#     (proc-macro) from target (crt-static) codegen and it links clean.
+# it pulls fontconfig/freetype (its entropy-graph png), so those .a's + expat/
+# png/brotli are in the apk set and PKG_CONFIG_ALL_STATIC forces static libs.
+# comes out static-pie (self-contained, no interpreter), same class as rg.
+( set -e; log binwalk
+  mkdir -p /s; rustup-init -y --default-toolchain stable --profile minimal >/s/rustup.log 2>&1
+  . "$HOME/.cargo/env"
+  clone_pinned binwalk /s/bw
+  cd /s/bw
+  PKG_CONFIG_ALL_STATIC=1 PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 \
+  RUSTFLAGS="-C target-feature=+crt-static" \
+    cargo build --release --locked --target x86_64-unknown-linux-musl >/s/bw.log 2>&1
+  B=target/x86_64-unknown-linux-musl/release/binwalk
+  readelf -l "$B" | grep -q INTERP && { echo "not static (has interp)"; exit 1; }
+  "$B" --version | head -1
+  strip "$B"; cp "$B" /out/binwalk ) || log "binwalk FAILED"
+
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
 # (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final
 # `gdb` executable links dynamic-PIE against ld-musl even with LDFLAGS="-static
@@ -403,7 +430,7 @@ clone_pinned() {
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file|binwalk)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to

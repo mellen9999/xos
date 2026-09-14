@@ -352,6 +352,7 @@ is the post-build attestation, source + sha256:
 | photorec | carve files back off a formatted or damaged filesystem by signature |
 | smartctl | a drive's SMART health -- is it dying before you trust or wipe it |
 | file | identify an unknown blob by content -- where strings only shows text |
+| binwalk | scan a firmware blob for embedded filesystems, keys and streams |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
