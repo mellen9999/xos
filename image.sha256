@@ -2,8 +2,16 @@
 # G13 compares against this. a mismatch on the SAME toolchain means the
 # image no longer corresponds to the source; on a different toolchain it
 # only means you cannot independently verify this build.
-image     ea8fd2aac11874886455ced75ab366c0809e2cea43a49c436e7ef0c3adbfc8f3
-squashfs  5f988cb4a71bcb1166ea3c66a07e1a2610d97326c1e26c2076e96d699f1ac821
-roothash  d9161c5f9d8c760f6eaa8a71da32492c825cf04c029e966f27893cc5ae1c4425
+image     4b50cbfb561a0b6385ad8f29f28729b889a76c0e904cc0d77a95c3139315c7be
+squashfs  9b47c6a4d663dfcc02dfe44d6dabcef3e64a0fea5b7fb63039c61644fed71702
+roothash  b87728cd2c9efc020c1f1036477532773bcfa58e9c5a06b68d003d34f0b5ed4a
 kernel    e687e2eb19d9cc5d782ed72be5f0230f551372f700e3a4c2d47401847f89e480
-toolchain f8ddb2f5b1f8cda28d7695100a90cdaca43fe58655af3643293c13bd3c9931b7
+toolchain ec2999cfe97f355b873303d571823dd98b01cdae49fa8b40e4c137d1dcf7081e
+# toolchain this pin was taken with -- install these to reproduce:
+#   gcc (GCC) 16.2.1 20260810
+#   GNU ld (GNU Binutils) 2.47
+#   mksquashfs version 4.7.5 (2026/03/01)
+#   veritysetup 2.8.8 flags: UDEV BLKID KEYRING KERNEL_CAPI HW_OPAL 
+#   dd498f8ef9c4c3b59eba409ab9d0e2b7790ef34fa9f0993cb6f6449129ff4f90
+#   fc152c3707d54f2a4d8fa1e8d159ab9fde560460a89521737fb93b1cc85f06c3
+#   0022
