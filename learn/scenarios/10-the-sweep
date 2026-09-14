@@ -12,7 +12,7 @@ setup: Start with the loudest artifact. A bind shell, or any service an intruder
 setup: leaves running, opens a LISTENING socket. On xos there is exactly one
 setup: listener you put there: dropbear, bound to the wireguard address alone.
 setup: Anything listening on 0.0.0.0 or a public port is not yours.
-q: list every listening tcp socket and the program holding it open
+q: list every listening tcp socket and its program, with netstat
 a: netstat -tlnp
 why: live-net
 ref: netstat
@@ -26,7 +26,7 @@ setup: Now the mirror image. A reverse shell does not listen -- it dials OUT to
 setup: the attacker and hands them a prompt. xos is built to dial out too, but to
 setup: ONE peer you control, over wireguard. That tiny baseline is the point:
 setup: every OTHER established connection is a question you have to answer.
-q: show every established tcp connection with the process behind it
+q: show every established tcp connection with netstat, and its process
 a: netstat -tnp
 why: live-net
 ref: netstat
@@ -73,7 +73,7 @@ setup: authorized_keys and you return whenever you like. On xos that file lives
 setup: inside the read-only, verity-covered root -- an attacker cannot append to
 setup: it without changing a byte the hash tree covers, which halts the next boot.
 setup: The only writable home for a key is the encrypted p3 -- read /state/authorized_keys.
-q: print every key dropbear is configured to accept
+q: print every key dropbear is configured to accept, with cat
 a: cat /state/authorized_keys 2>/dev/null
 ref: cat
 cmp: ref
@@ -83,7 +83,7 @@ hint: on a running stick this is the file to eyeball line by line
 setup: The oldest persistence of all: a second account with uid 0. root should be
 setup: the only name the system answers to as superuser; a hidden second uid-0 is
 setup: a whole extra root hiding in plain sight in the passwd database.
-q: print every account in /etc/passwd whose uid is 0
+q: print every account in /etc/passwd whose uid is 0, with awk
 a: awk -F: '$3==0 {print $1}' /etc/passwd
 cmp: ref
 ref: awk
@@ -94,7 +94,7 @@ setup: Attackers love a startup hook -- cron, an init script, a profile file tha
 setup: runs on every login. xos ships no cron daemon at all, and its init lives on
 setup: the read-only root, so there is no writable hook to plant. The way you
 setup: confirm it is to look at what is actually running.
-q: list every process with its pid, its parent's pid, and its command
+q: list every process with ps -- pid, parent's pid, and command
 a: ps -o pid,ppid,comm
 out: ^PID +PPID +COMMAND
 ref: ps
@@ -114,7 +114,7 @@ hint: read who spawned whom; a shell under a network tool is the tell
 setup: Malware often unlinks its own binary after starting, so nothing on disk
 setup: points back at it. The kernel still knows: /proc/PID/exe is a link to the
 setup: real file, and for a deleted one it reads "(deleted)".
-q: show the path of the binary behind this very shell
+q: show the path of the binary behind this shell, with ls
 a: ls -l /proc/$$/exe
 out: -> /
 ref: ls
@@ -135,7 +135,7 @@ setup: Time to turn from hunting to proving. The deepest defense is that the roo
 setup: filesystem is dm-verity and mounted read-only: an attacker cannot write a
 setup: backdoor to it AT ALL, and a single altered byte halts the next boot rather
 setup: than booting compromised. Confirm / is read-only, from /proc/mounts.
-q: show the root mount's options and pick out that it is read-only
+q: show the root mount's options with grep, pick out read-only
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o ro
 ref: grep
 cmp: ref
@@ -155,7 +155,7 @@ hint: on xos this reads absent -- there is nothing to load a rootkit into
 setup: The lockdown state is the kernel's own promise that even root cannot reach
 setup: into it -- no /dev/mem, no kexec, no loading unsigned code. Read it straight
 setup: from the kernel, out of /sys/kernel/security/lockdown.
-q: print the kernel lockdown state
+q: print the kernel lockdown state with cat
 a: cat /sys/kernel/security/lockdown
 ref: cat
 cmp: ref
@@ -166,7 +166,7 @@ setup: Last. You have swept for listeners, egress, fifos, keys, hidden roots,
 setup: startup hooks and implants, and proven the root cannot be written and the
 setup: kernel cannot be reached. One line to state the verdict: the machine is
 setup: running the code you signed, and nothing is listening for anyone else.
-q: /proc/mounts' root device and options, and nothing waiting on the network
+q: /proc/mounts' root device and options with awk, nothing on the network
 a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
 why: live-net
 ref: awk

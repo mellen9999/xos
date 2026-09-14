@@ -19,28 +19,28 @@ ref: cat
 teach: cat
 hint: cmdline is the exact string the bootloader handed the kernel
 ---
-q: {pull just the verity root hash out of the kernel command line|extract just the verity root hash from the kernel command line|isolate the sha256 root hash out of /proc/cmdline}
+q: {pull just the verity root hash out of the kernel command line|extract just the verity root hash from the kernel command line|isolate the sha256 root hash out of /proc/cmdline}, with sed
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 why: live-hw
 ref: sed
 teach: sed -n
 hint: it is the 64 hex characters that follow the word sha256
 ---
-q: {what filesystem is mounted at / and with what flags|report the filesystem type and mount flags for /|what type is / mounted as, and with which flags}
+q: {what filesystem is mounted at / and with what flags|report the filesystem type and mount flags for /|what type is / mounted as, and with which flags}, with awk
 a: awk '$2=="/" {print $3, $4}' /proc/mounts
 cmp: ref
 ref: awk
 teach: awk
 hint: awk's $2 and $4 pick the mountpoint and options columns out of /proc/mounts
 ---
-q: {confirm /proc/mounts has / read-only|check /proc/mounts says / is mounted read-only|prove the root is mounted read-only, from /proc/mounts}
+q: {confirm /proc/mounts has / read-only|check /proc/mounts says / is mounted read-only|prove the root is mounted read-only, from /proc/mounts}, with grep
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro'
 why: live-hw
 ref: grep
 teach: grep -o
 hint: grep -o on the flags column proves ro is actually set, not just present nearby
 ---
-q: {what device is the root actually on|which device is / actually mounted from|report the real device backing /}
+q: {what device is the root actually on|which device is / actually mounted from|report the real device backing /}, with awk
 a: awk '$2=="/" {print $1}' /proc/mounts
 cmp: ref
 ref: awk
@@ -54,7 +54,7 @@ ref: sha256sum
 teach: sha256sum
 hint: dm-0 is the device dm-verity hands you once it is checking every block
 ---
-q: %show% /dev/dm-0's digest, and nothing else
+q: %show% /dev/dm-0's digest with cut, nothing else
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
 why: live-hw
 ref: cut
@@ -62,14 +62,14 @@ teach: cut -d
 teach: cut -f
 hint: cut -d' ' -f1 grabs just the hash, dropping the filename sha256sum prints after it
 ---
-q: {confirm /proc/cmdline sets panic_on_corruption, not carry on|check /proc/cmdline for panic_on_corruption|prove the kernel was told panic_on_corruption}
+q: {confirm /proc/cmdline sets panic_on_corruption, not carry on|check /proc/cmdline for panic_on_corruption|prove the kernel was told panic_on_corruption}, with grep
 a: grep -o panic_on_corruption /proc/cmdline
 why: live-hw
 ref: grep
 teach: grep -o
 hint: fail closed. a verified system that carries on after a mismatch is not one
 ---
-q: {what does the kernel's boot log say about verity, any capitalisation|report what the kernel logged about verity, ignoring case|find verity in the kernel's boot log, whatever its capitalisation}
+q: {what does the kernel's boot log say about verity, any case|report what the kernel logged about verity, ignoring case|find verity in the kernel's boot log, whatever its case}, with dmesg
 a: dmesg | grep -i verity
 why: live-hw
 ref: dmesg
@@ -97,7 +97,7 @@ ref: [
 teach: [ -e
 hint: -e tests for existence, same idea as the modules check above
 ---
-q: {remount / read-write, printing WRITABLE if it takes, refused if not|try remounting / rw, printing WRITABLE or refused|attempt / read-write, printing WRITABLE on success, refused on failure}
+q: {remount / rw, printing WRITABLE if it takes, refused if not|try remounting / rw with mount, WRITABLE or refused|attempt / read-write, WRITABLE on success, refused on failure}, with mount
 a: mount -o remount,rw / 2>/dev/null && echo WRITABLE || echo refused
 why: live-hw
 ref: mount
@@ -105,14 +105,14 @@ teach: mount -o
 hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
 ---
 setup: Copy /bin/busybox to $HOME/x, make it executable, and try to run it.
-q: {copy busybox to $HOME/x, chmod +x, run it true -- print ran or refused|copy busybox into $HOME, chmod +x, run it true -- print ran or refused|drop busybox at $HOME/x, make it +x, run true, print ran or refused}
+q: {copy busybox to $HOME/x, chmod +x, run it true -- print ran or refused|copy busybox into $HOME, chmod +x, run it true -- print ran or refused|drop busybox at $HOME/x, chmod +x, run true, print ran or refused}
 a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
 why: live-hw
 ref: chmod
 teach: chmod
 hint: $HOME is mounted noexec -- tmpfs, or the encrypted state when unlocked
 ---
-q: %count% "Internet Security Research Group" hits in /bin/tlstunnel
+q: %count% "Internet Security Research Group" in /bin/tlstunnel, with strings
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 cmp: ref
 ref: strings

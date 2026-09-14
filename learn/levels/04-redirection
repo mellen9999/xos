@@ -15,14 +15,14 @@ brief:
 brief: | wires one command's stdout into the next's stdin -- tee, later in
 brief: this level, needs it.
 ---
-q: {write the word @word@ into @word@.txt, replacing anything already there|write @word@ into @word@.txt, overwriting whatever was there before|save the word @word@ to @word@.txt, wiping out any previous contents}
+q: {write @word@ into @word@.txt with echo, replacing what's there|write @word@ into @word@.txt with echo, overwriting what was before|save @word@ to @word@.txt with echo, wiping out old contents}
 a: echo @word@ > @word@.txt
 state: match:@word@.txt:@word@
 ref: echo
 teach: echo
 hint: > creates or truncates the file, then writes
 ---
-q: {append @word@ to the end of @txt@ without destroying it|add @word@ to the end of @txt@, leaving the rest intact|tack @word@ onto @txt@ without wiping out what's there}
+q: {append the word @word@ to @txt@ with echo, keeping the rest|add the word @word@ to the end of @txt@ with echo, intact|tack the word @word@ onto @txt@ with echo, wiping nothing}
 a: echo @word@ >> @txt@
 state: match:@txt@:rotate
 ref: echo
@@ -57,21 +57,21 @@ ref: ls
 teach: ls
 hint: redirect stdout first, then point stderr at wherever stdout now goes
 ---
-q: %show% @log@ on screen while saving a copy to copy.txt
+q: %show% @log@ on screen while saving a copy to copy.txt, with tee
 a: cat @log@ | tee copy.txt
 out: service started
 ref: tee
 teach: tee
 hint: tee writes to the file and passes the same data through to stdout
 ---
-q: %show% @log@ on screen and APPEND a copy to copy.txt
+q: %show% @log@ on screen and APPEND a copy to copy.txt, with tee
 a: cat @log@ | tee -a copy.txt
 out: service started
 ref: tee
 teach: tee -a
 hint: without -a, tee truncates the file the way > does
 ---
-q: %count% the lines of @txt@ and write the number into @cvar@.txt
+q: %count% @txt@'s lines and write the number into @cvar@.txt, with wc
 a: wc -l < @txt@ > @cvar@.txt
 a: wc -l @txt@ > @cvar@.txt
 state: exists:@cvar@.txt
@@ -79,35 +79,35 @@ ref: wc
 teach: wc -l
 hint: redirecting in with < keeps the filename out of wc's output
 ---
-q: %show% @word@ with printf -- no surprises like echo has
+q: %show% the word @word@ with printf -- no surprises like echo has
 a: printf '%s\n' @word@
 out: ^@word@$
 ref: printf
 teach: printf
 hint: printf takes a format first, then the values to fill it with
 ---
-q: %show% @word@ with printf and no trailing newline
+q: %show% the word @word@ with printf and no trailing newline
 a: printf '%s' @word@
 out: @word@
 ref: printf
 teach: printf
 hint: printf only outputs what's in the format string -- no automatic newline
 ---
-q: %show% @word@ and @term@ on one line separated by a tab
+q: %show% @word@ and @term@ on one tab-separated line, with printf
 a: printf '%s\t%s\n' @word@ @term@
 out: @word@
 ref: printf
 teach: printf
 hint: \t in the format string is a literal tab
 ---
-q: %show% @n@ as a zero-padded, five-digit id
+q: %show% @n@ as a zero-padded, five-digit id, with printf
 a: printf '%05d\n' @n@
 out: ^0*[0-9]+$
 ref: printf
 teach: printf
 hint: the 0 before the 5 means zero-pad instead of space-pad
 ---
-q: {print a warning -- %show% @word@ on stderr, not stdout|this is a warning message: write @word@ straight to stderr, not stdout|send @word@ to stderr so it won't get mixed into a script's captured output}
+q: {%show% the word @word@ on stderr, not stdout, with echo|write the word @word@ to stderr, not stdout, with echo|send the word @word@ to stderr, not stdout, with echo}
 a: echo @word@ >&2
 out: @word@
 ref: echo

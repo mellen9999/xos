@@ -26,21 +26,21 @@ ref: true
 teach: true
 hint: true always exits 0, no matter what
 ---
-q: %show% @word@ only if @log@ contains @sev@
+q: %show% the word @word@ only if @log@ contains @sev@, using grep
 a: grep -q @sev@ @log@ && echo @word@
 out: @word@
 ref: grep
 teach: grep -q
 hint: -q silences grep's output, leaving only its exit status for &&
 ---
-q: %show% "missing" if @log@ has no match for nonexistent
+q: %show% "missing" if @log@ has no match for nonexistent, with grep
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 ref: grep
 teach: grep -q
 hint: || runs its right side only when the left side fails
 ---
-q: %show% found if @needle@ is in @log@, else missing
+q: %show% found if @needle@ is in @log@, else missing, with grep
 a: grep -q @needle@ @log@ && echo found || echo missing
 cmp: ref
 ref: grep
@@ -76,21 +76,21 @@ ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
-q: {succeed only when @log@ has no match for nonexistent|flip a status so no match for nonexistent in @log@ succeeds|make a missing nonexistent match in @log@ count as success}
+q: {grep @log@ for nonexistent, succeed only if there's no match|flip grep's status so no match for nonexistent in @log@ succeeds|with grep, make a missing nonexistent match in @log@ succeed}
 a: ! grep -q nonexistent @log@
 status: 0
 ref: grep
 teach: grep -q
 hint: a leading ! flips the status
 ---
-q: make a broken step stop the whole script instead of continuing silently
+q: make a broken step stop the script instead of continuing, with set
 a: set -e
 why: conceptual
 ref: set
 teach: set -e
 hint: -e makes any failing command end the script immediately
 ---
-q: make a typo'd variable name fail loudly instead of expanding to empty
+q: catch a typo'd variable expanding to empty -- fail loudly, with set
 a: set -u
 why: conceptual
 ref: set
@@ -104,21 +104,21 @@ ref: cd
 teach: cd
 hint: || only runs its right side when the left side's exit status is nonzero -- cd fails cleanly when the target is missing
 ---
-q: make the shell show each command as it runs, for debugging
+q: make the shell show each command as it runs, for debugging, with set
 a: set -x
 why: conceptual
 ref: set
 teach: set -x
 hint: this is the shell debugger, and it is usually enough
 ---
-q: {turn command tracing back off|stop tracing each command}
+q: {turn command tracing back off|stop tracing each command}, with set
 a: set +x
 why: conceptual
 ref: set
 teach: set
 hint: + turns an option off, the mirror of - turning it on
 ---
-q: %show% the shell's current option settings
+q: %show% the shell's current option settings, with set
 a: set -o
 out: errexit
 ref: set

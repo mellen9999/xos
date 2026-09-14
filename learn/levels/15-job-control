@@ -25,14 +25,14 @@ ref: sleep
 teach: sleep
 hint: $! holds the pid of whatever you just backgrounded
 ---
-q: {start "sleep 1" in the background and then wait for it to finish|background sleep 1, then wait for it to complete|run sleep 1 in the background and block until it's done}
+q: {start "sleep 1" in the background and then wait for it to finish|background sleep 1, then wait for it to complete|run sleep 1 in the background, then wait until it's done}
 a: sleep 1 & wait
 why: interactive
 ref: wait
 teach: wait
 hint: wait with no argument blocks until every background job finishes
 ---
-q: {run two sleep 1 commands at once, then wait for both|background two sleep 1 commands, then wait for both to finish|run two sleep 1 commands concurrently and block until both finish}
+q: {run two sleep 1 commands at once, then wait for both|background two sleep 1 commands, then wait for both to finish|run two sleep 1 commands concurrently, then wait until both finish}
 a: sleep 1 & sleep 1 & wait
 why: interactive
 ref: wait
@@ -53,14 +53,14 @@ ref: sh
 teach: sh
 hint: jobs lists what this shell has running or stopped, not the whole system
 ---
-q: {run @script@ so it keeps running after the terminal goes away|use nohup so @script@ survives the terminal closing|start @script@ immune to the hangup signal your terminal would send}
+q: {run @script@ so it keeps running after the terminal goes away, with nohup|use nohup so @script@ survives the terminal closing|start @script@ immune to the hangup signal, with nohup}
 a: nohup ./@script@ &
 why: interactive
 ref: nohup
 teach: nohup
 hint: nohup makes the process ignore the hangup signal
 ---
-q: {run @script@ in a brand new session, fully detached from this terminal|use setsid to start @script@ with no controlling terminal|start @script@ in its own session, cut off from this one}
+q: {run @script@ in a new session, cut off from this terminal, with setsid|use setsid to start @script@ with no controlling terminal|start @script@ in its own session, cut off from this one, with setsid}
 a: setsid ./@script@
 why: interactive
 ref: setsid
@@ -68,21 +68,21 @@ teach: setsid
 hint: setsid starts the process in a new session with no controlling terminal at all
 ---
 setup: a step in your script might hang forever waiting on something
-q: {give @script@ at most 5 seconds to finish, then kill it|run @script@ under a 5 second timeout|use timeout to cap @script@ at 5 seconds}
+q: {cap @script@ at 5 seconds with timeout, then kill it|run @script@ under a 5 second timeout|use timeout to cap @script@ at 5 seconds}
 a: timeout 5 ./@script@
 out: running
 ref: timeout
 teach: timeout
 hint: timeout runs the command and sends TERM if it's still going after the limit
 ---
-q: {cap sleep 10 at 2 seconds, force-killing it outright, no TERM first|run sleep 10 under a 2 second timeout that skips straight to KILL|give sleep 10 two seconds, then make sure it dies via KILL}
+q: {cap sleep 10 at 2 seconds with timeout, force-killing it, no TERM first|run sleep 10 under a 2 second timeout that skips straight to KILL|give sleep 10 two seconds under timeout, then make sure it dies via KILL}
 a: timeout -s KILL 2 sleep 10
 why: interactive
 ref: timeout
 teach: timeout -s
 hint: -s picks which signal timeout sends when the limit is hit
 ---
-q: {give sleep 10 one second, then force-kill it if it's still ignoring you|cap sleep 10 at 1 second, escalating to KILL if it won't die|run sleep 10 under a 1 second limit that escalates to KILL}
+q: {give sleep 10 one second under timeout, then force-kill it if it won't die|cap sleep 10 at 1 second with timeout, escalating to KILL if it won't die|run sleep 10 under a 1 second timeout that escalates to KILL}
 a: timeout -k 1 1 sleep 10
 why: interactive
 ref: timeout
@@ -134,7 +134,7 @@ ref: abduco
 teach: abduco
 hint: abduco with no session name lists what it's holding
 ---
-q: {rebind the detach key to ctrl-q before attaching to work|attach to work with ctrl-q as the detach key instead of the default|use ctrl-q as your detach key when you attach to work}
+q: {rebind the detach key to ctrl-q before attaching to work, with abduco|attach to work with abduco, using ctrl-q as the detach key|use abduco and ctrl-q as your detach key when you attach to work}
 a: abduco -e ^q -a work
 why: interactive
 ref: abduco
@@ -148,14 +148,14 @@ ref: jobs
 teach: jobs -l
 hint: -l adds the pid alongside each job's normal listing
 ---
-q: {tell process 12345 to reload -- send it HUP by number|nudge process 12345 to reload its config with a HUP signal|send process 12345 signal 1 (HUP) to make it reload}
+q: {tell process 12345 to reload -- send it HUP by number, with kill|nudge process 12345 to reload its config, with kill|send process 12345 signal 1 (HUP) with kill, to make it reload}
 a: kill -1 12345
 why: interactive
 ref: kill
 teach: kill -1
 hint: -1 is the signal number for HUP, same as -HUP
 ---
-q: %show% every resource limit this shell is under
+q: %show% every resource limit this shell is under, with ulimit
 a: ulimit -a
 cmp: ref
 ref: ulimit
@@ -163,7 +163,7 @@ teach: ulimit -a
 hint: -a prints every limit at once instead of just one
 ---
 setup: a script's writes keep failing partway through, mysteriously
-q: %show% the maximum file size this shell may create
+q: %show% the maximum file size this shell may create, with ulimit
 a: ulimit -f
 cmp: ref
 ref: ulimit

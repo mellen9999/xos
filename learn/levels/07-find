@@ -16,189 +16,189 @@ brief: the reverse reminder: -name '*.log' is a shell GLOB, not the regex you
 brief: just learned in grep -- * here means "any run of characters", not "any
 brief: number of the last thing".
 ---
-q: %list% every file and directory under the current directory
+q: {list every file and directory under here|what's every file and directory under this tree|you need a full inventory of everything under here}, with find
 a: find .
 cmp: ref
 ref: find
 teach: find
 hint: just find and a starting point -- no predicates means everything matches
 ---
-q: %find% every file under here whose name ends in .log
+q: {which files under here end in .log|point out every .log file under this tree|you're hunting .log files somewhere under here}, with find
 a: find . -name '*.log'
 cmp: ref
 ref: find
 teach: find -name
 hint: -name matches the glob against just the filename
 ---
-q: %find% every .LOG or .log under here, ignoring case in the name
+q: {treat .LOG and .log as the same file type|ignore case entirely, whether it's .log or .LOG|case shouldn't matter -- catch both .LOG and .log}, with find
 a: find . -iname '*.log'
 cmp: ref
 ref: find
 teach: find -iname
 hint: i for case-insensitive, same idea as grep -i
 ---
-q: %find% only regular files under here, no directories
+q: {list only regular files under here, not directories|you want files, never directories, from under here|keep regular files under here and drop every directory}, with find
 a: find . -type f
 cmp: ref
 ref: find
 teach: find -type
 hint: f is a regular file, d a directory, l a symlink
 ---
-q: %find% only the directories under here
+q: {list only the directories under here|you want directories only, nothing else, from under here|pull out just the directories under here}, with find
 a: find . -type d
 cmp: ref
 ref: find
 teach: find -type
 hint: d for directory, same flag family as -type f
 ---
-q: %find% entries under here but do not descend more than one level
+q: {stay one level deep, don't descend any further|list entries under here without going past one level down|you only want one level down here, nothing deeper}, with find
 a: find . -maxdepth 1
 cmp: ref
 ref: find
 teach: find -maxdepth
 hint: -maxdepth caps how far down find will go
 ---
-q: %find% entries under here at least 2 levels deep
+q: {skip anything shallower than 2 levels down|list only entries at least 2 levels deep under here|you only want entries 2 levels down or deeper}, with find
 a: find . -mindepth 2
 cmp: ref
 ref: find
 teach: find -mindepth
 hint: -mindepth is the floor, -maxdepth is the ceiling
 ---
-q: %find% regular files under here larger than 1 kilobyte
+q: {which regular files here top 1 kilobyte|list regular files under here over 1 kilobyte|you need regular files under here past 1 kilobyte}, with find
 a: find . -type f -size +1k
 cmp: ref
 ref: find
 teach: find -size
 hint: + means "more than", - means "less than", plain means "exactly"
 ---
-q: %find% empty files or directories under here
+q: {which files or directories under here are empty|list every empty file or directory under here|you want anything empty, file or directory, under here}, with find
 a: find . -empty
 cmp: ref
 ref: find
 teach: find -empty
 hint: matches files with zero bytes or directories with nothing in them
 ---
-q: %find% regular files under here modified in the last day
+q: {which regular files under here changed in the last day|list regular files modified sometime in the last day|you want regular files under here touched within a day}, with find
 a: find . -type f -mtime -1
 cmp: ref
 ref: find
 teach: find -mtime
 hint: -1 means "less than one day ago"
 ---
-q: %find% regular files under here modified in the last 30 minutes
+q: {which regular files here changed in the last 30 minutes|list regular files modified in the last 30 minutes here|you want regular files touched here in the last 30 minutes}, with find
 a: find . -type f -mmin -30
 cmp: ref
 ref: find
 teach: find -mmin
 hint: -mmin is -mtime's minutes cousin
 ---
-q: %find% regular files under here that are executable
+q: {which regular files under here are executable|list regular files here that have the executable bit set|you want regular files under here that can be executed}, with find
 a: find . -type f -executable
 cmp: ref
 ref: find
 teach: find -executable
 hint: tests the permission bits directly, not the file extension
 ---
-q: %find% entries under here with the exact permission mode 755
+q: {which entries under here have permission mode exactly 755|list entries here whose mode is exactly 755|you want entries under here set to exactly mode 755}, with find
 a: find . -perm 755
 cmp: ref
 ref: find
 teach: find -perm
 hint: MODE alone means exactly this mode; -MODE means all these bits are set; +MODE means at least one is
 ---
-q: security check -- %find% every file here that has the setuid bit set
+q: {security check -- which files here have the setuid bit set|list every file under here with its setuid bit set|you're auditing for setuid, and need every file that carries it}, with find
 a: find . -perm -4000
 out: suid-tool
 ref: find
 teach: find -perm
 hint: a dash before the mode means all its bits must be set -- the file can have others too
 ---
-q: %find% files under here owned by the user nobody
+q: {which files under here belong to the user nobody|list files here that the user nobody owns|you want files under here owned by nobody}, with find
 a: find . -user nobody
 cmp: ref
 ref: find
 teach: find -user
 hint: matches the file's owner, not who's running find
 ---
-q: %find% files under here belonging to the group nobody
+q: {which files under here belong to the group nobody|list files here owned by the group nobody|you want files under here in the group nobody}, with find
 a: find . -group nobody
 cmp: ref
 ref: find
 teach: find -group
 hint: same idea as -user, but for the owning group
 ---
-q: %find% either .log or .txt files under here in one command
+q: {round up .log and .txt files under here in one pass|list every .log or .txt file here in a single command|you want both .log and .txt files under here in one shot}, with find
 a: find . -name '*.log' -o -name '*.txt'
 out: \.(log|txt)
 ref: find
 teach: find -o
 hint: -o is OR; without it, predicates are ANDed together
 ---
-q: %find% regular files under here that are NOT .log files
+q: {which regular files under here are not .log files|list regular files here, excluding anything named .log|you want regular files under here that aren't .log}, with find
 a: find . -type f ! -name '*.log'
 cmp: ref
 ref: find
 teach: find -name
 hint: ! negates whatever predicate follows it
 ---
-q: %find% entries whose path contains the word src
+q: {which entries under here have src in their path|list entries whose path contains src|you want entries under here with src in their path}, with find
 a: find . -path '*src*'
 cmp: ref
 ref: find
 teach: find -path
 hint: -path matches the whole path, not just the filename like -name does
 ---
-q: %find% .log files under here but do not descend into the logs directory
+q: {round up .log files here, skipping the logs directory|list .log files here, but never enter logs|you want .log files here, none from inside logs}, with find
 a: find . -name logs -prune -o -name '*.log' -print
 cmp: ref
 ref: find
 teach: find -prune
 hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
-q: {stop at the first .log file found, not the whole tree|find the first .log file and stop, not the rest of the tree|find one .log file and quit immediately, not the whole tree}
+q: {stop at the first .log file found, not the whole tree|find the first .log file and stop, not the rest of the tree|find one .log file and quit immediately, not the whole tree}, with find
 a: find . -name '*.log' -print -quit
 cmp: ref
 ref: find
 teach: find -quit
 hint: -quit stops the walk as soon as something matches
 ---
-q: %find% every .log file and run wc -l on each one, one process per file
+q: {count lines in every .log file here with wc, one process each|run a separate wc line count on each .log file under here|you need per-file wc line counts for the .log files here}, with find
 a: find . -name '*.log' -exec wc -l {} \;
 cmp: ref
 ref: find
 teach: find -exec
 hint: {} is the filename, and the ; ends the command -- escape it from the shell
 ---
-q: %find% every .log file and pass them all to a single wc -l
+q: {count lines across the .log files here in one single wc call|run one combined wc line count over the .log files under here|you want the .log files here counted by a single wc}, with find
 a: find . -name '*.log' -exec wc -l {} +
 cmp: ref
 ref: find
 teach: find -exec
 hint: ending with + batches the results; ending with \; forks per file
 ---
-q: %find% entries under here without crossing into another filesystem
+q: {list entries under here without leaving this filesystem|you want entries under here, none from another filesystem|stay on this filesystem -- list entries under here only}, with find
 a: find . -xdev
 cmp: ref
 ref: find
 teach: find -xdev
 hint: stops find from crossing into a mounted filesystem
 ---
-q: %find% files under here following symlinks rather than listing them
+q: {which files does each symlink under here actually point to|list files under here, resolving symlinks instead of naming them|you want symlinks under here followed, not just listed}, with find
 a: find -L . -type f
 cmp: ref
 ref: find
 teach: find -L
 hint: makes find follow symlinks and describe what they point to
 ---
-q: %list% everything here bottom-up, each directory after its contents
+q: {list everything here bottom-up, contents before their directory|walk this tree so each directory prints after its contents|you want a bottom-up listing here, contents before the directory}, with find
 a: find . -depth
 cmp: ref
 ref: find
 teach: find -depth
 hint: flips the walk order -- normally a directory prints before its contents
 ---
-q: filenames might contain spaces -- %find% .log files, names NUL-separated
+q: {filenames may have spaces -- list .log files, NUL-separated|.log filenames could contain spaces -- print them NUL-separated|you need .log files here printed NUL-separated, spaces and all}, with find
 a: find . -name '*.log' -print0
 cmp: ref
 ref: find

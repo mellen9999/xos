@@ -9,35 +9,35 @@ brief:
 brief: dd names its arguments with = rather than flags: if= in, of= out, bs=
 brief: block size, count= how many blocks.
 ---
-q: %show% @bin@ as hex with the printable text beside it
+q: %show% @bin@ as hex with hexdump, printable text beside it
 a: hexdump -C @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -C
 hint: C is the canonical format, and the only one worth memorising
 ---
-q: {@bin@'s header only -- first 32 bytes, hex and text|dump @bin@'s first 32 bytes as hex and text|cap @bin@ at its first 32 bytes, hex and text}
+q: {@bin@'s header -- 32 bytes, hex and text|dump @bin@'s 32 bytes as hex and text|cap @bin@ at 32 bytes, hex and text}, with hexdump
 a: hexdump -C -n 32 @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -n
 hint: -n caps how many bytes hexdump reads, from the start
 ---
-q: {dump @bin@ from byte 8 on, hex and text|skip @bin@'s first 8 bytes, dump hex and text|show @bin@ from byte 8 onward as hex and text}
+q: {dump @bin@ from byte 8 on, hex and text|skip @bin@'s first 8 bytes, dump hex and text|show @bin@ from byte 8 onward as hex and text}, with hexdump
 a: hexdump -C -s 8 @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -s
 hint: -s skips that many bytes before the dump begins
 ---
-q: {dump @bin@ hex and text, no repeats collapsed to an asterisk|show every line of @bin@ as hex and text, repeats included|hex and text for @bin@, no asterisk for repeats}
+q: {@bin@ hex and text, repeats not folded to *|show every line of @bin@, repeats included|@bin@ hex and text, no asterisk for repeats}, with hexdump
 a: hexdump -C -v @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -v
 hint: hexdump normally folds repeated lines into a *; -v turns that off
 ---
-q: {dump @bin@ using your own output format string|dump @bin@ with a format string you supply yourself|write your own output format and dump @bin@ with it}
+q: {dump @bin@ with your own format string|dump @bin@ with a format string you supply|write your own format, dump @bin@ with it}, with hexdump
 a: hexdump -e '16/1 "%02x " "\n"' @bin@
 out: [0-9a-f]
 ref: hexdump
@@ -51,14 +51,14 @@ ref: od
 teach: od
 hint: od's default is octal words -- no flags needed here
 ---
-q: %show% @bin@'s address column in decimal instead of octal
+q: %show% @bin@'s address column with od, decimal not octal
 a: od -A d @bin@
 out: ^0000016
 ref: od
 teach: od -A
 hint: -A picks the radix for the address column -- d decimal, x hex, n none at all
 ---
-q: confirm @bin@'s an elf binary -- %show% single hex bytes
+q: @bin@ is an elf binary -- %show% single hex bytes with od
 a: od -t x1 @bin@
 out: 7f 45 4c 46
 ref: od
@@ -79,56 +79,56 @@ ref: dd
 teach: dd
 hint: if= is the source, of= is the destination -- no other flags needed
 ---
-q: {only need @log@'s start -- copy its first 512 bytes to head.bin|grab just the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ into head.bin}
+q: {only need @log@'s start -- copy 512 bytes to head.bin|grab the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ into head.bin}, with dd
 a: dd if=@log@ of=head.bin bs=512 count=1
 state: exists:head.bin
 ref: dd
 teach: dd
 hint: bs= sets the block size, count= how many blocks to copy
 ---
-q: {something's embedded 32 bytes into @log@ -- read 16 bytes there|starting 32 bytes into @log@, read the next 16 bytes|skip the first 32 bytes of @log@ and read 16 bytes from there}
+q: {embedded 32 bytes into @log@ -- read 16 there|starting 32 bytes into @log@, read 16 more|skip 32 bytes into @log@, read 16 from there}, with dd
 a: dd if=@log@ bs=1 skip=32 count=16
 out: 16 bytes
 ref: dd
 teach: dd
 hint: skip= moves the read start point; bs=1 makes skip/count mean bytes
 ---
-q: %make% zero.bin, a 1 kilobyte file of zero bytes
+q: %make% zero.bin with dd, a 1 kilobyte file of zero bytes
 a: dd if=/dev/zero of=zero.bin bs=1k count=1
 state: exists:zero.bin
 ref: dd
 teach: dd
 hint: /dev/zero is an endless stream of zero bytes; bs=/count= cap it
 ---
-q: %make% rand.bin, 32 random bytes to use as a key
+q: %make% rand.bin with dd, 32 random bytes for a key
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd
 teach: dd
 hint: /dev/urandom is the random byte source; bs= sets how many bytes total
 ---
-q: {copy @txt@ to copy.txt for a script -- no progress, no summary|copy @txt@ to copy.txt with dd, no progress or summary output|copy @txt@ to copy.txt with dd as quietly as possible}
+q: {copy @txt@ to copy.txt with dd for a script -- no progress, no summary|copy @txt@ to copy.txt with dd, no progress or summary output|copy @txt@ to copy.txt with dd as quietly as possible}
 a: dd if=@txt@ of=copy.txt status=none
 state: exists:copy.txt
 ref: dd
 teach: dd
 hint: status= controls dd's progress/summary output -- none silences it
 ---
-q: {@log@ is too long to page through -- split it into 2-line pieces|break @log@ into pieces of 2 lines apiece|cut @log@ into 2-line chunks with split}
+q: {@log@ is too long to page through -- split it into 2-line pieces|break @log@ into 2-line pieces with split|cut @log@ into 2-line chunks with split}
 a: split -l 2 @log@
 state: exists:xaa
 ref: split
 teach: split -l
 hint: -l counts lines per output piece, split's default unit
 ---
-q: {you need to move @log@ in chunks under 100 bytes -- split it up|break @log@ into 100-byte pieces|cut @log@ into 100-byte chunks with split}
+q: {you need to move @log@ in chunks under 100 bytes -- split it up|break @log@ into 100-byte pieces with split|cut @log@ into 100-byte chunks with split}
 a: split -b 100 @log@
 state: exists:xaa
 ref: split
 teach: split -b
 hint: -b counts bytes per piece instead of lines
 ---
-q: {@log@ splits into so many pieces -- widen suffixes to 3|split @log@ with 3-character suffixes, not the default 2|widen @log@'s split suffixes from 2 to 3 characters}
+q: {@log@ split into so many pieces -- widen suffixes to 3|split @log@ with 3-character suffixes, not the default 2|widen @log@'s split suffixes from 2 to 3 characters}
 a: split -a 3 -l 2 @log@
 state: exists:xaaa
 ref: split

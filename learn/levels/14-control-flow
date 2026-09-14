@@ -23,7 +23,7 @@ ref: sh
 teach: sh
 hint: if runs the command after it and branches on that command's exit status
 ---
-q: %show% yes if @log@ mentions @needle@, otherwise no
+q: %show% yes if @log@ mentions @needle@ per grep, otherwise no
 a: if grep -q @needle@ @log@; then echo yes; else echo no; fi
 cmp: ref
 ref: grep
@@ -44,7 +44,7 @@ ref: sh
 teach: sh
 hint: *.log expands to the matching filenames before the loop ever runs
 ---
-q: {loop over every .log file here printing its line count alone|use for over *.log, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}
+q: {loop over every .log file here printing its line count alone|use for over *.log, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}, with wc
 a: for f in *.log; do wc -l < $f; done
 out: ^[0-9]+$
 cmp: ref
@@ -73,21 +73,21 @@ ref: seq
 teach: seq
 hint: a middle argument to seq is the step, not just start and end
 ---
-q: %show% 1 to 5 separated by commas rather than newlines
+q: %show% 1 to 5 with seq, separated by commas rather than newlines
 a: seq -s, 1 5
 cmp: ref
 ref: seq
 teach: seq -s
 hint: -s sets the separator seq prints between numbers
 ---
-q: {read @txt@ line by line, printing each line as you go|use a while read loop to print every line of @txt@|iterate over @txt@ one line at a time, echoing each}
+q: {read @txt@ line by line, printing each line as you go|use a while read loop to print every line of @txt@|iterate over @txt@ one line at a time with read, echoing each}
 a: while read -r line; do echo "$line"; done < @txt@
 cmp: ref
 ref: read
 teach: read -r
 hint: the redirect goes on the done, feeding the whole loop
 ---
-q: {read @csv@ line by line on commas, printing the first field|split @csv@'s lines on commas with IFS=, printing field one|iterate over @csv@ splitting on commas, printing the first field}
+q: {read @csv@'s lines on commas, printing the first field|split @csv@ on commas with read, printing the first field|iterate over @csv@ with read, splitting commas, first field}
 a: while IFS=, read -r a b c d; do echo "$a"; done < @csv@
 out: ^gateway$
 ref: read
@@ -115,14 +115,14 @@ ref: sh
 teach: sh
 hint: * inside a case pattern globs just like it does on the command line
 ---
-q: {count 1 to 5 but bail out the moment you hit 3|stop scanning 1 to 5 as soon as i reaches 3|walk through 1 to 5, quitting early once you hit 3}
+q: {count 1 to 5 but break out the moment you hit 3|stop scanning 1 to 5 with break as soon as i reaches 3|walk through 1 to 5, using break to quit early at 3}
 a: for i in $(seq 1 5); do [ $i -eq 3 ] && break; echo $i; done
 cmp: ref
 ref: break
 teach: break
 hint: break exits the loop immediately, skipping any remaining iterations
 ---
-q: {print 1 to 5 but skip over 3|walk 1 to 5, skipping just the 3|go through 1 to 5, leaving 3 out of the output}
+q: {print 1 to 5 but continue past 3|walk 1 to 5, using continue to skip just the 3|go through 1 to 5, leaving 3 out of the output with continue}
 a: for i in $(seq 1 5); do [ $i -eq 3 ] && continue; echo $i; done
 cmp: ref
 ref: continue

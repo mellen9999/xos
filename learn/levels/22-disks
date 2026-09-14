@@ -20,77 +20,77 @@ ref: df
 teach: df
 hint: df alone reports every mounted filesystem, one line each
 ---
-q: %show% free space in a human readable form
+q: %show% free space in a human readable form, with df
 a: df -h
 out: [0-9]+\.[0-9]+[KMGT]
 ref: df
 teach: df -h
 hint: -h scales the numbers to k/m/g instead of raw block counts
 ---
-q: space free but nothing writable -- %show% inode usage, not blocks
+q: space free but nothing writable -- %show% inode usage, not blocks, with df
 a: df -i
 out: Inodes
 ref: df
 teach: df -i
 hint: -i swaps the space columns for inode counts and percent-used
 ---
-q: mounted filesystems -- %show% free space with the type in a column
+q: mounted filesystems -- %show% free space, type in a column, with df
 a: df -T
 out: Filesystem +Type
 ref: df
 teach: df -T
 hint: -T adds a column naming each filesystem's type
 ---
-q: is the read-only root itself full -- %show% free space just for squashfs
+q: is the read-only root full -- %show% free space for squashfs, with df
 a: df -t squashfs
 why: root
 ref: df
 teach: df -t
 hint: -t filters the listing down to one filesystem type
 ---
-q: {how much space does @dir@ use in total|what is the total space used by @dir@|report the total size of @dir@}
+q: {how much space does @dir@ use in total, with du|with du, what is the total space used by @dir@|report the total size of @dir@, using du}
 a: du -s @dir@
 cmp: ref
 ref: du
 teach: du -s
 hint: -s collapses the whole tree into one summary line
 ---
-q: {how much space does @dir@ use, in a human readable form|what does @dir@ use, scaled to something readable|report the size of @dir@ in human readable units}
+q: {how much space does @dir@ use, human readable, with du|with du, what does @dir@ use, scaled to something readable|report the size of @dir@ in human readable units, with du}
 a: du -sh @dir@
 cmp: ref
 ref: du
 teach: du -h
 hint: -h scales the summary size to k/m/g
 ---
-q: @dir@'s eating space -- %show% every file's size, not directories
+q: @dir@'s eating space -- %show% every file's size, with du
 a: du -a @dir@
 cmp: ref
 ref: du
 teach: du -a
 hint: -a walks down to individual files, not just directories
 ---
-q: @dir@ has too much underneath -- %show% it only one level deep
+q: @dir@ has too much underneath -- %show% it one level deep, with du
 a: du -d 1 @dir@
 why: fixture-cost
 ref: du
 teach: du -d
 hint: -d takes a depth -- 1 stops descending after the first level
 ---
-q: %show% @dir@'s sizes with a grand total at the end
+q: %show% @dir@'s sizes with a grand total at the end, with du
 a: du -c @dir@
 out: total
 ref: du
 teach: du -c
 hint: -c appends one extra 'total' line summing everything above it
 ---
-q: {measure @dir@ without crossing onto another filesystem|measure @dir@ but stay on its own filesystem|report the size of @dir@ without descending into other mounts}
+q: {measure @dir@ without crossing onto another filesystem, with du|measure @dir@ but stay on its own filesystem, with du|report the size of @dir@ without other mounts, with du}
 a: du -x @dir@
 why: fixture-cost
 ref: du
 teach: du -x
 hint: -x stops du from following mounts onto other filesystems
 ---
-q: %find% the ten largest things under here
+q: %find% the ten largest things under here, with du
 a: du -a . | sort -rn | head -10
 cmp: ref
 ref: du
@@ -104,28 +104,28 @@ ref: blkid
 teach: blkid
 hint: blkid reads filesystem superblocks for uuid, label and type -- no mount needed
 ---
-q: %find% which device holds the filesystem labelled XOS-ROOT
+q: %find% which device holds the filesystem XOS-ROOT, with findfs
 a: findfs LABEL=XOS-ROOT
 why: root
 ref: findfs
 teach: findfs
 hint: findfs takes a LABEL= or UUID= and prints the matching device node
 ---
-q: {this isn't your machine -- mount /dev/sdb1 read-only at /mnt|mount /dev/sdb1 at /mnt, allowing no writes|attach /dev/sdb1 at /mnt without write access}
+q: {this isn't your machine -- mount /dev/sdb1 read-only at /mnt|mount /dev/sdb1 at /mnt, allowing no writes|mount /dev/sdb1 at /mnt without write access}
 a: mount -r /dev/sdb1 /mnt
 why: root
 ref: mount
 teach: mount -r
 hint: on a machine you do not trust, read-only is the default you want
 ---
-q: {auto-detect got it wrong -- mount /dev/sdb1 at /mnt as ext4|mount /dev/sdb1 at /mnt, naming ext4 instead of guessing|name ext4 as the type while mounting /dev/sdb1 at /mnt}
+q: {auto-detect got it wrong -- mount /dev/sdb1 at /mnt as ext4|mount /dev/sdb1 at /mnt, naming ext4 instead of guessing|name ext4 as the type, then mount /dev/sdb1 at /mnt}
 a: mount -t ext4 /dev/sdb1 /mnt
 why: root
 ref: mount
 teach: mount -t
 hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
-q: {don't trust it -- mount /dev/sdb1 at /mnt with nosuid, nodev, noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes, execution|attach /dev/sdb1 at /mnt with the nosuid, nodev, noexec options}
+q: {don't trust it -- mount /dev/sdb1 at /mnt with nosuid, nodev, noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes, execution|mount /dev/sdb1 at /mnt with the nosuid, nodev, noexec options}
 a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
 a: mount -o noexec,nodev,nosuid /dev/sdb1 /mnt
 why: root
@@ -147,84 +147,84 @@ ref: umount
 teach: umount
 hint: umount takes the mountpoint, or the device, and detaches it
 ---
-q: {unmount /mnt even though something is still using it, detaching it lazily|detach /mnt lazily, even with something still using it|unmount /mnt now but let the detach finish once it is no longer busy}
+q: {umount /mnt even though something is still using it, lazily|umount /mnt lazily, even with something still using it|umount /mnt now, but let the detach finish once it's no longer busy}
 a: umount -l /mnt
 why: root
 ref: umount
 teach: umount -l
 hint: -l detaches it now and cleans up once nothing is using it
 ---
-q: {force an unmount of /mnt|force /mnt to unmount|make /mnt unmount even if it resists}
+q: {force an umount of /mnt|force /mnt to umount|make /mnt umount even if it resists}
 a: umount -f /mnt
 why: root
 ref: umount
 teach: umount -f
 hint: -f forces the unmount even if the filesystem is unresponsive
 ---
-q: {unmount everything that can be unmounted|detach every filesystem that will allow it|unmount as much as possible in one go}
+q: {umount everything that can be unmounted|umount every filesystem that will allow it|umount as much as possible in one go}
 a: umount -a
 why: root
 ref: umount
 teach: umount -a
 hint: -a unmounts everything listed in /proc/mounts it can
 ---
-q: {attach the file disk.img to a loop device so it can be mounted|make disk.img mountable by attaching it to a loop device|wire disk.img up to a loop device so it behaves like a block device}
+q: {attach disk.img to a loop device with losetup, so it can mount|make disk.img mountable, attached to a loop device, with losetup|with losetup, wire disk.img to a loop device, like a block device}
 a: losetup -f disk.img
 why: root
 ref: losetup
 teach: losetup -f
 hint: -f finds the next free loop device and attaches to it in one step
 ---
-q: {attach disk.img read-only to a loop device|loop-attach disk.img without allowing writes|attach disk.img to a loop device in read-only mode}
+q: {attach disk.img read-only to a loop device, with losetup|loop-attach disk.img with losetup, without allowing writes|attach disk.img to a loop device, read-only, with losetup}
 a: losetup -r -f disk.img
 why: root
 ref: losetup
 teach: losetup -r
 hint: -r attaches the loop device read-only
 ---
-q: {attach disk.img at a 1048576 byte offset -- one megabyte in|loop-attach disk.img, skipping 1048576 bytes, one megabyte|attach disk.img to a loop device 1048576 bytes in}
+q: {attach disk.img with losetup at a 1048576 byte offset -- one mb in|loop-attach disk.img with losetup, skipping 1048576 bytes in|attach disk.img to a loop device, 1048576 bytes in, with losetup}
 a: losetup -o 1048576 -f disk.img
 why: root
 ref: losetup
 teach: losetup -o
 hint: -o takes a byte offset into the image to start the mapping at
 ---
-q: {attach disk.img and scan it for partitions|loop-attach disk.img and have it scanned for partitions|attach disk.img, exposing any partitions it contains}
+q: {attach disk.img with losetup, scanning it for partitions|loop-attach disk.img with losetup, having it scanned for partitions|attach disk.img with losetup, exposing any partitions it contains}
 a: losetup -P -f disk.img
 why: root
 ref: losetup
 teach: losetup -P
 hint: -P scans the attached image for a partition table
 ---
-q: you don't know how /dev/sda is carved up -- %list% its partition table
+q: you don't know how /dev/sda is carved up -- %list% its table, with fdisk
 a: fdisk -l /dev/sda
 why: root
 ref: fdisk
 teach: fdisk -l
 hint: -l just lists the partition table, no interactive prompt
 ---
-q: {report the block size of /dev/sda|what is the block size of /dev/sda|find the block size of /dev/sda}
+q: {report the block size of /dev/sda, with blockdev|with blockdev, what is the block size of /dev/sda|find the block size of /dev/sda, using blockdev}
 a: blockdev --getbsz /dev/sda
 why: root
 ref: blockdev
 teach: blockdev --getbsz
 hint: --getbsz reports the block size
 ---
-q: {before you image /dev/sda you need its exact size -- report it in bytes|what is the size of /dev/sda, in bytes|find the exact byte size of /dev/sda}
+q: {you need /dev/sda's exact size before imaging -- blockdev, in bytes|with blockdev, what is the size of /dev/sda, in bytes|find the exact byte size of /dev/sda, with blockdev}
 a: blockdev --getsize64 /dev/sda
 why: root
 ref: blockdev
 teach: blockdev --getsize64
 hint: --getsize64 reports the size in bytes, not sectors
 ---
-q: {mark /dev/sda read-only at the block layer|flip /dev/sda to read-only below the filesystem layer|set the block-level read-only flag on /dev/sda}
+q: {mark /dev/sda read-only at the block layer, with blockdev|with blockdev, flip /dev/sda read-only below the filesystem|set the block-level read-only flag on /dev/sda, blockdev}
 a: blockdev --setro /dev/sda
 why: root
 ref: blockdev
 teach: blockdev --setro
 hint: --setro flips the read-only flag at the block layer, below any filesystem
 ---
-q: {confirm the read-only flag on /dev/sda actually stuck|check whether /dev/sda's read-only flag is set|is /dev/sda currently read-only at the block layer}
+q: {confirm the read-only flag on /dev/sda stuck, with blockdev|with blockdev, check whether /dev/sda's read-only flag is set|is /dev/sda read-only at the block layer, with blockdev}
 a: blockdev --getro /dev/sda
 why: root
 ref: blockdev
@@ -238,28 +238,28 @@ ref: sync
 teach: sync
 hint: sync with no arguments flushes every dirty buffer on the system
 ---
-q: {you just wrote @txt@, don't risk losing it -- flush only its data|flush just @txt@'s buffered data, leaving the rest alone|write out only @txt@'s pending data, not every buffer}
+q: {you just wrote @txt@ -- flush just its data, with sync|flush just @txt@'s buffered data, with sync, rest alone|write out only @txt@'s pending data, with sync, not all}
 a: sync -d @txt@
 why: root
 ref: sync
 teach: sync -d
 hint: -d limits the flush to the file you name
 ---
-q: {hold an exclusive lock on lock.file while echoing held|lock lock.file exclusively, running echo held under it|take lock.file's exclusive lock around echo held}
+q: {hold an exclusive lock on lock.file, with flock, echoing held|with flock, lock lock.file exclusively, running echo held|take lock.file's exclusive lock with flock, around echo held}
 a: flock -x lock.file echo held
 out: held
 ref: flock
 teach: flock -x
 hint: -x is flock's default, an exclusive lock -- named here for clarity
 ---
-q: {lock lock.file around echo held, giving up at once if it is held|try lock.file's lock for echo held, failing instantly not waiting|take lock.file's lock around echo held, bailing if someone has it}
+q: {lock lock.file with flock, giving up at once if held, echo held|with flock, try lock.file's lock, failing fast, not waiting|take lock.file's lock with flock, bailing if someone has it}
 a: flock -n lock.file echo held
 out: held
 ref: flock
 teach: flock -n
 hint: -n makes flock fail instead of waiting when the lock is held
 ---
-q: {take lock.file's lock as shared, not exclusive, around echo held|hold a shared lock on lock.file while echoing held|lock lock.file shared rather than exclusive, running echo held}
+q: {take lock.file's lock as shared with flock, around echo held|with flock, hold a shared lock on lock.file, echoing held|lock lock.file shared with flock, running echo held}
 a: flock -s lock.file echo held
 out: held
 ref: flock
@@ -269,7 +269,7 @@ hint: -s takes a shared lock, which can coexist with other shared locks
 setup: p3 is the state partition -- the only thing on this stick that survives
 setup: a reboot, and the only place a key can live. It is encrypted, and it is
 setup: also authenticated, which is a different property and the harder one.
-q: {write a LUKS2 header on /dev/sda3, hmac-sha256 integrity|format /dev/sda3 as LUKS2, authenticated with hmac-sha256|put a LUKS2 header on /dev/sda3, hmac-sha256 integrity}
+q: {write a LUKS2 header on /dev/sda3 with cryptsetup, hmac-sha256|with cryptsetup, format /dev/sda3 as LUKS2, hmac-sha256 integrity|put a LUKS2 header on /dev/sda3, hmac-sha256, with cryptsetup}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
 why: root
@@ -285,7 +285,7 @@ ref: cryptsetup
 teach: cryptsetup
 hint: open maps the decrypted device under /dev/mapper by the name you give
 ---
-q: {unlock /dev/sda3 as state, allowing no writes|open /dev/sda3 read-only as state, no writes through it|decrypt /dev/sda3 as state, permitting no writes}
+q: {unlock /dev/sda3 as state with cryptsetup, allowing no writes|with cryptsetup, open /dev/sda3 read-only as state, no writes|decrypt /dev/sda3 as state with cryptsetup, permitting no writes}
 a: cryptsetup open --readonly /dev/sda3 state
 why: root
 ref: cryptsetup
@@ -306,49 +306,49 @@ ref: cryptsetup
 teach: cryptsetup
 hint: status reports whether it's active and which cipher it's using
 ---
-q: %show% the LUKS header of /dev/sda3 -- cipher, key slots and kdf
+q: %show% the LUKS header of /dev/sda3, with cryptsetup
 a: cryptsetup luksDump /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup
 hint: luksDump reads the header itself -- it never touches the encrypted data
 ---
-q: {format /dev/sda3, naming aes-xts-plain64 as the cipher|format /dev/sda3 with aes-xts-plain64, not the default|choose aes-xts-plain64 yourself formatting /dev/sda3}
+q: {format /dev/sda3 with cryptsetup, naming aes-xts-plain64 cipher|with cryptsetup, format /dev/sda3 with aes-xts-plain64, not default|choose aes-xts-plain64 yourself, formatting /dev/sda3, cryptsetup}
 a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --cipher
 hint: --cipher names the cipher instead of taking cryptsetup's default
 ---
-q: {format /dev/sda3 with a 512 bit key|format /dev/sda3 using a 512 bit key|choose a 512 bit key while formatting /dev/sda3}
+q: {format /dev/sda3 with a 512 bit key, with cryptsetup|with cryptsetup, format /dev/sda3 using a 512 bit key|choose a 512 bit key formatting /dev/sda3, with cryptsetup}
 a: cryptsetup luksFormat --key-size 512 /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --key-size
 hint: --key-size is in bits, and must match what the cipher supports
 ---
-q: {format /dev/sda3 choosing pbkdf2 over the argon2id default|format /dev/sda3 with pbkdf2 instead of the argon2id default|swap /dev/sda3's key derivation to pbkdf2 while formatting}
+q: {format /dev/sda3 with cryptsetup, choosing pbkdf2 over argon2id|with cryptsetup, format /dev/sda3 with pbkdf2, not argon2id|swap /dev/sda3's key derivation to pbkdf2, with cryptsetup}
 a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --pbkdf
 hint: --pbkdf picks the key derivation function used to slow down password guessing
 ---
-q: {format /dev/sda3 with no prompt or confirmation, for a script|format /dev/sda3 with no confirmation prompt, suitable for a script|skip the are-you-sure prompt formatting /dev/sda3, for a script}
+q: {format /dev/sda3 with no prompt, for a script, with cryptsetup|with cryptsetup, format /dev/sda3 with no confirmation, scripted|skip the are-you-sure prompt, formatting /dev/sda3, cryptsetup}
 a: cryptsetup luksFormat --batch-mode /dev/sda3
 why: root
 ref: cryptsetup
 teach: cryptsetup --batch-mode
 hint: --batch-mode skips the are-you-sure prompt, for scripting
 ---
-q: {open /dev/sda3 as state, narrating what cryptsetup is doing|open /dev/sda3 as state while narrating each step out loud|unlock /dev/sda3 as state with verbose output on each step}
+q: {open /dev/sda3 as state, narrating what cryptsetup is doing|open /dev/sda3 as state with cryptsetup, narrating each step|unlock /dev/sda3 as state with cryptsetup, verbose each step}
 a: cryptsetup open --verbose /dev/sda3 state
 why: root
 ref: cryptsetup
 teach: cryptsetup --verbose
 hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
-q: {mount /dev/mapper/state at /state -- no setuid, no device nodes, no exec|mount the unlocked state device at /state: nosuid, nodev, noexec|attach /dev/mapper/state at /state with nosuid, nodev and noexec}
+q: {mount /dev/mapper/state at /state -- no setuid, no device nodes, no exec|mount the unlocked state device at /state: nosuid, nodev, noexec|mount /dev/mapper/state at /state with nosuid, nodev and noexec}
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
 a: mount -o noexec,nodev,nosuid /dev/mapper/state /state
 why: root
@@ -367,7 +367,7 @@ teach: dd
 hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {mount fat32 stick /dev/sda1 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda1 at /mnt as fat32, read-only, nosuid, nodev, noexec|attach fat32 /dev/sda1 at /mnt read-only, nosuid, nodev, noexec}
+q: {mount fat32 stick /dev/sda1 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda1 at /mnt as fat32, read-only, nosuid, nodev, noexec|mount fat32 /dev/sda1 at /mnt read-only, nosuid, nodev, noexec}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -376,7 +376,7 @@ teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {mount exfat card /dev/sda1 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda1 at /mnt as exfat, read-only, nosuid, nodev, noexec|attach exfat /dev/sda1 at /mnt read-only, nosuid, nodev, noexec}
+q: {mount exfat card /dev/sda1 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda1 at /mnt as exfat, read-only, nosuid, nodev, noexec|mount exfat /dev/sda1 at /mnt read-only, nosuid, nodev, noexec}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -385,7 +385,7 @@ teach: mount -t
 hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {mount ntfs3 disk /dev/sda2 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda2 at /mnt as ntfs3, read-only, nosuid, nodev, noexec|attach ntfs3 /dev/sda2 at /mnt read-only, nosuid, nodev, noexec}
+q: {mount ntfs3 disk /dev/sda2 at /mnt read-only, nosuid, nodev, noexec|mount /dev/sda2 at /mnt as ntfs3, read-only, nosuid, nodev, noexec|mount ntfs3 /dev/sda2 at /mnt read-only, nosuid, nodev, noexec}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt
 why: root
@@ -408,21 +408,21 @@ ref: mke2fs
 teach: mke2fs
 hint: mke2fs with no flags builds an ext2 filesystem by default
 ---
-q: %make% an ext filesystem on /dev/mapper/state, no confirming
+q: %make% an ext filesystem on /dev/mapper/state, with mke2fs
 a: mke2fs -F /dev/mapper/state
 why: root
 ref: mke2fs
 teach: mke2fs -F
 hint: -F skips the confirmation prompt, useful for scripting
 ---
-q: %make% an ext filesystem on /dev/mapper/state labelled data
+q: %make% an ext filesystem on /dev/mapper/state labelled data, with mke2fs
 a: mke2fs -L data /dev/mapper/state
 why: root
 ref: mke2fs
 teach: mke2fs -L
 hint: -L sets the filesystem's volume label
 ---
-q: {make /dev/mapper/state's filesystem reserving no admin space|reserve zero blocks for admin use on /dev/mapper/state|build /dev/mapper/state's filesystem, nothing reserved for root}
+q: {make /dev/mapper/state's filesystem with mke2fs, no admin space|with mke2fs, reserve zero blocks for admin on /dev/mapper/state|build /dev/mapper/state's filesystem with mke2fs, none for root}
 a: mke2fs -m 0 /dev/mapper/state
 why: root
 ref: mke2fs
@@ -436,7 +436,7 @@ ref: mkdosfs
 teach: mkdosfs
 hint: mkdosfs with no flags builds fat32 (or fat16, sized by the partition)
 ---
-q: {format /dev/sda1 as fat with the volume label BACKUP|make a fat filesystem on /dev/sda1 labelled BACKUP|format /dev/sda1 as fat, labelling it BACKUP}
+q: {format /dev/sda1 as fat with mkdosfs, volume label BACKUP|with mkdosfs, make a fat filesystem on /dev/sda1, labelled BACKUP|format /dev/sda1 as fat with mkdosfs, labelling it BACKUP}
 a: mkdosfs -n BACKUP /dev/sda1
 why: root
 ref: mkdosfs

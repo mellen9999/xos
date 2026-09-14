@@ -5,14 +5,14 @@ intro: type, then a comma-separated option list. It is the ground truth for how
 intro: this machine is actually assembled -- and where you prove root is locked.
 ---
 setup: Field 2 of /proc/mounts is the mount point, field 3 the filesystem type.
-q: the root mount's filesystem type out of /proc/mounts, and nothing else
+q: the root mount's filesystem type with awk, from /proc/mounts, alone
 a: awk '$2=="/" {print $3}' /proc/mounts
 ref: awk
 cmp: ref
 hint: match the line whose field 2 is exactly "/"
 ---
 setup: The fourth field of /proc/mounts is the comma-separated option list.
-q: print the mount options of the root filesystem from /proc/mounts
+q: print the root filesystem's mount options with awk, from /proc/mounts
 a: awk '$2=="/" {print $4}' /proc/mounts
 ref: awk
 cmp: ref
@@ -20,7 +20,7 @@ hint: same match as before, one field further right
 ---
 setup: noexec on a mount means nothing there can be executed -- a defence you
 setup: want to confirm, not assume.
-q: list every mount point in /proc/mounts that is mounted noexec
+q: list every mount point in /proc/mounts with awk, that is noexec
 a: awk '$4 ~ /noexec/ {print $2}' /proc/mounts
 a: grep noexec /proc/mounts | awk '{print $2}'
 ref: awk

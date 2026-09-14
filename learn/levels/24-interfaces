@@ -8,42 +8,42 @@ brief:
 brief: ip has a shape: ip OBJECT COMMAND. ip addr, ip link, ip route, ip neigh.
 brief: Every one of them takes show, add and del.
 ---
-q: you just booted this stick -- %show% every interface and its addresses
+q: you just booted this stick -- %show% every interface's addresses, with ip
 a: ip addr
 out: inet [0-9]
 ref: ip
 teach: ip
 hint: ip addr with no filter lists every interface and its addresses
 ---
-q: piping this on -- %show% every interface's addresses one per line
+q: piping this on -- %show% every interface's addresses one per line, with ip
 a: ip -o addr
 out: ^[0-9]+:.*inet
 ref: ip
 teach: ip
 hint: -o (oneline) puts each address on its own line for easy parsing
 ---
-q: too many ipv6 lines -- %show% every interface's ipv4 addresses
+q: too many ipv6 lines -- %show% every interface's ipv4 addresses, with ip
 a: ip -4 addr
 why: live-hw
 ref: ip
 teach: ip
 hint: -4 filters ip's output down to ipv4 only
 ---
-q: just plugged in the cable -- %show% every interface and whether it is up
+q: just plugged in the cable -- %show% every interface and its state, with ip
 a: ip link
 cmp: ref
 ref: ip
 teach: ip
 hint: ip link shows interfaces themselves, not the addresses on them
 ---
-q: {bring the interface @iface@ up|bring @iface@ up|set @iface@ up}
+q: {bring the interface @iface@ up with ip|bring @iface@ up with ip|set @iface@ up with ip}
 a: ip link set @iface@ up
 why: live-hw
 ref: ip
 teach: ip
 hint: ip link set IFACE up/down toggles an interface's state
 ---
-q: {bring @iface@ back down|bring @iface@ down|set @iface@ down}
+q: {bring @iface@ back down with ip|bring @iface@ down with ip|set @iface@ down with ip}
 a: ip link set @iface@ down
 why: live-hw
 ref: ip
@@ -64,7 +64,7 @@ ref: ip
 teach: ip
 hint: ip addr del ADDR/PREFIX dev IFACE mirrors addr add
 ---
-q: %show% the routing table
+q: %show% the routing table, with ip
 a: ip route
 cmp: ref
 ref: ip
@@ -85,7 +85,7 @@ ref: ip
 teach: ip
 hint: route add default via sets where traffic with no other match goes
 ---
-q: {delete the default route|remove the default route|take the default route out}
+q: {delete the default route with ip|remove the default route with ip|take the default route out with ip}
 a: ip route del default
 why: live-hw
 ref: ip
@@ -99,7 +99,7 @@ ref: ip
 teach: ip
 hint: ip neigh is ip's own view of the arp table
 ---
-q: scripting -- %show% just the interface names, one per line
+q: scripting -- %show% just the interface names, one per line, with ip
 a: ip -o link | cut -d: -f2
 cmp: ref
 ref: ip
@@ -134,7 +134,7 @@ ref: route
 teach: route
 hint: route with no arguments is ifconfig's routing counterpart
 ---
-q: dns might not even work yet -- %show% routes without resolving names
+q: dns might not even work yet -- %show% routes without names, using route
 a: route -n
 cmp: ref
 ref: route
@@ -169,7 +169,7 @@ ref: arp
 teach: arp -d
 hint: -d removes one entry from the cache
 ---
-q: {pin @ip@ to the mac 00:11:22:33:44:55 permanently|permanently map @ip@ to 00:11:22:33:44:55 in the arp cache|add a static arp entry for @ip@ at 00:11:22:33:44:55}
+q: {pin @ip@ to the mac 00:11:22:33:44:55 permanently, with arp|permanently map @ip@ to 00:11:22:33:44:55 with arp|add a static arp entry for @ip@ at 00:11:22:33:44:55}
 a: arp -s @ip@ 00:11:22:33:44:55
 why: live-hw
 ref: arp
@@ -191,7 +191,7 @@ teach: arp -D
 hint: -D answers arp requests for an address on another host's behalf
 ---
 setup: three probes, then stop
-q: {is anyone already using the address @ip@ -- ask at the link layer|check at the link layer whether @ip@ is already in use|find out, below ip, whether @ip@ already has an owner}
+q: {is anyone using @ip@ -- ask at the link layer, with arping|check at the link layer whether @ip@ is in use, with arping|find out, below ip, whether @ip@ has an owner, with arping}
 a: arping -c 3 @ip@
 why: live-hw
 ref: arping
@@ -236,28 +236,28 @@ ref: ipcalc
 teach: ipcalc
 hint: ipcalc with no flags prints the whole network breakdown
 ---
-q: %show% just the broadcast address for @ip@/24
+q: %show% just the broadcast address for @ip@/24, with ipcalc
 a: ipcalc -b @ip@/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -b
 hint: -b isolates just the broadcast address
 ---
-q: %show% just the network address for @ip@/24
+q: %show% just the network address for @ip@/24, with ipcalc
 a: ipcalc -n @ip@/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -n
 hint: -n isolates just the network address
 ---
-q: %show% just the netmask for @ip@/24
+q: %show% just the netmask for @ip@/24, with ipcalc
 a: ipcalc -m @ip@/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -m
 hint: -m isolates just the netmask
 ---
-q: %show% @ip@'s prefix length, given the netmask 255.255.255.0
+q: %show% @ip@'s prefix length for netmask 255.255.255.0, with ipcalc
 a: ipcalc -p @ip@ 255.255.255.0
 cmp: ref
 ref: ipcalc

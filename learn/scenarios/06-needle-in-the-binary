@@ -21,7 +21,7 @@ cmp: ref
 hint: pipe strings' output into grep for the phrase
 ---
 setup: A digest is how you say "this exact binary, no other" in one line.
-q: print the sha256 digest of /bin/busybox, and nothing else
+q: print /bin/busybox's digest with sha256sum, and nothing else
 a: sha256sum /bin/busybox | awk '{print $1}'
 a: sha256sum /bin/busybox | cut -d' ' -f1
 out: ^[0-9a-f]{64}$

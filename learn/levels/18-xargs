@@ -10,56 +10,56 @@ brief: separated by a NUL byte, which cannot occur in a filename, and xargs -0
 brief: reads them back. Use that pair by default and the problem never arises.
 ---
 setup: a pile of .log files has built up and you want line counts for all of them
-q: %find% every .log file and count the lines of each
+q: %find% every .log file and count its lines, with xargs
 a: find . -name '*.log' | xargs wc -l
 cmp: ref
 ref: xargs
 teach: xargs
 hint: xargs turns lines of stdin into arguments appended to the command
 ---
-q: {count the lines of every .log file, safe for names with spaces|count each .log file's lines in a way that survives spaces in names|line-count every .log file here, spaces in the names and all}
+q: {count every .log file's lines, safe for names with spaces|count each .log file's lines in a way that survives spaces|line-count every .log file, spaces in the names and all}, with xargs
 a: find . -name '*.log' -print0 | xargs -0 wc -l
 cmp: ref
 ref: xargs
 teach: xargs -0
 hint: NUL is the one byte a filename cannot contain
 ---
-q: {feed ls's names to echo one per run, not all in one go|run echo once per name ls prints, one argument each time|echo the names ls prints one at a time, one run per name}
+q: {feed ls's names to echo one per run, not all in one go|run echo once per name ls prints, one argument each time|echo the names ls prints one at a time, one run per name}, with xargs
 a: ls | xargs -n 1 echo
 cmp: ref
 ref: xargs
 teach: xargs -n
 hint: -n caps how many arguments go into each invocation
 ---
-q: {echo "found NAME" for each .log name ls prints, NAME mid-command|for every .log name ls prints, echo found NAME, name not trailing|print "found NAME" per .log name from ls, the name in the middle}
+q: {"found NAME" per .log name ls prints, NAME mid-command|for every .log name ls prints, echo found NAME, not trailing|"found NAME" per .log name from ls, name in the middle}, with xargs
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
 ref: xargs
 teach: xargs -I
 hint: -I defines a placeholder that gets replaced with each input item
 ---
-q: {echo the names ls prints, showing each command before it runs|print every echo command before it runs over ls's names|feed ls's names to echo, printing each command line first}
+q: {echo the names ls prints, showing each command before it runs|print every echo command before it runs over ls's names|feed ls's names to echo, printing each command line first}, with xargs
 a: ls | xargs -t echo
 cmp: ref
 ref: xargs
 teach: xargs -t
 hint: -t prints the command line to stderr before running it
 ---
-q: {printf '' sends no input -- don't let echo nothing run at all|with printf '' as the input, skip running echo nothing entirely|empty input from printf '' must not still run echo nothing once}
+q: {printf '' sends no input -- don't let echo nothing run at all|with printf '' as the input, skip running echo nothing entirely|empty input from printf '' must not still run echo nothing once}, with xargs
 a: printf '' | xargs -r echo nothing
 why: primitive-cost
 ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
-q: {echo ls's names one per run, 2 runs going at a time|run echo over ls's names one name each, 2 in parallel|echo each name ls prints, one per run, capped at 2 parallel}
+q: {echo ls's names one per run, 2 runs going at a time|run echo over ls's names one name each, 2 in parallel|echo each name ls prints, one per run, capped at 2 parallel}, with xargs
 a: ls | xargs -P 2 -n 1 echo
 why: primitive-cost
 ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
 ---
-q: {@txt@ already holds the argument list -- echo it, no pipe|echo the arguments in @txt@, read straight out of the file|feed @txt@'s lines to echo without piping them in}
+q: {@txt@ already holds the argument list -- echo it, no pipe|echo the arguments in @txt@, read straight out of the file|feed @txt@'s lines to echo without piping them in}, with xargs
 a: xargs -a @txt@ echo
 out: rotate
 ref: xargs
@@ -80,14 +80,14 @@ ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {strip .txt from @txt@ with the suffix named as a flag|name the .txt suffix explicitly stripping it off @txt@|drop .txt from @txt@ the way that still works with more files}
+q: {strip .txt off @txt@ with basename, the suffix named as a flag|basename @txt@, naming the .txt suffix explicitly|drop .txt from @txt@ with basename, the way that scales to more files}
 a: basename -s .txt @txt@
 cmp: ref
 ref: basename
 teach: basename -s
 hint: -s is the explicit-flag form of the same suffix stripping
 ---
-q: {@txt@ and @log@ -- want just the filenames, in one call|process @txt@ and @log@ in one basename call, not two|reduce @txt@ and @log@ to bare filenames in one call}
+q: {@txt@ and @log@ -- just the filenames, in one basename call|basename @txt@ and @log@ in one call, not two|@txt@ and @log@ to bare filenames, one basename call}
 a: basename -a @txt@ @log@
 cmp: ref
 ref: basename
@@ -115,7 +115,7 @@ ref: readlink
 teach: readlink -f
 hint: -f follows every link in the chain, not just the first one
 ---
-q: {piping @txt@'s link target onward -- no stray newline allowed|@txt@'s target needs to come out with no trailing newline|feed @txt@'s link target on without an extra newline}
+q: {piping @txt@'s link target onward, no stray newline, with readlink|@txt@'s readlink target with no trailing newline|feed @txt@'s readlink target on without an extra newline}
 a: readlink -n @txt@
 why: primitive-cost
 ref: readlink

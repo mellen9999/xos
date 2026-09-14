@@ -8,7 +8,7 @@ brief:
 brief: ping proves a host answers. traceroute shows where the packets stop.
 brief: netstat shows what your own machine is doing about it.
 ---
-q: {does @ip@ even answer -- send three pings and stop|ping @ip@ three times, then stop|send exactly three pings to @ip@}
+q: {does @ip@ even answer -- send three pings and stop|ping @ip@ three times, then stop|send exactly three pings to @ip@}, with ping
 a: ping -c 3 @ip@
 why: live-net
 ref: ping
@@ -47,7 +47,7 @@ ref: ping
 teach: ping -s
 hint: -s sets the payload size in bytes, useful for MTU testing
 ---
-q: {@ip@ may be dead -- give the ping run up after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}
+q: {@ip@ may be dead -- give the ping run up after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}, with ping
 a: ping -w 5 @ip@
 why: live-net
 ref: ping
@@ -61,42 +61,42 @@ ref: traceroute
 teach: traceroute
 hint: traceroute with no flags shows the path packets take, hop by hop
 ---
-q: {no dns wait per hop -- trace to @ip@ without resolving names|trace to @ip@ skipping name resolution for speed|run the trace to @ip@ fast, with no hostname lookups}
+q: {no dns wait per hop -- traceroute to @ip@ without resolving names|traceroute to @ip@ skipping name resolution for speed|run traceroute to @ip@ fast, with no hostname lookups}
 a: traceroute -n @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -n
 hint: -n skips resolving each hop's hostname, so it runs faster
 ---
-q: {the trace to @ip@ is dragging on -- cap it at 10 hops|cap the trace to @ip@ at 10 hops|trace to @ip@ but stop after 10 hops}
+q: {the traceroute to @ip@ is dragging on -- cap it at 10 hops|cap the traceroute to @ip@ at 10 hops|traceroute to @ip@ but stop after 10 hops}
 a: traceroute -m 10 @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -m
 hint: -m caps the maximum number of hops traced
 ---
-q: {a firewall may drop udp -- trace @ip@ with icmp echo|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
+q: {a firewall may drop udp -- traceroute @ip@ with icmp echo|traceroute to @ip@ with icmp echo probes instead of udp|switch the traceroute to @ip@ over to icmp echo}
 a: traceroute -I @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -I
 hint: -I switches the probe type to icmp echo instead of udp
 ---
-q: {trace to @ip@ out of @iface@|trace to @ip@ through @iface@|send the trace to @ip@ out of @iface@}
+q: {traceroute to @ip@ out of @iface@|traceroute to @ip@ through @iface@|send the traceroute to @ip@ out of @iface@}
 a: traceroute -i @iface@ @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -i
 hint: -i picks which interface the probes go out of
 ---
-q: {trace to @ip@ using @ip2@ as a chosen source address|trace to @ip@ with @ip2@ as the source address you pick|set @ip2@ as the source address for a trace to @ip@}
+q: {traceroute to @ip@ using @ip2@ as a chosen source address|traceroute to @ip@ with @ip2@ as the source you pick|set @ip2@ as the source address for a traceroute to @ip@}
 a: traceroute -s @ip2@ @ip@
 why: live-net
 ref: traceroute
 teach: traceroute -s
 hint: -s sets the source address the probes claim to be from
 ---
-q: {trace to @ip@, waiting at most 2 seconds for each probe|cap each probe's wait time at 2 seconds while tracing to @ip@|trace to @ip@, waiting no more than 2 seconds per probe}
+q: {traceroute to @ip@, waiting at most 2 seconds for each probe|cap each probe's wait to 2 seconds on a traceroute to @ip@|traceroute to @ip@, waiting no more than 2 seconds per probe}
 a: traceroute -w 2 @ip@
 why: live-net
 ref: traceroute
@@ -124,49 +124,49 @@ ref: netstat
 teach: netstat
 hint: netstat alone lists the sockets currently in use
 ---
-q: check what's accepting connections -- %show% only listening sockets
+q: what's accepting connections -- %show% listening sockets, with netstat
 a: netstat -l
 why: live-net
 ref: netstat
 teach: netstat -l
 hint: -l filters down to sockets in the listening state
 ---
-q: %show% every socket, listening or not
+q: %show% every socket, listening or not, with netstat
 a: netstat -a
 why: live-net
 ref: netstat
 teach: netstat -a
 hint: -a shows every socket, listening and connected alike
 ---
-q: dns is down -- %show% sockets numerically, no names or ports resolved
+q: dns is down -- %show% netstat sockets numerically, no names resolved
 a: netstat -n
 why: live-net
 ref: netstat
 teach: netstat -n
 hint: -n skips resolving hostnames and service names to numbers
 ---
-q: %show% only tcp sockets
+q: %show% only tcp sockets, with netstat
 a: netstat -t
 why: live-net
 ref: netstat
 teach: netstat -t
 hint: -t filters to tcp sockets only
 ---
-q: %show% only udp sockets
+q: %show% only udp sockets, with netstat
 a: netstat -u
 why: live-net
 ref: netstat
 teach: netstat -u
 hint: -u filters to udp sockets only
 ---
-q: which process has a port open -- %show% who owns each socket
+q: which process has a port open -- %show% who owns it, with netstat
 a: netstat -p
 why: live-net
 ref: netstat
 teach: netstat -p
 hint: -p adds the pid and process name that owns each socket
 ---
-q: %show% every listening tcp socket numerically, with its process
+q: %show% every listening tcp socket numerically, with its netstat process
 a: netstat -tlnp
 why: live-net
 ref: netstat
@@ -180,14 +180,14 @@ ref: netstat
 teach: netstat -r
 hint: -r switches netstat to print the routing table instead of sockets
 ---
-q: %show% unix domain sockets
+q: %show% unix domain sockets, with netstat
 a: netstat -x
 why: live-net
 ref: netstat
 teach: netstat -x
 hint: -x filters to unix domain sockets
 ---
-q: %show% raw sockets
+q: %show% raw sockets, with netstat
 a: netstat -w
 why: live-net
 ref: netstat
@@ -208,7 +208,7 @@ ref: netstat
 teach: netstat -W
 hint: -W widens columns so long addresses print in full
 ---
-q: {ping the ipv6 loopback ::1 three times|send three pings to the ipv6 loopback ::1|ping ::1, the ipv6 loopback, stopping after three}
+q: {ping6 the ipv6 loopback ::1 three times|send three ping6 probes to the ipv6 loopback ::1|ping6 ::1, the ipv6 loopback, stopping after three}
 a: ping6 -c 3 ::1
 why: live-net
 ref: ping6
@@ -222,14 +222,14 @@ ref: traceroute6
 teach: traceroute6
 hint: traceroute6 is traceroute's ipv6-only counterpart
 ---
-q: {trace the ipv6 path to ::1 without resolving names|trace to ::1 over ipv6, skipping name resolution|trace the ipv6 path to ::1 with no hostname lookups}
+q: {traceroute6 the ipv6 path to ::1 without resolving names|traceroute6 to ::1, skipping name resolution|traceroute6 the ipv6 path to ::1 with no hostname lookups}
 a: traceroute6 -n ::1
 why: live-net
 ref: traceroute6
 teach: traceroute6 -n
 hint: -n skips name resolution here too
 ---
-q: {trace the ipv6 path to ::1 no further than 10 hops|cap the ipv6 trace to ::1 at 10 hops|trace over ipv6 to ::1, stopping after 10 hops}
+q: {traceroute6 the ipv6 path to ::1, no further than 10 hops|cap the traceroute6 to ::1 at 10 hops|traceroute6 over ipv6 to ::1, stopping after 10 hops}
 a: traceroute6 -m 10 ::1
 why: live-net
 ref: traceroute6

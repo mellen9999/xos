@@ -16,7 +16,7 @@ ref: cp
 teach: cp
 hint: just cp, then the source, then the destination
 ---
-q: {copy @txt@ into the @dir@ directory, keeping its name|put a copy of @txt@ inside @dir@ with the same name|copy @txt@ into @dir@ without renaming it}
+q: {copy @txt@ into the @dir@ directory, keeping its name|put a copy of @txt@ inside @dir@ with the same name|copy @txt@ into @dir@ without renaming it}, with cp
 a: cp @txt@ @dir@/
 a: cp @txt@ @dir@
 state: exists:@dir@/@txt@
@@ -24,7 +24,7 @@ ref: cp
 teach: cp
 hint: when the destination is a directory, cp keeps the original name for you
 ---
-q: {copy the whole @dir@ directory, and everything inside it, to @dir2@-copy|copy @dir@ and all its contents to @dir2@-copy|duplicate @dir@, contents included, as @dir2@-copy}
+q: {copy @dir@ and everything inside it to @dir2@-copy|copy @dir@ and all its contents to @dir2@-copy|duplicate @dir@, contents included, as @dir2@-copy}, with cp
 a: cp -r @dir@ @dir2@-copy
 a: cp -R @dir@ @dir2@-copy
 a: cp -a @dir@ @dir2@-copy
@@ -33,14 +33,14 @@ ref: cp
 teach: cp -r
 hint: the flag cp calls "Recurse"
 ---
-q: {don't overwrite @cfg2@ -- copy @cfg@ there only if missing|duplicate @cfg@ as @cfg2@ without clobbering an existing file|make @cfg2@ from @cfg@ only if @cfg2@ is missing}
+q: {don't overwrite @cfg2@ -- cp @cfg@ there only if missing|duplicate @cfg@ as @cfg2@ with cp, skipping one that exists|cp @cfg@ to @cfg2@ only if @cfg2@ is missing}
 a: cp -n @cfg@ @cfg2@
 why: primitive-cost
 ref: cp
 teach: cp -n
 hint: n for "no clobber"
 ---
-q: {copy @txt@ to @txt@.bak, keeping timestamps and permissions|copy @txt@ to @txt@.bak without losing timestamps or permissions|back up @txt@ to @txt@.bak, keeping timestamps and permissions}
+q: {cp @txt@ to @txt@.bak, keeping timestamps and permissions|cp @txt@ to @txt@.bak without losing timestamps or permissions|back up @txt@ to @txt@.bak with cp, keeping timestamps intact}
 a: cp -p @txt@ @txt@.bak
 a: cp -a @txt@ @txt@.bak
 state: exists:@txt@.bak
@@ -48,7 +48,7 @@ ref: cp
 teach: cp -p
 hint: p for preserve
 ---
-q: {copy @dir@ to @dir2@-archive preserving everything, one flag only|copy @dir@ to @dir2@-archive keeping it all intact, single flag|archive-copy @dir@ to @dir2@-archive, everything preserved, one flag}
+q: {cp @dir@ to @dir2@-archive preserving everything, one flag only|cp @dir@ to @dir2@-archive keeping it all intact, single flag|archive-copy @dir@ to @dir2@-archive with cp, everything in one flag}
 a: cp -a @dir@ @dir2@-archive
 state: exists:@dir2@-archive
 ref: cp
@@ -70,7 +70,7 @@ ref: mv
 teach: mv
 hint: same command as renaming -- the destination just happens to be a directory
 ---
-q: {move @txt@ to @dir@/, but never overwrite a file already there|move @txt@ into @dir@ without clobbering anything already there|relocate @txt@ to @dir@, refusing if the name is already taken}
+q: {mv @txt@ to @dir@/, but never overwrite a file already there|mv @txt@ into @dir@ without clobbering anything already there|relocate @txt@ to @dir@ with mv, refusing a name already taken}
 a: mv -n @txt@ @dir@/
 a: mv -n @txt@ @dir@
 state: exists:@dir@/@txt@
@@ -85,7 +85,7 @@ ref: rm
 teach: rm
 hint: just rm and the filename -- no flags for a plain file
 ---
-q: {delete @dir@ and everything inside it|remove @dir@ along with everything it contains|wipe out @dir@ and its contents}
+q: {delete @dir@ and everything inside it|remove @dir@ along with everything it contains|wipe out @dir@ and its contents}, with rm
 a: rm -r @dir@
 a: rm -rf @dir@
 state: gone:@dir@
@@ -93,7 +93,7 @@ ref: rm
 teach: rm -r
 hint: r for recursive -- required before rm will touch a directory's contents
 ---
-q: {delete @txt@ without complaining if it is already gone|remove @txt@ silently even if it doesn't exist|delete @txt@, staying quiet if it's already missing}
+q: {delete @txt@ without complaining if it is already gone|remove @txt@ silently even if it doesn't exist|delete @txt@, staying quiet if it's already missing}, with rm
 a: rm -f @txt@
 state: gone:@txt@
 ref: rm
@@ -107,14 +107,14 @@ ref: mkdir
 teach: mkdir
 hint: just mkdir and the name -- no flags needed
 ---
-q: %make% @dir@/@word@/deep, making the missing parent directories too
+q: %make% @dir@/@word@/deep with mkdir, making the missing parents too
 a: mkdir -p @dir@/@word@/deep
 state: exists:@dir@/@word@/deep
 ref: mkdir
 teach: mkdir -p
 hint: p for parents
 ---
-q: %make% a directory @word@ that only you can enter, using a numeric mode
+q: %make% a directory @word@, only you can enter, with mkdir's numeric mode
 a: mkdir -m 700 @word@
 state: exists:@word@
 ref: mkdir
@@ -143,14 +143,14 @@ ref: touch
 teach: touch
 hint: with no flags, touch just sets the timestamp to now
 ---
-q: {update @txt@'s timestamp but do NOT create it if it is missing|bump @txt@'s timestamp, but skip creating it if it doesn't exist|refresh @txt@'s timestamp only if it already exists}
+q: {touch @txt@ but do NOT create it if it is missing|touch @txt@, but skip creating it if it doesn't exist|refresh @txt@'s timestamp with touch, only if it already exists}
 a: touch -c @txt@
 why: primitive-cost
 ref: touch
 teach: touch -c
 hint: c stops touch from creating the file when it doesn't exist
 ---
-q: %make% a symbolic link called @word@-link pointing at @txt@
+q: %make% a symbolic link @word@-link to @txt@, with ln
 a: ln -s @txt@ @word@-link
 state: exists:@word@-link
 ref: ln
@@ -164,49 +164,49 @@ ref: ln
 teach: ln
 hint: no flag needed -- ln makes a hard link by default
 ---
-q: %make% a symlink @word@-link to @txt@, replacing it if it exists
+q: %make% symlink @word@-link to @txt@ with ln, replacing any there
 a: ln -sf @txt@ @word@-link
 state: exists:@word@-link
 ref: ln
 teach: ln -f
 hint: combine -s for symbolic with -f to replace what's already there
 ---
-q: {ask before copying @cfg@ over an existing @cfg2@|duplicate @cfg@ as @cfg2@, asking first if it'd overwrite|copy @cfg@ over @cfg2@, confirming before any overwrite}
+q: {ask with cp before copying @cfg@ over an existing @cfg2@|cp @cfg@ as @cfg2@, asking first if it'd overwrite|cp @cfg@ over @cfg2@, confirming before any overwrite}
 a: cp -i @cfg@ @cfg2@
 why: interactive
 ref: cp
 teach: cp -i
 hint: i for interactive -- prompts before clobbering
 ---
-q: {copy @cfg@ onto @cfg2@, deleting it first if the write fails|copy @cfg@ onto @cfg2@, removing it if it won't take a write|force @cfg@ onto @cfg2@, deleting it if the write fails}
+q: {cp @cfg@ onto @cfg2@, deleting it first if the write fails|cp @cfg@ onto @cfg2@, removing it if it won't take a write|force cp of @cfg@ onto @cfg2@, deleting it if the write fails}
 a: cp -f @cfg@ @cfg2@
 state: exists:@cfg2@
 ref: cp
 teach: cp -f
 hint: f removes the destination first if a plain overwrite would fail
 ---
-q: {move @txt@ to @word@.txt, asking first if it would overwrite|rename @txt@ to @word@.txt, but prompt before any overwrite|before renaming @txt@ to @word@.txt, confirm if it would clobber}
+q: {mv @txt@ to @word@.txt, asking first if it would overwrite|rename @txt@ to @word@.txt with mv, but prompt before overwrite|before renaming @txt@ to @word@.txt with mv, confirm any clobber}
 a: mv -i @txt@ @word@.txt
 why: interactive
 ref: mv
 teach: mv -i
 hint: i for interactive, same idea as cp -i
 ---
-q: {move @txt@ to @word@.txt, forcing it with no prompt|rename @txt@ to @word@.txt, overwriting it with no confirmation|force the rename of @txt@ to @word@.txt, skip the prompt}
+q: {mv @txt@ to @word@.txt, forcing it with no prompt|rename @txt@ to @word@.txt with mv, overwriting with no confirm|force the mv of @txt@ to @word@.txt, skip the prompt}
 a: mv -f @txt@ @word@.txt
 state: exists:@word@.txt
 ref: mv
 teach: mv -f
 hint: f skips confirmation -- the opposite of -i
 ---
-q: {delete @txt@ but ask for confirmation first|remove @txt@, prompting for confirmation first|delete @txt@ only after you confirm it}
+q: {delete @txt@ but ask for confirmation first|remove @txt@, prompting for confirmation first|delete @txt@ only after you confirm it}, with rm
 a: rm -i @txt@
 why: interactive
 ref: rm
 teach: rm -i
 hint: i for interactive -- prompts before removing
 ---
-q: {remove prune/mid/deep and any parents left empty behind it|delete prune/mid/deep, then clean up now-empty parents above it|remove prune/mid/deep along with the empty parents it leaves behind}
+q: {remove prune/mid/deep and any parents left empty, with rmdir|delete prune/mid/deep, cleaning up now-empty parents, with rmdir|rmdir removes prune/mid/deep and the empty parents it leaves}
 a: rmdir -p prune/mid/deep
 state: gone:prune
 ref: rmdir
@@ -220,7 +220,7 @@ ref: mkfifo
 teach: mkfifo
 hint: a fifo connects a writer to a reader instead of storing data
 ---
-q: %make% a named pipe @word@.fifo, readable and writable only by you
+q: %make% a named pipe @word@.fifo with mkfifo, readable/writable by you only
 a: mkfifo -m 600 @word@.fifo
 state: exists:@word@.fifo
 ref: mkfifo
@@ -234,14 +234,14 @@ ref: mktemp
 teach: mktemp
 hint: generates and creates a uniquely-named file, then prints its path
 ---
-q: %make% a temporary directory, not a temporary file
+q: %make% a temporary directory with mktemp, not a temporary file
 a: mktemp -d
 why: primitive-cost
 ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
 ---
-q: get a temporary name without actually creating anything
+q: get a temporary name from mktemp without actually creating anything
 a: mktemp -u
 why: primitive-cost
 ref: mktemp

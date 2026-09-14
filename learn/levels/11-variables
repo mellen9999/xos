@@ -26,7 +26,7 @@ ref: sh
 teach: sh
 hint: no spaces around the equals sign
 ---
-q: {set @var@ to @word@, then show its value|assign @word@ to @var@, then print it back|store @word@ in @var@, then show what @var@ holds}
+q: {set @var@ to @word@, then show its value|assign @word@ to @var@, then print it back|store @word@ in @var@, then show what @var@ holds}, with echo
 a: @var@=@word@; echo $@var@
 out: @word@
 ref: echo
@@ -40,14 +40,14 @@ ref: sh
 teach: sh
 hint: $( ) runs a command and becomes its output
 ---
-q: {stash @log@'s line count in @cvar@ so you can check it again later|save how many lines @log@ has right now into @cvar@|record @log@'s current line count in @cvar@ for comparison later}
+q: {stash @log@'s line count in @cvar@ to check again later|save how many lines @log@ has right now into @cvar@|record @log@'s current line count in @cvar@ for later}, with wc
 a: @cvar@=$(wc -l < @log@)
 why: primitive-cost
 ref: wc
 teach: wc -l
 hint: command substitution feeds wc's count straight into the assignment
 ---
-q: put @word@ in @var@, then %show% how many characters it holds
+q: put the word @word@ in @var@, then %show% how many characters it holds
 a: @var@=@word@; echo ${#@var@}
 cmp: ref
 ref: sh
@@ -61,7 +61,7 @@ ref: sh
 teach: sh
 hint: :- substitutes default only when the variable is unset or empty
 ---
-q: %show% @log@'s line count as "lines: N"
+q: %show% @log@'s line count as "lines: N", with echo
 a: echo "lines: $(wc -l < @log@)"
 out: ^lines: [0-9]+$
 ref: echo
@@ -82,21 +82,21 @@ ref: env
 teach: env
 hint: env with no arguments dumps the whole environment
 ---
-q: {run one command with @mvar@ set to @word@, without changing your shell|run a single command that sees @mvar@=@word@, shell untouched|give just one command @mvar@=@word@ without exporting it}
+q: {run one command with @mvar@ set to @word@, shell unchanged|run a single command that sees @mvar@=@word@, shell untouched|give just one command @mvar@=@word@ without exporting it}, with env
 a: env @mvar@=@word@ sh -c 'echo $@mvar@'
 out: @word@
 ref: env
 teach: env
 hint: env VAR=value cmd sets it for that command alone, not your shell
 ---
-q: {empty the environment first, then print empty to prove it|run with no inherited environment, printing empty to prove it|strip the environment to nothing, then echo empty to prove it}
+q: {empty the environment first, then print empty to prove it|run with no inherited environment, printing empty to prove it|strip the environment to nothing, then echo empty to prove it}, with env
 a: env -i sh -c 'echo empty'
 out: empty
 ref: env
 teach: env
 hint: -i drops the entire inherited environment before running the command
 ---
-q: {remove @mvar@ from the environment, printing gone to prove it|run a command that cannot see @mvar@, printing gone to prove it|hide @mvar@ from one command, printing gone to prove it}
+q: {remove @mvar@ from the environment, printing gone to prove it|run a command that cannot see @mvar@, printing gone to prove it|hide @mvar@ from one command, printing gone to prove it}, with env
 a: env -u @mvar@ sh -c 'echo gone'
 out: gone
 ref: env
@@ -124,42 +124,42 @@ ref: read
 teach: read
 hint: read takes one line from stdin and stores it in the named variable
 ---
-q: {read a raw path into @var@ so backslashes survive intact|read user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}
+q: {read a raw path into @var@ so backslashes survive intact|read user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}, with read
 a: read -r @var@
 why: interactive
 ref: read
 teach: read -r
 hint: -r is what you want essentially always; without it a backslash vanishes
 ---
-q: {prompt with "name: " and read the reply into @var@|show "name: " then read what comes back into @var@|ask "name: " and store the answer in @var@}
+q: {prompt with "name: " and read the reply into @var@|show "name: " then read what comes back into @var@|ask "name: " and store the answer in @var@}, with read
 a: read -p "name: " @var@
 why: interactive
 ref: read
 teach: read -p
 hint: -p prints its argument as a prompt before reading
 ---
-q: set d to a comma, then %show% @csv@'s first column using it
+q: set d to a comma, then %show% @csv@'s first column with cut
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
 ref: cut
 teach: cut -d
 hint: the variable holding the separator still needs quoting when it's used
 ---
-q: {spawn a one-off shell that just echoes @word@|run a throwaway shell whose only job is to echo @word@|fire off a fresh shell to print @word@ and nothing else}
+q: {spawn a one-off shell that just echoes the word @word@|run a throwaway shell whose only job is to echo the word @word@|fire off a fresh shell to print the word @word@, nothing else}
 a: sh -c 'echo @word@'
 out: ^@word@$
 ref: sh
 teach: sh -c
 hint: -c takes the command to run as its next argument
 ---
-q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}
+q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}, with unalias
 a: unalias -a
 why: conceptual
 ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot
 ---
-q: {check what ls actually is before you trust it in a script|find out in plain english what running ls would do|make sure ls isn't secretly an alias or function}
+q: {check what ls actually is before you trust it in a script|find out in plain english what running ls would do|make sure ls isn't secretly an alias or function}, with command
 a: command -V ls
 cmp: ref
 ref: command
@@ -167,14 +167,14 @@ teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
 ---
 setup: your PATH might be hijacked or broken
-q: %list% @txt@ with ls, using the standard PATH, not yours
+q: %list% @txt@ with ls run through command, standard PATH not yours
 a: command -p ls @txt@
 out: @txt@
 ref: command
 teach: command -p
 hint: -p ignores your PATH and uses the system's standard one instead
 ---
-q: %show% every place in your PATH that has a command called sh
+q: %show% every place in your PATH with a command called sh, with which
 a: which -a sh
 cmp: ref
 ref: which

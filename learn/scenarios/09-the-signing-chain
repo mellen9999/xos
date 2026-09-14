@@ -143,7 +143,7 @@ hint: the code that runs before any operating system does
 setup: Close the loop. You have followed the chain from the firmware down; now
 setup: read the bottom link one more time -- the anchored number every link above
 setup: exists to protect, still sitting in /proc/cmdline.
-q: pull the verity root hash out of /proc/cmdline, and nothing else
+q: pull the verity root hash out of /proc/cmdline with sed, alone
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 ref: sed
 teach: sed -n

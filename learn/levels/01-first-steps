@@ -14,6 +14,7 @@ brief: $NAME expands to a variable's value -- $HOME is where you live.
 ---
 q: {print|show} the directory you are currently in
 a: pwd
+a: echo $PWD
 cmp: ref
 ref: pwd
 teach: pwd
@@ -26,14 +27,14 @@ ref: ls
 teach: ls
 hint: two letters
 ---
-q: %list% everything in the current directory, hidden dotfiles included
+q: %list% everything here with ls, hidden dotfiles included
 a: ls -a
 cmp: ref
 ref: ls
 teach: ls -a
 hint: the flag ls describes as "Include names starting with ."
 ---
-q: %list% @dir@ in long format, so you can see sizes and permissions
+q: %list% @dir@ with ls, long format for sizes and permissions
 a: ls -l @dir@
 a: ls -l @dir@/
 out: ^total
@@ -41,14 +42,14 @@ ref: ls
 teach: ls -l
 hint: the long format flag, then the path
 ---
-q: %list% this directory in long format, sizes in K and M not raw bytes
+q: %list% this directory with ls, long format, sizes in K and M
 a: ls -lh
 out: ^total
 ref: ls
 teach: ls -h
 hint: two flags -- long format, and the one ls calls "Human readable"
 ---
-q: %list% this directory {newest first|sorted by modification time}
+q: %list% this directory with ls, {newest first|by modification time}
 a: ls -lt
 a: ls -t
 why: fixture-cost
@@ -56,7 +57,7 @@ ref: ls
 teach: ls -t
 hint: sort by time
 ---
-q: %list% this directory one filename per line
+q: %list% this directory with ls, one filename per line
 a: ls -1
 out: ^server\.log$
 ref: ls
@@ -70,14 +71,14 @@ ref: echo
 teach: echo
 hint: it prints the word plus a trailing newline
 ---
-q: %show% @word@ without the newline, so more can follow on the same line
+q: %show% the word @word@ with echo, not printf -- no trailing newline
 a: echo -n @word@
 out: @word@
 ref: echo
 teach: echo -n
 hint: n for newline -- the flag suppresses it
 ---
-q: %show% the value of your HOME directory using the HOME variable
+q: %show% the value of your HOME variable with echo
 a: echo $HOME
 a: echo "$HOME"
 a: echo ${HOME}
@@ -95,7 +96,7 @@ ref: cd
 teach: cd
 hint: just the command and the target -- no flags needed
 ---
-q: {go up one directory|move to the parent directory|change to the directory one level up}
+q: {go up one directory|move to the parent directory|go one level up}, with cd
 a: cd ..
 a: cd ../
 why: conceptual
@@ -110,28 +111,28 @@ ref: cd
 teach: cd
 hint: cd with no argument already means home
 ---
-q: %list% the hidden files here, but skip the . and .. clutter
+q: %list% the hidden files with ls, but skip the . and .. clutter
 a: ls -A
 why: fixture-cost
 ref: ls
 teach: ls -A
 hint: like -a, but leaves out . and ..
 ---
-q: confirm @dir@ exists, without dumping what's inside it
+q: confirm @dir@ exists with ls, without dumping what's inside it
 a: ls -d @dir@
 out: ^@dir@$
 ref: ls
 teach: ls -d
 hint: stops ls from descending into the directory
 ---
-q: %list% this directory so files, dirs, and executables stand out
+q: %list% this directory with ls so files, dirs, executables stand out
 a: ls -F
 cmp: ref
 ref: ls
 teach: ls -F
 hint: appends a symbol showing each entry's type
 ---
-q: %list% this directory showing inode numbers, to catch hard links
+q: %list% this directory with ls, showing inode numbers for hard links
 a: ls -i
 out: ^ *[0-9]+ [^ ]
 ref: ls
@@ -139,49 +140,49 @@ teach: ls -i
 hint: the number a file is known by at the filesystem level, not its name
 ---
 setup: these files came off another machine
-q: %list% this directory in long format with numeric ids, not names
+q: %list% this directory with ls, long format, numeric ids not names
 a: ls -ln
 out: ^total
 ref: ls
 teach: ls -n
 hint: n modifies -l to print ids as numbers instead of names
 ---
-q: %list% this directory, marking directories only
+q: %list% this directory with ls, marking directories only
 a: ls -p
 cmp: ref
 ref: ls
 teach: ls -p
 hint: like -F but only marks directories, nothing else
 ---
-q: %list% this directory in reverse order
+q: %list% this directory with ls, in reverse order
 a: ls -r
 cmp: ref
 ref: ls
 teach: ls -r
 hint: reverses whatever order ls would otherwise use
 ---
-q: %list% everything under @dir@ recursively
+q: %list% everything under @dir@ with ls, recursively
 a: ls -R @dir@
 cmp: ref
 ref: ls
 teach: ls -R
 hint: capital R -- lowercase r reverses order instead
 ---
-q: %list% this directory, largest file first
+q: %list% this directory with ls, largest file first
 a: ls -S
 cmp: ref
 ref: ls
 teach: ls -S
 hint: sorts by size instead of name
 ---
-q: %list% this directory with the disk blocks each file uses
+q: %list% this directory with ls, the disk blocks each file uses
 a: ls -s
 cmp: ref
 ref: ls
 teach: ls -s
 hint: shows size in blocks, not bytes -- pair with -h for human units
 ---
-q: %list% this directory across the screen in columns
+q: %list% this directory with ls, across the screen in columns
 a: ls -x
 cmp: ref
 ref: ls
