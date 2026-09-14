@@ -152,6 +152,7 @@ hint: NF is the field count for the current line
 q: {print @log@'s first field, giving awk its program via -e|pass awk its program with -e to print @log@'s first field|use -e, not positional, to have awk print @log@'s first field}
 a: awk -e '{print $1}' @log@
 out: 2024-03-01
+cmp: ref
 ref: awk
 teach: awk -e
 hint: -e names the program explicitly, the role the positional argument usually plays

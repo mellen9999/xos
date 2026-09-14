@@ -99,6 +99,7 @@ hint: -i drops the entire inherited environment before running the command
 q: {remove @mvar@ from the environment, printing gone to prove it|run a command that cannot see @mvar@, printing gone to prove it|hide @mvar@ from one command, printing gone to prove it}, with env
 a: env -u @mvar@ sh -c 'echo gone'
 out: gone
+cmp: ref
 ref: env
 teach: env -u
 hint: -u strips one variable out of the environment for that command only
@@ -170,6 +171,7 @@ setup: your PATH might be hijacked or broken
 q: %list% @txt@ with ls run through command, standard PATH not yours
 a: command -p ls @txt@
 out: @txt@
+cmp: ref
 ref: command
 teach: command -p
 hint: -p ignores your PATH and uses the system's standard one instead

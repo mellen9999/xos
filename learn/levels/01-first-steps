@@ -74,6 +74,7 @@ hint: it prints the word plus a trailing newline
 q: %show% the word @word@ with echo, not printf -- no trailing newline
 a: echo -n @word@
 out: @word@
+cmp: ref
 ref: echo
 teach: echo -n
 hint: n for newline -- the flag suppresses it

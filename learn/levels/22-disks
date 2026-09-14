@@ -248,6 +248,7 @@ hint: -d limits the flush to the file you name
 q: {hold an exclusive lock on lock.file, with flock, echoing held|with flock, lock lock.file exclusively, running echo held|take lock.file's exclusive lock with flock, around echo held}
 a: flock -x lock.file echo held
 out: held
+cmp: ref
 ref: flock
 teach: flock -x
 hint: -x is flock's default, an exclusive lock -- named here for clarity
@@ -255,6 +256,7 @@ hint: -x is flock's default, an exclusive lock -- named here for clarity
 q: {lock lock.file with flock, giving up at once if held, echo held|with flock, try lock.file's lock, failing fast, not waiting|take lock.file's lock with flock, bailing if someone has it}
 a: flock -n lock.file echo held
 out: held
+cmp: ref
 ref: flock
 teach: flock -n
 hint: -n makes flock fail instead of waiting when the lock is held
@@ -262,6 +264,7 @@ hint: -n makes flock fail instead of waiting when the lock is held
 q: {take lock.file's lock as shared with flock, around echo held|with flock, hold a shared lock on lock.file, echoing held|lock lock.file shared with flock, running echo held}
 a: flock -s lock.file echo held
 out: held
+cmp: ref
 ref: flock
 teach: flock -s
 hint: -s takes a shared lock, which can coexist with other shared locks

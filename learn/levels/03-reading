@@ -40,6 +40,7 @@ q: %show% the first @n@ lines of @log@ with head
 a: head -n @n@ @log@
 a: head -@n@ @log@
 out: service started
+cmp: ref
 ref: head
 teach: head -n
 hint: -n takes a count, or glue the number straight onto the dash
@@ -47,6 +48,7 @@ hint: -n takes a count, or glue the number straight onto the dash
 q: %show% @log@'s date header with head -- the first 20 bytes
 a: head -c 20 @log@
 out: 2024-03-01
+cmp: ref
 ref: head
 teach: head -c
 hint: c for characters
@@ -69,6 +71,7 @@ hint: -n takes a count, same syntax as head -n
 q: %show% @log@ with tail, starting at line 5 -- not the last 5
 a: tail -n +5 @log@
 out: connection refused
+cmp: ref
 ref: tail
 teach: tail -n
 hint: a plus sign in front of the number changes it from "last N" to "from N"
@@ -97,6 +100,7 @@ hint: pulls sequences of printable characters out of any file, text or not
 q: %show% strings in @bin@, skipping noise under 5 characters
 a: strings -n 5 @bin@
 out: unlocked-by-strings
+cmp: ref
 ref: strings
 teach: strings -n
 hint: -n sets the minimum run length to count as a string
@@ -105,6 +109,7 @@ q: %show% the strings in @bin@ with each one's byte offset
 a: strings -t d @bin@
 a: strings -t x @bin@
 out: unlocked-by-strings
+cmp: ref
 ref: strings
 teach: strings -t
 hint: t takes a radix -- d decimal, x hex, o octal

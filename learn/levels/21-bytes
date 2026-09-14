@@ -40,6 +40,7 @@ hint: hexdump normally folds repeated lines into a *; -v turns that off
 q: {dump @bin@ with your own format string|dump @bin@ with a format string you supply|write your own format, dump @bin@ with it}, with hexdump
 a: hexdump -e '16/1 "%02x " "\n"' @bin@
 out: [0-9a-f]
+cmp: ref
 ref: hexdump
 teach: hexdump -e
 hint: -e takes a format string, the same kind -f reads from a file

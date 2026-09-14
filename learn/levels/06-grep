@@ -23,6 +23,7 @@ hint: just grep, the pattern, then the file
 q: {not sure if @sev@ is upper or lower in @log@ -- grep it either way|@sev@ might be typed either case in @log@ -- grep regardless|grep @log@ for @sev@ without caring about case}
 a: grep -i @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -i
 hint: i for case-insensitive
@@ -74,6 +75,7 @@ hint: capital L is the opposite of -l -- files with NO match
 q: %show% the matched @sev@ text in @log@, not the line, with grep
 a: grep -o @sev@ @log@
 out: ^@sev@$
+cmp: ref
 ref: grep
 teach: grep -o
 hint: o prints just the matched substring, one per line
@@ -81,6 +83,7 @@ hint: o prints just the matched substring, one per line
 q: %show% @log@ lines with @sev@ as a whole word only, with grep
 a: grep -w @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -w
 hint: w anchors the match to word boundaries
@@ -88,6 +91,7 @@ hint: w anchors the match to word boundaries
 q: %show% @log@ lines that match @sev@ exactly, with grep
 a: grep -x @sev@ @log@
 out: ^@sev@$
+cmp: ref
 ref: grep
 teach: grep -x
 hint: x requires the whole line to match, not just part of it
@@ -95,6 +99,7 @@ hint: x requires the whole line to match, not just part of it
 q: %find% @sev@ in @log@, plus the 2 lines after, with grep
 a: grep -A 2 @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -A
 hint: A for after, followed by the count
@@ -102,6 +107,7 @@ hint: A for after, followed by the count
 q: %find% @sev@ in @log@, plus the 2 lines before, with grep
 a: grep -B 2 @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -B
 hint: B for before, followed by the count
@@ -109,6 +115,7 @@ hint: B for before, followed by the count
 q: %show% @sev@ in @log@ plus 2 lines of context, with grep
 a: grep -C 2 @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -C
 hint: C for context -- both before and after
@@ -116,6 +123,7 @@ hint: C for context -- both before and after
 q: %show% the first 2 @sev@ lines of @log@, then stop, with grep
 a: grep -m 2 @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -m
 hint: m caps the number of matches before grep stops reading
@@ -123,6 +131,7 @@ hint: m caps the number of matches before grep stops reading
 q: {grep @log@ for the literal 0.0.0.0 -- the dots aren't wildcards|grep @log@ for 0.0.0.0, dots not wildcards|grep @log@ for 0.0.0.0 as plain text, no regex}
 a: grep -F 0.0.0.0 @log@
 out: 0\.0\.0\.0
+cmp: ref
 ref: grep
 teach: grep -F
 hint: F for fixed string
@@ -152,6 +161,7 @@ hint: this is the form you use inside an if
 q: {grep @log@ for @sev@ without a missing-file error|grep @log@ for @sev@, no script-halting error|grep @log@ for @sev@ without a can't-read-file complaint}
 a: grep -s @sev@ @log@
 out: @sev@
+cmp: ref
 ref: grep
 teach: grep -s
 hint: s silences the "no such file" complaints, built into grep itself

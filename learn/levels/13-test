@@ -91,6 +91,7 @@ hint: -f is true only for a regular file
 q: %show% missing if @word@-nope.txt does not exist
 a: [ -f @word@-nope.txt ] || echo missing
 out: ^missing$
+cmp: ref
 ref: [
 teach: [ -f
 hint: || only runs echo when the test in front of it fails

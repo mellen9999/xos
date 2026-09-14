@@ -221,6 +221,7 @@ hint: base64 is an encoding, not encryption -- anyone can undo it
 q: {@txt@'s base64 needs wrapping at 40 columns for pasting|encode @txt@ as base64, but wrap the output at 40 columns|encode @txt@ in base64 with lines no longer than 40 characters}
 a: base64 -w 40 @txt@
 out: [A-Za-z0-9+/]
+cmp: ref
 ref: base64
 teach: base64 -w
 hint: -w wraps output at that many columns instead of one long line

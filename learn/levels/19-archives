@@ -221,6 +221,7 @@ hint: unzip with no flags extracts everything into the current directory
 q: %list% what is inside archive.zip without extracting it, with unzip
 a: unzip -l archive.zip
 out: hello.txt
+cmp: ref
 ref: unzip
 teach: unzip -l
 hint: -l lists contents without extracting anything

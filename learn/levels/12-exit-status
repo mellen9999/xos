@@ -29,6 +29,7 @@ hint: true always exits 0, no matter what
 q: %show% the word @word@ only if @log@ contains @sev@, using grep
 a: grep -q @sev@ @log@ && echo @word@
 out: @word@
+cmp: ref
 ref: grep
 teach: grep -q
 hint: -q silences grep's output, leaving only its exit status for &&
@@ -36,6 +37,7 @@ hint: -q silences grep's output, leaving only its exit status for &&
 q: %show% "missing" if @log@ has no match for nonexistent, with grep
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
+cmp: ref
 ref: grep
 teach: grep -q
 hint: || runs its right side only when the left side fails

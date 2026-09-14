@@ -48,6 +48,7 @@ hint: no flags -- sort defaults to alphabetical, ascending
 q: {sort @txt@ in reverse alphabetical order|order @txt@ z to a with sort|sort @txt@ backwards}
 a: sort -r @txt@
 out: ^verify the root hash
+cmp: ref
 ref: sort
 teach: sort -r
 hint: r flips the order
@@ -55,6 +56,7 @@ hint: r flips the order
 q: %show% @txt@ deduped, using sort alone
 a: sort -u @txt@
 out: ask why the fan
+cmp: ref
 ref: sort
 teach: sort -u
 hint: u does the sort and the dedup in a single pass
@@ -76,6 +78,7 @@ hint: c prefixes each line with how many times it appeared
 q: %show% only the lines of @txt@ that appear more than once, with uniq
 a: sort @txt@ | uniq -d
 out: rotate the logs
+cmp: ref
 ref: uniq
 teach: uniq -d
 hint: d shows only lines that had a duplicate
@@ -83,6 +86,7 @@ hint: d shows only lines that had a duplicate
 q: %show% only the lines of @txt@ that appear exactly once, with uniq
 a: sort @txt@ | uniq -u
 out: ask why the fan
+cmp: ref
 ref: uniq
 teach: uniq -u
 hint: u here shows only lines that had no duplicate
@@ -90,6 +94,7 @@ hint: u here shows only lines that had no duplicate
 q: {@csv@ is name,id,status,count -- sort it by status|@csv@ has columns name,id,status,count -- sort by status|@csv@'s columns are name,id,status,count -- sort by status}
 a: sort -t, -k3 @csv@
 out: down
+cmp: ref
 ref: sort
 teach: sort -t
 hint: -t sets the separator, -k picks the field
@@ -105,6 +110,7 @@ hint: n makes the comparison numeric instead of text; r reverses it
 q: {sort @txt@ ignoring the difference between upper and lower case|sort @txt@ treating uppercase and lowercase as the same|sort @txt@ case-insensitively}
 a: sort -f @txt@
 out: ask why the fan
+cmp: ref
 ref: sort
 teach: sort -f
 hint: f folds case, treating upper and lower as equal

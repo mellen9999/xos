@@ -71,6 +71,7 @@ hint: -b counts bytes; same as -c unless the text is multibyte
 q: %show% @csv@'s name column with cut, skipping lines with no comma
 a: cut -d, -f1 -s @csv@
 out: ^gateway$
+cmp: ref
 ref: cut
 teach: cut -s
 hint: without -s, a line with no delimiter is printed whole
@@ -92,6 +93,7 @@ hint: same idea as uppercasing, just with the ranges swapped
 q: {delete every digit from @log@|strip all the digits out of @log@|remove every numeral from @log@}, with tr
 a: tr -d 0-9 < @log@
 out: INFO
+cmp: ref
 ref: tr
 teach: tr -d
 hint: d deletes every character in the set, with nothing to replace it
@@ -99,6 +101,7 @@ hint: d deletes every character in the set, with nothing to replace it
 q: {strip the newlines from @txt@, one long line|delete every newline from @txt@, collapsing to one line|remove the line breaks so @txt@ reads as one line}, with tr
 a: tr -d '\n' < @txt@
 out: rotate
+cmp: ref
 ref: tr
 teach: tr -d
 hint: \n is the newline character, deleted the same as any other
