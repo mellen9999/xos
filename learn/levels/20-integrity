@@ -142,9 +142,9 @@ ref: cmp
 teach: cmp -s
 hint: -s suppresses all output, leaving only the exit status to check
 ---
-q: %list% every differing byte between @txt@ and @txt2@, with cmp
-a: cmp -l @txt@ @txt2@
-out: ^[0-9]+ [0-9]+ [0-9]+
+q: %list% every differing byte between image-a.txt and image-b.txt, with cmp
+a: cmp -l image-a.txt image-b.txt
+out: ^ *[0-9]+ +[0-9]+ +[0-9]+
 status: 1
 ref: cmp
 teach: cmp -l

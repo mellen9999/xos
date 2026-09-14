@@ -269,6 +269,15 @@ _sandbox_fill() {
 	printf '1M\n512\n64k\n2K\n1G\n' > sizes.txt
 	printf '1.10\n1.2\n1.9\n1.1\n2.0\n' > versions.txt
 
+	# two files the byte-compare lesson needs: same length, differing in ONE
+	# byte, so `cmp -l` always has a differing byte to print. a @txt@ pair
+	# cannot promise this -- both are shuffles of one small sentence pool, so
+	# ~1.5% of rolls make one a pure byte-prefix of the other, where cmp -l
+	# finds no differing byte in the common length and prints nothing, and the
+	# lesson's out: goes dark at random. fixed names, referenced by name.
+	printf 'firmware image v2.6.1\n' > image-a.txt
+	printf 'firmware image v2.6.2\n' > image-b.txt
+
 	# a format string for hexdump -f -- a fixed name, referenced by name in
 	# the question that reads it, the same file every build.
 	printf '16/1 "%%02x " "\\n"\n' > fmt.txt
