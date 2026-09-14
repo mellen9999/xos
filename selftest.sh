@@ -22,7 +22,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=19
+EXPECTED_SECTIONS=20
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. the whole stick is what boots
@@ -148,6 +148,22 @@ boot_usb() {
 		-device qemu-xhci,id=xhci \
 		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
 		-device usb-storage,bus=xhci.0,drive=stick \
+		-nic user,model=virtio-net-pci \
+		-nographic -no-reboot < /dev/null 2>&1
+}
+
+# the same chain with a usb-serial adapter also on the bus -- the vt320 path.
+# qemu's usb-serial presents as an ftdi ft232 (0403:6001), which ftdi_sio binds
+# to a ttyUSB. proves the drivers are compiled in and init lines the tty. the
+# chardev is a sink; the proof is the device node + the baud init set on it.
+boot_usbserial() {
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		"${QEMU_FW[@]}" \
+		-device qemu-xhci,id=xhci \
+		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
+		-device usb-storage,bus=xhci.0,drive=stick \
+		-chardev null,id=usbtty \
+		-device usb-serial,chardev=usbtty,bus=xhci.0 \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null 2>&1
 }
@@ -921,6 +937,26 @@ else
 		|| bad "wrong passphrase was not refused loudly"
 
 	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks" "$a19log"
+fi
+
+section "A20  a usb-serial adapter becomes a vt320 login line"
+# the vt320 path: xos boots on machines with no com port, so a hardware terminal
+# is reached over a usb-serial dongle. attach qemu's usb-serial (an ftdi ft232)
+# to the same xhci bus the stick is on and prove the whole chain: the drivers are
+# compiled in (ttyUSB enumerates), and init lines it for a vt320 (19200). without
+# this, a kernel that quietly dropped usb-serial would ship and the terminal
+# would stay dark -- the one promise the feature makes.
+if ! qemu-system-x86_64 -device help 2>/dev/null | grep -q '"usb-serial"'; then
+	skipped "this qemu has no usb-serial device -- A20 not evaluated"
+else
+	serout=$(boot_usbserial stick.img)
+	grep -qE 'serial-usb: .*/dev/tty(USB|ACM)[0-9]' <<< "$serout" \
+		&& ok "the usb-serial adapter enumerated (driver compiled in and bound)" \
+		|| bad "no ttyUSB/ttyACM -- usb-serial driver missing or did not bind"
+	grep -q 'serial-baud: 19200' <<< "$serout" \
+		&& ok "init set the serial line to 19200 for a vt320" \
+		|| bad "the usb-serial line was not set to the vt320 baud"
+	assert_complete "$serout" "A20 usb-serial boot"
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"

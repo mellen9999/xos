@@ -1041,6 +1041,12 @@ if cmdline_has xos.test; then
 	# with the old empty-$_dev bug it was never written.
 	printf 'console-device-ok: '; [ -s /tmp/console.up ] && echo yes || echo "no (BAD)"
 	echo "ttys-spawned: $spawned"
+	# usb-serial proof (A25): which serial lines enumerated, and that the loop
+	# above set the first one to the vt320 baud. reported unconditionally -- the
+	# list is empty on a boot with no adapter, present when qemu attaches one.
+	_ser=$(ls -d /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | tr '\n' ' ')
+	echo "serial-usb: ${_ser:-none}"
+	[ -n "$_ser" ] && printf 'serial-baud: %s\n' "$(stty -F "${_ser%% *}" speed 2>/dev/null)"
 	echo "XOS-TEST-DONE"
 	sync
 	# PID 1 no longer exits, so a test boot would otherwise run until the
