@@ -1,0 +1,19 @@
+#!/bin/bash
+# xos CI heartbeat -- fetch the pushed main, run the buildless checks and a full
+# reproducibility rebuild inside the pinned toolchain container. no signing key
+# is touched, so it runs unattended; a systemd --user timer fires it weekly (see
+# ci/xos-ci.timer). every step runs in a throwaway clone -- no working tree, no
+# installed checkout, is read or written. the building gates and the qemu
+# self-test still need the key and stay a human's ./build.sh gates / ./selftest.sh.
+set -euo pipefail
+REPO=${XOS_CI_REPO:-git@github.com:mellen9999/xos.git}
+BRANCH=${XOS_CI_BRANCH:-main}
+d=$(mktemp -d /tmp/xos-ci.XXXXXX)
+trap 'rm -rf "$d" 2>/dev/null || true' EXIT
+echo "xos-ci: cloning $REPO ($BRANCH)"
+git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$d/tree"
+cd "$d/tree"
+echo "xos-ci: testing $(git rev-parse --short HEAD)"
+./build.sh ci
+./build.sh crepro
+echo "xos-ci: PASS $(git rev-parse --short HEAD)"
