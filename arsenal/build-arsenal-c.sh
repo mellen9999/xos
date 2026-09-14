@@ -16,8 +16,9 @@
 # binary, rebuild a partition table, carve files back, read a drive's SMART
 # health, identify an unknown blob. `file` also emits file.mgc (its magic db),
 # which provision drops at $HOME/.magic.mgc for libmagic to auto-discover.
-# NOTE: masscan + tcpdump + nmap embed a build-id, so their arsenal.lock sha
-# drifts per build (size is stable) -- a point-in-time attestation. links + mutool are
+# NOTE: masscan + tcpdump + nmap + radare2 embed a build-id/timestamp, so their
+# arsenal.lock sha drifts per build (size is stable) -- a point-in-time
+# attestation. links + mutool are
 # bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
 #
 # INTEGRITY: every source is pinned in arsenal.pins and checked BEFORE it builds
@@ -38,7 +39,8 @@ apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo \
   file lzip xz linux-headers e2fsprogs-dev e2fsprogs-static util-linux-dev \
   rustup fontconfig-dev fontconfig-static freetype-dev freetype-static \
-  expat-static libpng-static brotli-static xz-static xz-dev musl-dev >/dev/null 2>&1
+  expat-static libpng-static brotli-static xz-static xz-dev musl-dev \
+  meson ninja >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # ---- integrity: read the pins, verify before build ------------------------
@@ -443,6 +445,29 @@ clone_pinned() {
   ; } > /out/cc/cpp
   chmod +x /out/cc/cc /out/cc/cpp
   "/out/cc/tcc-bin" -v 2>&1 | head -1 ) || log "cc FAILED"
+
+# radare2 -- the reversing kit the arsenal lacked (no r2, no gdb). one static
+# multicall blob (r2blob: r2/rabin2/radiff2/rax2/... by argv0) that disassembles,
+# analyses and hex-edits a binary offline. the static-musl fight is precise: r2's
+# own libs already link static via -Dstatic_runtime, but (a) the vendored sdb
+# subproject builds a *shared* .so, so a GLOBAL -static poisons that link (crt1
+# wants main), and (b) the r2blob.static target links r2 static yet leaves libc
+# dynamic. so we DON'T pass -static globally -- we patch ONLY the r2blob.static
+# executable to link -static, leaving the sdb .so untouched. that gives one fully
+# static blob and covers the deferred-gdb reversing gap (r2 has its own debugger).
+( set -e; log radare2
+  clone_pinned radare2 /s/r2
+  cd /s/r2
+  # surgical: give ONLY the r2blob.static executable a fully-static link (libc too)
+  sed -i "s#executable('r2blob.static', 'r2blob.c',#executable('r2blob.static', 'r2blob.c',\n  link_args: ['-static', '-no-pie'],#" binr/blob/meson.build
+  meson setup build --buildtype=release --default-library=static \
+    -Dstatic_runtime=true -Dblob=true -Db_pie=false \
+    -Dc_args="-fno-pie -fno-PIC" >/s/r2.log 2>&1
+  ninja -C build binr/blob/r2blob.static >>/s/r2.log 2>&1
+  B=build/binr/blob/r2blob.static
+  readelf -l "$B" | grep -q INTERP && { echo "r2blob not static"; exit 1; }
+  strip "$B"; cp "$B" /out/radare2
+  "/out/radare2" -v 2>&1 | head -1 ) || log "radare2 FAILED"
 
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
 # (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final

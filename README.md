@@ -354,6 +354,7 @@ is the post-build attestation, source + sha256:
 | file | identify an unknown blob by content -- where strings only shows text |
 | binwalk | scan a firmware blob for embedded filesystems, keys and streams |
 | cc | compile C on the stick -- tcc + a musl sysroot, one static toolchain |
+| radare2 | reverse a binary offline -- disassemble, analyse, hex-edit (r2/rabin2/rax2) |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
@@ -376,7 +377,7 @@ and a desktop -- and unlike kali, every byte of it is reproducible and attested:
 | pivot / tunnel | chisel, socat | chisel socat ligolo (musl+go) |
 | brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
 | disk recovery | ddrescue, testdisk | ddrescue testdisk photorec smartctl (musl) |
-| reversing | radare2, gdb | strace file (musl); gdb/radare2 not built; strings + python cover the rest |
+| reversing | radare2, gdb | radare2 strace file (musl); gdb not built -- r2's own debugger + strings + python cover it |
 | exploit framework | metasploit | out (ruby+db) -- carried python covers it |
 | python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
 | wireless | aircrack, wifite | out -- no wifi drivers, by design |
