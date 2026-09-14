@@ -1571,10 +1571,15 @@ TODO: write this entry by hand.
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
-  local bad=0 ran=0
+  local bad=0 ran=0 skipped=0
   local EXPECTED_GATES=45   # roster above, minus G8/G9 (checked elsewhere)
-  g() { printf '  %-42s %s
-' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
+  # a gate is ok, FAIL, or SKIP. SKIP is for a check that cannot run here and
+  # whose result would be meaningless if forced -- G13 on a foreign toolchain.
+  # it is counted (so the truncation guard still holds) and reported, but it
+  # is never a green pass: reporting it as ok is how "unverified" became
+  # indistinguishable from "verified" for as long as that line existed.
+  g() { printf '  %-42s %s\n' "$1" "$2"; ran=$((ran+1))
+        case "$2" in ok) ;; SKIP) skipped=$((skipped+1)) ;; *) bad=1 ;; esac; }
 
   local sz; sz=$(stat -c%s xos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
@@ -1675,7 +1680,7 @@ gates() {
     have_kv=$(sha256sum < bzImage 2>/dev/null | awk '{print $1}')
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
-      g "G13 reproducible (toolchain differs, not checked)" ok
+      g "G13 reproducible (needs the pinned toolchain)" SKIP
       printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
       printf '    so a byte mismatch here would prove nothing. rebuild is unverified.\n' >&2
     else
@@ -2521,9 +2526,18 @@ G37
   # kernel is 82% of the budget; the userland is the small part.
   local whole_sz=$sz
   [ -f xos-signed.efi ] && whole_sz=$(( $(stat -c%s xos-signed.efi) + sz ))
-  [ "$bad" -eq 0 ] && printf '\033[1;32m  all gates green -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
-                        "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))" \
-                   || { printf '\033[1;31m  GATES FAILED\033[0m\n\n'; return 1; }
+  if [ "$bad" -ne 0 ]; then printf '\033[1;31m  GATES FAILED\033[0m\n\n'; return 1; fi
+  # a skipped gate is not a failure, but the summary must not call the run
+  # "all green" when one check could not run -- that is the very claim G13's
+  # old `ok` made falsely. say the count in yellow so a foreign-toolchain
+  # build reads as "verified as far as it can be", never as "reproducible".
+  if [ "$skipped" -gt 0 ]; then
+    printf '\033[1;33m  %d gates green, %d unverified (toolchain differs) -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
+      "$((ran - skipped))" "$skipped" "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))"
+  else
+    printf '\033[1;32m  all gates green -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
+      "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))"
+  fi
   return 0
 }
 
