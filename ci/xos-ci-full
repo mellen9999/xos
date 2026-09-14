@@ -1,0 +1,25 @@
+#!/bin/bash
+# xos CI, full tier -- a complete SIGNED build with every gate and the qemu
+# self-test, unattended. the signing passphrase here is random and lives only
+# for this run: it seals a fresh per-run keyset (gitignored, minted by keys(),
+# never the sealed production key), so the whole suite runs with no human and no
+# production secret in sight. that is the insight that unblocks it -- CI validates
+# structure and behaviour, which a throwaway keyset satisfies; only a release
+# needs the real key. reproducibility is the OTHER tier (ci/xos-ci -> crepro).
+#
+# needs the full host toolchain (qemu, ovmf, sbsign, ukify) and KVM/TCG, so it
+# runs on a machine that has them -- not the lean repro container. G13 SKIPs here
+# (this toolchain is not the pinned one); crepro is where reproducibility is
+# checked. everything runs in a throwaway clone; no working tree is touched.
+set -uo pipefail
+REPO=${XOS_CI_REPO:-git@github.com:mellen9999/xos.git}
+BRANCH=${XOS_CI_BRANCH:-main}
+d=$(mktemp -d /tmp/xos-cif.XXXXXX)
+trap 'rm -rf "$d" 2>/dev/null || true' EXIT
+git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$d/tree" || { echo "xos-ci-full: clone failed"; exit 1; }
+cd "$d/tree"
+export XOS_KEYPASS="$(head -c24 /dev/urandom | base64)"   # throwaway, this run only
+echo "xos-ci-full: testing $(git rev-parse --short HEAD)"
+./build.sh all || { echo "xos-ci-full: FAIL (build or gates)"; exit 1; }
+./selftest.sh  || { echo "xos-ci-full: FAIL (selftest)"; exit 1; }
+echo "xos-ci-full: PASS $(git rev-parse --short HEAD)"

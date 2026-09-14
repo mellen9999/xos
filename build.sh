@@ -2891,7 +2891,7 @@ ci() {
   say "parsing every first-party script"
   for f in build.sh selftest.sh init learn/learn learn/lib/* \
            overlay/usr/share/udhcpc/default.script githooks/pre-commit githooks/pre-push \
-           learn/install.sh learn/push learn/wrapper ci/xos-ci \
+           learn/install.sh learn/push learn/wrapper ci/xos-ci ci/xos-ci-full \
            arsenal/*.sh arsenal/arsenal arsenal/xexec; do
     [ -f "$f" ] || continue
     case "$(head -1 "$f")" in

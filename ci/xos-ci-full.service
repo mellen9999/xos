@@ -1,0 +1,8 @@
+[Unit]
+Description=xos CI, full tier -- signed build, every gate, qemu self-test
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/xos-ci-full
+Nice=15
+IOSchedulingClass=idle

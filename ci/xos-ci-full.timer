@@ -1,0 +1,10 @@
+[Unit]
+Description=weekly xos full-tier CI (staggered off the repro tier)
+
+[Timer]
+OnCalendar=Thu 02:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
