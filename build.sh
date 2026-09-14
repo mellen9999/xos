@@ -237,30 +237,41 @@ OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
 # the host toolchain, and the pinned sources it is pointed at
 # ────────────────────────────────────────────────────────────────────────────
 deps() {
-  say "checking host toolchain"
+  local mode="${1:-full}"
+  say "checking host toolchain${mode:+ ($mode)}"
   local miss=() cmd
-  # cmd:package pairs so the error names what to install (arch/paru)
-  for cmd in gcc:gcc ld:binutils strip:binutils readelf:binutils make:make \
-             curl:curl tar:tar python3:python openssl:openssl \
-             mksquashfs:squashfs-tools unsquashfs:squashfs-tools \
-             veritysetup:cryptsetup sbsign:sbsigntools sbverify:sbsigntools \
-             ukify:systemd virt-fw-vars:python-virt-firmware \
-             mcopy:mtools mmd:mtools mkfs.fat:dosfstools sfdisk:util-linux \
-             wipefs:util-linux lsblk:util-linux qemu-system-x86_64:qemu-base \
-             cmake:cmake flex:flex bison:bison bc:bc pkg-config:pkgconf \
-             partprobe:parted strings:binutils objdump:binutils xz:xz; do
+  # cmd:package pairs so the error names what to install (arch/paru).
+  # the build toolchain proper: everything the reproducible path (kernel..verity)
+  # compiles and links with -- the tools whose behaviour ends up in the image and
+  # that the repro container pins. `deps repro` checks ONLY these.
+  local base="gcc:gcc ld:binutils strip:binutils readelf:binutils make:make
+    curl:curl tar:tar python3:python openssl:openssl
+    mksquashfs:squashfs-tools unsquashfs:squashfs-tools veritysetup:cryptsetup
+    cmake:cmake flex:flex bison:bison bc:bc pkg-config:pkgconf
+    strings:binutils objdump:binutils xz:xz"
+  # signing, boot and disk tooling: used only by uki/stick/boot/dbx/install,
+  # never by the repro path -- so `deps repro` skips them, and the repro
+  # container need not ship qemu/ovmf/sbsign, staying lean and free of the
+  # package drift that a fat toolchain image invites.
+  local extra="sbsign:sbsigntools sbverify:sbsigntools ukify:systemd
+    virt-fw-vars:virt-firmware mcopy:mtools mmd:mtools mkfs.fat:dosfstools
+    sfdisk:util-linux wipefs:util-linux lsblk:util-linux
+    qemu-system-x86_64:qemu-base partprobe:parted"
+  for cmd in $base $( [ "$mode" = repro ] || printf '%s' "$extra" ); do
     command -v "${cmd%%:*}" >/dev/null 2>&1 || miss+=("${cmd%%:*} (${cmd##*:})")
   done
   # musl is linked into every binary but is NOT built from source here -- it is
   # host-provided. SOURCES.md records this honestly; the build must have it.
   [ -f /usr/lib/musl/lib/rcrt1.o ] || miss+=("/usr/lib/musl/lib/rcrt1.o (musl)")
-  # the mounted-disk guard in usb()/addstate() reads this column; an lsblk
-  # without it prints nothing and the guard would pass on a mounted stick.
-  lsblk -nro MOUNTPOINTS >/dev/null 2>&1 \
-    || miss+=("lsblk with MOUNTPOINTS column (util-linux >= 2.37)")
-  [ -f "$STUB" ]      || miss+=("$STUB (systemd)")
-  [ -f "$OVMF_CODE" ] || miss+=("$OVMF_CODE (edk2-ovmf)")
-  [ -f "$OVMF_VARS" ] || miss+=("$OVMF_VARS (edk2-ovmf)")
+  if [ "$mode" != repro ]; then
+    # the mounted-disk guard in usb()/addstate() reads this column; an lsblk
+    # without it prints nothing and the guard would pass on a mounted stick.
+    lsblk -nro MOUNTPOINTS >/dev/null 2>&1 \
+      || miss+=("lsblk with MOUNTPOINTS column (util-linux >= 2.37)")
+    [ -f "$STUB" ]      || miss+=("$STUB (systemd)")
+    [ -f "$OVMF_CODE" ] || miss+=("$OVMF_CODE (edk2-ovmf)")
+    [ -f "$OVMF_VARS" ] || miss+=("$OVMF_VARS (edk2-ovmf)")
+  fi
   if [ "${#miss[@]}" -gt 0 ]; then
     echo "FAIL: missing host dependencies:" >&2
     printf '  - %s\n' "${miss[@]}" >&2
@@ -2911,6 +2922,15 @@ ci() {
 # are already in the shared XOS_CACHE, so the clone builds off the network;
 # get() re-checks their digests, so a poisoned copy still fails loudly. only meaningful on the
 # toolchain the pin was taken with -- same rule G13 already enforces.
+# the reproducible path: every stage that mints xos.img + rootfs.squashfs, and
+# nothing past verity (no keys, no signed uki, no stick -- so no passphrase).
+# ONE list, shared by repro() (clone + compare) and cpin/crepro (in-container),
+# so the sequence can never drift between "what we pin" and "what we verify".
+build_repro() {
+  deps repro; fetch; kernel; headers; busybox; tls; ii_; abduco
+  cryptsetup_; wg_; dropbear_; rootfs; verity
+}
+
 # ────────────────────────────────────────────────────────────────────────────
 # reproducibility -- a clean clone, built and compared to the pin
 # ────────────────────────────────────────────────────────────────────────────
@@ -2926,16 +2946,14 @@ repro() {
   have_tc=$(toolchain)
   if [ -n "$want_tc" ] && [ "$want_tc" != "$have_tc" ]; then
     printf '  \033[1;33munverified\033[0m -- this toolchain is not the one the pin was\n' >&2
-    printf '  taken with, so a byte difference would prove nothing. rebuild on the\n' >&2
-    printf '  pinned toolchain to verify (see G13, SOURCES.md). skipping the build.\n' >&2
+    printf '  taken with, so a byte difference would prove nothing. run\n' >&2
+    printf '  ./build.sh crepro to verify inside the pinned toolchain container\n' >&2
+    printf '  (see G13, repro/Dockerfile, SOURCES.md). skipping the build.\n' >&2
     return 2
   fi
   d=$(mktemp -d /tmp/xos-repro.XXXXXX) || return 1
   git clone -q --depth 1 "file://$PWD" "$d/tree" || { rm -rf "$d"; return 1; }
-  if ! ( cd "$d/tree" && ./build.sh deps && ./build.sh fetch && ./build.sh kernel \
-      && ./build.sh headers && ./build.sh busybox && ./build.sh tls && ./build.sh ii_ \
-      && ./build.sh abduco && ./build.sh cryptsetup_ && ./build.sh wg_ \
-      && ./build.sh dropbear_ && ./build.sh rootfs && ./build.sh verity ) > "$d/build.log" 2>&1
+  if ! ( cd "$d/tree" && ./build.sh build_repro ) > "$d/build.log" 2>&1
   then
     echo "FAIL: the clean-clone build itself failed -- tail of the log:" >&2
     tail -5 "$d/build.log" >&2
@@ -2956,6 +2974,71 @@ repro() {
   fi
 }
 
+# ────────────────────────────────────────────────────────────────────────────
+# reproducibility BY BYTES -- the toolchain pinned as a container, not versions
+# ────────────────────────────────────────────────────────────────────────────
+# repro() proves the source rebuilds its own bytes on whatever toolchain is
+# here; cpin/crepro tie that to ONE toolchain fixed by content -- a base image
+# by digest plus a frozen Arch archive day (repro/Dockerfile). a version string
+# only describes a toolchain; a pinned container IS one, so a stranger on any
+# distro lands on the exact same xos.img. cpin takes the canonical pin inside
+# it; crepro verifies a clean clone reproduces that pin inside it.
+CTAG=xos-toolchain
+
+# clone committed HEAD into a throwaway NORMAL repo and echo its path. a git
+# worktree's .git is a FILE pointing at the main repo outside any bind mount, so
+# a container cannot read it; a plain clone carries a self-contained .git, and
+# clones only what is committed -- the same "committed source only" claim repro
+# and pin already rest on. caller removes the dir.
+snap() {
+  local s; s=$(mktemp -d /tmp/xos-snap.XXXXXX) || return 1
+  git clone -q "$PWD" "$s/tree" >/dev/null 2>&1 || { rm -rf "$s"; return 1; }
+  printf '%s\n' "$s"
+}
+
+# build the pinned toolchain image, then run "$@" inside it with $1 mounted at
+# /src. --network=host on both: the build pulls ALA packages and the run fetches
+# pinned sources, and docker's default DNS cannot reach a host systemd-resolved
+# stub. the sources stay pinned+signed, so host networking changes nothing the
+# digests do not still decide.
+in_toolchain() {
+  local src="$1"; shift
+  command -v docker >/dev/null 2>&1 \
+    || { echo "FAIL: this needs docker -- the pinned toolchain runs in a container" >&2; return 1; }
+  [ -f repro/Dockerfile ] || { echo "FAIL: repro/Dockerfile missing" >&2; return 1; }
+  say "building the pinned toolchain container ($CTAG)"
+  docker build --network=host -q -t "$CTAG" -f repro/Dockerfile repro/ >/dev/null \
+    || { echo "FAIL: could not build the toolchain container" >&2; return 1; }
+  docker run --rm --network=host -v "$src:/src" -w /src "$CTAG" "$@"
+}
+
+# take the canonical pin INSIDE the pinned toolchain, so image.sha256's toolchain
+# line is the container's -- the only fingerprint a stranger can match. builds in
+# a snapshot, copies just the pin back out. review and commit the image.sha256.
+cpin() {
+  say "taking the pin inside the pinned toolchain"
+  local s; s=$(snap) || { echo "FAIL: could not snapshot committed HEAD" >&2; return 1; }
+  if in_toolchain "$s/tree" sh -euc './build.sh build_repro && ./build.sh pin'; then
+    cp -f "$s/tree/image.sha256" image.sha256
+    rm -rf "$s"
+    say "pin taken in-container -- review and commit image.sha256"
+    cat image.sha256
+  else
+    rm -rf "$s"; echo "FAIL: in-container pin failed" >&2; return 1
+  fi
+}
+
+# verify: a clean clone, built inside the pinned toolchain, reproduces the
+# committed pin. the check a stranger runs -- no key, no host toolchain, only
+# docker. repro() runs unchanged inside; have_tc now equals the container's
+# want_tc, so the comparison actually fires instead of skipping.
+crepro() {
+  say "reproducing inside the pinned toolchain -- clean clone, build, compare"
+  local s rc=0; s=$(snap) || { echo "FAIL: could not snapshot committed HEAD" >&2; return 1; }
+  in_toolchain "$s/tree" ./build.sh repro || rc=$?
+  rm -rf "$s"; return $rc
+}
+
 build_all() {
   deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; wg_; dropbear_; rootfs; verity; keys
   # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
@@ -2966,7 +3049,7 @@ build_all() {
 
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|ci|repro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|ci|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|gates|boot|bootusb|lint|ci|repro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|gates|boot|bootusb|lint|ci|repro|cpin|crepro|all}"; exit 1 ;;
 esac
