@@ -187,6 +187,9 @@ emulated usb.
 
 ## hardening
 
+who this defends against, what it protects, and where it deliberately gives up is
+in `docs/threat-model.md` -- every item below is measured against it.
+
 the kernel is built from `tinyconfig` up, so nothing is on that wasn't asked for.
 on: KASLR, stack protector, page-table isolation, the full spectre/meltdown set,
 hardened usercopy, slab freelist randomization + hardening, kernel-stack-offset
