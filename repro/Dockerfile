@@ -19,7 +19,7 @@ RUN printf 'Server=https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$AL
       > /etc/pacman.d/mirrorlist \
  && pacman -Syu --noconfirm --needed \
       gcc binutils make curl tar python openssl squashfs-tools cryptsetup \
-      cmake flex bison bc pkgconf xz musl git \
+      cmake flex bison bc pkgconf xz musl git diffutils rsync patch which \
  && pacman -Scc --noconfirm
 
 WORKDIR /build

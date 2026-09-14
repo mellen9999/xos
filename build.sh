@@ -248,7 +248,7 @@ deps() {
     curl:curl tar:tar python3:python openssl:openssl
     mksquashfs:squashfs-tools unsquashfs:squashfs-tools veritysetup:cryptsetup
     cmake:cmake flex:flex bison:bison bc:bc pkg-config:pkgconf
-    strings:binutils objdump:binutils xz:xz"
+    strings:binutils objdump:binutils xz:xz cmp:diffutils rsync:rsync patch:patch"
   # signing, boot and disk tooling: used only by uki/stick/boot/dbx/install,
   # never by the repro path -- so `deps repro` skips them, and the repro
   # container need not ship qemu/ovmf/sbsign, staying lean and free of the
@@ -2901,6 +2901,19 @@ ci() {
     $chk "$f" 2>/dev/null || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f" >&2; rc=1; }
   done
   [ "$rc" -eq 0 ] && printf '  every script parses\n'
+  # the reproducible-build toolchain is only reproducible if repro/Dockerfile
+  # pins its inputs by content: a base image by digest (never a moving tag) and
+  # a frozen Arch archive day (never the live mirror). crepro rests on both, so
+  # a tag or a live-mirror slip silently breaks reproducibility -- catch it here.
+  if [ -f repro/Dockerfile ]; then
+    say "repro toolchain pinned"
+    local dok=1
+    grep -qE '^FROM[[:space:]]+\S+@sha256:[0-9a-f]{64}' repro/Dockerfile \
+      || { printf '  \033[1;31mFROM is not pinned by digest\033[0m\n' >&2; dok=0; rc=1; }
+    grep -qE '^ARG ALA=[0-9]{4}/[0-9]{2}/[0-9]{2}$' repro/Dockerfile \
+      || { printf '  \033[1;31mALA is not a frozen YYYY/MM/DD day\033[0m\n' >&2; dok=0; rc=1; }
+    [ "$dok" -eq 1 ] && printf '  base pinned by digest, packages frozen to one ALA day\n'
+  fi
   # the learn authoring ledger: pure static analysis, no busybox needed. it is
   # advisory by design (see lib/lint) -- printed so drift shows in the ci log,
   # never a hard fail, so it cannot breed filler.
@@ -2996,6 +3009,15 @@ snap() {
   printf '%s\n' "$s"
 }
 
+# remove a snapshot. the container builds as root, so the tree it leaves is
+# root-owned and a plain `rm` by the calling user cannot touch it -- remove it
+# from inside the same image (as root), then drop the now-empty dir.
+desnap() {
+  [ -n "$1" ] && [ -d "$1" ] || return 0
+  docker run --rm -v "$1:/s" "$CTAG" rm -rf /s/tree 2>/dev/null || true
+  rm -rf "$1" 2>/dev/null || true
+}
+
 # build the pinned toolchain image, then run "$@" inside it with $1 mounted at
 # /src. --network=host on both: the build pulls ALA packages and the run fetches
 # pinned sources, and docker's default DNS cannot reach a host systemd-resolved
@@ -3020,11 +3042,11 @@ cpin() {
   local s; s=$(snap) || { echo "FAIL: could not snapshot committed HEAD" >&2; return 1; }
   if in_toolchain "$s/tree" sh -euc './build.sh build_repro && ./build.sh pin'; then
     cp -f "$s/tree/image.sha256" image.sha256
-    rm -rf "$s"
+    desnap "$s"
     say "pin taken in-container -- review and commit image.sha256"
     cat image.sha256
   else
-    rm -rf "$s"; echo "FAIL: in-container pin failed" >&2; return 1
+    desnap "$s"; echo "FAIL: in-container pin failed" >&2; return 1
   fi
 }
 
@@ -3036,7 +3058,7 @@ crepro() {
   say "reproducing inside the pinned toolchain -- clean clone, build, compare"
   local s rc=0; s=$(snap) || { echo "FAIL: could not snapshot committed HEAD" >&2; return 1; }
   in_toolchain "$s/tree" ./build.sh repro || rc=$?
-  rm -rf "$s"; return $rc
+  desnap "$s"; return $rc
 }
 
 build_all() {

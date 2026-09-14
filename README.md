@@ -26,6 +26,7 @@ if more than one removable disk is attached.
     ./build.sh addstate /dev/sdX  add the encrypted state partition
     ./build.sh revoke IMAGE       retire a superseded image
     ./build.sh repro              rebuild a clean clone, compare to the pin
+    ./build.sh crepro             the same, inside the pinned toolchain (docker)
     ./build.sh reseal             change the signing-key passphrase
 
 ## the chain
@@ -136,11 +137,23 @@ the bytes differ for innocent reasons, so the gate records a toolchain
 fingerprint and skips with a note rather than failing. `./build.sh repro` checks
 from the other side: a clean clone of HEAD, built and compared to the pin.
 
+but a version string only *describes* a toolchain -- a stranger on another
+distro still gets different bytes. so the toolchain is pinned by content:
+`repro/Dockerfile` fixes a base image by digest and points pacman at a frozen
+Arch archive day, and `./build.sh crepro` builds a clean clone inside it and
+compares to the pin. it needs only docker -- no signing key, no matching host
+toolchain -- and reproduces the exact `image.sha256` bytes anywhere. the pin
+itself is taken there too (`./build.sh cpin`), so its toolchain line is the
+container's; these committed bytes match an independent full-Arch host build,
+so the source reproduces across environments, not just on one box.
+
 the repo holds recipes, never artifacts -- the pre-commit hook refuses any
 staged file whose magic says ELF, PE or squashfs. `build.sh` points
 `core.hooksPath` at `githooks/` every run, so a fresh clone is walled from its
 first build. `./build.sh ci` is the buildless gate tier -- shellcheck, every
-first-party script parsed, the learn authoring ledger -- with no key and no
+first-party script parsed, the learn authoring ledger, and a check that
+`repro/Dockerfile` still pins its base by digest and its packages to a frozen
+archive day -- with no key and no
 image build, so a self-hosted runner or a pre-push hook can run it on every
 push (`XOS_NOVERIFY=1` overrides for a WIP branch). the building gates and the
 qemu self-test stay a deliberate `./build.sh gates` / `./selftest.sh`.
@@ -287,7 +300,11 @@ different bytes than `image.sha256` on the *same* toolchain -- source and pin
 disagree. if you changed the source, re-pin; if you did not, something in the
 tree is not what was committed. `unverified` (yellow) instead means the toolchain
 differs and nothing was checked -- rebuild on the pinned toolchain to get a real
-answer.
+answer. to get that real answer on any machine, run `./build.sh crepro`: it
+rebuilds inside the pinned toolchain container, where the fingerprint matches by
+construction, so the comparison actually fires. if crepro itself says
+`NOT REPRODUCIBLE`, the committed source and pin genuinely disagree -- re-pin
+with `./build.sh cpin` only if you meant to change the source.
 
 **the arsenal build refuses a source** (`sha256 mismatch` / `commit ... not
 checked out`). a pinned tarball or repo no longer matches `arsenal/arsenal.pins`
