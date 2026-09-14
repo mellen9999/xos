@@ -27,3 +27,6 @@ john	offline password hash cracker (bleeding-jumbo, cpu-only)
 pspy	watch processes/cron without root -- local privesc enumeration
 jq	json parser/filter -- for the json every other tool here emits
 rg	ripgrep -- fast search over the staged corpora and loot
+zstd	decompress .zst images/firmware/payloads nothing else here reads
+ddrescue	image a dying disk -- copy what reads, log the bad ranges, resume
+strace	trace a binary's syscalls -- files, connections, why it exits

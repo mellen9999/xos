@@ -26,3 +26,6 @@ hydra       hydra@9.5(musl-static)  4894104  12c2317b19df680cc162b32c0089a1870e2
 john        github.com/openwall/john@9a336d8(musl-static)  41255295  git-checkout
 jq          jq@1.7.1(musl-static)  964312  e667da796e48334cdbdae5dcffb3ff5d9eb249cf4f685c7488dbcd5e17b241b4
 rg          ripgrep@14.1.1(musl-static-pie)  5757920  ad380bab0de07ac6b515d3926395ce568cba3cf3234576e67603de31fc463d15
+zstd        zstd@1.5.6(musl-static)  1004608  bcd53dfd7117661b18b9a9d308fc26f219a33bcc26e7df896ac95c029ec8565e
+ddrescue    ddrescue@1.28(musl-static)  1130440  290ae167814298351ca19f9f29cc16982a9d142b2fb09e242bf04f59d6afc776
+strace      strace@6.13(musl-static)  1423440  25764b26f9582abdc66603dd8c2873f0da0c63f6346a260261a46425ecf83db8

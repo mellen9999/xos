@@ -345,6 +345,9 @@ is the post-build attestation, source + sha256:
 | whois | who registered this domain/ip -- the one basic busybox doesn't ship |
 | jq | json parser/filter -- for the json every other tool here emits |
 | rg | ripgrep -- fast search over the staged corpora and loot |
+| zstd | decompress the .zst images, firmware and payloads nothing else here reads |
+| ddrescue | image a dying disk -- copies what reads, logs the bad ranges, resumes |
+| strace | trace a binary's syscalls -- files, connections, why it exits |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |
@@ -366,7 +369,8 @@ and a desktop -- and unlike kali, every byte of it is reproducible and attested:
 | recon suite | amass, subfinder | subfinder dnsx (go) |
 | pivot / tunnel | chisel, socat | chisel socat ligolo (musl+go) |
 | brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
-| reversing | radare2, gdb | gdb not built (static link); strings + python cover triage |
+| disk recovery | ddrescue, testdisk | ddrescue (musl); testdisk/photorec next |
+| reversing | radare2, gdb | strace (musl); gdb/radare2 not built; strings + python cover the rest |
 | exploit framework | metasploit | out (ruby+db) -- carried python covers it |
 | python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
 | wireless | aircrack, wifite | out -- no wifi drivers, by design |

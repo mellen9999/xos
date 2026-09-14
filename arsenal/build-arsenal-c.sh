@@ -9,8 +9,9 @@
 #
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
 # regen, or by hand). builds masscan + tcpdump + socat + nmap + links + mutool +
-# frotz + whois + hydra + john + jq + rg, all static (rg is static-PIE, see its
-# block; nmap is C++, its block documents the static-musl fix).
+# frotz + whois + hydra + john + jq + rg + zstd + ddrescue + strace, all static
+# (rg is static-PIE, see its block; nmap is C++, its block documents the static-
+# musl fix). zstd/ddrescue/strace are the recovery/forensics flank.
 # NOTE: masscan + tcpdump + nmap embed a build-id, so their arsenal.lock sha
 # drifts per build (size is stable) -- a point-in-time attestation. links + mutool are
 # bit-reproducible. masscan needs linux-headers (netlink) -- in the apk set below.
@@ -30,7 +31,8 @@ command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
 docker run --rm -i --network host -v "$OUT":/out -v "$SELF/arsenal.pins":/pins:ro alpine:3.20 sh -e <<'INNER'
 apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static \
-  ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo >/dev/null 2>&1
+  ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo \
+  file lzip xz linux-headers >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # ---- integrity: read the pins, verify before build ------------------------
@@ -264,6 +266,52 @@ clone_pinned() {
   strip nmap
   cp nmap /out/nmap ) || log "nmap FAILED"
 
+# ---- recovery / forensics / triage: the flank the offense set left open -----
+
+# zstd 1.5.6 -- the modern compressor. more and more images, firmware dumps and
+# package payloads land as .zst, which nothing else on the stick reads; the one
+# binary is also unzstd and zstdcat by argv0. optional zlib/lzma/lz4 support is
+# turned OFF so the static link stays clean and the binary decodes .zst alone.
+( set -e; log zstd
+  mkdir -p /s && fetch zstd /s/zstd.tgz && tar xz -C /s -f /s/zstd.tgz
+  cd /s/zstd-1.5.6
+  make -j"$(nproc)" -C programs zstd HAVE_ZLIB=0 HAVE_LZMA=0 HAVE_LZ4=0 \
+    CFLAGS="-O2" LDFLAGS="-static" >/s/zstd.log 2>&1
+  file programs/zstd | grep -q "statically linked" || { echo "not static"; tail -5 /s/zstd.log; exit 1; }
+  programs/zstd --version
+  strip programs/zstd
+  cp programs/zstd /out/zstd ) || log "zstd FAILED"
+
+# ddrescue 1.28 -- the tool for a dying disk: it images what still reads, logs
+# the bad ranges to a mapfile, and resumes, so a failing drive is copied in one
+# careful pass instead of hammered. the disk-blind fort reaches media only over
+# usb, which is exactly where a recovery job starts. GNU ships .tar.lz, so lzip
+# unpacks it; the configure is GNU's own script, not autotools.
+( set -e; log ddrescue
+  mkdir -p /s && fetch ddrescue /s/ddrescue.tar.lz && lzip -dc /s/ddrescue.tar.lz | tar x -C /s
+  cd /s/ddrescue-1.28
+  ./configure CXXFLAGS="-O2 -static" >/s/ddrescue.log 2>&1
+  make -j"$(nproc)" >>/s/ddrescue.log 2>&1
+  file ddrescue | grep -q "statically linked" || { echo "not static"; tail -8 /s/ddrescue.log; exit 1; }
+  ./ddrescue --version | head -1
+  strip ddrescue
+  cp ddrescue /out/ddrescue ) || log "ddrescue FAILED"
+
+# strace 6.13 -- syscall trace: watch what an unknown or misbehaving binary
+# actually does -- files it opens, connects it makes, why it exits -- the
+# dynamic-analysis half the deferred gdb leaves open, and the fastest triage of
+# a foreign binary short of a debugger. --enable-mpers=no drops the 32-bit
+# personality shim that fights a static link on x86_64.
+( set -e; log strace
+  mkdir -p /s && fetch strace /s/strace.tar.xz && tar xJ -C /s -f /s/strace.tar.xz
+  cd /s/strace-6.13
+  ./configure --enable-mpers=no LDFLAGS="-static" >/s/strace.log 2>&1
+  make -j"$(nproc)" >>/s/strace.log 2>&1
+  file src/strace | grep -q "statically linked" || { echo "not static"; tail -8 /s/strace.log; exit 1; }
+  ./src/strace -V | head -1
+  strip src/strace
+  cp src/strace /out/strace ) || log "strace FAILED"
+
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
 # (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final
 # `gdb` executable links dynamic-PIE against ld-musl even with LDFLAGS="-static
@@ -296,7 +344,7 @@ clone_pinned() {
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to

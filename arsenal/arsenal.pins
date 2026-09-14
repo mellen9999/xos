@@ -36,3 +36,6 @@ hydra         git   https://github.com/vanhauser-thc/thc-hydra                  
 john          git   https://github.com/openwall/john                                        9a336d800a091bec9650c29282485145f31c9ffc
 jq            git   https://github.com/jqlang/jq                                            71c2ab509a8628dbbad4bc7b3f98a64aa90d3297
 rg            git   https://github.com/BurntSushi/ripgrep                                   4649aa9700619f94cf9c66876e9549d83420e16c
+zstd          url   https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz  8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1
+ddrescue      url   https://ftp.gnu.org/gnu/ddrescue/ddrescue-1.28.tar.lz                   6626c07a7ca1cc1d03cad0958522c5279b156222d32c342e81117cfefaeb10c1
+strace        url   https://strace.io/files/6.13/strace-6.13.tar.xz                         e209daf0ee038ca5adcc4c277e9273b4d51f46a2ff86da575d36742ac3508a17
