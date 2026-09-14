@@ -152,7 +152,7 @@ hint: c stops touch from creating the file when it doesn't exist
 ---
 q: %make% a symbolic link @word@-link to @txt@, with ln
 a: ln -s @txt@ @word@-link
-state: exists:@word@-link
+state: link:@word@-link
 ref: ln
 teach: ln -s
 hint: s for symbolic; without it you get a hard link

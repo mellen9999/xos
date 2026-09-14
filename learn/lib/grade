@@ -250,15 +250,19 @@ run_answer() {
 
 # check_state SPEC -- did the answer leave the tree in the right shape?
 # `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
-# point. four forms, which between them cover every mutating command xos has:
+# point. five forms, which between them cover every mutating command xos has:
 #   exists:PATH        the path is there afterwards
 #   gone:PATH          the path is not
+#   link:PATH          the path is there and is a symbolic link
 #   match:PATH:ERE     the path is there and its contents match
 #   mode:PATH:OCTAL    the path is there and carries exactly these bits
 check_state() {
 	case "$1" in
 		exists:*) [ -e "$SANDBOX/${1#exists:}" ] ;;
 		gone:*)   [ ! -e "$SANDBOX/${1#gone:}" ] ;;
+		# a symlink specifically -- exists: cannot tell `ln -s` from a hard link,
+		# since both leave a name that -e finds
+		link:*)   [ -L "$SANDBOX/${1#link:}" ] ;;
 		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
 		          [ -e "$SANDBOX/$_p" ] && grep -qE -- "$_e" "$SANDBOX/$_p" 2>/dev/null ;;
 		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _m=${_r#*:}

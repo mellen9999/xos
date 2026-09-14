@@ -117,7 +117,7 @@ hint: status= controls dd's progress/summary output -- none silences it
 ---
 q: {@log@ is too long to page through -- split it into 2-line pieces|break @log@ into 2-line pieces with split|cut @log@ into 2-line chunks with split}
 a: split -l 2 @log@
-state: exists:xaa
+state: exists:xab
 ref: split
 teach: split -l
 hint: -l counts lines per output piece, split's default unit
