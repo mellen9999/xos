@@ -34,6 +34,7 @@ hint: -n caps how many arguments go into each invocation
 q: {"found NAME" per .log name ls prints, NAME mid-command|for every .log name ls prints, echo found NAME, not trailing|"found NAME" per .log name from ls, name in the middle}, with xargs
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
+cmp: ref
 ref: xargs
 teach: xargs -I
 hint: -I defines a placeholder that gets replaced with each input item

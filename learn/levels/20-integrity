@@ -184,6 +184,7 @@ hint: -q collapses the whole comparison down to a single differ/no-differ line
 q: {diff @txt@ and @txt2@ where case shouldn't count as a change|diff @txt@ and @txt2@ treating upper and lower case as equal|diff @txt@ against @txt2@ without caring about letter case}
 a: diff -i @txt@ @txt2@
 out: ^---
+cmp: ref
 status: 1
 ref: diff
 teach: diff -i
@@ -192,6 +193,7 @@ hint: -i folds case before comparing, so Abc and abc count as equal
 q: {@txt@ got reformatted -- diff against @txt2@, ignore whitespace|diff @txt@ and @txt2@ without whitespace differences in the way|diff @txt@ and @txt2@ with spacing ignored}
 a: diff -w @txt@ @txt2@
 out: ^---
+cmp: ref
 status: 1
 ref: diff
 teach: diff -w

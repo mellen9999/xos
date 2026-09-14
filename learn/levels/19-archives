@@ -128,7 +128,7 @@ hint: gzip replaces the original file with a .gz version by default
 ---
 q: {compress @txt@ with gzip -- you still need the original after|gzip @txt@ without losing @txt@ itself|compress @txt@ with gzip, but keep @txt@ around too}
 a: gzip -k @txt@
-state: exists:@txt@.gz
+state: exists:@txt@
 ref: gzip
 teach: gzip -k
 hint: -k keeps the original file alongside the new .gz

@@ -116,7 +116,7 @@ hint: p for parents
 ---
 q: %make% a directory @word@, only you can enter, with mkdir's numeric mode
 a: mkdir -m 700 @word@
-state: exists:@word@
+state: mode:@word@:700
 ref: mkdir
 teach: mkdir -m
 hint: -m sets permissions at creation time -- 700 is owner-only rwx
@@ -222,7 +222,7 @@ hint: a fifo connects a writer to a reader instead of storing data
 ---
 q: %make% a named pipe @word@.fifo with mkfifo, readable/writable by you only
 a: mkfifo -m 600 @word@.fifo
-state: exists:@word@.fifo
+state: mode:@word@.fifo:600
 ref: mkfifo
 teach: mkfifo -m
 hint: -m sets permissions at creation, same as mkdir -m
