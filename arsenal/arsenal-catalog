@@ -35,3 +35,4 @@ photorec	carve files back off a formatted or damaged filesystem by signature
 smartctl	read a drive's SMART health -- is it dying before you trust or wipe it
 file	identify an unknown blob by content -- where strings only shows text
 binwalk	scan a firmware blob for embedded filesystems, keys and streams
+cc	compile C on the stick -- tcc (its own cpp/as/linker), static, + a musl sysroot

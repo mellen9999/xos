@@ -353,6 +353,7 @@ is the post-build attestation, source + sha256:
 | smartctl | a drive's SMART health -- is it dying before you trust or wipe it |
 | file | identify an unknown blob by content -- where strings only shows text |
 | binwalk | scan a firmware blob for embedded filesystems, keys and streams |
+| cc | compile C on the stick -- tcc + a musl sysroot, one static toolchain |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | kiwix-serve | serves offline zims (wikipedia, survival docs) on localhost |

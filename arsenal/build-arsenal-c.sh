@@ -38,7 +38,7 @@ apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo \
   file lzip xz linux-headers e2fsprogs-dev e2fsprogs-static util-linux-dev \
   rustup fontconfig-dev fontconfig-static freetype-dev freetype-static \
-  expat-static libpng-static brotli-static xz-static xz-dev >/dev/null 2>&1
+  expat-static libpng-static brotli-static xz-static xz-dev musl-dev >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # ---- integrity: read the pins, verify before build ------------------------
@@ -397,6 +397,52 @@ clone_pinned() {
   readelf -l "$B" | grep -q INTERP && { echo "not static (has interp)"; exit 1; }
   "$B" --version | head -1
   strip "$B"; cp "$B" /out/binwalk ) || log "binwalk FAILED"
+
+# cc -- a C compiler carried on the stick. xos ships no compiler by design (the
+# fort's contract), so this rides p3: capability by carry, never a fort change.
+# tcc is the whole toolchain in one static binary -- its own preprocessor,
+# assembler and linker -- so it needs no binutils (whose as/ld will not link
+# static-musl: LDFLAGS never threads into their executable link, the same wall
+# the repo's gdb note records). alongside it we carry a musl sysroot (libc.a +
+# crt + headers, from this pinned alpine's musl-dev) and two wrappers:
+#   cc   -- tcc, self-contained; supplies crt/libc on the link (tcc finds crt via
+#           a compiled prefix, not -L, so the link step names them explicitly)
+#   cpp  -- tcc -E, the standalone preprocessor
+# run on the stick through xexec's tree mode: sh ~/tools/xexec -t ~/tools/cc cc x.c -o x
+# NOTE (cproc/qbe): the oasis compiler builds static fine and compiles end-to-end
+# WITH a preprocessor+as+ld, but it drives an external as/ld -- i.e. binutils,
+# which hits the static wall above. tcc supersedes it here (one binary, no wall).
+( set -e; log cc
+  clone_pinned tcc /s/tcc
+  cd /s/tcc
+  ./configure --prefix=/opt/xcc --enable-static --config-bcheck=no --config-backtrace=no \
+    --extra-cflags="-static -O2" --extra-ldflags="-static" >/s/tcc.log 2>&1
+  make -j"$(nproc)" >>/s/tcc.log 2>&1
+  readelf -l tcc | grep -q INTERP && { echo "tcc not static"; exit 1; }
+  strip tcc; make install >/dev/null 2>&1
+  mkdir -p /out/cc/tcc /out/cc/sysroot/lib /out/cc/sysroot/include
+  cp tcc /out/cc/tcc-bin
+  cp -a /opt/xcc/lib/tcc/. /out/cc/tcc/
+  # the musl sysroot: static libc + startup objects + headers, from the pinned base
+  for f in libc.a crt1.o crti.o crtn.o Scrt1.o rcrt1.o; do
+    [ -f "/usr/lib/$f" ] && cp -a "/usr/lib/$f" /out/cc/sysroot/lib/
+  done
+  cp -a /usr/include/. /out/cc/sysroot/include/
+  # the wrappers (printf, not a heredoc -- keep this block one flat level)
+  { printf '%s\n' '#!/bin/sh' \
+    'D=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' \
+    'T="$D/tcc-bin"; S="$D/sysroot"' \
+    'case " $* " in' \
+    '  *" -c "*|*" -E "*|*" -S "*) exec "$T" -B"$D/tcc" -I"$S/include" "$@" ;;' \
+    'esac' \
+    'exec "$T" -B"$D/tcc" -I"$S/include" -nostdlib -static "$S/lib/crt1.o" "$S/lib/crti.o" "$@" -L"$S/lib" -lc "$S/lib/crtn.o"' \
+  ; } > /out/cc/cc
+  { printf '%s\n' '#!/bin/sh' \
+    'D=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' \
+    'exec "$D/tcc-bin" -B"$D/tcc" -E "$@"' \
+  ; } > /out/cc/cpp
+  chmod +x /out/cc/cc /out/cc/cpp
+  "/out/cc/tcc-bin" -v 2>&1 | head -1 ) || log "cc FAILED"
 
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
 # (gmp/mpfr .a live in gmp-dev/mpfr-dev, not a -static package), but the final
