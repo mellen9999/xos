@@ -3111,9 +3111,24 @@ build_all() {
   uki; stick; gates; lint
 }
 
+# flash -- the one-word install for a newbie: build a signed xos, then flash it
+# to the usb stick. run it as yourself, NOT root -- the build must not run as
+# root (it writes keys and gitignored trees), so flash builds as you and then
+# re-invokes only the device write under sudo. it asks twice by design: your
+# signing passphrase (to sign the image) and your login password (sudo, to
+# write the disk), then makes you type the stick's model back before it touches
+# anything. plug in only the target stick first.
+flash() {
+  [ "$(id -u)" -ne 0 ] || { echo "FAIL: run './build.sh flash' as your normal user, not root -- it escalates the flash step itself" >&2; return 1; }
+  build_all || return 1
+  say "flashing to the usb stick -- sudo will ask for your login password to write the device"
+  sudo "$(readlink -f "$0")" install "$@"
+}
+
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
+  flash) shift; flash "$@" ;;
   deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|ci|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|pin|seed|gates|boot|bootusb|lint|ci|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|lint|ci|repro|cpin|crepro|all}"; exit 1 ;;
 esac

@@ -11,16 +11,24 @@ the kernel refuses the read -- it never reports the tamper after the fact.
 
 ## quickstart
 
-    ./build.sh install        # build, flash a removable disk, verify every byte
+    ./build.sh flash          # newbie one-word: build as you, sudo only the flash
+    ./build.sh install        # same, but you handle root yourself
     ./build.sh all            # build only
     ./selftest.sh             # adversarial self-test: every tamper must be refused
     ./build.sh boot           # boot the real chain in qemu
     ./build.sh bootusb        # same, through emulated usb
 
-`install` lists **removable** disks only, makes you type the disk's model back
-before it writes, reads every byte back with direct i/o, and offers to add the
-encrypted state partition. name the disk -- `./build.sh install /dev/sdX` --
-when more than one is attached.
+`flash` is the whole thing in one word: plug in only the target stick, run it as
+**yourself** (not root), and it builds a signed image, then escalates *just* the
+device write under sudo -- so the build never runs as root. it asks twice by
+design: your signing passphrase (to sign the image) and your login password
+(sudo, to write the disk). `install` does the same build-and-flash but leaves
+root to you (run it under sudo, which builds as root too).
+
+both list **removable** disks only, make you type the disk's model back before
+they write, read every byte back with direct i/o, and offer to add the encrypted
+state partition. name the disk -- `./build.sh flash /dev/sdX` -- when more than
+one is attached.
 
     ./build.sh usb /dev/sdX       write a stick (install wraps this)
     ./build.sh addstate /dev/sdX  add the encrypted state partition
