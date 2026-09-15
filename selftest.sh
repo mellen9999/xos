@@ -156,6 +156,11 @@ boot_usb() {
 # qemu's usb-serial presents as an ftdi ft232 (0403:6001), which ftdi_sio binds
 # to a ttyUSB. proves the drivers are compiled in and init lines the tty. the
 # chardev is a sink; the proof is the device node + the baud init set on it.
+# always-plugged=on on the usb-serial device is load-bearing: qemu defaults it
+# to always-plugged=off, and with a null chardev the device is then never
+# presented to the guest -- ftdi_sio loads but no ttyUSB ever enumerates, so A20
+# fails despite a correct kernel and init. on makes the emulated FT232 enumerate
+# like a real dongle. do not drop it.
 boot_usbserial() {
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
@@ -163,7 +168,7 @@ boot_usbserial() {
 		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
 		-device usb-storage,bus=xhci.0,drive=stick \
 		-chardev null,id=usbtty \
-		-device usb-serial,chardev=usbtty,bus=xhci.0 \
+		-device usb-serial,chardev=usbtty,bus=xhci.0,always-plugged=on \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null 2>&1
 }
