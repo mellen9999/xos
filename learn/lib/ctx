@@ -147,10 +147,10 @@ PHRASES="$ROOT/phrases"
 # fenced. one seed drives both, so the {a|b|c} branch a prompt shows is the
 # branch its stripped twin was measured on.
 render()       { _render "$SUBST"    "$1"; }
-render_named() { _render "$SUBST_HI" "$1"; }
+render_named() { _render "$SUBST_HI" "$1" "$HI1" "$HI2"; }
 
 _render() {
-	sed -f "$1" | awk -v seed="$2" -v pf="$PHRASES" '
+	sed -f "$1" | awk -v seed="$2" -v pf="$PHRASES" -v hi1="${3:-}" -v hi2="${4:-}" '
 		BEGIN {
 			srand(seed)
 			# load %macro% -> alternatives from the phrases file. a macro asked
@@ -162,6 +162,35 @@ _render() {
 				macro["%" name "%"] = body
 			}
 			close(pf)
+		}
+		# widen -- a mark covers the whole name, not the rolled half of it.
+		# "@word@.fifo" rolls ping, and the card has to read ping.fifo as one
+		# word: a learner who types back the marked part alone runs
+		# `mkfifo ping` and makes the wrong file. so the closing fence slides
+		# right over whatever is glued to the value with no separator -- .txt,
+		# .gz, -missing -- and stops at a space, comma, quote or slash, which
+		# begin a new word rather than continue this one. it never slides into
+		# a second value: "@old@-to-@new@" is english between two names, not
+		# one filename, and stays the two marks it is.
+		function widen(line,   out, p, rest, run) {
+			out = ""
+			while ((p = index(line, hi2)) > 0) {
+				out = out substr(line, 1, p - 1)
+				rest = substr(line, p + 1)
+				if (match(rest, /^[A-Za-z0-9_.-]+/) && substr(rest, RLENGTH + 1, 1) != hi1) {
+					# the whole glued run decides whether to widen; trailing
+					# punctuation ("ping.fifo." at the end of a clause) is
+					# then handed back outside the mark.
+					run = substr(rest, 1, RLENGTH)
+					sub(/[^A-Za-z0-9_]+$/, "", run)
+					out = out run hi2
+					line = substr(rest, length(run) + 1)
+					continue
+				}
+				out = out hi2
+				line = rest
+			}
+			return out line
 		}
 		# pick a random member of a pipe-separated list, trimming each
 		function pick(list,   n, a, i, r) {
@@ -189,6 +218,7 @@ _render() {
 			# an empty macro member can leave a double space; tidy it
 			line = out line
 			gsub(/  +/, " ", line); sub(/^ +/, "", line)
+			if (hi1 != "") line = widen(line)
 			print line
 		}'
 }
