@@ -971,6 +971,45 @@ recon_accept() {
 	done
 	[ "$n" -gt 0 ] || echo "nothing to accept -- no machine is reported as changed"
 }
+# irc brings the whole tls-irc plumbing up as one word, and is safe to type
+# again -- typing it twice must not spawn a second reader on the same fifos, and
+# a tunnel that died leaving its socket file behind must not make ii hang against
+# nothing. tlstunnel does the TLS behind a unix socket; ii speaks plaintext to
+# it, so a channel stays a directory you tail and an `in` you echo to -- every
+# text tool on this system still works on the log. no client, no ui, nothing new
+# in the image: the two binaries that already ship, wired the one way that
+# reaches a real network. libera by default; a nick then a server override in
+# that order. a registered nick's password rides IRC_PASS, read from the
+# environment by name so it never lands in argv or the shell history. tlstunnel's
+# own output goes to a log so the console stays clean and the refusal reason is
+# still there to read.
+irc() {
+	local nick="${1:-${IRC_NICK:-xos}}" host="${2:-irc.libera.chat}" port=6697
+	local sock="/tmp/$host.sock" dir="$HOME/irc/$host" log="/tmp/irc-$host.log" n=0 kflag=""
+	command -v tlstunnel >/dev/null && command -v ii >/dev/null \
+		|| { echo "irc: tlstunnel or ii is missing from this image"; return 1; }
+	# reuse a live tunnel; it validates the cert against the compiled-in anchors
+	# at the current clock. if none is running, clear any stale socket a dead one
+	# left (ii would hang against it), then open one. no socket after the wait
+	# means the clock never synced or the CA is not one of ours -- say so.
+	if ! pgrep -f "tlstunnel $sock " >/dev/null 2>&1; then
+		[ -e "$sock" ] && rm -f "$sock"
+		echo "irc: opening tls to $host:$port ..."
+		tlstunnel "$sock" "$host" "$port" >>"$log" 2>&1 &
+		while [ ! -S "$sock" ] && [ "$n" -lt 10 ]; do sleep 1; n=$((n + 1)); done
+		[ -S "$sock" ] \
+			|| { echo "irc: tls to $host:$port never came up -- clock unsynced or cert refused (see $log)"; return 1; }
+	fi
+	# one ii per tree. if it is already up, fall through and just print the paths.
+	if ! pgrep -f "ii -s $host " >/dev/null 2>&1; then
+		[ -n "${IRC_PASS:-}" ] && kflag="-k IRC_PASS"
+		ii -s "$host" -u "$sock" -n "$nick" $kflag -i "$HOME/irc" &
+		sleep 1
+	fi
+	echo "irc: $nick on $host"
+	echo "  join:  echo /j #chan > $dir/in"
+	echo "  read:  tail -f $dir/#chan/out"
+}
 SHRC
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf

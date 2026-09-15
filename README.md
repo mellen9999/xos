@@ -236,6 +236,10 @@ the set rides the hash tree.
   when you left it at 47 means a rollback
 - **scrub** -- type `scrub` to read every verity-covered byte now: a rotten block
   panics on the spot, a clean pass means every byte still matches
+- **irc** -- type `irc` to reach libera over tls in one word: it brings up the
+  tunnel and ii, then a channel is a directory you `tail -f` and an `in` you echo
+  to. `irc <nick> <server>` overrides the defaults; a registered nick's password
+  rides `IRC_PASS` from the environment, never argv or history
 
 the one attack surface this knowingly accepts: the usb-net drivers (rndis,
 cdc-ether) that make tethering work, and the usb-serial drivers (ftdi, cp210x,
