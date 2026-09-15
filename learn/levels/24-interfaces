@@ -31,7 +31,7 @@ hint: -4 filters ip's output down to ipv4 only
 ---
 q: just plugged in the cable -- %show% every interface and its state, with ip
 a: ip link
-cmp: ref
+why: live-hw
 ref: ip
 teach: ip
 hint: ip link shows interfaces themselves, not the addresses on them
@@ -66,7 +66,7 @@ hint: ip addr del ADDR/PREFIX dev IFACE mirrors addr add
 ---
 q: %show% the routing table, with ip
 a: ip route
-cmp: ref
+why: live-hw
 ref: ip
 teach: ip
 hint: ip route with no filter lists the whole table
@@ -101,7 +101,7 @@ hint: ip neigh is ip's own view of the arp table
 ---
 q: scripting -- %show% just the interface names, one per line, with ip
 a: ip -o link | cut -d: -f2
-cmp: ref
+out: ^ *lo *$
 ref: ip
 teach: ip
 hint: -o lines them up so cut can grab just the name field
@@ -129,21 +129,21 @@ hint: ifconfig combines address and up into one command, unlike ip's two steps
 ---
 q: %show% the routing table the old way
 a: route
-cmp: ref
+why: live-hw
 ref: route
 teach: route
 hint: route with no arguments is ifconfig's routing counterpart
 ---
 q: dns might not even work yet -- %show% routes without names, using route
 a: route -n
-cmp: ref
+why: live-hw
 ref: route
 teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
 q: %show% route table entries with extended fields
 a: route -e
-cmp: ref
+why: live-hw
 ref: route
 teach: route -e
 hint: -e adds the extra fields netstat-style output shows
@@ -178,7 +178,7 @@ hint: -s pins an ip to a mac address by hand
 ---
 q: %show% arp entries for @iface@ only
 a: arp -i @iface@
-cmp: ref
+why: live-hw
 ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface

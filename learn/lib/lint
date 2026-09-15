@@ -369,6 +369,13 @@ cmpref_moving() {
 				# scanning every row races anything that mounts or unmounts
 				else if (a ~ /\/proc\/mounts/ && a !~ /\$2[ ]*==[ ]*"\/"/ && a !~ /" \/ "/)
 					printf "  %s: cmp: ref over every mount -- %s\n", bf, a
+				# ip/ifconfig/route/arp read the live interface, route and
+				# neighbour tables. an interface, route or arp entry that
+				# appears between two runs -- a container, a wg handshake, a
+				# dhcp lease on a busy host -- fails the gate at random. these
+				# belong on why: live-hw, not cmp: ref.
+				else if (a ~ /(^|[ |;&(])(ip|ifconfig|route|arp)([ |;&)]|$)/)
+					printf "  %s: cmp: ref over live network state -- %s\n", bf, a
 			}
 			inblk = 0; cmp = 0; ans = ""
 		}

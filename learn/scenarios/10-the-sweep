@@ -126,7 +126,7 @@ setup: routes allow. You cannot judge a connection without knowing where traffic
 setup: is even permitted to go, so read the map first.
 q: show the routing table and the default route
 a: ip route
-cmp: ref
+why: live-hw
 ref: ip
 teach: ip
 hint: one default route, to the network you plugged into -- know it cold
