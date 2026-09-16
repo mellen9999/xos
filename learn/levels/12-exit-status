@@ -1,7 +1,7 @@
 name: exit status and the special variables
 boss: AndOr
 flavor: Exit zero and you pass. Anything else is mine.
-syntax: ||, $?, $$, $!, &, $#, $@, $*, $0, $1..$9, --, ( ), { }
+syntax: ||, $?, $$, $!, &, $#, $@, $*, $0, $1..$9, --, ( ), { }, \
 brief: Every command returns a number. Zero means success; anything else is a
 brief: failure the command chose. $? holds the last one.
 brief:

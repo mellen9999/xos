@@ -19,9 +19,12 @@ EXP_W=$(awk -F'\t' 'substr($1,1,1)!="#" && NF>1 && length($1)>w{w=length($1)} EN
 # first, so an awk $1 or $NF or a sed \1 inside a script is never mistaken for a
 # shell positional parameter. returns 1 if the line used no shell syntax at all.
 #
-# quoting is graded on the RAW line, before that strip -- stripping single
-# quotes is correct for reading expansions but would erase the very thing a
-# quoting card is about. up to three, checked once each: ' " \.
+# quoting is three rows of the table like anything else. it was three cases
+# hardcoded here, which kept it out of the grammar ledger entirely -- the one
+# construct every shell bug is about was the one the build never checked was
+# taught. the strip leaves ' ' behind now so a quoting row survives it, and a
+# quote or backslash INSIDE a stripped span correctly stops counting: an awk
+# body's own \t is not a backslash the shell ever saw.
 #
 # every table match is replaced with a SPACE, not deleted -- deleting would
 # fuse the tokens on either side of it into one, and a later boundary-checked
@@ -33,7 +36,7 @@ EXP_W=$(awk -F'\t' 'substr($1,1,1)!="#" && NF>1 && length($1)>w{w=length($1)} EN
 _syn_scan() {
 	local work label ere gloss tab
 	tab=$(printf '\t')
-	work=$(printf '%s' "$1" | sed "s/'[^']*'//g")
+	work=$(printf '%s' "$1" | sed "s/'[^']*'/ '' /g")
 	while IFS="$tab" read -r label ere gloss; do
 		case "$label" in ''|'#'*) continue ;; esac
 		if printf '%s' "$work" | grep -qE -- "$ere"; then
@@ -57,7 +60,11 @@ _exp_row() {
 	local w=${TERM_COLS:-${COLS:-80}} gw
 	gw=$(( w - EXP_W - 3 ))
 	[ "$gw" -ge 24 ] || gw=24
-	printf '%s' "$2" | wrap "$gw" | awk -v lab="$1" -v c="$C" -v n="$N" -v pad="$EXP_W" '
+	# the label rides in the environment, not in -v: awk processes escape
+	# sequences in a -v assignment, so the row whose label IS a backslash
+	# arrived as nothing and printed a nameless gloss.
+	printf '%s' "$2" | wrap "$gw" | EXP_LAB="$1" awk -v c="$C" -v n="$N" -v pad="$EXP_W" '
+		BEGIN { lab = ENVIRON["EXP_LAB"] }
 		{ sub(/[ \t]+$/, "") }
 		NR == 1 { printf "  %s%-" pad "s%s %s\n", c, lab, n, $0; next }
 		{ printf "  %" pad "s %s\n", "", $0 }'
@@ -66,16 +73,6 @@ _exp_row() {
 explain_syntax() {
 	local found=0 label gloss tab
 	tab=$(printf '\t')
-
-	case "$1" in
-		*\'*) _exp_row "'...'" "everything inside is literal -- no expansion, no splitting"; found=1 ;;
-	esac
-	case "$1" in
-		*\"*) _exp_row '"..."' 'groups into one word but $expansions still happen'; found=1 ;;
-	esac
-	case "$1" in
-		*\\*) _exp_row '\' "protects the next character from the shell"; found=1 ;;
-	esac
 
 	while IFS="$tab" read -r label gloss; do
 		[ -n "$label" ] || continue

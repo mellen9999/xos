@@ -883,7 +883,8 @@ answer_cmds() { _answer_walk cmds; }
 # block uses it -- one alternate spelling that avoids a construct keeps the
 # question answerable without knowing it. detection mirrors explain's panel:
 # single-quoted spans stripped, syntax-table rows matched and consumed in
-# order. two consumers, one table -- and because this one matches in awk
+# order, the single-quoted span replaced by an empty pair rather than erased.
+# two consumers, one table -- and because this one matches in awk
 # while the panel matches in grep/sed, selftest holds the two engines in
 # agreement on a fixed battery.
 order_syntax() {
@@ -922,7 +923,10 @@ order_syntax() {
 			# pool tokens render to plain words at play time; scanned raw,
 			# @var@ after a $ would read as the $@ special. stand a word in.
 			gsub(/@[a-z0-9]+@/, "x", line)
-			gsub(sq "[^" sq "]*" sq, " ", line)
+			# the span goes, a marked empty pair stays: the awk body inside
+			# must not be read as shell, but the quoting itself is a row of
+			# the table now and has to survive its own strip.
+			gsub(sq "[^" sq "]*" sq, " " sq sq " ", line)
 			for (i = 1; i <= nrow; i++)
 				if (line ~ ere[i]) { used[lab[i]]++; gsub(ere[i], " ", line) }
 		}
@@ -1682,8 +1686,18 @@ selftest() {
 	grep -q e f 2>/dev/null
 	echo -- -
 	[ $# -gt 0 ] && echo "$@" $1 ${#v} ${v:-d}
+	sh -c "echo \$0" x
+	awk '{print "|" $1 "\t"}' f
 	EOF
 	[ "$hits" -ge 6 ] || { echo "FAIL syntax battery went dark ($hits lines matched)" >&2; bad=$((bad+1)); }
+
+	# a row's label reaches the panel intact. the label that IS a backslash
+	# printed as nothing: it was handed to awk with -v, and awk processes
+	# escape sequences in a -v assignment, so the gloss arrived nameless.
+	( EXP_W=9; C=; N=; TERM_COLS=80
+	  case "$(_exp_row '\' 'protects the next character')" in *'\'*) exit 0 ;; esac
+	  exit 1 ) \
+		|| { echo "FAIL explain: a row label does not survive to the panel" >&2; bad=$((bad+1)); }
 
 	# every label a level DECLARES must be a row in the table. order_syntax
 	# only ever asks whether a required construct was declared, so a label

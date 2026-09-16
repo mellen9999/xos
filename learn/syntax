@@ -12,8 +12,18 @@
 # space, not deleted outright -- deleting would fuse the tokens on either side
 # of it, and a later boundary-sensitive row (--, a lone -) would then read
 # them as one token and miss. only constructs busybox ash actually runs are
-# listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays. quoting (' " \) is
-# handled in explain(), not here -- see the comment there.
+# listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays.
+#
+# quoting IS in the table. it used to be three hardcoded cases in explain()
+# and nothing else, so the grammar ledger -- which fails the build over any
+# row neither declared by a level nor retired in skip-syntax -- never looked
+# at the one construct every shell bug is about. the obstacle was that both
+# detectors strip single-quoted spans before matching (so an awk $1 is not
+# read as a positional parameter), which erased the very thing a quoting row
+# is for. the strip leaves ' ' in place of the span now: the body is still
+# gone and the quoting is still visible. a " or a \ inside a stripped span
+# stops counting too, which is correct and did not use to be -- sed 's/\t/ /'
+# reported a backslash the shell never saw.
 /dev/null	[0-9]?>>?/dev/null	the bit bucket -- writes are discarded, reads give nothing
 $(( ))	\$\(\(	evaluate arithmetic: $((2 + 3)) becomes 5
 2>&1	2>&1	send errors (fd 2) wherever stdout is pointed right now
@@ -25,6 +35,9 @@ $(( ))	\$\(\(	evaluate arithmetic: $((2 + 3)) becomes 5
 <	<	read stdin from a file instead of the keyboard
 {}	\{\}	in find -exec, {} stands for each file found
 \;	\\;	\; runs the command once per file; + batches them into one
+'...'	''	everything inside is literal -- no expansion, no splitting
+"..."	"	groups into one word but $expansions still happen
+\	\\	protects the next character from the shell
 [ ]	\[ 	test a condition -- [ is a command, so the spaces are required
 ||	\|\|	run the next command only if this one FAILED (nonzero exit)
 &&	&&	run the next command only if this one SUCCEEDED (zero exit)

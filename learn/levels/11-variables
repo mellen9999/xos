@@ -1,7 +1,7 @@
 name: variables
 boss: $VARIABLE
 flavor: I hold what you've forgotten.
-syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME#%}, ${NAME}, $(CMD), `CMD`
+syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME#%}, ${NAME}, $(CMD), `CMD`, "..."
 brief: A variable is NAME=VALUE, with no spaces around the =. You read it back
 brief: with $NAME. Command substitution $(CMD) runs a command and becomes its
 brief: output, which is how you get a number out of wc and into a comparison.
