@@ -193,7 +193,10 @@ lint() {
 						printf "  %s: word %s\n    %s\n", bf, bad, q > "/dev/stderr"
 				}
 			}
-			if (!conceptual) {
+			# a predict card is exempt by construction: its answer IS the
+			# output, and naming it in the prompt would hand over the thing
+			# the card is asking for.
+			if (!conceptual && !predict) {
 				bad = ""
 				for (t in alit) if (!named(t, ctxs)) bad = bad (bad ? "," : "") t
 				if (bad != "") {
@@ -208,10 +211,15 @@ lint() {
 		# advanced FILENAME, so flushing by FILENAME charges each file
 		# closing block to the next file in the glob
 		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; ctxq = ""; refcmd = ""; firsta = ""; conceptual = 0; next }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; predict = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; ctxq = ""; refcmd = ""; firsta = ""; conceptual = 0; next }
 		inblk && /^hint:/ { hashint = 1 }
 		inblk && /^why:/  { haswhy = 1 }
-		inblk && /^(out|state|cmp|status):/ { graded = 1 }
+		# predict: is a grading field too -- st_block runs the line and holds
+		# the card to what it really prints, which is a stricter check than
+		# any out: pattern. counting those as ungraded had the ledger
+		# reporting 41 of the best-graded cards in the corpus as a debt.
+		inblk && /^(out|state|cmp|status|predict):/ { graded = 1 }
+		inblk && /^predict:/ { predict = 1 }
 		inblk && /^(state|cmp|status):/ { strong = 1 }
 		inblk && /^out: / { o = $0; sub(/^out: /, "", o); gsub(/[][^$()*+?.|\\{}]/, "", o); if (length(o) < 4) weak = 1 }
 		inblk && /^q: / && q == "" { q = $0 }
