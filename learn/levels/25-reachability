@@ -6,7 +6,12 @@ brief: up, does it have an address, is there a route, does dns work. Answer
 brief: them in that order and you will almost never guess.
 brief:
 brief: ping proves a host answers. traceroute shows where the packets stop.
-brief: netstat shows what your own machine is doing about it.
+brief: netstat shows what your own machine is doing about it. nslookup answers
+brief: the last question on its own: what address does this name resolve to,
+brief: and which server said so.
+brief:
+brief: ping6 and traceroute6 are the same two tools over ipv6. Reach for them
+brief: when v4 works, the name resolves, and it still will not connect.
 ---
 q: {does @ip@ even answer -- send three pings and stop|ping @ip@ three times, then stop|send exactly three pings to @ip@}, with ping
 a: ping -c 3 @ip@

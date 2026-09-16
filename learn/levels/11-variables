@@ -10,14 +10,17 @@ brief: Quote your expansions. "$x" is one word even when the value has spaces;
 brief: $x is however many words the value happens to split into. Nearly every
 brief: shell script bug that survives review is a missing pair of quotes.
 brief:
-brief: ${NAME} is the same expansion with braces around it -- they let you glue
-brief: text right after a variable without the shell reading it as part of the
-brief: name. ${#NAME} gives its length, ${NAME:-WORD} substitutes WORD only
+brief: ${NAME} is the same expansion with braces, so you can glue text right
+brief: after a name. ${#NAME} is its length, ${NAME:-WORD} falls back to WORD
 brief: when NAME is unset or empty.
 brief:
-brief: ; runs the next command regardless of what the last one did. && only
-brief: runs it if the last one succeeded -- the difference matters the moment
-brief: you chain more than one command together.
+brief: A variable lives in the shell that set it. export hands it down to the
+brief: programs that shell starts; env prints what is being handed over, and
+brief: sh -c 'echo $x' proves which of the two you made. unset removes a
+brief: variable, unalias an alias.
+brief:
+brief: ; runs the next command whatever the last one did. && only runs it if
+brief: the last one succeeded.
 ---
 q: {store the word @word@ in a variable called @var@|put @word@ into a variable named @var@|make a variable called @var@ hold the word @word@}
 a: @var@=@word@

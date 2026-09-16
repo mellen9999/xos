@@ -1643,13 +1643,14 @@ TODO: write this entry by hand.
 #   G47 every arsenal source is pinned before build, no fetch bypasses it
 #   G48 the remaining first-party scripts parse (the commit hook, arsenal)
 #   G49 the install entry point writes only through the guarded disk paths
+#   G50 every level's teaching brief fits one 80x25 screen
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
   local bad=0 ran=0 skipped=0
-  local EXPECTED_GATES=47   # roster above, minus G8/G9 (checked elsewhere)
+  local EXPECTED_GATES=48   # roster above, minus G8/G9 (checked elsewhere)
   # a gate is ok, FAIL, or SKIP. SKIP is for a check that cannot run here and
   # whose result would be meaningless if forced -- G13 on a foreign toolchain.
   # it is counted (so the truncation guard still holds) and reported, but it
@@ -2523,6 +2524,26 @@ G37
   printf '%s\n' "$or_out" | grep -v '^learn: ' >&2 || true
   g "G27 $(printf '%s' "$or_out" | sed -n 's/^learn: //p' | tail -1)" \
     "$([ "$or_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G50 -- every level's brief fits the screen it is printed on. the brief is
+  # the level's teaching page and it is shown once, full-screen, before the
+  # first card: a brief taller than the terminal scrolls its own first
+  # paragraph away before the learner reads a word of it. the floor is an
+  # 80x25 console -- 25 rows less the header (3) and the pause (2) -- so 20
+  # rendered lines at learn's own 76-column wrap. a level with no brief at all
+  # is the same failure, earlier.
+  local br_ok=1 br_f br_n br_worst=0
+  for br_f in learn/levels/*; do
+    br_n=$(sed -n 's/^brief: \{0,1\}//p' "$br_f" | fold -s -w 76 | wc -l)
+    [ "$br_n" -gt "$br_worst" ] && br_worst=$br_n
+    if [ "$br_n" -eq 0 ]; then
+      br_ok=0; printf '    %s has no brief\n' "${br_f##*/}" >&2
+    elif [ "$br_n" -gt 20 ]; then
+      br_ok=0; printf '    %s brief is %s lines, 20 fit an 80x25 screen\n' "${br_f##*/}" "$br_n" >&2
+    fi
+  done
+  g "G50 every level brief fits one screen (worst ${br_worst}/20 lines)" \
+    "$([ "$br_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # G29 -- the challenge track holds its shape. at least twelve stages, every
   # stage a real chain, the difficulty never falling and ending in the deep

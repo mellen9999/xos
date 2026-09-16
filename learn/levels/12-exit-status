@@ -9,6 +9,11 @@ brief: That number is what && and || branch on. cmd1 && cmd2 runs the second
 brief: only if the first succeeded; cmd1 || cmd2 only if it failed. This is
 brief: the smallest conditional the shell has, and the most used.
 brief:
+brief: true and false do nothing but return a status, which is how you test a
+brief: chain without doing any work. exit N ends a shell with the status you
+brief: pick. set -e stops a script at the first command that fails, instead of
+brief: carrying on with wrong data.
+brief:
 brief: The other specials: $$ this shell's pid, $! the last background pid,
 brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
 ---

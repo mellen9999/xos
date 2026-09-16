@@ -8,6 +8,13 @@ brief:
 brief: Two of them are quietly dangerous. cp and mv overwrite the destination
 brief: without asking. -n refuses to, -i asks first. Learn those two flags now
 brief: and you will not need to learn them from a loss later.
+brief:
+brief: Three more make files that are not ordinary files. ln -s makes a
+brief: symlink -- a name that points at another path instead of holding
+brief: anything itself. mktemp makes a file with a name nobody can guess, in a
+brief: place you are allowed to write. mkfifo makes a named pipe: a file that
+brief: carries text straight to whoever is reading it instead of storing it,
+brief: so two programs started apart can meet at a name.
 ---
 q: {copy @cfg@ to @cfg2@|make a copy of @cfg@ named @cfg2@|duplicate @cfg@ as @cfg2@}
 a: cp @cfg@ @cfg2@

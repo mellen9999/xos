@@ -8,8 +8,14 @@ brief: in TLS, checking the server's certificate against trust anchors compiled
 brief: into the binary itself, not read from a file some attacker could edit.
 brief:
 brief: ii is irc as a directory tree. Each channel is a folder with an `out`
-brief: file you read and an `in` fifo you write to. No client, no ui -- which
-brief: means tail, grep and echo are the client.
+brief: file you read and an `in` named pipe you write to -- a file that hands
+brief: what you write straight to the program reading it rather than storing
+brief: it. No client, no ui, which means tail, grep and echo are the client.
+brief:
+brief: The other two ways out of this machine. ssh here is dropbear: dbclient
+brief: connects, dropbearkey makes the key, dropbear is the server. wg is
+brief: wireguard -- a private link to a machine elsewhere, brought up before
+brief: anything speaks over it.
 ---
 q: {open tlstunnel to @host@:443, ready to pipe commands through|wrap a session to @host@:443 with tlstunnel, ready to drive by hand|reach @host@ on port 443 via tlstunnel, ready to speak the protocol}
 a: tlstunnel - @host@ 443

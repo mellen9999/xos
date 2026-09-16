@@ -10,7 +10,11 @@ brief: there, which is why if grep -q ... is so common.
 brief:
 brief: for walks a list of words. while repeats until a command fails. The
 brief: read loop -- while read -r line -- is how you process a file line by
-brief: line without loading it all into memory.
+brief: line without loading it all into memory. seq prints a list of numbers
+brief: when you need one to walk.
+brief:
+brief: Inside a loop, break leaves it early and continue skips to the next
+brief: round without finishing this one.
 brief:
 brief: $((expr)) does arithmetic -- i=$((i + 1)) is the closest thing sh has
 brief: to i++. IFS=, read splits a line on commas instead of whitespace, just

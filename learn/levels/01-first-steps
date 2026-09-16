@@ -10,7 +10,9 @@ brief: Answers RUN. Type what you would really type -- if it produces the
 brief: correct output it counts, whether or not it is the phrasing anyone
 brief: expected.
 brief:
-brief: $NAME expands to a variable's value -- $HOME is where you live.
+brief: $NAME expands to a variable's value -- $HOME is where you live. echo
+brief: prints what it is handed after the shell has expanded it, which makes
+brief: it how you look at a value before you trust it.
 ---
 q: {print|show} the directory you are currently in
 a: pwd

@@ -1,12 +1,11 @@
 mkfifo
 Usage: mkfifo [-m MODE] NAME
 
-Create a named pipe -- a file that carries text between two programs
-instead of storing it.
+Create a named pipe: a file two programs talk through.
 
-A `|` pipe only joins two commands on one line. A named pipe is the same
+A `|` pipe joins two commands on one line. A named pipe is the same
 channel with a name in the filesystem, so unrelated programs, started at
-different times, can meet at it. Whatever is written goes straight to
+different times, can meet at it. What one writes goes straight to
 whoever is reading; nothing lands on disk. A write waits until a reader
 shows up, and a read waits until something is written.
 
@@ -16,7 +15,7 @@ shows up, and a read waits until something is written.
 	tail -f /tmp/p &
 	echo hello > /tmp/p
 
-The `irc` client on this system is built out of these: ii gives each
+The irc client on this system is built out of these: ii gives each
 channel a directory with an `in` fifo, and you talk by echoing a line
 into a file.
 

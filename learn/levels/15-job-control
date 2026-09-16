@@ -9,6 +9,11 @@ brief: $! is the pid of the last thing you backgrounded. wait blocks until it
 brief: finishes. That pair is how a script starts several things at once and
 brief: then collects them.
 brief:
+brief: Backgrounded is not the same as safe. nohup and setsid cut a command
+brief: loose from the terminal that started it, so it survives the hangup.
+brief: timeout puts a clock on one. ulimit caps what it may take before it
+brief: takes the machine with it. kill ends it.
+brief:
 brief: All of this dies when the terminal does -- which is what abduco is for.
 ---
 q: {run "sleep 2" in the background|background a sleep 2 command|start sleep 2 without blocking your prompt}

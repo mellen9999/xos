@@ -11,6 +11,10 @@ brief: detail you can pick up later.
 brief:
 brief: The one you must know: press Escape, then type :q! and Enter. That
 brief: leaves without saving, from any state you have got yourself into.
+brief:
+brief: :set inside vi turns an option on for the session -- :set number puts
+brief: line numbers down the left. less reads a file the same way vi does,
+brief: with the same keys to move, and no way to change what it shows.
 ---
 q: {open @txt@ in the editor|pull up @txt@ in vi|start editing @txt@ in vi}
 a: vi @txt@

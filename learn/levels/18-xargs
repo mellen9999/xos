@@ -8,6 +8,13 @@ brief:
 brief: The classic trap is filenames with spaces. find -print0 emits names
 brief: separated by a NUL byte, which cannot occur in a filename, and xargs -0
 brief: reads them back. Use that pair by default and the problem never arises.
+brief:
+brief: The path tools that feed it: basename strips the directory off a name,
+brief: dirname keeps only the directory, readlink follows a symlink one step,
+brief: realpath resolves the whole chain to where the file really is. type and
+brief: which answer what the shell would actually run for a name, and hash is
+brief: the table it caches those answers in -- clear it after you move a
+brief: binary and the shell stops looking in the old place.
 ---
 setup: a pile of .log files has built up and you want line counts for all of them
 q: %find% every .log file and count its lines, with xargs

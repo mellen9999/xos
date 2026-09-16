@@ -8,6 +8,16 @@ brief: kill does not mean kill. It sends a signal, and the default is TERM,
 brief: which asks politely and can be caught or ignored. KILL (9) cannot be
 brief: caught, which is why it is a last resort and not a first one -- a
 brief: program killed with 9 never gets to clean up after itself.
+brief:
+brief: Finding the one you want: pgrep and pidof match by name, pstree shows
+brief: who started whom, pwdx says where a process is standing, pmap what it
+brief: has mapped, lsof and fuser name the process holding a file or a mount
+brief: open -- which is the answer to most "device is busy" refusals. pkill
+brief: and killall end one by name instead of by number.
+brief:
+brief: nproc counts the cpus, free reports memory. unshare runs a command in
+brief: its own namespaces and nsenter joins one already running -- that pair,
+brief: and nothing more, is what a container is underneath.
 ---
 q: %list% the processes running right now
 a: ps

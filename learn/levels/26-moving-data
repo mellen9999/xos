@@ -6,6 +6,11 @@ brief: you as stdin and stdout, which is how you speak any text protocol by
 brief: hand. The older ftp and tftp clients are here because the machines you
 brief: will meet in a bad week are often older than you are.
 brief:
+brief: udhcpc is the first step when nothing handed you an address: it asks
+brief: the network for one. telnet is nc with a protocol bolted on and no
+brief: encryption anywhere -- fine for poking at a port, never for a login.
+brief: ftpget and ftpput are one-shot transfers with no session to drive.
+brief:
 brief: This build of nc can connect out but cannot listen -- server mode is
 brief: compiled out on purpose. xos opens no doors it was not asked to.
 ---

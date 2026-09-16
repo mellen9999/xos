@@ -14,6 +14,11 @@ brief: 2>&1 > file does not, because the duplication happens before the move.
 brief:
 brief: | wires one command's stdout into the next's stdin -- tee, later in
 brief: this level, needs it.
+brief:
+brief: The commands either side are ones you have: ls, grep, sort, wc, echo.
+brief: printf is the new one, and the better one -- it prints exactly the
+brief: format you hand it, no newline unless you write 
+brief:  yourself.
 ---
 q: {write @word@ into @word@.txt with echo, replacing what's there|write @word@ into @word@.txt with echo, overwriting what was before|save @word@ to @word@.txt with echo, wiping out old contents}
 a: echo @word@ > @word@.txt

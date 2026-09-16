@@ -9,6 +9,9 @@ brief: cut's default delimiter is TAB, not space. That surprises everyone once.
 brief: For anything space-separated, awk is the better tool, and it is next.
 brief:
 brief: -c here picks characters by position, not a count.
+brief:
+brief: sort comes back in this level. Cutting a field out is half the job;
+brief: what you do with the column afterwards is the other half.
 ---
 setup: @csv@ is name,id,status,count
 q: %show% just the name column of @csv@, with cut

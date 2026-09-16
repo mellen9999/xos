@@ -7,6 +7,18 @@ brief: /sys are the kernel's own filesystem -- files that are not on any disk.
 brief:
 brief: /proc is the habit worth forming. Nearly everything a monitoring tool
 brief: reports, it read out of a file in there, and so can you.
+brief:
+brief: The rest of the asking: hostname is its name, date the software clock
+brief: and hwclock the battery-backed one under it, lspci lsusb and lsscsi
+brief: list what is plugged into which bus, devmem reads physical memory by
+brief: address, logger writes your own line into the log dmesg reads, watch
+brief: reruns a command so you can see a number move.
+brief:
+brief: The terminal is a device too: tty names yours, stty sets how it behaves,
+brief: clear tidies it and reset rescues it after a binary has left it speaking
+brief: garbage, loadkmap and dumpkmap load and save the keyboard map, script
+brief: and scriptreplay record a session and play it back. microcom talks to a
+brief: serial port -- the way in when the network is gone.
 ---
 q: {you just booted this stick -- get everything uname knows, in one line|dump every field uname knows about, on one line|report the full uname summary in a single line}
 a: uname -a
