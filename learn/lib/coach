@@ -37,6 +37,16 @@ _c_state() {
 		          printf 'afterwards %s should contain %s' "$_p" "$_e" ;;
 		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _e=${_r#*:}
 		          printf 'afterwards %s should have mode %s' "$_p" "$_e" ;;
+		same:*)   _r=${1#same:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s and %s should hold the same bytes' "$_p" "$_e" ;;
+		differs:*) _r=${1#differs:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should still differ from %s' "$_p" "$_e" ;;
+		stamp:*)  _r=${1#stamp:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should be dated %s' "$_p" "$_e" ;;
+		sametime:*) _r=${1#sametime:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s and %s should carry one timestamp' "$_p" "$_e" ;;
+		made:*)   printf 'the name it prints should be %s afterwards' \
+		            "$(case "${1#made:}" in file) echo 'a file';; dir) echo 'a directory';; *) echo 'nothing at all';; esac)" ;;
 		*)        printf '%s' "$1" ;;
 	esac
 }

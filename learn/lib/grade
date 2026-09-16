@@ -250,7 +250,11 @@ run_answer() {
 
 # ---- the verdict ----------------------------------------------------------
 
-# check_state SPEC -- did the answer leave the tree in the right shape?
+# check_state SPEC [OUTPUT] -- did the answer leave the tree in the right
+# shape? OUTPUT is what it printed, which only made: needs -- passed in rather
+# than read out of a caller's variable, because two callers grade state (the
+# lesson and the build) and a name one of them happened to use is not an
+# interface.
 # `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
 # point. seven forms, which between them cover every mutating command xos has:
 #   exists:PATH        the path is there afterwards
@@ -260,6 +264,13 @@ run_answer() {
 #   bz:PATH            the path is there and is valid bzip2 data
 #   match:PATH:ERE     the path is there and its contents match
 #   mode:PATH:OCTAL    the path is there and carries exactly these bits
+#   same:A:B           both are there and hold the same bytes
+#   differs:A:B        both are there and do not
+#   stamp:PATH:DATE    the path's mtime falls on that YYYY-MM-DD
+#   sametime:A:B       both are there and carry the same mtime
+#   made:file|dir|none what the answer PRINTED is now a file, a directory,
+#                      or nothing -- the only way to judge a command whose
+#                      whole output is a name it invented (mktemp)
 check_state() {
 	case "$1" in
 		exists:*) [ -e "$SANDBOX/${1#exists:}" ] ;;
@@ -275,6 +286,35 @@ check_state() {
 		          [ -e "$SANDBOX/$_p" ] && grep -qE -- "$_e" "$SANDBOX/$_p" 2>/dev/null ;;
 		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _m=${_r#*:}
 		          [ "$(stat -c %a "$SANDBOX/$_p" 2>/dev/null)" = "$_m" ] ;;
+		# the two halves of "did it refuse to overwrite". cp -n and cp leave
+		# the same NAME behind, so exists: cannot tell them apart at all --
+		# what separates them is whether the destination still holds what it
+		# held, which is a comparison and not a test on one path.
+		same:*)   _r=${1#same:}; _p=${_r%%:*}; _q=${_r#*:}
+		          cmp -s "$SANDBOX/$_p" "$SANDBOX/$_q" 2>/dev/null ;;
+		differs:*) _r=${1#differs:}; _p=${_r%%:*}; _q=${_r#*:}
+		          [ -e "$SANDBOX/$_p" ] && [ -e "$SANDBOX/$_q" ] \
+		          && ! cmp -s "$SANDBOX/$_p" "$SANDBOX/$_q" 2>/dev/null ;;
+		# a timestamp is the whole lesson of touch -d and touch -r, and it is
+		# the one thing about a file that no other check can see: both leave
+		# the file exactly as it was in every other respect.
+		stamp:*)  _r=${1#stamp:}; _p=${_r%%:*}; _d=${_r#*:}
+		          [ "$(stat -c %y "$SANDBOX/$_p" 2>/dev/null | cut -c1-10)" = "$_d" ] ;;
+		sametime:*) _r=${1#sametime:}; _p=${_r%%:*}; _q=${_r#*:}
+		          _t=$(stat -c %Y "$SANDBOX/$_p" 2>/dev/null)
+		          [ -n "$_t" ] && [ "$_t" = "$(stat -c %Y "$SANDBOX/$_q" 2>/dev/null)" ] ;;
+		# mktemp's answer IS a name nothing else knows, so there is no fixed
+		# path to check -- the path is whatever it printed. the fence is that
+		# it must lie inside the sandbox: a line that names anything else is
+		# not a temporary this answer made.
+		made:*)   _p=$(printf '%s\n' "${2:-}" | head -1)
+		          case "$_p" in "$SANDBOX"/*) ;; *) return 1 ;; esac
+		          case "${1#made:}" in
+		          	file) [ -f "$_p" ] ;;
+		          	dir)  [ -d "$_p" ] ;;
+		          	none) [ ! -e "$_p" ] ;;
+		          	*)    return 1 ;;
+		          esac ;;
 		*)        return 1 ;;
 	esac
 }
@@ -330,7 +370,7 @@ correct() {
 
 	_got=$(run_answer "$_given"); _rc=$?; SANDBOX_DIRTY=1
 	[ -z "${Q_OUT:-}" ]    || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1
-	[ -z "${Q_STATE:-}" ]  || check_state "$Q_STATE" || return 1
+	[ -z "${Q_STATE:-}" ]  || check_state "$Q_STATE" "$_got" || return 1
 	# status: judges the exit code -- the only observable a bare [ ... ] or
 	# grep -q has. run_answer surfaces the answer's own status because the
 	# subshell ends with it.

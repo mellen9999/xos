@@ -316,6 +316,22 @@ _sandbox_fill() {
 	printf '#!/bin/sh\ntrue\n' > bin/suid-tool
 	chmod 4755 bin/suid-tool
 
+	# every pooled .txt gets its own fixed timestamp, a day apart, oldest
+	# first in pool order. without this every file in the tree carries the
+	# second the tree was built, so "give this file that file's timestamp" is
+	# already true before the learner types anything and the lesson grades
+	# itself. fixed dates rather than offsets from now, so the same seed is
+	# the same tree at any hour -- a relative stamp would make every mtime
+	# check a moving target, which is the shape cmpref_moving refuses.
+	# only the txts: a touch per file is a fork per file on every rebuild,
+	# and these are the ones the timestamp lessons reach for.
+	local _d=1 _dd
+	for f in $(grep . "$POOLS/txts"); do
+		_dd=$_d; [ "$_dd" -lt 10 ] && _dd="0$_dd"
+		touch -t "202401${_dd}0000" "$f" 2>/dev/null
+		_d=$((_d + 1))
+	done
+
 	# the pools are the manifest. if anything they name did not get built, a
 	# generated question is about to ask after a file that is not there --
 	# say so now rather than grading someone wrong for it.

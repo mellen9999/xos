@@ -166,14 +166,14 @@ hint: -L follows the link and reports on its target instead of the link itself
 ---
 q: {back-date @txt@'s timestamp to 2024-03-01, not right now|@txt@ needs to look last touched on 2024-03-01|stamp @txt@ with 2024-03-01, not the current time}, with touch
 a: touch -d 2024-03-01 @txt@
-why: primitive-cost
+state: stamp:@txt@:2024-03-01
 ref: touch
 teach: touch -d
 hint: -d takes an explicit date/time instead of using now
 ---
 q: {@txt2@ should carry the timestamp @txt@ already has|copy @txt@'s timestamp onto @txt2@, skip the date|make @txt2@'s timestamp match @txt@'s}, with touch
 a: touch -r @txt@ @txt2@
-why: primitive-cost
+state: sametime:@txt@:@txt2@
 ref: touch
 teach: touch -r
 hint: -r copies another file's timestamp instead of specifying one yourself

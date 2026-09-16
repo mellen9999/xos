@@ -43,7 +43,7 @@ hint: the flag cp calls "Recurse"
 ---
 q: {don't overwrite @cfg2@ -- cp @cfg@ there only if missing|duplicate @cfg@ as @cfg2@ with cp, skipping one that exists|cp @cfg@ to @cfg2@ only if @cfg2@ is missing}
 a: cp -n @cfg@ @cfg2@
-why: primitive-cost
+state: differs:@cfg@:@cfg2@
 ref: cp
 teach: cp -n
 hint: n for "no clobber"
@@ -237,21 +237,21 @@ hint: -m sets permissions at creation, same as mkdir -m
 ---
 q: %make% a temporary file with a name nothing else will collide with
 a: mktemp
-why: primitive-cost
+state: made:file
 ref: mktemp
 teach: mktemp
 hint: generates and creates a uniquely-named file, then prints its path
 ---
 q: %make% a temporary directory with mktemp, not a temporary file
 a: mktemp -d
-why: primitive-cost
+state: made:dir
 ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
 ---
 q: get a temporary name from mktemp without actually creating anything
 a: mktemp -u
-why: primitive-cost
+state: made:none
 ref: mktemp
 teach: mktemp -u
 hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
