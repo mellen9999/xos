@@ -1933,13 +1933,24 @@ selftest() {
 	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
 	  [ "$(cut -f5 "$CARDS")" = 7 ] || exit 1
 	  [ "$(cards_ndue)" = 0 ]       || exit 1
-	  # left long past due, it loses one rung -- once, not once per launch
-	  printf 'k\t2\t%s\n' "$((_n - 60 * 86400))" > "$CARDS"; cards_decay
+	  # and a row from LONG before the schedule is migrated, never eroded on
+	  # the way in: it arrives due, with its rung and its full grace window
+	  # intact. the old rule gave it thirty days from its last proof and this
+	  # one gives a learning card fifteen, so reading an old stamp through
+	  # the new window would drop rows for time that was free when it was
+	  # spent -- and a dropped row does not come back.
+	  printf 'k\t1\t%s\n' "$((_n - 60 * 86400))" > "$CARDS"; cards_decay
+	  [ "$(grep -c . "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f2 "$CARDS")" = 1 ]   || exit 1
+	  [ "$(cards_ndue)" = 1 ]         || exit 1
+	  # once it IS on the schedule, going past due by more than the grace
+	  # window costs a rung -- once, not once per launch
+	  printf 'k\t2\t%s\t%s\t7\t2\t0\n' "$_n" "$((_n - 30 * 86400))" > "$CARDS"; cards_decay
 	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
 	  _was=$(cat "$CARDS"); cards_decay
 	  [ "$(cat "$CARDS")" = "$_was" ] || exit 1
 	  exit 0 ) \
-		|| { echo "FAIL cards: an old row does not resume its clock, or staleness cascades" >&2; bad=$((bad+1)); }
+		|| { echo "FAIL cards: migration erodes on the way in, or staleness cascades" >&2; bad=$((bad+1)); }
 
 	( CARDS="$TMP/sc2"; SESSION_SEEN="$TMP/ss2"
 	  : > "$CARDS"; : > "$SESSION_SEEN"

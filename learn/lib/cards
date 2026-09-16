@@ -104,6 +104,15 @@ _CARD_FNS='
 			reps = ($2 + 0 >= 2 ? 2 : $2 + 0)
 			ivl  = ivl_for(reps)
 			due  = $3 + ivl * 86400
+			# the new terms start NOW, never backdated. the old rule gave any
+			# card thirty days from its last proof; this one gives it its own
+			# interval plus a fortnight, which for a learning card is fifteen
+			# days rather than thirty. reading a stamp from before the
+			# schedule through the shorter window would take a tier -- or
+			# drop the row outright, which is not recoverable -- for time
+			# that was free when it was spent. so a migrated row arrives DUE,
+			# which it honestly is, and never arrives already eroded.
+			if (due < n) due = n
 			lap  = 0
 		} else {
 			due = $4 + 0; ivl = $5 + 0; reps = $6 + 0; lap = $7 + 0
