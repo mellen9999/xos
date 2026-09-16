@@ -57,7 +57,7 @@ _exp_row() {
 	local w=${TERM_COLS:-${COLS:-80}} gw
 	gw=$(( w - EXP_W - 3 ))
 	[ "$gw" -ge 24 ] || gw=24
-	printf '%s' "$2" | fold -s -w "$gw" | awk -v lab="$1" -v c="$C" -v n="$N" -v pad="$EXP_W" '
+	printf '%s' "$2" | wrap "$gw" | awk -v lab="$1" -v c="$C" -v n="$N" -v pad="$EXP_W" '
 		{ sub(/[ \t]+$/, "") }
 		NR == 1 { printf "  %s%-" pad "s%s %s\n", c, lab, n, $0; next }
 		{ printf "  %" pad "s %s\n", "", $0 }'

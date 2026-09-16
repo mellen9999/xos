@@ -520,7 +520,10 @@ foldcollide() {
 	     /^a: / { a = $0; sub(/^a: /, "", a); print FILENAME "#" blk "\t" a }' \
 		"$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null | sort -u > "$TMP/fold.raw"
 	cut -f2 "$TMP/fold.raw" | flagnorm > "$TMP/fold.key"
-	paste "$TMP/fold.key" "$TMP/fold.raw" | sort | awk -F'\t' '
+	# awk, not paste: paste is not a shipped applet either, and lib/lint ships
+	# on the image the same as everything else in lib/.
+	awk 'NR == FNR { k[FNR] = $0; next } { print k[FNR] "\t" $0 }' \
+		"$TMP/fold.key" "$TMP/fold.raw" | sort | awk -F'\t' '
 		{ key = $1; card = $2; ans = $3
 		  if (key != last) { report(); last = key; n = 0; delete cs; delete as }
 		  cs[++n] = card; as[n] = ans }
@@ -571,7 +574,8 @@ unnamed_value() {
 	         inblk = 0; q = ""; a = ""; ctx = ""; graded = 0; conceptual = 0; rc = ""
 	     }' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null > "$TMP/uv.raw"
 	cut -f4 "$TMP/uv.raw" | flagnorm > "$TMP/uv.key"
-	paste "$TMP/uv.raw" "$TMP/uv.key" | awk -F'\t' -v ref="$REF" '
+	awk 'NR == FNR { k[FNR] = $0; next } { print k[FNR] "\t" $0 }' \
+		"$TMP/uv.raw" "$TMP/uv.key" | awk -F'\t' -v ref="$REF" '
 		BEGIN { split("zero one two three four five six seven eight nine ten", W, " ")
 		        for (i in W) NUM[W[i]] = i - 1 }
 		# a value only one {a|b|c} branch names is one the roll may never show

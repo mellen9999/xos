@@ -2193,6 +2193,37 @@ c' 20)" = 3 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL _ed_panel_load: hint toggle / clock-mode guard" >&2; bad=$((bad+1)); }
 
+	# the prose paths have to actually print. every level brief, every mission
+	# intro and every panel row goes through say(), and say() called `fold` --
+	# which xos does not ship. on the build host the GNU one answered, so all
+	# eleven gates passed while on the image the teaching page of all thirty
+	# levels was blank. nothing here looked, because nothing here read prose.
+	( _b=$(level_field "$(level_ids | head -1)" brief | say)
+	  [ -n "$_b" ] || exit 1
+	  # and it has to be the brief, not one line of it
+	  [ "$(printf '%s\n' "$_b" | grep -c .)" -ge 3 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL say: a level brief prints nothing" >&2; bad=$((bad+1)); }
+	( explain_syntax 'grep -c ERROR "$f" | wc -l' | grep -q . ) \
+		|| { echo "FAIL explain: the syntax panel prints nothing" >&2; bad=$((bad+1)); }
+
+	# wrap is fold -s, rewritten because fold is not shipped -- and G50 measures
+	# every brief's height with the REAL fold on the build host. if the two ever
+	# part, the gate is measuring a page the image will not draw. held against
+	# each other wherever a fold exists; on the image there is none, and there
+	# is nothing left to disagree with.
+	if command -v fold >/dev/null 2>&1; then
+		( printf 'a b c d e f g h i j k l m n o p q r s t u v w x y z\n' > "$TMP/wf"
+		  printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa short\n\n   indented   columns\n' >> "$TMP/wf"
+		  for _w in 5 20 76; do
+			wrap "$_w" < "$TMP/wf" > "$TMP/wa"
+			fold -s -w "$_w" < "$TMP/wf" > "$TMP/wb"
+			cmp -s "$TMP/wa" "$TMP/wb" || exit 1
+		  done
+		  exit 0 ) \
+			|| { echo "FAIL wrap: it and fold -s no longer agree, so G50 measures the wrong page" >&2; bad=$((bad+1)); }
+	fi
+
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
 	# survival -- the subshell turns a fatal ash error into a caught failure.

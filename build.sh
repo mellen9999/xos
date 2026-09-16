@@ -2484,13 +2484,16 @@ G37
   # so a question that teaches a flag this build compiled out fails here.
   # busybox decides what to be from argv[0], so `busybox -c ...` is not a
   # shell -- it needs a name. give it one that lives for the length of the run.
-  # PATH leads with root/bin (the image's own applet links): without it, every
-  # command an answer runs resolves to the HOST's GNU tools, and a busybox
-  # flag difference sails through green. the host stays as fallback for the
-  # few non-applet binaries the corpus mentions.
+  # PATH is root/bin and NOTHING ELSE -- the image's own applet links, with no
+  # host fallback. two reasons. a command an answer runs would otherwise
+  # resolve to the HOST's GNU tools and a busybox flag difference sails
+  # through green. and learn's own code is held to the same closed surface the
+  # corpus is: it called `fold`, which xos does not ship, and the GNU one on
+  # PATH answered for it -- so every gate passed while on the image every
+  # level brief printed nothing. a fallback is a place for that to hide.
   local st_out st_ok=1 lsh
   lsh=$(mktemp -d); ln -sf "$PWD/busybox" "$lsh/sh"
-  st_out=$(PATH="$PWD/root/bin:$PATH" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  st_out=$(PATH="$PWD/root/bin" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn selftest 2>&1) || st_ok=0
   printf '%s\n' "$st_out" | grep -v '^learn: ' >&2 || true

@@ -234,7 +234,38 @@ hdr() {
 
 # say -- prose, wrapped to the terminal, never past 76 columns. blank lines
 # stay blank: indenting them left trailing-whitespace lines all through the text.
-say() { fold -s -w $(( COLS < 78 ? COLS - 2 : 76 )) | sed '/./s/^/  /'; }
+# wrap W -- `fold -s -w W`, in awk, because fold is NOT a shipped applet.
+#
+# it was called anyway, in say() and in the reference panel, and on the build
+# host the GNU one on PATH answered -- so every gate passed while on the image
+# itself every level brief, every mission intro and every panel row printed
+# nothing at all. the teaching page of all thirty levels was blank and the
+# build could not see it. learn may only call what xos ships; that is the
+# whole premise of the corpus and it has to hold for learn's own code too.
+#
+# the break is fold -s's: the last blank at or before column W, kept at the
+# end of the line it ends, and a word longer than W cut at W rather than run
+# over. selftest holds this against the real fold wherever one exists, so the
+# brief-height gate keeps measuring what the image will actually draw.
+wrap() {
+	awk -v w="$1" '
+		{
+			line = $0
+			while (length(line) > w) {
+				cut = 0
+				for (i = w; i >= 1; i--) {
+					c = substr(line, i, 1)
+					if (c == " " || c == "\t") { cut = i; break }
+				}
+				if (cut == 0) { print substr(line, 1, w); line = substr(line, w + 1) }
+				else          { print substr(line, 1, cut); line = substr(line, cut + 1) }
+			}
+			print line
+		}
+	'
+}
+
+say() { wrap $(( COLS < 78 ? COLS - 2 : 76 )) | sed '/./s/^/  /'; }
 
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
 no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
