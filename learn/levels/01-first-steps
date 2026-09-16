@@ -116,7 +116,7 @@ hint: cd with no argument already means home
 ---
 q: %list% the hidden files with ls, but skip the . and .. clutter
 a: ls -A
-why: fixture-cost
+cmp: ref
 ref: ls
 teach: ls -A
 hint: like -a, but leaves out . and ..

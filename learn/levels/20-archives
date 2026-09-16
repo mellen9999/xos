@@ -57,21 +57,21 @@ hint: j pipes the archive through bzip2 instead of gzip
 ---
 q: %unpack% archive/export.tar into the current directory, with tar
 a: tar -xf archive/export.tar
-why: fixture-cost
+state: exists:recovered.txt
 ref: tar
 teach: tar x
 hint: x extracts; with no -C it lands in the current directory
 ---
 q: %unpack% archive/site-backup.tar.gz into @dir@, not scattered here, with tar
 a: tar -xzf archive/site-backup.tar.gz -C @dir@
-why: fixture-cost
+state: exists:@dir@/src/main.c
 ref: tar
 teach: tar -C
 hint: -C changes into that directory before extracting
 ---
 q: {peek at src/main.c in archive/site-backup.tar.gz with tar, not the rest|read src/main.c out of archive/site-backup.tar.gz to your terminal, with tar|pull src/main.c from archive/site-backup.tar.gz with tar, nothing else}
 a: tar -xzOf archive/site-backup.tar.gz src/main.c
-why: fixture-cost
+cmp: ref
 ref: tar
 teach: tar -O
 hint: O sends the extracted file's bytes to stdout instead of writing it to disk
@@ -85,7 +85,7 @@ hint: --exclude takes a pattern and skips anything that matches it
 ---
 q: %unpack% archive/site-backup.tar.gz without its top-level wrapper, with tar
 a: tar -xzf archive/site-backup.tar.gz --strip-components 1
-why: fixture-cost
+state: exists:main.c
 ref: tar
 teach: tar --strip-components
 hint: --strip-components N removes that many leading path segments

@@ -248,15 +248,27 @@ _sandbox_fill() {
 		  dd if=/dev/zero bs=64 count=1 2>/dev/null; } > "$f"
 	done
 
-	# archives are built from the tree so their contents are real and listable
-	tar czf "$(sed -n 1p "$POOLS/archives")" src data 2>/dev/null
-	tar cf  "$(sed -n 2p "$POOLS/archives")" $(grep . "$POOLS/txts") 2>/dev/null
-
 	# a couple of files that only exist to be found by the finding lessons
 	printf 'staged\n' > src/main.c
 	printf 'staged\n' > src/util.c
 	printf 'old\n'    > backup/notes.txt.bak
 	: > data/empty
+
+	# archives are built from the tree so their contents are real and listable
+	# -- and built HERE, after src/ and data/ have been filled. built before,
+	# site-backup.tar.gz held two empty directories and nothing else, so every
+	# card that says "pull src/main.c out of the archive" was asking after a
+	# member that was never in it: extracting printed "not found in archive"
+	# and the lesson had no way to know.
+	tar czf "$(sed -n 1p "$POOLS/archives")" src data 2>/dev/null
+	# export.tar carries one member the tree does NOT keep, so extracting it
+	# leaves something behind that was not already there. every txt in it
+	# already exists, so without this an extract card's exists: check was true
+	# before the learner typed anything -- the same trap archive.zip's member
+	# is removed to avoid.
+	printf 'recovered from the archive\n' > recovered.txt
+	tar cf  "$(sed -n 2p "$POOLS/archives")" $(grep . "$POOLS/txts") recovered.txt 2>/dev/null
+	rm -f recovered.txt
 
 	# an already-empty directory, and an already-nested one -- for the rmdir
 	# lessons, which delete something rather than make it. a generated @word@
@@ -306,6 +318,12 @@ _sandbox_fill() {
 	# names.txt -- tar -T reads archive member names from this, one per line;
 	# it has to hold real paths, unlike @txt@'s prose, so it is not a pool.
 	printf 'notes.txt\ntodo.txt\nreadme.txt\n' > names.txt
+
+	# one dotfile. without it `ls -A` prints exactly what bare `ls` prints --
+	# there is nothing hidden to leave in -- so the card that teaches "hidden,
+	# but without the . and .. clutter" could not be graded by what it showed.
+	# it is also what makes -a's own lesson about more than two entries.
+	printf 'umask 022\nexport EDITOR=vi\n' > .profile
 
 	# link.txt -- the one symlink in the tree, for -L and -type l lessons.
 	# notes.txt always exists, so the link is never dangling.

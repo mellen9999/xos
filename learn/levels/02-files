@@ -151,9 +151,9 @@ ref: touch
 teach: touch
 hint: with no flags, touch just sets the timestamp to now
 ---
-q: {touch @txt@ but do NOT create it if it is missing|touch @txt@, but skip creating it if it doesn't exist|refresh @txt@'s timestamp with touch, only if it already exists}
-a: touch -c @txt@
-why: primitive-cost
+q: {touch missing.txt but do NOT create it if it is absent|touch missing.txt, but skip creating it if it does not exist|refresh missing.txt's timestamp with touch, only if it is already there}
+a: touch -c missing.txt
+state: gone:missing.txt
 ref: touch
 teach: touch -c
 hint: c stops touch from creating the file when it doesn't exist

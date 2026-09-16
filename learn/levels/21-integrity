@@ -160,9 +160,9 @@ ref: cmp
 teach: cmp -l
 hint: -l lists every differing byte position and value, not just the first
 ---
-q: {@txt@ and @txt2@ -- cmp just the first 10 bytes|cmp whether @txt@ and @txt2@ match in their first 10 bytes|cmp just the first 10 bytes of @txt@ and @txt2@}
-a: cmp -n 10 @txt@ @txt2@
-why: fixture-cost
+q: {cmp just the first 10 bytes of image-a.txt and image-b.txt|cmp whether image-a.txt and image-b.txt agree in their first 10 bytes|cmp image-a.txt against image-b.txt, the first 10 bytes only}
+a: cmp -n 10 image-a.txt image-b.txt
+status: 0
 ref: cmp
 teach: cmp -n
 hint: -n limits the comparison to the first N bytes of each file
