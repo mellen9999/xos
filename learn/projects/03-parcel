@@ -1,0 +1,59 @@
+name: parcel
+after: 21-integrity
+intro: You are about to hand these files to someone else, or to yourself on a
+intro: worse day. Three programs about getting them there intact: pack them,
+intro: prove two copies are the same, and leave a record that says so.
+---
+q: pack.sh -- box a directory up and count what went in
+spec: It takes a directory and an archive name. It makes a gzip-compressed
+spec: tar archive of that directory under that name, then prints how many
+spec: entries the archive holds and nothing else.
+spec:
+spec: With anything other than exactly two arguments it exits 2.
+file: pack.sh
+prog: #!/bin/sh
+prog: [ $# -eq 2 ] || exit 2
+prog: tar -czf "$2" "$1" || exit 1
+prog: tar -tzf "$2" | wc -l
+case: sh pack.sh @dir@ out.tgz
+case: sh pack.sh @dir2@ out.tgz; ls out.tgz | wc -l
+case: sh pack.sh; echo $?
+ref: sh
+teach: sh
+hint: the same tool that writes the archive can read its table of contents back without unpacking it
+---
+q: same.sh -- are these two files the same bytes
+spec: It takes two files. It prints same and exits 0 when every byte matches,
+spec: or differs and exits 1 when they do not.
+spec:
+spec: Nothing else reaches the screen either way, whatever the files are.
+spec:
+spec: With anything other than exactly two arguments it exits 2.
+file: same.sh
+prog: #!/bin/sh
+prog: [ $# -eq 2 ] || exit 2
+prog: if cmp -s "$1" "$2"; then echo same; else echo differs; exit 1; fi
+case: sh same.sh @txt@ @txt@; echo $?
+case: sh same.sh @txt@ @log@; echo $?
+case: sh same.sh @txt@ @txt2@; echo $?
+case: sh same.sh @txt@; echo $?
+ref: sh
+teach: sh
+hint: the comparison tool already says yes or no in its exit status -- the flag you want is the one that stops it saying anything else
+---
+q: sums.sh -- write a record, then prove it still holds
+spec: It takes no arguments. It writes a file called sums.txt holding a
+spec: sha256 checksum line for every .log file in the current directory,
+spec: then checks every file back against that record.
+spec:
+spec: It prints one number: how many of them still match.
+file: sums.sh
+prog: #!/bin/sh
+prog: sha256sum *.log > sums.txt
+prog: sha256sum -c sums.txt | grep -c ': OK'
+case: sh sums.sh
+case: sh sums.sh; wc -l < sums.txt
+case: sh sums.sh; sh sums.sh
+ref: sh
+teach: sh
+hint: the checksum tool both writes the record and reads it back -- the second pass says OK or FAILED per line, and you are counting one of those

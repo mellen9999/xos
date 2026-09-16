@@ -262,6 +262,15 @@ prj_check() {
 			case "$Q_FILE" in
 				*/*|'') echo "FAIL $lbl: file: '$Q_FILE' must be a bare name in the tree" >&2; bad=$((bad + 1)) ;;
 			esac
+			# an @token@ the roll does not define survives rendering and becomes
+			# a literal filename nothing made. both sides then fail the same way
+			# and the case passes while testing nothing -- @log2@ costs a whole
+			# case in silence, which is exactly the shape st_block already
+			# refuses one rung down.
+			case "$Q_SPEC$Q_PROG$Q_CASES$Q_START$Q_PROMPT" in
+				*@*@*) echo "FAIL $lbl: an @token@ was never rendered -- the roll has no such name" >&2
+				       bad=$((bad + 1)) ;;
+			esac
 			# the prompt has to name the file, the way a level prompt has to
 			# name its command: a spec that never says what to save is an
 			# unanswerable question, not a hard one.

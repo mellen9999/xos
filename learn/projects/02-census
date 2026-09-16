@@ -1,0 +1,66 @@
+name: census
+after: 19-xargs
+intro: Three programs that read a tree you did not make. Each spec pins the
+intro: output exactly -- the shape is part of the requirement, not a detail --
+intro: because your program is compared against a reference run on the same
+intro: files, and two right answers have to agree on what right looks like.
+intro:
+intro: How you get there is still yours. Nothing here names a tool.
+---
+q: census.sh -- which severities a log is full of
+spec: It takes one log file. Every line of that log is a date, a time, a
+spec: severity and a message.
+spec:
+spec: It prints one line per severity that appears: the count, one space,
+spec: then the severity. Most frequent first; a tie goes alphabetically.
+spec:
+spec: With anything other than exactly one argument it prints nothing and
+spec: exits 2.
+file: census.sh
+prog: #!/bin/sh
+prog: [ $# -eq 1 ] || exit 2
+prog: awk '{ print $3 }' "$1" | sort | uniq -c | awk '{ print $1, $2 }' | sort -k1,1rn -k2,2
+case: sh census.sh @log@
+case: grep WARN @log@ > w.log; sh census.sh w.log
+case: sh census.sh; echo $?
+case: sh census.sh a b; echo $?
+ref: sh
+teach: sh
+hint: count them however you like -- the work is getting the severity out of each line and the two sort keys right
+---
+q: keep.sh -- trim a file to its tail, in place
+spec: It takes a file and a number. Afterwards that file holds only its last
+spec: N lines, in the order they were in.
+spec:
+spec: It prints nothing, and it leaves no other file behind it.
+spec:
+spec: With anything other than exactly two arguments it exits 2.
+file: keep.sh
+prog: #!/bin/sh
+prog: [ $# -eq 2 ] || exit 2
+prog: tail -n "$2" "$1" > "$1.keep" && mv "$1.keep" "$1"
+case: sh keep.sh @txt@ 3; cat @txt@
+case: sh keep.sh @txt@ 3; ls | wc -l
+case: sh keep.sh @log@ 1; wc -l < @log@
+case: sh keep.sh @txt@; echo $?
+ref: sh
+teach: sh
+hint: you cannot read a file and write to it at once -- the tail has to land somewhere before the original is replaced
+---
+q: sizes.sh -- how long every log in here is
+spec: It takes no arguments. For every file in the current directory whose
+spec: name ends in .log it prints the name, one space, then how many lines
+spec: that file has.
+spec:
+spec: Sorted by name. A name with a space in it must still come out as one
+spec: name and one count.
+file: sizes.sh
+prog: #!/bin/sh
+prog: for f in *.log; do
+prog: echo "$f $(wc -l < "$f")"
+prog: done
+case: sh sizes.sh
+case: sh sizes.sh | wc -l
+ref: sh
+teach: sh
+hint: a glob hands you each name already split from the next -- what you do with the name after that is where the quoting matters

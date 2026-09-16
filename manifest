@@ -39,6 +39,7 @@ usr/share/learn/lib/lint
 usr/share/learn/syntax
 usr/share/learn/lib/projects
 usr/share/learn/projects/01-triage
+usr/share/learn/projects/03-parcel
 usr/share/learn/scenarios/01-first-blood
 usr/share/learn/scenarios/10-the-sweep
 etc/shrc
