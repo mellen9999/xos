@@ -1,0 +1,18 @@
+# level ids that have been renamed, and the one-time state rewrite each needs.
+#
+# the precedent is inprogress: a level's identity changed, so anything keyed
+# on the old one is a lie. inprogress solves it by self-invalidating on a
+# fingerprint -- it can, because a stale place is worthless. a rename cannot,
+# because the state is still CORRECT. it is only filed under a name that no
+# longer exists, and thrown away it takes a real boss-fall with it.
+#
+# format:  <schema>  <old-id>  <new-id>
+#
+# applied in file order, once, guarded by $STATE/schema. write renames in
+# DESCENDING order so no rename ever collides with a name still in use:
+# 30 -> 31 must land before 29 -> 30, or 29 lands on top of the old 30.
+#
+# a rewrite touches every ledger keyed by level id (passed, placed, briefed)
+# and the card keys, which are prefixed <level-id>/. inprogress is dropped
+# rather than rewritten: a renumbered level is an edited level, so its
+# fingerprint has moved and the place was already void.

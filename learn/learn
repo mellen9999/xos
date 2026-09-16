@@ -193,6 +193,44 @@ BRIEFED="$STATE/briefed"
 level_briefed()    { _ledger_add "$BRIEFED" "$1"; }
 level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
 
+# the schema ledger -- which state migrations have been applied. a plain
+# integer, absent on a fresh install, so a first run stamps the current
+# version and rewrites nothing.
+SCHEMA="$STATE/schema"
+
+# migrate -- rename level ids in saved state, once. runs before cards_decay,
+# so decay never reads a key filed under a name that no longer exists.
+migrate() {
+	local cur want v old new f
+	[ -f "$ROOT/migrations" ] || return 0
+	want=$(awk '$1 ~ /^[0-9]+$/ { if ($1 > m) m = $1 } END { print m + 0 }' \
+		"$ROOT/migrations" 2>/dev/null)
+	cur=$(cat "$SCHEMA" 2>/dev/null); cur=${cur:-0}
+	case "$cur" in *[!0-9]*) cur=0 ;; esac
+	[ "$want" -gt "$cur" ] 2>/dev/null || return 0
+	mkdir -p "$STATE" 2>/dev/null || return 0
+	while read -r v old new; do
+		case "$v" in ''|\#*) continue ;; *[!0-9]*) continue ;; esac
+		[ -n "$new" ] || continue
+		[ "$v" -gt "$cur" ] || continue
+		for f in "$PASSED" "$PLACED" "$BRIEFED"; do
+			[ -f "$f" ] || continue
+			sed "s|^$old\$|$new|" "$f" > "$f.tmp.$$" 2>/dev/null \
+				&& mv "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$" 2>/dev/null
+		done
+		if [ -f "$CARDS" ]; then
+			sed "s|^$old/|$new/|" "$CARDS" > "$CARDS.tmp.$$" 2>/dev/null \
+				&& mv "$CARDS.tmp.$$" "$CARDS" 2>/dev/null \
+				|| rm -f "$CARDS.tmp.$$" 2>/dev/null
+		fi
+		rm -f "$(_inprog_file "$old")" 2>/dev/null
+	done < "$ROOT/migrations"
+	printf '%s\n' "$want" > "$SCHEMA.tmp.$$" 2>/dev/null \
+		&& mv "$SCHEMA.tmp.$$" "$SCHEMA" 2>/dev/null \
+		|| rm -f "$SCHEMA.tmp.$$" 2>/dev/null
+	return 0
+}
+
 # the in-progress ledger -- one file per level, holding the cards it still
 # owes you. quitting a 33-card level at card 20 used to throw the place away:
 # the next run reshuffled and asked all 33 again, so a level was something you
@@ -1600,6 +1638,50 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
 
+	# migrate rewrites saved state when a level is renamed. it must move a
+	# boss-fall rather than drop it, run exactly once, and do nothing at all
+	# on a fresh install -- a migration that reruns would rename an already
+	# renamed level onto whatever now holds the old name.
+	( STATE="$TMP/mst"; ROOT="$TMP/mig"
+	  PASSED="$STATE/passed"; PLACED="$STATE/placed"; BRIEFED="$STATE/briefed"
+	  CARDS="$STATE/cards"; SCHEMA="$STATE/schema"; INPROG="$STATE/inprogress"
+	  mkdir -p "$STATE" "$ROOT"
+	  printf '1\t30-root\t31-root\n' | tr '\t' ' ' > "$ROOT/migrations"
+	  printf '30-root\n29-proving-this-machine\n' > "$PASSED"
+	  printf '30-root/4#x\t2\t123\n' > "$CARDS"
+	  : > "$(_inprog_file 30-root)"
+	  migrate
+	  grep -qxF -- 31-root "$PASSED" || exit 1
+	  grep -qxF -- 30-root "$PASSED" && exit 1
+	  grep -q '^31-root/4#x' "$CARDS" || exit 1
+	  [ ! -f "$(_inprog_file 30-root)" ] || exit 1
+	  [ "$(cat "$SCHEMA")" = 1 ] || exit 1
+	  # idempotent: a second run must not touch the already-renamed ledger
+	  printf '31-root\n' > "$PASSED"
+	  migrate
+	  grep -qxF -- 31-root "$PASSED" || exit 1
+	  # fresh install: nothing to rewrite, version simply stamped
+	  rm -rf "$STATE"; mkdir -p "$STATE"
+	  migrate
+	  [ "$(cat "$SCHEMA")" = 1 ] || exit 1
+	  [ ! -s "$PASSED" ] 2>/dev/null || [ ! -f "$PASSED" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL migrate: rename round-trip, idempotence or fresh install" >&2; bad=$((bad+1)); }
+
+	# and the ledger itself has to name levels that exist
+	if [ -f "$ROOT/migrations" ]; then
+		awk '$1 ~ /^[0-9]+$/ { print $3 }' "$ROOT/migrations" | while read -r _n; do
+			[ -z "$_n" ] || [ -f "$LEVELS/$_n" ] \
+				|| echo "FAIL migrations: new id $_n is not a level"
+		done > "$TMP/mg" 2>&1
+		if [ -s "$TMP/mg" ]; then cat "$TMP/mg" >&2; bad=$((bad + $(grep -c . "$TMP/mg"))); fi
+		awk '$1 ~ /^[0-9]+$/ { print $2 }' "$ROOT/migrations" | while read -r _o; do
+			[ -z "$_o" ] || [ ! -f "$LEVELS/$_o" ] \
+				|| echo "FAIL migrations: old id $_o still exists as a level"
+		done > "$TMP/mg" 2>&1
+		if [ -s "$TMP/mg" ]; then cat "$TMP/mg" >&2; bad=$((bad + $(grep -c . "$TMP/mg"))); fi
+	fi
+
 	# the tab panel's row count. closing the panel climbs back over exactly
 	# this many rows, so an off-by-one here reprints the answer line on top of
 	# the question -- and nothing else in the trainer would notice.
@@ -1889,6 +1971,7 @@ MODE=learn
 # the end turns a study session into a run you can beat next time.
 S_RIGHT=0; S_WRONG=0; S_STREAK=0; S_BEST=0; S_START=$(date +%s 2>/dev/null || echo 0)
 cards_init
+migrate
 cards_decay
 ctx_init
 
