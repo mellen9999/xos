@@ -905,6 +905,15 @@ refcheck() {
 	[ "$bad" -eq 0 ]
 }
 
+# taught_cmds -- every command some card CLAIMS to teach: the first word of a
+# teach: line, whether or not flags follow it. taught_set emits cmd/flag pairs
+# and needs a second field, so `teach: trap` -- a whole claim about a command
+# that takes no flags -- was invisible to it. ref: is deliberately not a source
+# here: pointing at a page is not teaching the command.
+taught_cmds() {
+	sed -n 's/^teach: \{0,1\}//p' "$LEVELS"/* "$SCENARIOS"/* 2>/dev/null |
+		awk '{ print $1 }' | sed 's/^dot$/./' | sort -u
+}
 skip_set() {
 	[ -f "$ROOT/skip" ] || return 0
 	sed 's/#.*//' "$ROOT/skip" | awk 'NF >= 2 { print $1, $2 }' | sort -u
@@ -912,11 +921,23 @@ skip_set() {
 
 coverage() {
 	local cmd f total=0 done_=0 skipped=0
-	taught_set > "$TMP/taught"
-	skip_set   > "$TMP/skipped"
+	taught_set  > "$TMP/taught"
+	taught_cmds > "$TMP/taughtcmds"
+	skip_set    > "$TMP/skipped"
 	: > "$TMP/holes"
 
 	for cmd in $(surface); do
+		# the command is a coverage unit, not only its flags. the tally used
+		# to be touched ONLY inside the flag loop below, so a page documenting
+		# no flags -- trap, exec, getopts, seventeen of them -- contributed
+		# nothing to the denominator and could never be reported untaught.
+		# the whole-command row in learn/skip is "<cmd> *"; * is not a flag
+		# flags_of can ever emit, so it cannot collide with one.
+		total=$((total + 1))
+		if grep -qxF -- "$cmd" "$TMP/taughtcmds"; then done_=$((done_ + 1))
+		elif grep -qxF -- "$cmd *" "$TMP/skipped"; then skipped=$((skipped + 1))
+		else printf '%s *\n' "$cmd" >> "$TMP/holes"
+		fi
 		for f in $(flags_of "$cmd"); do
 			total=$((total + 1))
 			if grep -qxF -- "$cmd $f" "$TMP/taught"; then done_=$((done_ + 1))
@@ -929,7 +950,7 @@ coverage() {
 	# grep -c prints 0 AND exits non-zero on no match, so `|| echo 0` fired as
 	# well and this held "0\n0" -- which every numeric test then choked on.
 	local holes; holes=$(awk 'END { print NR }' "$TMP/holes")
-	hdr "coverage" "$total flags across $(surface | grep -c .) commands"
+	hdr "coverage" "$total items across $(surface | grep -c .) commands"
 	printf '  %s%-8s%s %d\n' "$G" taught "$N" "$done_"
 	printf '  %s%-8s%s %d\n' "$D" skipped "$N" "$skipped"
 	printf '  %s%-8s%s %d\n' "$([ "$holes" -eq 0 ] && echo "$D" || echo "$R")" untaught "$N" "$holes"
@@ -938,8 +959,8 @@ coverage() {
 		awk '{ a[$1] = a[$1] " " $2 } END { for (c in a) print "  " c a[c] }' "$TMP/holes" | sort
 	fi
 	rule
-	note "learn coverage -v lists the holes. learn/skip is where a flag is"
-	note "retired on purpose, with the reason written down."
+	note "learn coverage -v lists the holes. learn/skip is where a flag, or a"
+	note "whole command as '<cmd> *', is retired on purpose with the reason."
 	[ "$holes" -eq 0 ]
 }
 

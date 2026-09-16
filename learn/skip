@@ -14,6 +14,17 @@
 #   compat     -- accepted for other implementations, no-op or near enough
 #   absent     -- the feature it drives is not compiled into this build
 #   danger     -- works, but has no place in a drill that runs your answer
+#   pending    -- documented, drillable, and owed a card. the only reason
+#                 that is a promise rather than a decision: it keeps the
+#                 gate green while the cards are written, and every line
+#                 carrying it is meant to be deleted by the commit that
+#                 teaches the thing. a pending line that outlives the
+#                 branch it was added on is a gap nobody noticed, which is
+#                 the exact failure this whole file exists to prevent.
+#
+# a whole command is retired with `*` in the flag field: `<command> *`. that
+# retires the command as a unit, which is a different claim from retiring one
+# of its flags, and both can be on the record at once.
 
 # ── chattiness and confirmation: real, but nothing to learn ──
 chmod -c        # verbose
@@ -573,3 +584,33 @@ mountpoint -x           # print a device's major:minor instead of testing a dir
 # fallocate/truncate: -l and -s set the size; -o/-c are offset and a create-guard.
 fallocate -o            # offset of the range; -l sets its length
 truncate -c             # refuse to create a missing file; -s is the size itself
+
+# ── whole commands. the flag field is `*`. ──
+#
+# the seventeen flagless pages here were invisible to `learn coverage` until
+# it counted commands as well as flags: flags_of returns nothing for
+# `trap HANDLER SIGNAL`, so they contributed nothing to the denominator and
+# could never read as holes.
+
+ash      *      # alias -- the same shell under its other name; sh is what the corpus teaches
+cttyhack *      # absent -- allocates a controlling tty, and the grader has none
+halt     *      # alias -- halt, poweroff and reboot are one applet; poweroff is the one taught
+history  *      # absent -- prints nothing outside an interactive shell
+times    *      # verbose -- all-zero cpu time in a one-shot answer; it asserts nothing
+
+.        *      # pending
+:        *      # pending
+alias    *      # pending
+bg       *      # pending
+eval     *      # pending
+exec     *      # pending
+fg       *      # pending
+getopts  *      # pending
+let      *      # pending
+local    *      # pending
+poweroff *      # pending
+readonly *      # pending
+reboot   *      # pending
+return   *      # pending
+shift    *      # pending
+trap     *      # pending
