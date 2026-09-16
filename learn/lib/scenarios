@@ -22,6 +22,22 @@ scn_after()    { scn_field "$1" after | head -1; }
 scn_unlocked() { local a; a=$(scn_after "$1"); [ -n "$a" ] || return 0; level_is_passed "$a"; }
 scenarios_any_unlocked() { local s; for s in $(scenario_ids); do scn_unlocked "$s" && return 0; done; return 1; }
 
+# scn_announce LEVEL -- name every mission that level's fall just opened.
+# a gate is one level id, so the missions unlocked by this fall are exactly
+# the ones whose after: is it -- no diff against a before-state, no ledger of
+# what has been said. returns 1 when it opened nothing, so the caller can
+# chain the pause that holds the screen onto it.
+scn_announce() {
+	local sid n=0
+	for sid in $(scenario_ids); do
+		[ "$(scn_after "$sid")" = "$1" ] || continue
+		n=$((n + 1)); ok "mission unlocked -- $(scn_field "$sid" name)"
+	done
+	[ "$n" -gt 0 ] || return 1
+	note "press m at the menu to run $([ "$n" -gt 1 ] && echo them || echo it)."
+	return 0
+}
+
 # a mission: every step in the order it was written, one card per screen.
 # no boss, no shuffle -- the sequence itself is the thing being taught.
 run_scenario() {

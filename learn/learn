@@ -548,7 +548,7 @@ boss_round() {
 }
 
 run_level() {
-	local id=$1 nq i k=0 right=0 total=0 rc lname lsub fp order rest
+	local id=$1 nq i k=0 right=0 total=0 rc lname lsub fp order rest _was
 	nq=$(level_nq "$id")
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
 	lname=$(level_field "$id" name)
@@ -605,7 +605,15 @@ run_level() {
 	echo
 	while :; do
 		boss_round "$id"; rc=$?
-		[ "$rc" = 0 ] && { level_passed "$id"; return 0; }
+		# a fall that was already a fall announces nothing -- asked before the
+		# write, because after it every level looks long since passed. the pause
+		# only lands when something opened, so every other boss keeps its rhythm.
+		if [ "$rc" = 0 ]; then
+			level_is_passed "$id"; _was=$?
+			level_passed "$id"
+			[ "$_was" = 0 ] || { scn_announce "$id" && pause_card; }
+			return 0
+		fi
 		[ "$rc" = 2 ] && return 2
 		# a fallen learner gets the choice a fallen boss never offers:
 		# straight back in, or back to practice. EOF (the build's probes,
