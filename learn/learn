@@ -332,6 +332,33 @@ inprog_load() { # ID FP NQ
 	return 0
 }
 
+# is there anything here to lose? asked by the menu, so a blank install is
+# never offered "where you left off", and by the new-game key, so it does not
+# put up a wipe warning over an empty directory. the rule is a rule and not a
+# list of ledgers -- anything learn files under $STATE counts, bar the two
+# files a first launch writes on its own.
+progress_any() {
+	local f
+	for f in "$STATE"/*; do
+		case "${f##*/}" in schema|cards.lock|'*') continue ;; esac
+		[ -s "$f" ] && return 0
+	done
+	return 1
+}
+
+# a new game clears learn's whole state directory rather than a list of
+# ledgers: a ledger added later must not survive the wipe and seed the next
+# game with the last one's progress. this is the only rm -rf in the tree, so
+# an unset or stray STATE takes nothing with it: the path must be absolute, at
+# least two components deep, and named learn -- the directory learn builds for
+# itself. anything else is a bug or an env var pointing somewhere real.
+state_wipe() {
+	case "$STATE" in /*/learn) : ;; *) return 1 ;; esac
+	rm -rf "$STATE" 2>/dev/null || return 1
+	mkdir -p "$STATE" 2>/dev/null || return 1
+	return 0
+}
+
 # blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
 # from block INDEX of any question file -- the levels and the challenge chains
 # share one parser. the roll happens here, once, and the SAME rolled script
@@ -1926,6 +1953,31 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL resume: target disagrees with the walk" >&2; bad=$((bad+1)); }
 
+	# the new game. progress_any decides whether continue's confirm warns at
+	# all, and state_wipe is the only rm -rf in the tree: a wipe that leaves
+	# one ledger behind seeds the next game with the last one's progress, and
+	# a wipe that believes a stray STATE takes the user's home with it.
+	( STATE="$TMP/nst/learn"; mkdir -p "$STATE"
+	  progress_any && exit 1                            # empty is not progress
+	  : > "$STATE/schema"; : > "$STATE/cards.lock"; : > "$STATE/passed"
+	  progress_any && exit 1                            # nor is a first launch
+	  printf '01-a\n' > "$STATE/passed"
+	  progress_any || exit 1
+	  printf 'x\n' > "$STATE/inprogress.01-a"; rm -f "$STATE/passed"
+	  progress_any || exit 1                            # a saved place counts
+	  state_wipe || exit 1
+	  [ -d "$STATE" ] || exit 1                          # ...and is left usable
+	  progress_any && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL newgame: progress_any or state_wipe" >&2; bad=$((bad+1)); }
+	( keep="$TMP/guard"; mkdir -p "$keep"; : > "$keep/f"
+	  for STATE in "" / /etc "${HOME:-/root}" rel/ative "$keep" "$keep/learn/"; do
+	  	state_wipe && exit 1
+	  done
+	  [ -f "$keep/f" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL newgame: state_wipe trusted a path it must refuse" >&2; bad=$((bad+1)); }
+
 	# migrate rewrites saved state when a level is renamed. it must move a
 	# boss-fall rather than drop it, drop one outright when the level was
 	# merged away, run exactly once, and do nothing at all on a fresh
@@ -2672,14 +2724,34 @@ resume() {
 	fi
 }
 
+# the one destructive key in the tree, so it asks twice and names what goes.
+# it is reached only with something to lose: on a blank install n is the way
+# back to the menu, because there is nothing there to warn about.
+new_game() {
+	local k
+	printf '\n  %sa new game wipes every level, card and saved place%s\n' "$Y" "$N"
+	printf '  %sthere is no undo -- y to wipe%s ' "$W" "$N"
+	IFS= read -rsn1 k 2>/dev/null || return 1
+	echo
+	case "$k" in y|Y) : ;; *) return 1 ;; esac
+	state_wipe || { no "cannot clear $STATE"; pause_card; return 1; }
+	# the card file and this session's seen-list are process state as much as
+	# they are files: without this the first level of the new game skips every
+	# card the old one had already shown.
+	cards_init
+	return 0
+}
+
 # continue was the one key that committed on press: a slipped c dropped you
 # into a level mid-card, and a mid-level place can only be left by finishing
 # or quitting it. it names the level and the place first now, and offers the
-# one thing the menu had no way to do -- drop that place and take the level
-# from the top -- without touching any other progress.
+# two things the menu had no way to do -- drop that place and take the level
+# from the top (r), without touching any other progress, or throw the whole
+# run away and start over at level 1 (n).
 resume_confirm() {
-	local id k n nq fp lname held=0
+	local id k n nq fp lname held=0 fresh=0
 	id=$(resume_target) || { resume; return 0; }
+	progress_any || fresh=1
 	n=${id%%-*}; n=${n#0}
 	nq=$(level_nq "$id"); fp=$(level_fp "$id")
 	lname=$(level_field "$id" name)
@@ -2691,12 +2763,17 @@ resume_confirm() {
 		printf '  %slevel %s  %s%s %s-- %s questions, from the top%s\n' \
 			"$W" "$n" "$lname" "$N" "$D" "$nq" "$N"
 	fi
-	printf '  %scontinue? (Y/n)%s ' "$W" "$N"
+	if [ "$fresh" = 1 ]; then
+		printf '  %snew game? (Y/n)%s ' "$W" "$N"
+	else
+		printf '  %scontinue? (Y/n = new game)%s ' "$W" "$N"
+	fi
 	IFS= read -rsn1 k 2>/dev/null || return 0
 	echo
 	case "$k" in
 		''|y|Y) resume ;;
 		r|R)    [ "$held" = 1 ] && inprog_clear "$id"; resume ;;
+		n|N)    [ "$fresh" = 1 ] || { new_game && resume; } ;;
 	esac
 	return 0
 }
@@ -2733,7 +2810,8 @@ menu() {
 		printf '  '; bar "$h" "$t" 20
 		printf ' %s%s/%s held%s  %s(%s beaten)%s\n\n' "$D" "$h" "$t" "$N" "$D" "$p" "$N"
 
-		_mi c continue  "where you left off"
+		if progress_any; then _mi c continue "where you left off"
+		else _mi c "new game" "start at level 1"; fi
 		_mi p practice  "any level by number"
 		_mi r review    "$([ "$due" -gt 0 ] && echo "$due due" || echo "weakest cards first")"
 		_mi d daily     "one hard card, same for all"
