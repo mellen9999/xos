@@ -14,30 +14,30 @@
 # them as one token and miss. only constructs busybox ash actually runs are
 # listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays. quoting (' " \) is
 # handled in explain(), not here -- see the comment there.
-/dev/null	[0-9]?>>?/dev/null	the bit bucket -- data written there is discarded
-arith	\$\(\(	$((...)) evaluates arithmetic, e.g. $((2 + 3))
-2>&1	2>&1	send errors (fd 2) to wherever stdout is going
+/dev/null	[0-9]?>>?/dev/null	the bit bucket -- writes are discarded, reads give nothing
+$(( ))	\$\(\(	evaluate arithmetic: $((2 + 3)) becomes 5
+2>&1	2>&1	send errors (fd 2) wherever stdout is pointed right now
 >&2	>&[0-9]	send stdout to the error channel -- echo x >&2 prints to stderr
 2>	2>	redirect errors (fd 2) to a file
 >>	>>	append stdout to a file, keeping what is there
->	>	redirect stdout to a file, replacing it
+>	>	redirect stdout to a file -- creates it, or wipes what is there
 <<	<<	heredoc: everything up to the end marker becomes stdin
 <	<	read stdin from a file instead of the keyboard
-{}	\{\}	{} stands for each found file
+{}	\{\}	in find -exec, {} stands for each file found
 \;	\\;	\; runs the command once per file; + batches them into one
-[ ]	\[ 	test: evaluate a condition, exit 0 if true -- the same program as `test`
+[ ]	\[ 	test a condition -- [ is a command, so the spaces are required
 ||	\|\|	run the next command only if this one FAILED (nonzero exit)
 &&	&&	run the next command only if this one SUCCEEDED (zero exit)
-|	\|	pipe: wire this command stdout into the next command stdin
+|	\|	pipe: this command's stdout becomes the next one's stdin
 ;	;	run one command then the next, no matter what
---	(^|[[:space:]])--([[:space:]]|$)	end of options -- everything after is a literal argument, even one that starts with -
+--	(^|[[:space:]])--([[:space:]]|$)	end of options: a later -x is an argument, not a flag
 NAME=	^[A-Za-z_][A-Za-z0-9_]*=	NAME=VALUE sets a variable, no spaces around the =
 $?	\$\?	exit status of the last command -- 0 means success
 $$	\$\$	the process id of this shell
 $!	\$!	the process id of the last command started with &
 $#	\$#	how many positional parameters ($1, $2, ...) there are
-$@	\$@	all positional parameters, each kept as its own word
-$*	\$\*	all positional parameters joined into one word
+$@	\$@	every positional parameter -- "$@" keeps each as its own word
+$*	\$\*	every positional parameter -- "$*" joins them into one word
 $0	\$0	the name the script or shell was invoked as
 $1..$9	\$[1-9]	a positional parameter -- $1 is the first argument
 ${#NAME}	\$\{#	the length of a variable in characters: ${#NAME}
@@ -46,13 +46,13 @@ ${NAME#%}	\$\{[A-Za-z_][A-Za-z0-9_]*[#%]	strip a prefix (#) or suffix (%) off a 
 ${NAME}	\$\{	expand a variable; braces let you glue text right after it
 $(CMD)	\$\(	command substitution: run a command and become its output
 `CMD`	`	command substitution, the older form of $(...)
-$NAME	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value
-!	!	negate: flips success and failure -- runs if the command failed
-( )	\(	runs the commands in a fresh subshell -- variables set inside do not survive it
-{ }	\{ 	runs the commands in the current shell, grouped as one
+$NAME	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value -- unquoted, the result also word-splits
+!	!	negate: run the command, then flip its success and failure
+( )	\(	runs the commands in a subshell -- changes inside do not survive
+{ }	\{ 	groups commands in this shell -- keep the spaces, and the last ;
 &	&	run the command in the background and carry on
-[...]	\[[^] ]*\]	a character class -- one character from the set, e.g. [0-9] -- in a filename glob or a regex alike
-*	\*	unquoted: any run of characters in a filename. inside a grep/sed/awk pattern: zero or more of what precedes it
-?	\?	unquoted: any single character in a filename. inside a grep -E pattern: zero or one of what precedes it
-~	~	your home directory
+[...]	\[[^] ]*\]	one character from the set, e.g. [0-9] -- glob and regex alike
+*	\*	a filename glob the shell expands before ls ever runs: 0+ characters, never a leading dot. in a grep/sed/awk pattern: 0+ of what precedes it
+?	\?	also expanded by the shell: exactly one character of a filename. in a grep -E pattern: 0 or 1 of what precedes it
+~	~	your home directory -- the shell swaps it in, not the command
 -	(^|[[:space:]])-([[:space:]]|$)	a lone - means read stdin, by convention

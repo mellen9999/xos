@@ -47,27 +47,40 @@ _syn_scan() {
 	done < "$SYNTAX"
 }
 
+# _exp_row LABEL GLOSS -- one panel row: the label in its own column, the gloss
+# folded to what the terminal leaves and hanging under itself. two rows hold a
+# construct that means two things (* is a glob and a quantifier both), and the
+# tail of one used to wrap at column 0, under the label, where it read as a row
+# of its own rather than the rest of one. _prows counts by raw length, so it is
+# exact here as well: every line printed is already inside the width.
+_exp_row() {
+	local w=${TERM_COLS:-${COLS:-80}} gw
+	gw=$(( w - EXP_W - 3 ))
+	[ "$gw" -ge 24 ] || gw=24
+	printf '%s' "$2" | fold -s -w "$gw" | awk -v lab="$1" -v c="$C" -v n="$N" -v pad="$EXP_W" '
+		{ sub(/[ \t]+$/, "") }
+		NR == 1 { printf "  %s%-" pad "s%s %s\n", c, lab, n, $0; next }
+		{ printf "  %" pad "s %s\n", "", $0 }'
+}
+
 explain_syntax() {
 	local found=0 label gloss tab
 	tab=$(printf '\t')
 
 	case "$1" in
-		*\'*) printf "  %s%-${EXP_W}s%s %s\n" "$C" "'...'" "$N" \
-			"everything inside is literal -- no expansion, no splitting"; found=1 ;;
+		*\'*) _exp_row "'...'" "everything inside is literal -- no expansion, no splitting"; found=1 ;;
 	esac
 	case "$1" in
-		*\"*) printf "  %s%-${EXP_W}s%s %s\n" "$C" '"..."' "$N" \
-			'groups into one word but $expansions still happen'; found=1 ;;
+		*\"*) _exp_row '"..."' 'groups into one word but $expansions still happen'; found=1 ;;
 	esac
 	case "$1" in
-		*\\*) printf "  %s%-${EXP_W}s%s %s\n" "$C" '\' "$N" \
-			"protects the next character"; found=1 ;;
+		*\\*) _exp_row '\' "protects the next character from the shell"; found=1 ;;
 	esac
 
 	while IFS="$tab" read -r label gloss; do
 		[ -n "$label" ] || continue
 		found=1
-		printf "  %s%-${EXP_W}s%s %s\n" "$C" "$label" "$N" "$gloss"
+		_exp_row "$label" "$gloss"
 	done <<-EOF
 	$(_syn_scan "$1")
 	EOF

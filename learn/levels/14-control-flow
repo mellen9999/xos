@@ -1,7 +1,7 @@
 name: control flow
 boss: TheFork
 flavor: Every branch you don't take, I take.
-syntax: arith, *
+syntax: $(( )), *
 brief: Four shapes cover nearly everything you will write: if for while case.
 brief:
 brief: if takes a COMMAND, not an expression -- if [ -f x ] runs the command [
