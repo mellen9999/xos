@@ -2144,6 +2144,7 @@ usage() {
 	learn daily           today's one -- a hard card under the clock, same everywhere
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn scenario [NAME] missions -- narrative pipelines, or the list of unlocked ones
+	learn shell [SEED]    a shell in the tree the cards run against
 	learn autopsy [FILE]  your own shell history, held up to the curriculum
 	learn explain LINE    every command's summary plus the shell syntax in it
 	learn stats           what you have mastered
@@ -2154,6 +2155,47 @@ usage() {
 	?  hint    Tab  the reference, Tab again to close
 	type quit, or press Ctrl-C / Ctrl-D, to leave.
 	EOF
+}
+
+# ---- playground -----------------------------------------------------------
+
+# a shell in the tree the cards are graded against.
+#
+# every other way into that tree is a graded answer, so there was nowhere to
+# just try a thing and watch what it did -- which is how anyone has ever
+# actually learned a shell. the isolation is the one grading already trusts:
+# a tmpfs tree built by and owned by nobody, under a read-only root, thrown
+# away when the shell exits. so this costs nothing to hand over.
+#
+# the seed is printed and accepted back. a tree is a function of its seed, so
+# "the file I was just looking at" is reachable again tomorrow -- without it
+# the fixtures would be a different set of bytes every time and nothing you
+# noticed in here could be shown to anyone.
+playground() {
+	local seed=${1:-} tty_
+	case "$seed" in
+		''|*[!0-9]*) rnd 32768; seed=$REPLY ;;
+	esac
+	FX_SEED=$seed
+	sandbox_build || die "cannot build the sandbox"
+	cls
+	hdr "playground" "seed $seed"
+	note "the tree the cards run against. nothing in it survives the exit."
+	[ -n "$DROP" ] && note "you are nobody here -- the rest of the machine is not yours to touch."
+	note "exit, or ctrl-d, to come back."
+	rule
+	# the tty is put back the way learn found it either way: a shell left in
+	# vi-insert with echo off would hand a wrecked terminal back to the menu.
+	tty_=$(stty -g 2>/dev/null) || tty_=
+	[ -n "$tty_" ] && stty sane 2>/dev/null
+	# shellcheck disable=SC2086
+	( cd "$SANDBOX" 2>/dev/null || exit 1
+	  HOME="$SANDBOX" TMPDIR="$SANDBOX" exec $DROP "$SHELLBIN" -i )
+	[ -n "$tty_" ] && stty "$tty_" 2>/dev/null
+	# the next question rebuilds: the learner has been writing in here.
+	SANDBOX_DIRTY=1
+	cls
+	note "tree discarded. 'learn shell $seed' builds that same one again."
 }
 
 # ---- resume + main menu ---------------------------------------------------
@@ -2232,6 +2274,7 @@ menu() {
 		_mi f find      "any command's reference"
 		if scenarios_any_unlocked; then _mi m missions "pipelines on real machine state"
 		else _mi_off m missions "locked until a level unlocks one"; fi
+		_mi t shell     "a shell in the tree the cards use"
 		_mi s stats     "what you've mastered"
 		_mi a autopsy   "your shell history vs the curriculum"
 		_mi h help      "usage and every command"
@@ -2254,6 +2297,7 @@ menu() {
 			   IFS= read -r k 2>/dev/null || continue
 			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
 			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
+			t) playground "" ;;
 			s) cls; stats; pause_card ;;
 			a) cls; autopsy; pause_card ;;
 			h|'?') cls; usage; pause_card ;;
@@ -2303,6 +2347,7 @@ case "${1:-}" in
 	          	else no "locked -- beat $(scn_after "$_sid") first."; fi
 	          fi
 	          session_summary ;;
+	shell)    shift; playground "${1:-}" ;;
 	autopsy)  shift; autopsy "$@" ;;
 	explain)  shift; explain "$@" ;;
 	reset)    shift
