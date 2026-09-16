@@ -100,3 +100,45 @@ cards_decay() {
 cards_sort_weak() {
 	sort -t "$(printf '\t')" -k2,2n -k3,3n
 }
+
+# ---- held: mastery that is current, not remembered ------------------------
+#
+# a level is PASSED the moment its boss falls, once, for good. that is a
+# record of something you did and it is never taken back. HELD is the other
+# question -- do you still have it -- and it is the one "completed the
+# curriculum" should have been asking all along: beat thirty bosses once,
+# let every card rot to tier 0, and the banner still called you done.
+#
+# held_scan -- "<level-id> <mastered> <cards>" per level, one pass.
+#
+# the card key is <level-id>/<block-index>#<raw q: template> (card_key), and
+# the block index is positional. a q: reworded, or a card inserted rather
+# than appended, leaves a key no block answers to. those orphans are skipped
+# at read but stats counted them by key PREFIX, which is how a level could
+# report 35/33 -- and why a prefix count can never decide held. so the key is
+# rebuilt from the level file and joined against the ledger. an orphan then
+# contributes to neither side, which is the only reading under which
+# mastered == cards means what it says.
+held_scan() {
+	awk -F'\t' '
+		function flush() {
+			if (blk > 0) {
+				nq[id]++
+				k = id "/" blk "#" q; gsub(/\t/, "", k)
+				if (tier[k] == 2) m[id]++
+			}
+			q = ""
+		}
+		NR == FNR { tier[$1] = $2; next }
+		FNR == 1  { flush(); n = split(FILENAME, p, "/"); id = p[n]; blk = 0 }
+		/^---$/   { flush(); blk++; next }
+		/^q:/     { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
+		END       { flush(); for (i in nq) print i, m[i] + 0, nq[i] }
+	' "$CARDS" "$LEVELS"/* 2>/dev/null
+}
+
+# held_ids -- the levels whose every card is at tier 2 right now. cards_decay
+# has already run at startup, so the tiers this reads are current by the time
+# anything asks.
+held_ids()      { held_scan | awk '$3 > 0 && $2 == $3 { print $1 }' | sort; }
+level_is_held() { held_ids | grep -qxF -- "$1"; }

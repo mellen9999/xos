@@ -744,9 +744,11 @@ daily() {
 stats() {
 	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
 	local id n m sn sm
-	# mastered cards per level in one pass, not one awk over the file per level
-	awk -F'\t' '$2 == 2 { split($1, p, "/"); c[p[1]]++ } END { for (k in c) print k, c[k] }' \
-		"$CARDS" 2>/dev/null > "$TMP/mastered"
+	# one pass, and the same one held_ids uses: counting by key prefix here
+	# and by rebuilt key there would be two answers to "have you still got
+	# this level", which is the drift every shared walker in here exists to
+	# avoid. it also stops an orphaned key reading as 35 of 33 mastered.
+	held_scan > "$TMP/mastered"
 	for id in $(level_ids); do
 		n=$(level_nq "$id")
 		m=$(awk -v id="$id" '$1 == id { print $2 }' "$TMP/mastered"); m=${m:-0}
@@ -763,6 +765,7 @@ stats() {
 	fi
 	rule
 	note "tier 2 is mastered. a card unproved for $DECAY_DAYS days drops a tier."
+	note "a level in green is HELD: the gauntlet wants all of them at once."
 }
 
 # answer_cmds -- every command an answer invokes, one per line. same boundary
@@ -1668,6 +1671,32 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL migrate: rename round-trip, idempotence or fresh install" >&2; bad=$((bad+1)); }
 
+	# held must survive an orphaned card key. this is the whole reason it
+	# rebuilds keys from the level file instead of counting by prefix the way
+	# stats used to: a reworded q: leaves a tier-2 row behind that answers to
+	# no block, and a prefix count would read it as progress -- 35 mastered
+	# of 33, which is not equal, so a fully held level would report unheld,
+	# and a half-done one could be pushed over the line by old rubbish.
+	( CARDS="$TMP/hc"; _hid=$(level_ids | head -1); _hn=$(level_nq "$_hid")
+	  : > "$CARDS"
+	  _i=1
+	  while [ "$_i" -le "$_hn" ]; do
+		awk -v n="$_i" 'BEGIN{c=0} /^---$/ {c++; next} c==n' "$(level_path "$_hid")" \
+			| sed -n 's/^q: \{0,1\}//p' | head -1 \
+			| while IFS= read -r _q; do printf '%s/%s#%s\t2\t9999999999\n' "$_hid" "$_i" "$_q"; done \
+			>> "$CARDS"
+		_i=$((_i + 1))
+	  done
+	  held_ids | grep -qxF -- "$_hid" || exit 1
+	  # now add rubbish under the same prefix -- it must not change the verdict
+	  printf '%s/999#a question no block asks\t2\t9999999999\n' "$_hid" >> "$CARDS"
+	  held_ids | grep -qxF -- "$_hid" || exit 1
+	  # and dropping one real card must un-hold it
+	  sed -i '1d' "$CARDS" 2>/dev/null || { sed '1d' "$CARDS" > "$CARDS.t"; mv "$CARDS.t" "$CARDS"; }
+	  held_ids | grep -qxF -- "$_hid" && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL held: orphaned keys or a missing card read wrong" >&2; bad=$((bad+1)); }
+
 	# and the ledger itself has to name levels that exist
 	if [ -f "$ROOT/migrations" ]; then
 		awk '$1 ~ /^[0-9]+$/ { print $3 }' "$ROOT/migrations" | while read -r _n; do
@@ -2006,7 +2035,7 @@ usage() {
 # the campaign: run every level not yet passed or placed, in order, until one
 # is left unfinished or the last boss falls.
 resume() {
-	local _all=1 _ran=0 _id
+	local _all=1 _ran=0 _id _stale
 	for _id in $(level_ids); do
 		level_is_passed "$_id" && continue
 		level_is_placed "$_id" && continue
@@ -2014,8 +2043,24 @@ resume() {
 		run_level "$_id" || { _all=0; break; }
 	done
 	if [ "$_ran" = 0 ]; then
-		cls; hdr "learn" "every boss has fallen"
-		note "the gauntlet is open. or replay any level to keep the cards sharp."
+		# nothing left to sit is not the same as holding it all. this printed
+		# "the gauntlet is open" after a pure placement run while the gauntlet
+		# itself refused entry: the banner counted placed levels and the gate
+		# did not. both ask the same question now.
+		_stale=0
+		for _id in $(level_ids); do
+			level_is_passed "$_id" || { _stale=$((_stale + 1)); continue; }
+			level_is_held "$_id"   || _stale=$((_stale + 1))
+		done
+		cls
+		if [ "$_stale" = 0 ]; then
+			hdr "learn" "every level held"
+			note "the gauntlet is open."
+		else
+			hdr "learn" "nothing left to sit"
+			note "$_stale level(s) not held -- a boss unfought, or cards gone stale."
+			note "'learn review' is where they come back."
+		fi
 		pause_card || return 0
 	elif [ "$_all" = 1 ]; then
 		victory
@@ -2029,7 +2074,7 @@ _mi_off() { printf '   %s%s   %-10s %s%s\n' "$D" "$1" "$2" "$3" "$N"; }
 # here rather than to the shell, so a session is a place you are in, not a
 # series of commands you retype. non-interactive callers never reach it.
 menu() {
-	local k p t id unlocked=1
+	local k p t h id unlocked=1
 	level_ids > "$TMP/ids"
 	t=$(grep -c . "$TMP/ids")
 	while :; do
@@ -2037,18 +2082,26 @@ menu() {
 		# one awk, not a grep per level on every keypress.
 		p=$(awk 'NR == FNR { ids[$1] = 1; next } ($1 in ids) { c++ } END { print c + 0 }' \
 			"$TMP/ids" "$PASSED" 2>/dev/null); p=${p:-0}
-		[ "$p" -eq "$t" ] && unlocked=1 || unlocked=0
+		# beaten is a record and never moves. held is whether you still have
+		# it, and it is the one the endgame asks: a boss fought in january
+		# proves nothing about a card that rotted in march.
+		held_ids > "$TMP/held" 2>/dev/null
+		h=$(awk 'NR == FNR { ids[$1] = 1; next } ($1 in ids) { c++ } END { print c + 0 }' \
+			"$TMP/ids" "$TMP/held" 2>/dev/null); h=${h:-0}
+		{ [ "$p" -eq "$t" ] && [ "$h" -eq "$t" ]; } && unlocked=1 || unlocked=0
 
 		cls
 		hdr "learn" "the shell, one card at a time"
-		printf '  '; bar "$p" "$t" 20; printf ' %s%s/%s levels beaten%s\n\n' "$D" "$p" "$t" "$N"
+		printf '  '; bar "$h" "$t" 20
+		printf ' %s%s/%s held%s  %s(%s beaten)%s\n\n' "$D" "$h" "$t" "$N" "$D" "$p" "$N"
 
 		_mi c continue  "where you left off"
 		_mi p practice  "any level by number"
 		_mi r review    "weakest cards first"
 		_mi d daily     "one hard card, same for all"
 		if [ "$unlocked" = 1 ]; then _mi g gauntlet "30s a stage, one life"
-		else _mi_off g gauntlet "locked until every boss falls"; fi
+		elif [ "$p" -eq "$t" ]; then _mi_off g gauntlet "$((t - h)) level(s) gone stale -- review"
+		else _mi_off g gauntlet "locked until every level is held"; fi
 		_mi x placement "skip what you know"
 		_mi f find      "any command's reference"
 		if scenarios_any_unlocked; then _mi m missions "pipelines on real machine state"

@@ -70,20 +70,33 @@ chal_ask() {
 }
 
 challenge() {
-	local nq i score=0 rc best left id
+	local nq i score=0 rc best left id stale
 	[ -f "$CHAINS" ] || { echo "learn: no chains at $CHAINS" >&2; return 1; }
 
 	# the endgame unlocks the way an endgame should: when the last boss has
 	# fallen. until then it names exactly what still stands. counted by set
 	# membership against level_ids, not a raw line count of $PASSED -- a
 	# stale or renamed id sitting in that file must never make the count lie.
-	left=0
+	# two conditions, and they are different questions. a boss-fall is a
+	# record of something you did, and it is the one thing that may write
+	# $PASSED. held is whether the level is still yours right now. both,
+	# because cards are graded in practice as well as in a boss -- so held
+	# alone could be ground out without ever fighting one -- and because a
+	# fall in january proves nothing about a card that rotted in march.
+	left=0; stale=0
 	for id in $(level_ids); do
-		level_is_passed "$id" || left=$((left + 1))
+		if ! level_is_passed "$id"; then left=$((left + 1))
+		elif ! level_is_held "$id";   then stale=$((stale + 1)); fi
 	done
 	if [ "$left" -gt 0 ]; then
 		no "locked. $left boss$([ "$left" = 1 ] || echo es) still stand$([ "$left" = 1 ] && echo s) between you and the gauntlet."
 		note "'learn' resumes the curriculum. come back when ROOT has fallen."
+		return 1
+	fi
+	if [ "$stale" -gt 0 ]; then
+		no "locked. every boss has fallen, but $stale level$([ "$stale" = 1 ] || echo s) ha$([ "$stale" = 1 ] && echo s || echo ve) gone stale."
+		note "the gauntlet asks for all thirty at once. 'learn review' sharpens"
+		note "the weakest cards first; 'learn stats' shows which levels slipped."
 		return 1
 	fi
 	nq=$(chal_nq)
