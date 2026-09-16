@@ -1086,7 +1086,13 @@ _answer_walk() {
 			for (i in w) wrapper[w[i]] = 1
 		}
 		{
-			cmd = ""; depth = 0; nclose = 0; nsep = 0; n = split($0, t, /[ \t]+/)
+			# $(( )) is arithmetic, not a command substitution -- the $( rule
+			# below would open a command on it and leave + or 1 standing in
+			# command position. take the spans out before the split.
+			ln = $0
+			while (sub(/\$\(\([^()]*\)\)/, " ", ln)) ;
+			cmd = ""; depth = 0; nclose = 0; nsep = 0; forvar = 0; rtarget = 0
+			n = split(ln, t, /[ \t]+/)
 			for (i = 1; i <= n; i++) {
 				tok = t[i]
 
@@ -1100,16 +1106,23 @@ _answer_walk() {
 				# count the closers now, but do NOT pop until this token has been
 				# attributed. popping first blamed the -f1 in
 				# "$(sha256sum x | cut -d -f1)" on printf, the command outside.
-				nclose = gsub(/[)`]+$/, "", tok)
 				# "set -- a b c; shift" must attribute shift, not swallow it.
-				nsep = gsub(/[;&]+$/, "", tok)
+				# stripped on both sides of the closer count: "$(seq 1 5);" ends
+				# in ; so the ) goes uncounted, and the substitution never pops.
+				nsep   = sub(/[;&]+$/, "", tok)
+				nclose = gsub(/[)`]+$/, "", tok)
+				nsep  += sub(/[;&]+$/, "", tok)
 				gsub(/^["]+|["]+$/, "", tok)
 
 				if (tok == "")                                      { endtok(); continue }
 				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; endtok(); continue }
 				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in|while|until|if)$/) { cmd = ""; endtok(); continue }
 				if (tok == "-exec" || tok == "-ok")   { if (mode == "flags") print cmd, tok; cmd = ""; endtok(); continue }
-				if (tok ~ /^[0-9]?[<>]+$/)                          { endtok(); continue }
+				if (tok == "for")                                   { cmd = ""; forvar = 1; endtok(); continue }
+				if (forvar)                                         { forvar = 0; endtok(); continue }
+				# the word after a bare redirect is the file it reads or writes
+				if (tok ~ /^[0-9]?[<>]+$/)                          { rtarget = 1; endtok(); continue }
+				if (rtarget)                                        { rtarget = 0; endtok(); continue }
 				if (cmd == "") {
 					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) { cmd = tok; if (mode == "cmds") print tok }
 					endtok(); continue
@@ -1431,6 +1444,34 @@ selftest() {
 		| sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u \
 		| grep -vxF -f "$TMP/synlab" || true)
 	[ -z "$undecl" ] || { echo "FAIL syntax: declared but not in the table: $(echo $undecl)" >&2; bad=$((bad+1)); }
+
+	# the one tokenizer, pinned. _answer_walk decides which command an answer
+	# invokes, and the ref: gate turns that into a verdict -- but a walker that
+	# stops seeing `read` rejects every honest spelling of a read loop while the
+	# corpus goes on passing, because tier 1 still matches the card's own text.
+	# that is how it drifted unnoticed. every row is a shape the gate depends on.
+	local _tl _want _line _have
+	while IFS= read -r _tl; do
+		[ -n "$_tl" ] || continue
+		_want=${_tl%%	*}; _line=${_tl#*	}
+		_have=$(printf '%s\n' "$_line" | answer_cmds | grep . | sort -u | tr '\n' ' ')
+		[ "$(echo $_have)" = "$_want" ] \
+			|| { echo "FAIL answer_cmds: '$_line' gave '$(echo $_have)', wanted '$_want'" >&2
+			     bad=$((bad+1)); }
+	done <<-'EOF'
+	echo read	while read -r line; do echo "$line"; done < f
+	echo read	while IFS=, read -r a b c d; do echo "$a"; done < f
+	set shift	set -- a b c; shift
+	echo f local	f(){ local v=1; echo $v; }; f
+	echo grep	if grep -q x f; then echo yes; else echo no; fi
+	[ break echo seq	for i in $(seq 1 5); do [ $i -eq 3 ] && break; echo $i; done
+	[ echo	i=0; while [ $i -lt 3 ]; do echo $i; i=$((i + 1)); done
+	getopts set	set -- -a x; getopts a o
+	echo exec	exec 2>&1; echo x
+	echo trap	trap "echo bye" EXIT; echo x
+	awk	awk -F, 'NR > 1 {s += $4} END {print s}' f
+	cut printf sha256sum	printf '%s\n' "$(sha256sum x | cut -d' ' -f1)"
+	EOF
 
 	# the unsafe() fence is what makes execution grading survivable: prove it
 	# refuses what must never run and still admits what the lessons teach.
