@@ -1405,6 +1405,26 @@ st_block() {
 		got=$(run_answer "$a"); SANDBOX_DIRTY=1
 		[ "$(run_answer "$a")" = "$got" ] \
 		  || { echo "FAIL $lbl: cmp:ref but '$a' is not deterministic" >&2; bad=$((bad+1)); }
+		# a reference that prints nothing compares "" to "" -- so every silent
+		# answer that clears the fence and the ref: gate passes, and cmp: ref
+		# is not the strictest tier but no tier at all. what such a card
+		# actually observes is the tree it left or the status it exited with,
+		# so it has to say which.
+		# ...but only where this host's sandbox is the authority on what the
+		# line prints. an answer reading an absolute path reads the BUILD
+		# machine, not the stick, and /proc/cmdline is empty here and the
+		# whole point there; -user and -group turn on the privilege drop,
+		# which is real under root and absent on a builder. judging those
+		# here would fail cards that are perfectly discriminating in the only
+		# place they run. the emptiness this CAN see is emptiness everywhere.
+		case "$a" in
+			*\ /*|/*|*\</*|*\ -user\ *|*\ -group\ *) : ;;
+			*)
+				if [ -z "$got" ] && ! grep -qE '^(state|status):' "$TMP/blk"; then
+					echo "FAIL $lbl: cmp:ref but '$a' prints nothing -- any silent answer passes; add state: or status:" >&2
+					bad=$((bad+1))
+				fi ;;
+		esac
 		SANDBOX_DIRTY=1
 		printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
 			[ -n "$a" ] || continue

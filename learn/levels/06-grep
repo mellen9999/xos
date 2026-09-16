@@ -167,8 +167,8 @@ ref: grep
 teach: grep -s
 hint: s silences the "no such file" complaints, built into grep itself
 ---
-q: {@txt@ lists patterns -- grep @log@ against them|patterns are saved in @txt@ -- grep @log@ with each line|grep @log@ for any line matching @txt@}
-a: grep -f @txt@ @log@
+q: put rotate in pat.txt, then grep @txt@ with the patterns it holds
+a: printf 'rotate\n' > pat.txt; grep -f pat.txt @txt@
 cmp: ref
 ref: grep
 teach: grep -f
