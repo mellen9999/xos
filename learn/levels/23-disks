@@ -78,9 +78,9 @@ ref: du
 teach: du -a
 hint: -a walks down to individual files, not just directories
 ---
-q: @dir@ has too much underneath -- %show% it one level deep, with du
-a: du -d 1 @dir@
-why: fixture-cost
+q: the prune directory is nested -- %show% it one level deep, with du
+a: du -d 1 prune
+cmp: ref
 ref: du
 teach: du -d
 hint: -d takes a depth -- 1 stops descending after the first level

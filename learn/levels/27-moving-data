@@ -18,84 +18,84 @@ setup: file.txt is served over plain http below -- only the host and the
 setup: flag change from here on.
 q: {keep file.txt's own name pulling it from @host@|don't rename it -- grab file.txt from @host@|leave the name alone, fetching file.txt from @host@}, with wget
 a: wget http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget
 hint: wget with no -O saves the file under the url's own basename
 ---
 q: {pick out.txt as your own name for file.txt from @host@|choose out.txt as the name, saving file.txt from @host@|rename it out.txt, pulling file.txt from @host@}, with wget
 a: wget -O out.txt http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -O
 hint: -O picks the output filename yourself, instead of using the url's
 ---
 q: {stay quiet fetching file.txt from @host@|silence the output grabbing file.txt from @host@|no progress noise pulling file.txt from @host@}, with wget
 a: wget -q http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -q
 hint: -q silences wget's normal progress output
 ---
 q: {pick up file.txt's stalled download from @host@|don't restart -- resume file.txt from @host@|continue file.txt's interrupted pull from @host@}, with wget
 a: wget -c http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -c
 hint: -c picks up a partial download where it left off
 ---
 q: {confirm file.txt is really there on @host@|check file.txt exists, no download, on @host@|make sure file.txt is there without pulling it from @host@}, with wget
 a: wget --spider http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget --spider
 hint: --spider checks the url without saving anything
 ---
 q: {watch the headers fetching file.txt from @host@|see what headers come back pulling file.txt from @host@|check the response headers on file.txt from @host@}, with wget
 a: wget -S http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -S
 hint: -S prints the server's response headers as they arrive
 ---
 q: {fetch file.txt from @host@ using header 'X-Token: abc'|send header 'X-Token: abc' fetching file.txt from @host@|get file.txt from @host@ with header 'X-Token: abc'}, with wget
 a: wget --header 'X-Token: abc' http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget --header
 hint: --header adds one arbitrary header line to the request
 ---
 q: {POST a=1 to @host@/submit instead of fetching|send a=1 to @host@/submit with a post, not a get|push a=1 to @host@/submit rather than downloading}, with wget
 a: wget --post-data 'a=1' http://@host@/submit
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget --post-data
 hint: --post-data sends the string as the request body over POST
 ---
 q: {land file.txt in @dir@, pulling it from @host@|drop file.txt into @dir@ fetching from @host@|save file.txt into @dir@ instead, from @host@}, with wget
 a: wget -P @dir@ http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -P
 hint: -P sets the directory the download is saved into
 ---
 q: {give up on file.txt after 10 silent seconds from @host@|cap the wait on file.txt at 10s from @host@|abandon file.txt if @host@ stays quiet 10s}, with wget
 a: wget -T 10 http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -T
 hint: -T caps how long wget waits for the server before giving up
 ---
 q: {with wget, log file.txt's fetch to wget.log, from @host@|save file.txt's log to wget.log with wget, from @host@|track file.txt's pull in wget.log with wget, from @host@}
 a: wget -o wget.log http://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget -o
 hint: -o redirects wget's log messages into a file
 ---
 q: {fetch https://@host@/file.txt uncertified with wget -- know why|skip cert checks with wget fetching https://@host@/file.txt|pull https://@host@/file.txt via wget, cert check off, risky}
 a: wget --no-check-certificate https://@host@/file.txt
-why: fixture-cost
+why: live-net
 ref: wget
 teach: wget --no-check-certificate
 hint: this turns off the only thing proving you are talking to who you think
