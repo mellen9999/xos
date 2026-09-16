@@ -1691,6 +1691,25 @@ selftest() {
 	EOF
 	[ "$hits" -ge 6 ] || { echo "FAIL syntax battery went dark ($hits lines matched)" >&2; bad=$((bad+1)); }
 
+	# every word in pools/terms is in every log the fixture builds. a card
+	# greps for a rolled @term@, so a term the log only sometimes carries is a
+	# card that only sometimes has an answer -- it grades empty against empty
+	# and passes, or fails the build at whatever hour the roll came up short.
+	# three of the twelve were emitted under a rand() until this asked.
+	( _tbad=
+	  for _fs in 1 7 40 99; do
+		FX_SEED=$_fs SANDBOX_DIRTY=1
+		sandbox_build || exit 1
+		for _t in $(grep . "$POOLS/terms"); do
+			grep -qF -- "$_t" "$SANDBOX/$(sed -n 1p "$POOLS/logs")" 2>/dev/null \
+				|| _tbad="$_tbad $_t@$_fs"
+		done
+	  done
+	  [ -z "$_tbad" ] || { echo "  missing:$_tbad" >&2; exit 1; }
+	  exit 0 ) \
+		|| { echo "FAIL fixtures: a pools/terms word is not in every log" >&2; bad=$((bad+1)); }
+	SANDBOX_DIRTY=1
+
 	# a row's label reaches the panel intact. the label that IS a backslash
 	# printed as nothing: it was handed to awk with -v, and awk processes
 	# escape sequences in a -v assignment, so the gloss arrived nameless.

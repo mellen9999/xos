@@ -57,11 +57,19 @@ _fx_log() {
 			refused = ip[1 + int(rand() * 6)]
 			for (i = 0; i < 2; i++)
 				printf "2024-03-01 %02d:%02d:%02d ERROR connection refused %s\n", t/3600, t%3600/60, t%60, refused
-			if (rand() < 0.7) line("INFO", "retry succeeded")
-			for (i = int(rand() * 3); i > 0; i--)
+			# every word in pools/terms appears in EVERY log, not in most of
+			# them. these three were emitted under a rand() -- retry at 0.7,
+			# disk at 0.6, timeout zero to three times -- and a card grepping
+			# for one of them then graded an empty result against an empty
+			# reference and called it a pass, or, where cmp: ref is backed by
+			# nothing, failed the build hours later for whatever landed last.
+			# the randomness stays in how MANY and in what they say; whether
+			# they are there at all is not a thing a lesson can afford to roll.
+			line("INFO", "retry succeeded")
+			for (i = 1 + int(rand() * 3); i > 0; i--)
 				line("ERROR", "timeout talking to " ip[1 + int(rand() * 6)])
 			line("DEBUG", "cache hit ratio 0." (70 + int(rand() * 29)))
-			if (rand() < 0.6) line("WARN", "disk usage at " (75 + int(rand() * 24)) "%")
+			line("WARN", "disk usage at " (75 + int(rand() * 24)) "%")
 			# bare severity lines, one per pool value: every real line above
 			# carries a timestamp too, so grep -x @sev@ (a whole-line match)
 			# has nothing to land on without these -- unconditional, so
