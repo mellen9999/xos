@@ -1,5 +1,5 @@
 name: the sweep
-after: 31-root
+after: 30-root
 intro: You booted xos onto a box you do not trust -- or you are the defender
 intro: making sure it can never be turned against you. An attacker's whole
 intro: endgame is two things: PERSISTENCE, surviving a reboot, and EGRESS,

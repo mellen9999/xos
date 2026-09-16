@@ -1,4 +1,4 @@
-# level ids that have been renamed, and the one-time state rewrite each needs.
+# level ids that have changed, and the one-time state rewrite each needs.
 #
 # the precedent is inprogress: a level's identity changed, so anything keyed
 # on the old one is a lie. inprogress solves it by self-invalidating on a
@@ -8,7 +8,11 @@
 #
 # format:  <schema>  <old-id>  <new-id>
 #
-# applied in file order, once, guarded by $STATE/schema. write renames in
+# a <new-id> of - means the level was merged away rather than renumbered.
+# that state is not correct under any name, so it is deleted outright --
+# ledger lines and card keys both.
+#
+# applied in file order, once, guarded by $STATE/schema. write rows in
 # DESCENDING order so no rename ever collides with a name still in use:
 # 30 -> 31 must land before 29 -> 30, or 29 lands on top of the old 30.
 #
@@ -16,8 +20,15 @@
 # and the card keys, which are prefixed <level-id>/. inprogress is dropped
 # rather than rewritten: a renumbered level is an edited level, so its
 # fingerprint has moved and the place was already void.
-1 30-root 31-root
-1 29-proving-this-machine 30-proving-this-machine
+#
+# 30-root gets no row on purpose. it kept its id but absorbed the level that
+# used to sit below it, so every block index in it moved. its card keys are
+# now orphans -- held rebuilds keys from the level file, so they count toward
+# neither side, and decay drops them within DECAY_DAYS. the boss-fall in
+# passed stays: it happened, and passed is never revoked. held will simply
+# read false until the merged level is worked back up to tier 2, which is
+# exactly right -- it is not the level that was cleared.
+1 29-proving-this-machine -
 1 28-the-editor 29-the-editor
 1 27-tls-and-irc 28-tls-and-irc
 1 26-moving-data 27-moving-data

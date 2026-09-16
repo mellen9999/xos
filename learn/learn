@@ -213,6 +213,22 @@ migrate() {
 		case "$v" in ''|\#*) continue ;; *[!0-9]*) continue ;; esac
 		[ -n "$new" ] || continue
 		[ "$v" -gt "$cur" ] || continue
+		case "$old" in *[!0-9a-z-]*|'') continue ;; esac
+		if [ "$new" = - ]; then
+			for f in "$PASSED" "$PLACED" "$BRIEFED"; do
+				[ -f "$f" ] || continue
+				{ grep -vxF -- "$old" "$f" || :; } > "$f.tmp.$$" 2>/dev/null \
+					&& mv "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$" 2>/dev/null
+			done
+			if [ -f "$CARDS" ]; then
+				{ grep -v "^$old/" "$CARDS" || :; } > "$CARDS.tmp.$$" 2>/dev/null \
+					&& mv "$CARDS.tmp.$$" "$CARDS" 2>/dev/null \
+					|| rm -f "$CARDS.tmp.$$" 2>/dev/null
+			fi
+			rm -f "$(_inprog_file "$old")" 2>/dev/null
+			continue
+		fi
+		case "$new" in *[!0-9a-z-]*) continue ;; esac
 		for f in "$PASSED" "$PLACED" "$BRIEFED"; do
 			[ -f "$f" ] || continue
 			sed "s|^$old\$|$new|" "$f" > "$f.tmp.$$" 2>/dev/null \
@@ -689,7 +705,7 @@ place() {
 	pause_card || return 0
 	MODE=daily   # the editor, no hints -- placement measures, it does not teach
 	rung_i=0
-	for rung in 03 06 09 12 15 19 22 25 28 31; do
+	for rung in 03 06 09 12 15 18 21 24 27 30; do
 		lvl=$(level_ids | grep "^$rung-" | head -1)
 		[ -n "$lvl" ] || continue
 		nq=$(level_nq "$lvl")
@@ -1721,34 +1737,39 @@ selftest() {
 		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
 
 	# migrate rewrites saved state when a level is renamed. it must move a
-	# boss-fall rather than drop it, run exactly once, and do nothing at all
-	# on a fresh install -- a migration that reruns would rename an already
-	# renamed level onto whatever now holds the old name.
+	# boss-fall rather than drop it, drop one outright when the level was
+	# merged away, run exactly once, and do nothing at all on a fresh
+	# install -- a migration that reruns would rename an already renamed
+	# level onto whatever now holds the old name.
 	( STATE="$TMP/mst"; ROOT="$TMP/mig"
 	  PASSED="$STATE/passed"; PLACED="$STATE/placed"; BRIEFED="$STATE/briefed"
 	  CARDS="$STATE/cards"; SCHEMA="$STATE/schema"; INPROG="$STATE/inprogress"
 	  mkdir -p "$STATE" "$ROOT"
-	  printf '1\t30-root\t31-root\n' | tr '\t' ' ' > "$ROOT/migrations"
-	  printf '30-root\n29-proving-this-machine\n' > "$PASSED"
-	  printf '30-root/4#x\t2\t123\n' > "$CARDS"
-	  : > "$(_inprog_file 30-root)"
+	  printf '1\taa-old\tab-new\n1\tac-gone\t-\n' | tr '\t' ' ' > "$ROOT/migrations"
+	  printf 'aa-old\nac-gone\n' > "$PASSED"
+	  printf 'aa-old/4#x\t2\t123\nac-gone/1#y\t2\t123\n' > "$CARDS"
+	  : > "$(_inprog_file aa-old)"; : > "$(_inprog_file ac-gone)"
 	  migrate
-	  grep -qxF -- 31-root "$PASSED" || exit 1
-	  grep -qxF -- 30-root "$PASSED" && exit 1
-	  grep -q '^31-root/4#x' "$CARDS" || exit 1
-	  [ ! -f "$(_inprog_file 30-root)" ] || exit 1
+	  grep -qxF -- ab-new "$PASSED" || exit 1
+	  grep -qxF -- aa-old "$PASSED" && exit 1
+	  grep -q '^ab-new/4#x' "$CARDS" || exit 1
+	  [ ! -f "$(_inprog_file aa-old)" ] || exit 1
+	  # a merged-away level is dropped outright, ledger and cards both
+	  grep -qxF -- ac-gone "$PASSED" && exit 1
+	  grep -q '^ac-gone/' "$CARDS" && exit 1
+	  [ ! -f "$(_inprog_file ac-gone)" ] || exit 1
 	  [ "$(cat "$SCHEMA")" = 1 ] || exit 1
 	  # idempotent: a second run must not touch the already-renamed ledger
-	  printf '31-root\n' > "$PASSED"
+	  printf 'ab-new\n' > "$PASSED"
 	  migrate
-	  grep -qxF -- 31-root "$PASSED" || exit 1
+	  grep -qxF -- ab-new "$PASSED" || exit 1
 	  # fresh install: nothing to rewrite, version simply stamped
 	  rm -rf "$STATE"; mkdir -p "$STATE"
 	  migrate
 	  [ "$(cat "$SCHEMA")" = 1 ] || exit 1
 	  [ ! -s "$PASSED" ] 2>/dev/null || [ ! -f "$PASSED" ] || exit 1
 	  exit 0 ) \
-		|| { echo "FAIL migrate: rename round-trip, idempotence or fresh install" >&2; bad=$((bad+1)); }
+		|| { echo "FAIL migrate: rename, drop, idempotence or fresh install" >&2; bad=$((bad+1)); }
 
 	# held must survive an orphaned card key. this is the whole reason it
 	# rebuilds keys from the level file instead of counting by prefix the way
@@ -1776,10 +1797,28 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL held: orphaned keys or a missing card read wrong" >&2; bad=$((bad+1)); }
 
-	# and the ledger itself has to name levels that exist
+	# every scenario names the level it unlocks after. nothing else checks
+	# that id, so a renumber that misses one pins the scenario to a level
+	# that will never exist -- and a scenario that can never unlock is
+	# indistinguishable, from the outside, from one nobody has reached yet.
+	for _s in "$SCENARIOS"/*; do
+		[ -f "$_s" ] || continue
+		_a=$(sed -n 's/^after: \{0,1\}//p' "$_s" | head -1)
+		if [ -z "$_a" ]; then
+			echo "FAIL scenario: $(basename "$_s") names no after: level" >&2
+			bad=$((bad + 1))
+		elif [ ! -f "$LEVELS/$_a" ]; then
+			echo "FAIL scenario: $(basename "$_s") unlocks after $_a, which is not a level" >&2
+			bad=$((bad + 1))
+		fi
+	done
+
+	# and the ledger itself has to name levels that exist. a new id of - is
+	# the merged-away case: there is deliberately no level to point at, and
+	# the old-id loop below still insists the old one is really gone.
 	if [ -f "$ROOT/migrations" ]; then
 		awk '$1 ~ /^[0-9]+$/ { print $3 }' "$ROOT/migrations" | while read -r _n; do
-			[ -z "$_n" ] || [ -f "$LEVELS/$_n" ] \
+			[ -z "$_n" ] || [ "$_n" = - ] || [ -f "$LEVELS/$_n" ] \
 				|| echo "FAIL migrations: new id $_n is not a level"
 		done > "$TMP/mg" 2>&1
 		if [ -s "$TMP/mg" ]; then cat "$TMP/mg" >&2; bad=$((bad + $(grep -c . "$TMP/mg"))); fi

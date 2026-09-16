@@ -1,0 +1,211 @@
+name: root
+boss: ROOT
+flavor: I answer to nothing. Show me you belong here.
+syntax: /dev/null
+brief: You are standing at a machine you did not build, that you booted from a
+brief: stick in your pocket. Everything you need to decide whether to trust it
+brief: is readable from where you are sitting, with commands you already know.
+brief: No special tool. Nothing you could not do on someone else's box.
+brief:
+brief: xos makes a specific claim: every block of the root filesystem is
+brief: checked against a hash tree whose root hash arrives on the kernel
+brief: command line, inside an image signed with keys you enrolled yourself.
+brief:
+brief: This is one argument, in order. Each answer is a link, and the chain is
+brief: only worth what its weakest link is worth -- so read what each one
+brief: actually proves, and what it does not.
+---
+setup: Start with the claim. The root filesystem is not trusted because it
+setup: looks right; it is trusted because every block read out of it is
+setup: checked against a hash tree.
+q: %show% / as read-only squashfs on device-mapper, with awk on /proc/mounts
+a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
+cmp: ref
+ref: awk
+teach: awk
+hint: $1, $3, $4 print the device, filesystem type and mount flags together
+---
+setup: dm-0 is a device-mapper target, not a disk. Something real sits under it.
+q: {what backs dm-0 -- read /sys/block/dm-0/slaves|which physical device is dm-0 built on, per its slaves|name the block device under the verity root, from sysfs}
+a: ls /sys/block/dm-0/slaves
+why: live-hw
+ref: ls
+teach: ls
+hint: a dm device lists what it is stacked on under slaves/
+---
+setup: The claim was read-only. Check the flag, not the feeling.
+q: {confirm /proc/mounts has / read-only|check /proc/mounts says / is mounted read-only|prove the root is mounted read-only, from /proc/mounts}, with grep
+a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro'
+why: live-hw
+ref: grep
+teach: grep -o
+hint: grep -o on the flags column proves ro is actually set, not just present nearby
+---
+setup: That hash tree has a single root hash. Everything below it is checked
+setup: against that one number, so the whole filesystem reduces to it -- and
+setup: the number arrived on the kernel command line.
+q: %show% all of /proc/cmdline, so you see the hash sitting in it
+a: cat /proc/cmdline
+cmp: ref
+ref: cat
+teach: cat
+hint: no filtering this time -- the whole line, hash included
+---
+setup: The command line is baked into the unified kernel image on the ESP, and
+setup: that image is signed with keys you enrolled into the firmware yourself.
+setup: So the hash is anchored OUTSIDE the filesystem it describes.
+q: %get% the root hash the kernel was given, with sed, from /proc/cmdline
+a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
+why: live-hw
+ref: sed
+teach: sed -n
+hint: the capture group pulls just the 64 hex characters after sha256
+---
+setup: A checksum stored inside the thing it describes proves nothing -- an
+setup: attacker who can edit the data can edit the checksum beside it. This is
+setup: the single most important idea on this page.
+q: {confirm /proc/cmdline sets panic_on_corruption, not carry on|check /proc/cmdline for panic_on_corruption|prove the kernel was told panic_on_corruption}, with grep
+a: grep -o panic_on_corruption /proc/cmdline
+why: live-hw
+ref: grep
+teach: grep -o
+hint: fail closed. a verified system that carries on after a mismatch is not one
+---
+setup: Now the other end. Hash the bytes actually mounted and see the number
+setup: for yourself.
+q: %show% /dev/dm-0's digest with sha256sum -- the filesystem you're on, alone
+a: sha256sum /dev/dm-0 | cut -d' ' -f1
+why: live-hw
+ref: sha256sum
+teach: sha256sum
+hint: cut -d' ' -f1 drops the device name sha256sum prints after the hash
+---
+setup: Compare that against the digest recorded when the image was built --
+setup: which you must have carried here from somewhere else. Reading it off
+setup: this disk would prove nothing at all.
+q: {print the running digest mounted, the anchored hash as roothash|label the running digest mounted, the anchored hash roothash|two labelled lines: mounted, then roothash}, with printf
+a: printf 'mounted %s\nroothash %s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
+cmp: ref
+ref: printf
+teach: printf
+hint: two command substitutions inside one printf
+---
+setup: A verified root is worth nothing if code can be added to the kernel
+setup: underneath it. No module loader means nothing can be added after boot.
+q: {test /proc/modules, printing present if it is there, none if not|check for /proc/modules, printing present or none|does /proc/modules exist -- print present or none}
+a: [ -e /proc/modules ] && echo present || echo none
+why: live-hw
+ref: [
+teach: [ -e
+hint: -e tests existence; && and || pick which word to echo
+---
+setup: Lockdown is compiled in. Compiled-in means there is a file that says so.
+q: {print the lockdown mode from /sys/kernel/security/lockdown|confirm the mode in /sys/kernel/security/lockdown|read /sys/kernel/security/lockdown}
+a: cat /sys/kernel/security/lockdown
+why: live-hw
+ref: cat
+teach: cat
+hint: the active mode is the one in [brackets]
+---
+setup: /dev/mem is the other door -- raw physical memory, writable by anything
+setup: that can open it.
+q: {test /dev/mem, the door to physical memory, printing present or absent|is /dev/mem there to read physical memory -- print present or absent|check for /dev/mem, printing present or absent}
+a: [ -e /dev/mem ] && echo present || echo absent
+why: live-hw
+ref: [
+teach: [ -e
+hint: -e tests for existence, same idea as the modules check above
+---
+setup: Three doors, one line. Close them and check they stayed closed.
+q: {label 3 lines -- modules, devmem present or absent, lockdown|print modules, devmem present or absent, lockdown's value|3 lines: modules, devmem present or absent, lockdown}, with printf
+a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
+cmp: ref
+ref: printf
+teach: printf
+hint: three [ -e ] / cat checks, joined with $() inside one printf
+---
+setup: The host's own disks are never touched because no driver can see them.
+q: {count the ahci or nvme drivers under /sys/bus/pci/drivers|prove no ahci or nvme driver is bound -- count them in sysfs|how many ahci or nvme names are in /sys/bus/pci/drivers}, with grep
+a: ls /sys/bus/pci/drivers | grep -c -E 'ahci|nvme'
+why: live-hw
+ref: grep
+teach: grep -c -E
+hint: -E makes | an alternation; -c counts the matching names
+---
+setup: The kernel keeps its own account of all this, from before you logged in.
+q: {what does the kernel's boot log say about verity, any case|report what the kernel logged about verity, ignoring case|find verity in the kernel's boot log, whatever its case}, with dmesg
+a: dmesg | grep -i verity
+why: live-hw
+ref: dmesg
+teach: dmesg
+hint: dmesg's boot log names the verity target as it starts checking blocks
+---
+setup: And nothing writable may be executable, or the read-only root is a
+setup: formality.
+q: %show% every writable filesystem in /proc/mounts, noexec or not, with awk
+a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
+why: live-hw
+ref: awk
+teach: awk
+hint: $4 ~ /rw/ matches writable filesystems by their mount options
+---
+setup: The kernel is the one enforcing this, so ask it directly -- try to undo
+setup: the read-only root and watch it refuse.
+q: {remount / rw, printing WRITABLE if it takes, refused if not|try remounting / rw with mount, WRITABLE or refused|attempt / read-write, WRITABLE on success, refused on failure}, with mount
+a: mount -o remount,rw / 2>/dev/null && echo WRITABLE || echo refused
+why: live-hw
+ref: mount
+teach: mount -o
+hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
+---
+setup: The other half of that rule: the places you CAN write must refuse to
+setup: execute. Copy /bin/busybox to $HOME/x, make it executable, and try it.
+q: {copy busybox to $HOME/x, chmod +x, run it true -- print ran or refused|copy busybox into $HOME, chmod +x, run it true -- print ran or refused|drop busybox at $HOME/x, chmod +x, run true, print ran or refused}
+a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
+why: live-hw
+ref: chmod
+teach: chmod
+hint: $HOME is mounted noexec -- tmpfs, or the encrypted state when unlocked
+---
+setup: The argument so far is about the kernel. The userspace on top of it is
+setup: yours too, and it carries its trust roots in the open.
+q: %count% "Internet Security Research Group" in /bin/tlstunnel, with strings
+a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
+cmp: ref
+ref: strings
+teach: strings
+hint: strings pulls printable text out of the binary; grep -c counts the matches
+---
+setup: p3 counts its own unlocks. Remember the number the way you remember the four words.
+q: {print the boot count from $HOME/ledger|check how many times this state unlocked, from $HOME/ledger|pull the unlock count out of $HOME/ledger}, with cut
+a: cut -d' ' -f1 $HOME/ledger
+why: live-hw
+ref: cut
+teach: cut -d -f
+hint: the ledger is "count stamp"; -d' ' splits on the space, -f1 keeps the count
+---
+setup: And the machine documents itself. Everything it can do is enumerable.
+q: %count% the commands this system documents, using learn list
+a: learn list | wc -l
+cmp: ref
+ref: learn
+teach: learn
+hint: learn list enumerates every documented command; wc -l counts the lines
+---
+setup: One line now. The whole argument, in the order you made it.
+q: %show% /proc/mounts' line for / with awk, then /proc/cmdline's policy
+a: awk '$2=="/" {printf "%s %s %s ", $1, $3, $4}' /proc/mounts && grep -o panic_on_corruption /proc/cmdline
+why: live-hw
+ref: awk
+teach: awk
+hint: two commands chained with && so both must succeed as evidence
+---
+setup: Last. Everything you have learned, aimed at the machine underneath you.
+setup: If this prints and the numbers are the ones you carried in, the system
+setup: running this command is the system you built.
+q: %show% the mounted digest, the anchored hash, enforcement, with printf
+a: printf '%s\n%s\n%s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)" "$(grep -o panic_on_corruption /proc/cmdline)"
+cmp: ref
+ref: printf
+teach: printf
+hint: three substitutions, one printf. you have used every piece of this before
