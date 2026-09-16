@@ -185,3 +185,10 @@ cmp: ref
 ref: which
 teach: which -a
 hint: -a lists every match in PATH, not just the first one found
+---
+q: set @var@ to @word@, then echo it with s glued on the end
+a: @var@=@word@; echo ${@var@}s
+cmp: ref
+ref: echo
+teach: echo
+hint: without the braces the shell looks for a variable called @var@s instead

@@ -876,13 +876,14 @@ rootfs() {
   for part in ref lib pools levels scenarios; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  for _f in skip builtins phrases syntax vs chains; do
+  for _f in skip skip-syntax builtins phrases syntax vs chains; do
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios root/usr/share/learn/
-  cp learn/skip learn/builtins learn/phrases learn/chains learn/syntax learn/vs root/usr/share/learn/
+  cp learn/skip learn/skip-syntax learn/builtins learn/phrases learn/chains \
+     learn/syntax learn/vs root/usr/share/learn/
 
   # overlay carries the udhcpc script, without which dhcp silently configures
   # nothing, and the wordlist init turns the roothash into four spoken words. it was optional; under `set -e` a
@@ -1619,7 +1620,7 @@ TODO: write this entry by hand.
 #   G23 exactly one shell (busybox ash)
 #   G24 learn corpus covers the shipped surface exactly
 #   G25 learn selftest passes under the built busybox
-#   G26 curriculum covers the surface (nothing untaught)
+#   G26 curriculum covers the surface -- commands and flags (nothing untaught)
 #   G27 levels only use commands already taught, in order
 #   G28 bzImage was built from the on-disk kernel.config
 #   G29 challenge track holds its shape
@@ -2508,7 +2509,7 @@ G37
   cv_t=$(printf '%s\n' "$cv_out" | awk '$1 == "taught"   {print $2}')
   cv_s=$(printf '%s\n' "$cv_out" | awk '$1 == "skipped"  {print $2}')
   cv_u=$(printf '%s\n' "$cv_out" | awk '$1 == "untaught" {print $2}')
-  [ "$cv_ok" -eq 1 ] || printf '    %s flags are neither taught nor listed in learn/skip\n' "$cv_u" >&2
+  [ "$cv_ok" -eq 1 ] || printf '    %s items are neither taught nor listed in learn/skip\n' "$cv_u" >&2
   g "G26 curriculum covers the surface (${cv_t:-0} taught, ${cv_s:-0} retired, ${cv_u:-?} open)" \
     "$([ "$cv_ok" -eq 1 ] && echo ok || echo FAIL)"
 

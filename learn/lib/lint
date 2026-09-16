@@ -356,6 +356,76 @@ qwidth_over() {
 # after the change that "caused" it. this has bitten twice: a mount-option
 # question that raced another process mounting something, and a socket list.
 #
+# ---- the grammar ledger ----------------------------------------------------
+#
+# learn/syntax is a closed set the same way the applet surface is: every row
+# is either drilled by a level or retired in learn/skip-syntax, with a reason.
+# nothing gated this before, and a third of the table -- positional
+# parameters, subshell-vs-group, suffix stripping -- was claimed by no level
+# at all, so the curriculum taught the commands and not the shell.
+#
+# the HOLLOW rule is what stops the gate breeding filler. declaring a label in
+# a syntax: header obliges the level to own a block whose EVERY answer needs
+# it -- the same "required" notion order_syntax already computes for the order
+# contract, read the other way. a header cannot be padded to turn this green.
+
+# skip_syn_set -- the retirement ledger. the label is everything before the
+# reason, and the reason is set off by WHITESPACE then #, never by a bare #:
+# two labels in the table contain one ($# and ${NAME#%}), so splitting on the
+# character alone truncated them into rows that matched nothing.
+skip_syn_set() {
+	[ -f "$ROOT/skip-syntax" ] || return 0
+	grep -v '^[[:space:]]*#' "$ROOT/skip-syntax" |
+		sed 's/[[:space:]][[:space:]]*#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' |
+		grep -v '^$' | sort -u
+}
+
+# syntax_coverage -- prints one line per verdict, nothing when the table is
+# fully accounted for.
+syntax_coverage() {
+	order_syntax report "$LEVELS"/* > "$TMP/syncov" 2>/dev/null
+	sed 's/\t.*//' "$SYNTAX" | grep -v '^#' | grep -v '^[[:space:]]*$' \
+		| sort -u > "$TMP/synall"
+	skip_syn_set > "$TMP/synskip"
+	awk -F'\t' '
+		FILENAME ~ /synall$/  { all[$0] = 1; next }
+		FILENAME ~ /synskip$/ { skip[$0] = 1; next }
+		$1 == "decl" { decl[$3] = 1; dwhere[$3 SUBSEP $2] = 1; next }
+		$1 == "req"  { req[$3] = 1; rwhere[$3 SUBSEP $2] = 1; next }
+		END {
+			for (l in all) {
+				if (decl[l] && (l in skip))
+					printf "DOUBLE %s -- declared by a level AND retired in skip-syntax; one decision, not two\n", l
+				else if (!decl[l] && !(l in skip))
+					printf "UNCLAIMED %s -- no level declares it, skip-syntax does not retire it\n", l
+			}
+			for (k in dwhere) {
+				split(k, p, SUBSEP)
+				if (!(p[1] SUBSEP p[2] in rwhere))
+					printf "HOLLOW %s %s -- declared, but no block of that level requires it\n", p[2], p[1]
+			}
+			for (l in skip) if (!(l in all))
+				printf "ORPHAN %s -- retired in skip-syntax, but learn/syntax has no such row\n", l
+		}
+	' "$TMP/synall" "$TMP/synskip" "$TMP/syncov"
+	# the reason column is closed, like why: is. split on whitespace-then-#,
+	# for the same reason skip_syn_set does.
+	awk '
+		/^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+		{
+			if (!match($0, /[ \t]+#/)) {
+				printf "BADREASON %s -- no reason given\n", $0; next
+			}
+			lab = substr($0, 1, RSTART - 1)
+			r   = substr($0, RSTART + RLENGTH)
+			gsub(/^[ \t]+|[ \t]+$/, "", lab); gsub(/^[ \t]+/, "", r)
+			split(r, w, /[ \t]/)
+			if (w[1] !~ /^(multiline|interactive|redundant|pending)$/)
+				printf "BADREASON %s -- \"%s\" is not a reason skip-syntax lists\n", lab, w[1]
+		}
+	' "$ROOT/skip-syntax" 2>/dev/null
+}
+
 # cmpref_moving -- prints every cmp: ref block whose answer cannot repeat.
 cmpref_moving() {
 	awk '

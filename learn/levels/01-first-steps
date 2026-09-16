@@ -191,3 +191,10 @@ cmp: ref
 ref: ls
 teach: ls -x
 hint: same columns as default, but fills across a row before dropping down
+---
+q: %show% where you are standing, using echo rather than pwd
+a: echo $PWD
+cmp: ref
+ref: echo
+teach: echo
+hint: the shell keeps it in PWD, and $NAME is how you read a variable back

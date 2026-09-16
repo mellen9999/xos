@@ -1,0 +1,38 @@
+# grammar the curriculum deliberately does not drill, and why.
+#
+# the mirror of learn/skip, for learn/syntax. every row of that table is
+# either DECLARED by a level's syntax: header -- and required by a block of
+# that same level, so the declaration cannot be a lie -- or listed here with
+# a reason. selftest fails on anything in neither.
+#
+# the row stays in learn/syntax either way. the reference panel must still
+# explain a construct the learner meets in a script, even one no card drills;
+# retiring it here retires the DRILL, not the explanation.
+#
+# format:  <label>   # reason
+#
+# the whole line before the # is the label, because labels carry spaces:
+# `[ ]`, `{ }`, `( )`, `$1..$9`. there is no second field to get wrong.
+#
+# the reasons, closed the way lib/lint's why: list is closed:
+#   multiline    -- cannot be written on the one line an answer is
+#   interactive  -- only meaningful at a live prompt, never inside sh -c
+#   redundant    -- a second spelling of a construct a card already drills
+#   pending      -- drillable and owed a card; the commit that teaches it
+#                   deletes this line. same promise as learn/skip's pending.
+
+<<              # multiline -- a heredoc needs its body on the next line, and an answer is one line
+
+( )             # pending
+{ }             # pending
+$@              # pending
+$*              # pending
+$#              # pending
+$0              # pending
+$1..$9          # pending
+${NAME#%}       # pending
+`CMD`           # pending
+[...]           # pending
+?               # pending
+~               # pending
+--              # pending
