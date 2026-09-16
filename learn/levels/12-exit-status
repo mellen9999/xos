@@ -193,3 +193,31 @@ cmp: ref
 ref: printf
 teach: printf
 hint: without the -- in front, set would read -n as an option to itself
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: set -- "a b" c; echo $#
+a: 2
+ref: sh
+teach: sh
+hint: the quotes keep a b as one parameter, so there are two, not three
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=1; ( x=2 ); echo $x
+a: 1
+ref: sh
+teach: sh
+hint: the parens run in a subshell, and nothing it sets survives the closing one
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=1; { x=2; }; echo $x
+a: 2
+ref: sh
+teach: sh
+hint: braces group without a subshell, so the assignment is this shell's
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: set -- "a b" c; printf '%s\n' "$*"
+a: a b c
+ref: sh
+teach: sh
+hint: "$*" joins every parameter into one word, so printf gets a single line

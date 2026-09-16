@@ -310,6 +310,14 @@ blk_load() {
 	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
 	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render_named "$seed" | head -1)
 	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render_named "$seed")
+	# predict: a line the learner READS instead of writes. the card asks what
+	# it prints, and the answer is that output -- the one card kind that
+	# cannot be passed by finding another route to the same result, because
+	# there is no route to find. it is how ${f%.log} against ${f#*.}, "$@"
+	# against "$*", and > f 2>&1 against 2>&1 > f become testable at all:
+	# produce-the-command cannot tell those pairs apart, which is exactly why
+	# 04-redirection graded its own lesson wrong for so long.
+	Q_PREDICT=$(sed -n 's/^predict: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	[ -n "$Q_PROMPT" ]
 }
 
@@ -360,6 +368,12 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	# whatever is under it, so it says the most when what is under it is plain.
 	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
 	Q_ROWS=$(( Q_ROWS + (2 + ${#Q_PROMPT}) / ${COLS:-80} + 1 ))
+	# a predict card shows the line rather than asking for it. it is set off
+	# from the prose because it is the thing being read, not the question.
+	if [ -n "${Q_PREDICT:-}" ]; then
+		printf '\n    %s%s%s\n\n' "$W" "$Q_PREDICT" "$N"
+		Q_ROWS=$(( Q_ROWS + 3 ))
+	fi
 	# the two panels you can open at a card: ? for the hint, Tab for the
 	# reference, either key again closes it. there is no skip and no try
 	# limit -- a wrong line is wiped and you type another, for as long as it
@@ -1236,7 +1250,7 @@ st_block() {
 	# no reason means nobody decided, and the build stops until someone does.
 	# chains are exempt: they are always reference-graded.
 	case "$lbl" in chain/*) ;; *)
-		if ! grep -qE '^(out|state|cmp|status):' "$TMP/blk"; then
+		if ! grep -qE '^(out|state|cmp|status|predict):' "$TMP/blk"; then
 			w=$(sed -n 's/^why: \{0,1\}//p' "$TMP/blk" | head -1)
 			case "${w:-none}" in
 				live-net|live-hw|root|interactive|conceptual|fixture-cost|primitive-cost) : ;;
@@ -1247,6 +1261,26 @@ st_block() {
 			esac
 		fi ;;
 	esac
+
+	# a predict card claims what a line prints. run it and hold the claim to
+	# it -- a card that misquotes its own output teaches the wrong answer and
+	# marks the right one wrong, and nothing else in here would catch it.
+	# the output must also be one line and not empty: a learner types the
+	# answer, so nothing typeable means nothing tested.
+	if [ -n "${Q_PREDICT:-}" ]; then
+		got=$(run_answer "$Q_PREDICT"); SANDBOX_DIRTY=1
+		a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+		if [ -z "$got" ]; then
+			echo "FAIL $lbl: predict: '$Q_PREDICT' prints nothing -- there is no answer to type" >&2
+			bad=$((bad+1))
+		elif [ "$(printf '%s\n' "$got" | grep -c .)" -gt 1 ]; then
+			echo "FAIL $lbl: predict: '$Q_PREDICT' prints more than one line" >&2
+			bad=$((bad+1))
+		elif [ "$got" != "$a" ]; then
+			echo "FAIL $lbl: predict: '$Q_PREDICT' prints '$got', the card says '$a'" >&2
+			bad=$((bad+1))
+		fi
+	fi
 
 	# a weak out: -- fewer than four literal characters once the regex
 	# metacharacters are gone -- is matched by the bare command, or by any

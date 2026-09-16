@@ -234,3 +234,24 @@ cmp: ref
 ref: alias
 teach: alias
 hint: alias with no name or value lists every alias you've defined, as name=value
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: f=app.log; echo ${f%.log}
+a: app
+ref: sh
+teach: sh
+hint: % strips a suffix off the value, leaving what came before it
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: f=app.log; echo ${f#*.}
+a: log
+ref: sh
+teach: sh
+hint: # strips a prefix instead, so *. eats everything up to the first dot
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: echo ${u:-fallback}
+a: fallback
+ref: sh
+teach: sh
+hint: u was never set, so the value after :- is used instead
