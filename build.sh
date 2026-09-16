@@ -2985,6 +2985,23 @@ ci() {
   # advisory by design (see lib/lint) -- printed so drift shows in the ci log,
   # never a hard fail, so it cannot breed filler.
   [ -d learn/ref ] && { say "learn authoring ledger"; LEARN_ROOT="$PWD/learn" ./learn/learn lint 2>&1 || true; }
+  # order and coverage, on the other hand, ARE hard -- and they belong here
+  # rather than only in the weekly signed tier, because neither needs a built
+  # image: both read the committed corpus and ref pages and nothing else. a
+  # question that uses a command before any level introduces it, or a flag
+  # that is neither taught nor retired, is a defect you want named on the push
+  # that made it, not six days later.
+  if [ -d learn/ref ] && [ -n "$bb" ]; then
+    say "learn corpus order and coverage"
+    local cv_out cv_rc=0
+    LEARN_ROOT="$PWD/learn" "$bb" ash learn/learn order || rc=1
+    # captured rather than piped: a pipe hands back the exit status of the
+    # last stage, so `coverage | sed` reports sed's success and an untaught
+    # flag would have sailed past the check that exists to catch it.
+    cv_out=$(LEARN_ROOT="$PWD/learn" "$bb" ash learn/learn coverage -q 2>&1) || cv_rc=1
+    printf '%s\n' "$cv_out" | sed -n '3,5p'
+    [ "$cv_rc" -eq 0 ] || { printf '%s\n' "$cv_out" >&2; rc=1; }
+  fi
   [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
                   || printf '\033[1;31m  ci: FAILED\033[0m\n'
   return $rc
