@@ -24,7 +24,8 @@
 # 30-root gets no row on purpose. it kept its id but absorbed the level that
 # used to sit below it, so every block index in it moved. its card keys are
 # now orphans -- held rebuilds keys from the level file, so they count toward
-# neither side, and decay drops them within DECAY_DAYS. the boss-fall in
+# neither side, and they erode out of the file once they are GRACE_DAYS
+# past due with nothing proving them. the boss-fall in
 # passed stays: it happened, and passed is never revoked. held will simply
 # read false until the merged level is worked back up to tier 2, which is
 # exactly right -- it is not the level that was cleared.

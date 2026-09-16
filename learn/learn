@@ -677,14 +677,24 @@ victory() {
 
 # ---- review ---------------------------------------------------------------
 
-# the weakest cards, re-asked. tier 0 before tier 1 before tier 2, stalest
-# first within a tier -- the session spends its time where you are actually
-# weak, which is the whole reason the cards exist.
+# what you owe today, soonest-due first -- and when you owe nothing, the
+# weakest cards instead, so review is never a closed door.
+#
+# the due queue is the point of the schedule: it is the tool telling you what
+# to sit down to rather than you guessing. the weakest-first sort is kept for
+# the fallback because "nothing is due" is the moment you most want a session
+# aimed at where you are actually worst.
 review() {
-	local n=${1:-20} line key lvl rest idx tpl rc path
+	local n=${1:-20} line key lvl rest idx tpl rc path sub=due
 	[ -s "$CARDS" ] || { note "no cards yet -- answer some questions first"; return 0; }
-	cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
+	cards_due | head -n "$n" > "$TMP/rev"
 	local nc k=0; nc=$(grep -c . "$TMP/rev")
+	if [ "$nc" -eq 0 ]; then
+		sub=weakest
+		note "nothing due -- the weakest cards instead."
+		cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
+		nc=$(grep -c . "$TMP/rev")
+	fi
 	# the list is read on fd 3 because ask() owns stdin
 	while IFS= read -r line <&3; do
 		key=$(printf '%s\n' "$line" | cut -f1)
@@ -703,7 +713,7 @@ review() {
 		[ "$Q_TPL" = "$tpl" ] || continue
 		k=$((k + 1))
 		cls
-		statusbar "review" "weakest first" "$k" "$nc" ""
+		statusbar "review" "$sub" "$k" "$nc" ""
 		# a level card is asked by its level ID, which is what ask() keys on.
 		# passing the file path keyed a second, absolute-path card that stats
 		# never counted and the next review could not resolve.
@@ -825,7 +835,8 @@ stats() {
 			"$([ "$pm" = "$pn" ] && echo "$G" || echo "$D")" "$pm" "$pn" "$N"
 	fi
 	rule
-	note "tier 2 is mastered. a card unproved for $DECAY_DAYS days drops a tier."
+	note "tier 2 is mastered. every card carries its own due date -- $(cards_ndue) due now."
+	note "a card left more than $GRACE_DAYS days past due loses a rung."
 	note "a level in green is HELD: the gauntlet wants all of them at once."
 }
 
@@ -1847,6 +1858,65 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL held: orphaned keys or a missing card read wrong" >&2; bad=$((bad+1)); }
 
+	# the schedule. these are the properties the whole card file exists to
+	# have, and until now nothing checked any of them: the model was three
+	# numbers and a flat clock, so there was little to get wrong. a ladder
+	# with intervals, a due queue and an erosion window has plenty.
+	#
+	# each runs against its own CARDS file in $TMP, so a build can never
+	# touch a real learner's progress, and each states the property in the
+	# failure text rather than a line number.
+	( CARDS="$TMP/sc"; SESSION_SEEN="$TMP/ss"; _n=$(now)
+	  : > "$CARDS"; : > "$SESSION_SEEN"
+	  # a row an older build wrote resumes its clock from when it was proved,
+	  # so nothing mastered arrives overdue on the first launch after upgrade
+	  printf 'k\t2\t%s\n' "$_n" > "$CARDS"; cards_decay
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 7 ] || exit 1
+	  [ "$(cards_ndue)" = 0 ]       || exit 1
+	  # left long past due, it loses one rung -- once, not once per launch
+	  printf 'k\t2\t%s\n' "$((_n - 60 * 86400))" > "$CARDS"; cards_decay
+	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  _was=$(cat "$CARDS"); cards_decay
+	  [ "$(cat "$CARDS")" = "$_was" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards: an old row does not resume its clock, or staleness cascades" >&2; bad=$((bad+1)); }
+
+	( CARDS="$TMP/sc2"; SESSION_SEEN="$TMP/ss2"
+	  : > "$CARDS"; : > "$SESSION_SEEN"
+	  # mastery costs two sittings and cannot be farmed in one
+	  card_grade k 1; card_grade k 1
+	  [ "$(cut -f6 "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  : > "$SESSION_SEEN"; card_grade k 1
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 7 ] || exit 1
+	  [ "$(cards_ndue)" = 0 ]       || exit 1
+	  # a miss collapses the interval and banks a lapse
+	  : > "$SESSION_SEEN"; card_grade k 0
+	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f7 "$CARDS")" = 1 ] || exit 1
+	  # a card missed the first time it is ever seen is still a card unseen
+	  : > "$CARDS"; : > "$SESSION_SEEN"; card_grade z 0
+	  [ "$(grep -c . "$CARDS")" = 0 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards: the ladder climbs, falls or farms wrong" >&2; bad=$((bad+1)); }
+
+	( CARDS="$TMP/sc3"; SESSION_SEEN="$TMP/ss3"; _n=$(now)
+	  : > "$SESSION_SEEN"
+	  # the queue is what has fallen due, soonest first -- nothing else
+	  printf 'a\t2\t0\t%s\t7\t2\t0\nb\t2\t0\t%s\t7\t2\t0\nc\t2\t0\t%s\t7\t2\t0\n' \
+		"$((_n - 10))" "$((_n + 99999))" "$((_n - 500))" > "$CARDS"
+	  [ "$(cards_ndue)" = 2 ] || exit 1
+	  [ "$(cards_due | cut -f1 | tr '\n' ' ')" = "c a " ] || exit 1
+	  # and the ladder tops out rather than running away
+	  : > "$CARDS"; _i=0
+	  while [ "$_i" -lt 12 ]; do : > "$SESSION_SEEN"; card_grade k 1; _i=$((_i + 1)); done
+	  [ "$(cut -f5 "$CARDS")" = 180 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards: the due queue or the interval ceiling is wrong" >&2; bad=$((bad+1)); }
+
 	# every scenario names the level it unlocks after. nothing else checks
 	# that id, so a renumber that misses one pins the scenario to a level
 	# that will never exist -- and a scenario that can never unlock is
@@ -2292,7 +2362,7 @@ _mi_off() { printf '   %s%s   %-10s %s%s\n' "$D" "$1" "$2" "$3" "$N"; }
 # here rather than to the shell, so a session is a place you are in, not a
 # series of commands you retype. non-interactive callers never reach it.
 menu() {
-	local k p t h id unlocked=1
+	local k p t h id due unlocked=1
 	level_ids > "$TMP/ids"
 	t=$(grep -c . "$TMP/ids")
 	while :; do
@@ -2307,6 +2377,10 @@ menu() {
 		h=$(awk 'NR == FNR { ids[$1] = 1; next } ($1 in ids) { c++ } END { print c + 0 }' \
 			"$TMP/ids" "$TMP/held" 2>/dev/null); h=${h:-0}
 		{ [ "$p" -eq "$t" ] && [ "$h" -eq "$t" ]; } && unlocked=1 || unlocked=0
+		# recounted every loop for the same reason held is: a review just
+		# taken has changed it, and a menu that says 17 due after you cleared
+		# them is a menu nobody trusts twice.
+		due=$(cards_ndue)
 
 		cls
 		hdr "learn" "the shell, one card at a time"
@@ -2315,7 +2389,7 @@ menu() {
 
 		_mi c continue  "where you left off"
 		_mi p practice  "any level by number"
-		_mi r review    "weakest cards first"
+		_mi r review    "$([ "$due" -gt 0 ] && echo "$due due" || echo "weakest cards first")"
 		_mi d daily     "one hard card, same for all"
 		if [ "$unlocked" = 1 ]; then _mi g gauntlet "30s a stage, one life"
 		elif [ "$p" -eq "$t" ]; then _mi_off g gauntlet "$((t - h)) level(s) gone stale -- review"

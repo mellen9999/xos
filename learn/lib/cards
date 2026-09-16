@@ -1,24 +1,47 @@
-# cards -- what you know, and when you last proved it.
+# cards -- what you know, and when you have to prove it again.
 #
-# every distinct prompt is a card with a tier: 0 unseen, 1 learning, 2 mastered.
-# correct promotes one tier, wrong demotes one. a card promotes at most once per
-# session, so mastery costs two sittings and cannot be farmed in one.
+# every distinct prompt is a card. it carries a REPS count -- how many times
+# running you have got it right -- and the ladder below turns that into the
+# interval before it comes back: 1 day, 7, 16, 35, 75, then half again each
+# rung to a 180-day ceiling. answer it right and the interval grows; miss it
+# and a rep goes and the interval collapses back down the ladder. a card is
+# DUE when its due stamp has passed, and `learn review` asks the due ones.
 #
-# a card unseen for 30 days decays a tier. that is the difference between a
-# score and a skill: the number goes down when you stop, because so does the
-# skill. tier 0 is forgotten -- the card leaves the file entirely.
+# that is the difference between a campaign and a skill. the old model was
+# three tiers and a flat thirty-day trapdoor: finish the levels and nothing
+# was ever scheduled again, and a card you had proved fifty times sat under
+# the same clock as one you saw yesterday.
 #
-# storage is one line per card, "key<TAB>tier<TAB>stamp", in a file on p3 when
-# p3 is unlocked and in tmpfs when it is not. no arrays: awk owns the file.
-# the separator is a tab and not a space because the key is a whole question
-# template -- it is full of spaces, and splitting on them silently truncated
-# every lookup to the first word.
+# tier is kept, derived from reps: 0 unseen, 1 learning, 2 mastered. it is
+# what `held` and the gauntlet gate read, and it stays field 2 so every
+# reader of this file that only wants "do they have it" is untouched.
+#
+# a card promotes at most once per session, so mastery costs two sittings and
+# cannot be farmed in one -- and the first interval is a day, so it could not
+# come back today even without that rule.
+#
+# the number still goes down when you stop. a card left more than GRACE_DAYS
+# past its own due date loses a rep, once, and is re-stamped. a fragile card
+# erodes in a fortnight; one proved to 180 days has most of a year of runway.
+# the skill decays, so the number does too -- but each at its own rate.
+#
+# storage is one line per card, tab-separated, in a file on p3 when p3 is
+# unlocked and in tmpfs when it is not:
+#
+#   key  tier  stamp  due  ivl  reps  lapses
+#
+# no arrays: awk owns the file. the separator is a tab and not a space
+# because the key is a whole question template -- it is full of spaces, and
+# splitting on them silently truncated every lookup to the first word.
+# a three-field row written by an older build is normalised in place on the
+# next launch (norm(), below), resuming its clock from when it was last
+# proved rather than arriving overdue.
 
 CARDS="$STATE/cards"
 # not $TMP/seen -- order() owns that name for its introduced-commands ledger,
 # and a long-lived process (review, challenge) runs both code paths.
 SESSION_SEEN="$TMP/session"
-DECAY_DAYS=30
+GRACE_DAYS=14
 
 cards_init() {
 	mkdir -p "$STATE" 2>/dev/null || :
@@ -50,49 +73,116 @@ card_tier() {
 	awk -F'\t' -v k="$1" '$1 == k { print $2; found = 1; exit } END { if (!found) print 0 }' "$CARDS"
 }
 
-card_set() {
-	local tmp="$CARDS.tmp.$$"
-	[ -f "$CARDS" ] || : > "$CARDS"
-	_cards_lock
-	awk -F'\t' -v OFS='\t' -v k="$1" -v t="$2" -v s="$3" '
-		$1 == k { next }
-		{ print }
-		END { if (t > 0) print k, t, s }
-	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-	_cards_unlock
-}
+now() { date +%s 2>/dev/null || echo 0; }
 
-now() { date +%s; }
+# the ladder, written once. the grade path and the erosion path must agree on
+# what a rep is worth, and two copies of a table is two tables -- so both awk
+# programs below are handed this same text.
+#
+# the growth is integer all the way: 23/10 with int() is the 2.3x that takes
+# 75 days to 172 to the 180-day ceiling, without ash ever seeing a fraction
+# ($(( )) has no floats; awk does, and every field written back is int()).
+_CARD_FNS='
+	function ivl_for(r,   v, i) {
+		if (r <= 0) return 0
+		if (r == 1) return 1
+		if (r == 2) return 7
+		if (r == 3) return 16
+		if (r == 4) return 35
+		if (r == 5) return 75
+		v = 75; i = 5
+		while (i < r) { v = int(v * 23 / 10); if (v > 180) v = 180; i++ }
+		return v
+	}
+	function tier_for(r) { return r <= 0 ? 0 : (r == 1 ? 1 : 2) }
+	# norm -- read the current row into due/ivl/reps/lap, whichever build
+	# wrote it. a three-field row predates the schedule: it resumes its clock
+	# from the last time it was PROVED, so a card mastered last week is due
+	# next week and not the moment the new build first runs.
+	function norm() {
+		if ($4 == "") {
+			reps = ($2 + 0 >= 2 ? 2 : $2 + 0)
+			ivl  = ivl_for(reps)
+			due  = $3 + ivl * 86400
+			lap  = 0
+		} else {
+			due = $4 + 0; ivl = $5 + 0; reps = $6 + 0; lap = $7 + 0
+		}
+	}
+'
 
-# card_grade KEY RIGHT -- promote or demote, at most one promotion per session
+# card_grade KEY RIGHT -- climb or fall one rung, at most one climb per
+# session. one awk pass under one lock: reading the row and writing it back
+# through two separate lock cycles is the race the lock was taken for.
 card_grade() {
-	local k=$1 right=$2 t
-	t=$(card_tier "$k")
+	local k=$1 right=$2 tmp="$CARDS.tmp.$$" n
+	[ -f "$CARDS" ] || : > "$CARDS"
 	if [ "$right" = 1 ]; then
 		grep -qxF -- "$k" "$SESSION_SEEN" 2>/dev/null && return 0
 		echo "$k" >> "$SESSION_SEEN"
-		[ "$t" -lt 2 ] && t=$((t + 1))
-	else
-		[ "$t" -gt 0 ] && t=$((t - 1))
 	fi
-	card_set "$k" "$t" "$(now)"
-}
-
-# cards_decay -- run once at startup. a tier that has not been proved in
-# DECAY_DAYS drops by one; a card that drops to 0 is dropped from the file.
-cards_decay() {
-	[ -s "$CARDS" ] || return 0
-	local tmp="$CARDS.tmp.$$" cutoff n
 	n=$(now)
-	cutoff=$(( n - DECAY_DAYS * 86400 ))
 	_cards_lock
-	# stamp the decay time: re-emitting the old timestamp decayed the same
-	# stale card again on every launch instead of once per DECAY_DAYS.
-	awk -F'\t' -v OFS='\t' -v c="$cutoff" -v n="$n" '
-		{ t = $2; ts = $3; if ($3 < c) { t = t - 1; ts = n } if (t > 0) print $1, t, ts }
+	awk -F'\t' -v OFS='\t' -v k="$k" -v right="$right" -v n="$n" "$_CARD_FNS"'
+		$1 == k {
+			found = 1
+			norm()
+			if (right == 1) reps++
+			else { if (reps > 0) reps--; lap++ }
+			ivl = ivl_for(reps)
+			# reps 0 is forgotten: the row leaves the file entirely, which is
+			# what tier 0 has always meant.
+			if (tier_for(reps) > 0) print k, tier_for(reps), n, n + ivl * 86400, ivl, reps, lap
+			next
+		}
+		{ print }
+		# a card missed the first time it is ever seen stays unseen -- that is
+		# what the old model did, and a row at tier 0 is a row about nothing.
+		END { if (!found && right == 1) print k, 1, n, n + 86400, 1, 1, 0 }
 	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
 	_cards_unlock
 }
+
+# cards_decay -- run once at startup. two jobs, one pass, because both are
+# "bring every row up to date with the calendar":
+#
+#   normalise a row an older build wrote, resuming its clock from its stamp
+#   erode a row left more than GRACE_DAYS past its own due date
+#
+# the erosion re-stamps the due date. without that, the same staleness took
+# another rep at every launch -- the bug the old flat decay had and fixed the
+# same way, and the reason this rewrites `due` rather than reading `stamp`.
+cards_decay() {
+	[ -s "$CARDS" ] || return 0
+	local tmp="$CARDS.tmp.$$" n
+	n=$(now)
+	_cards_lock
+	awk -F'\t' -v OFS='\t' -v n="$n" -v grace="$(( GRACE_DAYS * 86400 ))" "$_CARD_FNS"'
+		{
+			norm()
+			stamp = $3
+			if (n - due > grace) {
+				if (reps > 0) reps--
+				ivl = ivl_for(reps)
+				due = n
+				stamp = n
+			}
+			if (tier_for(reps) > 0) print $1, tier_for(reps), stamp, due, ivl, reps, lap
+		}
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	_cards_unlock
+}
+
+# cards_due -- the rows whose due stamp has passed, soonest-due first. this is
+# the queue: what the schedule says you owe today, in the order it fell due.
+cards_due() {
+	[ -s "$CARDS" ] || return 0
+	awk -F'\t' -v n="$(now)" "$_CARD_FNS"'
+		{ norm(); if (due <= n) print }
+	' "$CARDS" 2>/dev/null | sort -t "$(printf '\t')" -k4,4n
+}
+
+cards_ndue() { cards_due | grep -c . ; }
 
 # weakest first: lowest tier, then longest unproved. the tier is already
 # field 2 of every line -- sorting on it directly beats a card_tier lookup
