@@ -6,9 +6,9 @@ brief: A variable is NAME=VALUE, with no spaces around the =. You read it back
 brief: with $NAME. Command substitution $(CMD) runs a command and becomes its
 brief: output, which is how you get a number out of wc and into a comparison.
 brief:
-brief: Quote your expansions. "$x" is one word even when the value has spaces;
-brief: $x is however many words the value happens to split into. Nearly every
-brief: shell script bug that survives review is a missing pair of quotes.
+brief: Quote your expansions. "$x" is one word whatever spaces it holds; unquoted,
+brief: $x splits on them and any * left is matched against the directory. A
+brief: backslash protects the next character. Most shell bugs are a missing quote.
 brief:
 brief: ${NAME} is the same expansion with braces, so you can glue text right
 brief: after a name. ${#NAME} is its length, ${NAME:-WORD} falls back to WORD
@@ -311,3 +311,31 @@ a: [a b]
 ref: sh
 teach: sh
 hint: quoted, "$v" stays one word, space and all -- printf's format runs just once
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: mkdir -p g1; cd g1; touch a1 a2; p='a*'; echo $p
+a: a1 a2
+ref: sh
+teach: sh
+hint: the quotes only held while p was being set -- unquoted, $p's value is globbed against the directory after it expands
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: mkdir -p g2; cd g2; touch a1 a2; p='a*'; echo "$p"
+a: a*
+ref: sh
+teach: sh
+hint: quoted, the expanded value is never re-read as a glob -- it stays the two characters it is
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: v=hi; echo '$v'
+a: $v
+ref: sh
+teach: sh
+hint: single quotes stop the shell reading the $ at all, so there is nothing left to expand
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: printf '[%s]' a\ b; echo
+a: [a b]
+ref: sh
+teach: sh
+hint: the backslash protects just the next character, so the space joins the two into one word
