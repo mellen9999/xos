@@ -806,7 +806,7 @@ daily() {
 
 stats() {
 	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
-	local id n m sn sm pn pm
+	local id n m sn sm pn pm lk ln lkey lid lrest ltpl lname
 	# one pass, and the same one held_ids uses: counting by key prefix here
 	# and by rebuilt key there would be two answers to "have you still got
 	# this level", which is the drift every shared walker in here exists to
@@ -833,6 +833,32 @@ stats() {
 		pm=$(for id in $(project_ids); do prj_ndone "$id"; done | awk '{ n += $1 } END { print n + 0 }')
 		printf '  %s%-28s%s %s%s/%s%s\n' "$W" projects "$N" \
 			"$([ "$pm" = "$pn" ] && echo "$G" || echo "$D")" "$pm" "$pn" "$N"
+	fi
+	# the cards that keep getting away. everything above this line says where
+	# you are; this says which questions keep taking you back there -- and a
+	# card you have lost four times is not one more card, it is the one to go
+	# and read the reference for.
+	lk=$(cards_leeches 3 | head -5)
+	if [ -n "$lk" ]; then
+		rule
+		note "keeps getting away"
+		printf '%s\n' "$lk" | while IFS="$(printf '\t')" read -r ln lkey; do
+			[ -n "$lkey" ] || continue
+			lid=${lkey%%/*}; lrest=${lkey#*/}
+			# the level's number, not its name: it is what you type to go back
+			# to it, and it costs two columns instead of thirteen that still
+			# truncate. a mission key is "scn/<file>/<idx>#..." -- one
+			# component deeper, and it says scn rather than its own number,
+			# which would read as a level.
+			if [ "$lid" = scn ]; then lname=scn; lrest=${lrest#*/}
+			else lname=${lid%%-*}; fi
+			ltpl=${lrest#*#}
+			# the stored key is the template, alternations and all. show the
+			# first branch of each -- the card is one card however it rolled,
+			# and "{print|show} the directory" reads as neither.
+			printf '  %s%2sx%s %s%3s%s %s\n' "$R" "$ln" "$N" "$D" "$lname" "$N" \
+				"$(printf '%s' "$ltpl" | sed 's/{\([^{}|]*\)|[^{}]*}/\1/g' | cut -c1-62)"
+		done
 	fi
 	rule
 	note "tier 2 is mastered. every card carries its own due date -- $(cards_ndue) due now."
@@ -1916,6 +1942,32 @@ selftest() {
 	  [ "$(cut -f5 "$CARDS")" = 180 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL cards: the due queue or the interval ceiling is wrong" >&2; bad=$((bad+1)); }
+
+	( CARDS="$TMP/sc4"; SESSION_SEEN="$TMP/ss4"
+	  : > "$CARDS"; : > "$SESSION_SEEN"
+	  # lapses accumulate across sittings and survive getting it right again:
+	  # what the list reads is the card's history, not its current tier, and a
+	  # card you have lost four times and just got back is still that card.
+	  # it has to climb to two reps first -- a card lost at one rep falls to
+	  # zero, which is forgotten, and a forgotten card has no history to keep.
+	  : > "$SESSION_SEEN"; card_grade k 1
+	  : > "$SESSION_SEEN"; card_grade k 1
+	  _i=0
+	  while [ "$_i" -lt 4 ]; do
+		: > "$SESSION_SEEN"; card_grade k 0
+		: > "$SESSION_SEEN"; card_grade k 1
+		_i=$((_i + 1))
+	  done
+	  [ "$(cut -f7 "$CARDS")" = 4 ] || exit 1
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  # the threshold holds and the worst comes first
+	  printf 'a	1	0	0	1	1	2
+b	1	0	0	1	1	7
+c	1	0	0	1	1	3
+' > "$CARDS"
+	  [ "$(cards_leeches 3 | cut -f2 | tr '\n' ' ')" = "b c " ] || exit 1
+	  [ -z "$(cards_leeches 8)" ] || exit 1
+	  exit 0 ) 		|| { echo "FAIL cards: lapses do not accumulate, or the leech list is wrong" >&2; bad=$((bad+1)); }
 
 	# every scenario names the level it unlocks after. nothing else checks
 	# that id, so a renumber that misses one pins the scenario to a level

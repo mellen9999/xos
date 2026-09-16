@@ -184,6 +184,28 @@ cards_due() {
 
 cards_ndue() { cards_due | grep -c . ; }
 
+# cards_leeches MIN -- the cards that keep getting away, worst first, as
+# "lapses<TAB>key".
+#
+# a lapse is a card answered wrong AFTER having been right, and it is the one
+# thing a tier cannot tell you: two cards both sitting at tier 1 are not the
+# same card if one of them has fallen back six times and the other once. the
+# tier says where you are, the lapse count says what keeps taking you back
+# there.
+#
+# erosion is deliberately not a lapse. letting a card rot is not getting it
+# wrong, and counting it would fill this list with everything you simply have
+# not seen lately -- which is what the due queue is already for.
+#
+# it reads on the questions as much as on the learner: a card a lot of people
+# lapse is usually not a fact nobody can hold, it is a distinction the corpus
+# is drawing badly.
+cards_leeches() {
+	[ -s "$CARDS" ] || return 0
+	awk -F'\t' -v OFS='\t' -v m="$1" '$7 + 0 >= m + 0 { print $7 + 0, $1 }' "$CARDS" 2>/dev/null \
+		| sort -t "$(printf '\t')" -k1,1nr
+}
+
 # weakest first: lowest tier, then longest unproved. the tier is already
 # field 2 of every line -- sorting on it directly beats a card_tier lookup
 # per line (that early version forked an awk for every card).
