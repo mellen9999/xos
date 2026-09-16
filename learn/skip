@@ -601,16 +601,16 @@ times    *      # verbose -- all-zero cpu time in a one-shot answer; it asserts 
 .        *      # pending
 :        *      # pending
 alias    *      # pending
-bg       *      # pending
+
 eval     *      # pending
 exec     *      # pending
-fg       *      # pending
+
 getopts  *      # pending
 let      *      # pending
 local    *      # pending
-poweroff *      # pending
+poweroff *      # danger -- banned by the answer fence; a drill that runs your answer cannot ask for it
 readonly *      # pending
-reboot   *      # pending
+reboot   *      # danger -- same fence; halt is retired above as its alias
 return   *      # pending
 shift    *      # pending
 trap     *      # pending

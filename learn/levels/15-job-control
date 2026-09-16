@@ -174,3 +174,17 @@ cmp: ref
 ref: ulimit
 teach: ulimit -f
 hint: -f reports the max file size a process may write, in blocks
+---
+q: {bring the newest background job back in front of you|pull the last job you backgrounded into the foreground}, with fg
+a: fg
+why: interactive
+ref: fg
+teach: fg
+hint: fg hands the terminal to the job, which is why it needs one to run
+---
+q: {let a job you stopped carry on, still in the background|restart a stopped job without taking your prompt back}, with bg
+a: bg
+why: interactive
+ref: bg
+teach: bg
+hint: ^Z stops the job in front of you; bg is how you set it going again
