@@ -16,3 +16,19 @@
 # and the card keys, which are prefixed <level-id>/. inprogress is dropped
 # rather than rewritten: a renumbered level is an edited level, so its
 # fingerprint has moved and the place was already void.
+1 30-root 31-root
+1 29-proving-this-machine 30-proving-this-machine
+1 28-the-editor 29-the-editor
+1 27-tls-and-irc 28-tls-and-irc
+1 26-moving-data 27-moving-data
+1 25-reachability 26-reachability
+1 24-interfaces 25-interfaces
+1 23-the-machine 24-the-machine
+1 22-disks 23-disks
+1 21-bytes 22-bytes
+1 20-integrity 21-integrity
+1 19-archives 20-archives
+1 18-xargs 19-xargs
+1 17-permissions 18-permissions
+1 16-processes 17-processes
+1 15-job-control 16-job-control

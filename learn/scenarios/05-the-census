@@ -1,5 +1,5 @@
 name: the census
-after: 18-xargs
+after: 19-xargs
 intro: Four commands minimum from here. Build the pipeline one stage at a time
 intro: and read the output of each before you add the next -- that is the actual
 intro: skill, not memorising flags.

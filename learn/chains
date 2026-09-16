@@ -63,35 +63,35 @@ ref: awk
 ---
 q: %count% the lines across every .log file with xargs, one total
 a: find . -name '*.log' | xargs wc -l | tail -1
-lvl: 18
+lvl: 19
 ref: xargs
 ---
 q: %show% @txt@'s hash with sha256sum, nothing after it
 a: sha256sum @txt@ | cut -d' ' -f1
-lvl: 20
+lvl: 21
 ref: sha256sum
 ---
 q: {name @bin@ by its first eight bytes in hex, one line|read @bin@'s first eight bytes as hex, one line|dump @bin@'s first eight bytes as hex, one line}, with od
 a: od -A n -t x1 -N 8 @bin@ | head -1
-lvl: 21
+lvl: 22
 ref: od
 ---
 q: {pull the readable unlock string buried in @bin@|carve the unlock string out of @bin@|dig out @bin@'s string that mentions unlocking}, with strings
 a: strings @bin@ | grep unlock
-lvl: 21
+lvl: 22
 ref: strings
 ---
 q: %count% the processor lines in /proc/cpuinfo with grep, a pipe not a flag
 a: grep processor /proc/cpuinfo | wc -l
-lvl: 23
+lvl: 24
 ref: grep
 ---
 q: %count% the inet addresses on this machine, with ip
 a: ip addr | grep -c inet
-lvl: 24
+lvl: 25
 ref: ip
 ---
 q: %show% just the roothash value from /proc/cmdline, with tr
 a: tr ' ' '\n' < /proc/cmdline | grep roothash | cut -d= -f2
-lvl: 29
+lvl: 30
 ref: tr

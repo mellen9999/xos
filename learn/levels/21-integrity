@@ -191,11 +191,9 @@ ref: diff
 teach: diff -q
 hint: -q collapses the whole comparison down to a single differ/no-differ line
 ---
-q: {diff @txt@ and @txt2@ where case shouldn't count as a change|diff @txt@ and @txt2@ treating upper and lower case as equal|diff @txt@ against @txt2@ without caring about letter case}
-a: diff -i @txt@ @txt2@
-out: ^---
-cmp: ref
-status: 1
+q: write Abc to a.txt and abc to b.txt, then diff them ignoring case
+a: printf 'Abc\n' > a.txt; printf 'abc\n' > b.txt; diff -i a.txt b.txt
+status: 0
 ref: diff
 teach: diff -i
 hint: -i folds case before comparing, so Abc and abc count as equal

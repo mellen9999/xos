@@ -186,3 +186,10 @@ cmp: ref
 ref: sh
 teach: sh
 hint: { } runs in the current shell -- x=2 here really overwrites the outer x
+---
+q: load -n as a plain argument with set, then print it back with printf
+a: set -- -n; printf '%s\n' "$1"
+cmp: ref
+ref: printf
+teach: printf
+hint: without the -- in front, set would read -n as an option to itself

@@ -1,0 +1,121 @@
+name: scripts
+boss: SIGEXIT
+flavor: Whatever you started, I run last.
+brief: Everything so far was a line you typed. A script is the same shell
+brief: reading the lines instead of you -- which means it needs three things
+brief: a prompt never does: arguments, structure, and a way to clean up.
+brief:
+brief: A function is structure. name() { ... } defines it, the bare name runs
+brief: it. local keeps a variable inside it. return ends it with an exit
+brief: status, the way exit ends the whole script.
+brief:
+brief: Arguments arrive as $1 $2 $3. shift drops $1 and slides the rest down,
+brief: which is how you walk a list you did not write. getopts walks option
+brief: letters instead, one call per option.
+brief:
+brief: trap is the cleanup. trap CMD EXIT runs CMD however the shell ends --
+brief: normally, by error, or killed -- so a temp file you made gets removed
+brief: on the path you did not plan for.
+brief:
+brief: exec and . both act on the shell you are in rather than a child: exec
+brief: replaces it or rewires its file descriptors for good, . runs a script
+brief: here so what it sets survives. Neither is undoable mid-line.
+---
+q: define a function f that echoes ok, then run it
+a: f() { echo ok; }; f
+cmp: ref
+ref: sh
+teach: sh
+hint: the braces hold the body, and the bare name on its own calls it
+---
+q: define f to put 1 in v with local and echo v, then run f
+a: f() { local v=1; echo $v; }; f
+cmp: ref
+ref: local
+teach: local
+hint: local keeps v inside f, so the caller never sees it change
+---
+q: define f to return 3, run it, then echo the exit status it left
+a: f() { return 3; }; f; echo $?
+cmp: ref
+ref: return
+teach: return
+hint: return ends the function with a status, the way exit ends a script
+---
+q: set -- a b c, drop the first with shift, then echo the new first
+a: set -- a b c; shift; echo $1
+cmp: ref
+ref: shift
+teach: shift
+hint: shift slides every parameter down one, which is how you walk a list
+---
+q: set -- a b c, shift by two, then echo what is left in first place
+a: set -- a b c; shift 2; echo $1
+cmp: ref
+ref: shift
+teach: shift
+hint: a count shifts that many at once
+---
+q: set -- -a x, read one option letter with getopts into o, then echo o
+a: set -- -a x; getopts a o; echo $o
+cmp: ref
+ref: getopts
+teach: getopts
+hint: the letters you declare are the ones it accepts, one call per option
+---
+q: run @script@ in this shell with dot, so it is not a child
+a: . ./@script@
+cmp: ref
+ref: .
+teach: .
+hint: a dot-run script can change this shell, and a child could not
+---
+q: empty f with the null command, then count its bytes with wc
+a: : > f; wc -c < f
+cmp: ref
+ref: :
+teach: :
+hint: the null command does nothing and succeeds, so the redirect is the point
+---
+q: trap EXIT to echo bye, then echo work
+a: trap 'echo bye' EXIT; echo work
+cmp: ref
+ref: trap
+teach: trap
+hint: EXIT fires however the shell ends, which is where cleanup belongs
+---
+q: send errors to stdout with exec, then ls the missing file nosuch
+a: exec 2>&1; ls nosuch
+cmp: ref
+ref: exec
+teach: exec
+hint: exec with only redirections rewires this shell instead of replacing it
+---
+q: replace this shell with echo done, using exec
+a: exec echo done
+cmp: ref
+ref: exec
+teach: exec
+hint: with a command, exec becomes it -- nothing after the line ever runs
+---
+q: put the text echo hi in c, then run what it holds with eval
+a: c="echo hi"; eval $c
+cmp: ref
+ref: eval
+teach: eval
+hint: eval expands the line a second time, then runs the result
+---
+q: pin r to 1 with readonly, then try to assign 2 to it
+a: readonly r=1; r=2
+status: 2
+cmp: ref
+ref: readonly
+teach: readonly
+hint: a readonly name cannot be reassigned, and the attempt ends the shell
+---
+q: use let to work out 1 + 2 into x, then echo x
+a: let x=1+2; echo $x
+cmp: ref
+ref: let
+teach: let
+hint: let does arithmetic without $(( )) around it

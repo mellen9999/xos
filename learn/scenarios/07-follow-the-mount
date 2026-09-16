@@ -1,5 +1,5 @@
 name: follow the mount
-after: 22-disks
+after: 23-disks
 intro: /proc/mounts has one line per mounted filesystem: device, mount point,
 intro: type, then a comma-separated option list. It is the ground truth for how
 intro: this machine is actually assembled -- and where you prove root is locked.

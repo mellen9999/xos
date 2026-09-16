@@ -598,19 +598,5 @@ halt     *      # alias -- halt, poweroff and reboot are one applet; poweroff is
 history  *      # absent -- prints nothing outside an interactive shell
 times    *      # verbose -- all-zero cpu time in a one-shot answer; it asserts nothing
 
-.        *      # pending
-:        *      # pending
-alias    *      # pending
-
-eval     *      # pending
-exec     *      # pending
-
-getopts  *      # pending
-let      *      # pending
-local    *      # pending
 poweroff *      # danger -- banned by the answer fence; a drill that runs your answer cannot ask for it
-readonly *      # pending
 reboot   *      # danger -- same fence; halt is retired above as its alias
-return   *      # pending
-shift    *      # pending
-trap     *      # pending

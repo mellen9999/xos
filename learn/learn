@@ -675,7 +675,7 @@ place() {
 	pause_card || return 0
 	MODE=daily   # the editor, no hints -- placement measures, it does not teach
 	rung_i=0
-	for rung in 03 06 09 12 15 18 21 24 27 30; do
+	for rung in 03 06 09 12 15 19 22 25 28 31; do
 		lvl=$(level_ids | grep "^$rung-" | head -1)
 		[ -n "$lvl" ] || continue
 		nq=$(level_nq "$lvl")
@@ -1166,7 +1166,7 @@ _answer_walk() {
 			# command position. take the spans out before the split.
 			ln = $0
 			while (sub(/\$\(\([^()]*\)\)/, " ", ln)) ;
-			cmd = ""; depth = 0; nclose = 0; nsep = 0; forvar = 0; rtarget = 0
+			cmd = ""; depth = 0; nclose = 0; nsep = 0; forvar = 0; rtarget = 0; endopt = 0
 			n = split(ln, t, /[ \t]+/)
 			for (i = 1; i <= n; i++) {
 				tok = t[i]
@@ -1192,6 +1192,10 @@ _answer_walk() {
 				if (tok == "")                                      { endtok(); continue }
 				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; endtok(); continue }
 				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in|while|until|if)$/) { cmd = ""; endtok(); continue }
+				# -- ends the options: everything after it is a literal
+				# argument, even one that starts with a dash. without this
+				# `set -- -n x` reported -n as an undocumented flag of set.
+				if (tok == "--")                                    { endopt = 1; endtok(); continue }
 				if (tok == "-exec" || tok == "-ok")   { if (mode == "flags") print cmd, tok; cmd = ""; endtok(); continue }
 				if (tok == "for")                                   { cmd = ""; forvar = 1; endtok(); continue }
 				if (forvar)                                         { forvar = 0; endtok(); continue }
@@ -1199,6 +1203,7 @@ _answer_walk() {
 				if (tok ~ /^[0-9]?[<>]+$/)                          { rtarget = 1; endtok(); continue }
 				if (rtarget)                                        { rtarget = 0; endtok(); continue }
 				if (cmd == "") {
+					endopt = 0
 					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) { cmd = tok; if (mode == "cmds") print tok }
 					endtok(); continue
 				}
@@ -1207,6 +1212,7 @@ _answer_walk() {
 					endtok(); continue
 				}
 				if (mode == "cmds")                                 { endtok(); continue }
+				if (endopt)                                         { endtok(); continue }
 				if (tok ~ /^-[0-9]+$/)                              { endtok(); continue }
 				# chmod takes a symbolic MODE beginning with a dash: chmod -x f
 				if (cmd == "chmod" && tok ~ /^-[rwxXstugoa]+$/)     { endtok(); continue }
@@ -1258,9 +1264,19 @@ st_block() {
 		fi
 	fi
 
-	# unrendered placeholder: a @name@ with no pool behind it
-	case "$Q_PROMPT$Q_ANSWERS" in
-		*@*@*) echo "FAIL $lbl: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1)) ;;
+	# unrendered placeholder: a @name@ with no pool behind it.
+	#
+	# this used to be `case "$Q_PROMPT$Q_ANSWERS" in *@*@*)`, which is two
+	# tests wrong at once. it matched any two @ characters rather than the
+	# token SHAPE, and it matched them across the join -- so one @ in the
+	# prompt paired with one in an answer. a card teaching "$@" could not
+	# name "$@" in its own prompt, which is exactly the card 12-exit-status
+	# wanted to write. match the shape, and match each side on its own line.
+	if printf '%s\n%s\n' "$Q_PROMPT" "$Q_ANSWERS" \
+		| grep -qE '@[A-Za-z0-9._]+@'; then
+		echo "FAIL $lbl: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1))
+	fi
+	case x in
 	esac
 
 	# a fence is a display mark and must never reach anything that is run,
@@ -1559,6 +1575,7 @@ selftest() {
 	echo trap	trap "echo bye" EXIT; echo x
 	awk	awk -F, 'NR > 1 {s += $4} END {print s}' f
 	cut printf sha256sum	printf '%s\n' "$(sha256sum x | cut -d' ' -f1)"
+	printf set	set -- -n; printf '%s\n' "$1"
 	EOF
 
 	# the unsafe() fence is what makes execution grading survivable: prove it

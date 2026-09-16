@@ -1,5 +1,5 @@
 name: the audit
-after: 17-permissions
+after: 18-permissions
 intro: You have been handed a machine and asked what is on it. Answer with
 intro: pipelines, not guesses. This is where xos's own guarantees become
 intro: something you can check for yourself instead of taking on faith.

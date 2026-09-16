@@ -1,5 +1,5 @@
 name: the signing chain
-after: 30-root
+after: 31-root
 intro: The last level hashed the filesystem under your feet and matched it to a
 intro: number on the kernel command line. But a number is only worth the thing
 intro: that vouches for it. This mission climbs the other half of the chain --

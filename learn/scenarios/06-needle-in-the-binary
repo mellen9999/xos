@@ -1,5 +1,5 @@
 name: needle in the binary
-after: 21-bytes
+after: 22-bytes
 intro: Binaries are not text, but they are full of text. Reading it is how you
 intro: interrogate a program you cannot read the source of -- including the ones
 intro: this very machine trusts.
