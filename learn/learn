@@ -2640,24 +2640,20 @@ resume() {
 # one thing the menu had no way to do -- drop that place and take the level
 # from the top -- without touching any other progress.
 resume_confirm() {
-	local id k nq fp lname held=0
+	local id k n nq fp lname held=0
 	id=$(resume_target) || { resume; return 0; }
+	n=${id%%-*}; n=${n#0}
 	nq=$(level_nq "$id"); fp=$(level_fp "$id")
 	lname=$(level_field "$id" name)
 	inprog_load "$id" "$fp" "$nq" && held=1
-	cls
-	hdr "continue" "level ${id%%-*}  $lname"
 	if [ "$held" = 1 ]; then
-		note "$INPROG_DONE of $nq answered, $INPROG_RIGHT right -- picks up where you stopped."
+		printf '  %slevel %s  %s%s %s-- %s of %s answered, %s right  (r restarts it)%s\n' \
+			"$W" "$n" "$lname" "$N" "$D" "$INPROG_DONE" "$nq" "$INPROG_RIGHT" "$N"
 	else
-		note "$nq questions, from the top."
+		printf '  %slevel %s  %s%s %s-- %s questions, from the top%s\n' \
+			"$W" "$n" "$lname" "$N" "$D" "$nq" "$N"
 	fi
-	printf '\n'
-	_mi y continue ""
-	[ "$held" = 1 ] && _mi r restart "drop the place, take it from the top"
-	_mi n back     ""
-	rule
-	printf '  %schoose%s ' "$D" "$N"
+	printf '  %scontinue? (Y/n)%s ' "$W" "$N"
 	IFS= read -rsn1 k 2>/dev/null || return 0
 	echo
 	case "$k" in
