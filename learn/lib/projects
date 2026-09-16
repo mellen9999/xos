@@ -20,32 +20,57 @@
 
 PROJECTS="$ROOT/projects"
 PRJ_DONE="$STATE/projects"
+PRJ_INDEX="$TMP/prj.index"
 
 project_ids() { ls -1 "$PROJECTS" 2>/dev/null | sort; }
 prj_path()    { echo "$PROJECTS/$1"; }
-prj_nq()      { blocks_nq "$(prj_path "$1")"; }
 prj_field()   { blk_field "$(prj_path "$1")" "$2"; }
-prj_after()   { prj_field "$1" after | head -1; }
+prj_index()   { blk_index "$PROJECTS" "$PRJ_INDEX"; }
+prj_nq()      { prj_index; awk -F'\t' -v i="$1" '$1 == i { print $3; exit }' "$PRJ_INDEX"; }
+prj_after()   { prj_index; awk -F'\t' -v i="$1" '$1 == i { print $2; exit }' "$PRJ_INDEX"; }
 
 prj_unlocked() { local a; a=$(prj_after "$1"); [ -n "$a" ] || return 0; level_is_passed "$a"; }
-projects_any_unlocked() { local p; for p in $(project_ids); do prj_unlocked "$p" && return 0; done; return 1; }
+
+# asked on every menu draw -- one walk of the index, no fork per project.
+projects_any_unlocked() {
+	local _id _a _nq ps
+	prj_index; ps=$(passed_set)
+	while IFS='	' read -r _id _a _nq _rest; do
+		gate_open "$_a" "$ps" && return 0
+	done < "$PRJ_INDEX"
+	return 1
+}
 
 # the ledger is one line per finished program, "id/index". a project is not a
 # card: there is no tier to hold and nothing to decay, so `passed` is the
 # precedent here, not `cards` -- a thing you did, kept.
 prj_is_done() { grep -qxF -- "$1/$2" "$PRJ_DONE" 2>/dev/null; }
 prj_mark()    { prj_is_done "$1" "$2" || { mkdir -p "$STATE" 2>/dev/null; echo "$1/$2" >> "$PRJ_DONE" 2>/dev/null; }; }
-prj_ndone()   { local p=$1 n=0 i; i=1; while [ "$i" -le "$(prj_nq "$p")" ]; do prj_is_done "$p" "$i" && n=$((n + 1)); i=$((i + 1)); done; echo "$n"; }
+# the ledger is "id/index" a line, so counting one project's finished programs
+# is one pass over it and the index -- the old loop asked the project file how
+# many blocks it had ONCE PER CASE, a fork apiece, on every menu draw. the
+# index supplies that count now, and it is still a cap: a case dropped from a
+# project leaves its line in the ledger, and 5/3 done is not a thing to print.
+prj_ndone()   {
+	prj_index
+	awk -v p="$1" -v ix="$PRJ_INDEX" '
+		FILENAME == ix { if (index($0, p "\t") == 1) { split($0, f, "\t"); nq = f[3] + 0 }; next }
+		{ n = split($0, g, "/"); i = g[2] + 0
+		  if (n == 2 && g[1] == p && i >= 1 && i <= nq) c++ }
+		END { print c + 0 }
+	' "$PRJ_INDEX" "$PRJ_DONE" 2>/dev/null || echo 0
+}
 
 # prj_announce LEVEL -- name every project that level's fall just opened.
 # the mirror of scn_announce, and for the same reason: a thing that unlocks
 # silently is a thing nobody finds.
 prj_announce() {
-	local pid n=0
-	for pid in $(project_ids); do
-		[ "$(prj_after "$pid")" = "$1" ] || continue
-		n=$((n + 1)); ok "project unlocked -- $(prj_field "$pid" name)"
-	done
+	local pid n=0 a _nq name
+	prj_index
+	while IFS='	' read -r pid a _nq name; do
+		[ "$a" = "$1" ] || continue
+		n=$((n + 1)); ok "project unlocked -- $name"
+	done < "$PRJ_INDEX"
 	[ "$n" -gt 0 ] || return 1
 	note "press w at the menu to write $([ "$n" -gt 1 ] && echo them || echo it)."
 	return 0
@@ -202,17 +227,18 @@ run_project() {
 }
 
 projects_menu() {
-	local pid n=0 pick
+	local pid n=0 pick a nq name ps
 	cls
 	hdr "projects" "write a program against a spec"
-	for pid in $(project_ids); do
+	prj_index; ps=$(passed_set)
+	while IFS='	' read -r pid a nq name; do
 		n=$((n + 1))
-		if prj_unlocked "$pid"; then
-			_mi "$n" "$(prj_field "$pid" name)" "$(prj_ndone "$pid")/$(prj_nq "$pid")"
+		if gate_open "$a" "$ps"; then
+			_mi "$n" "$name" "$(prj_ndone "$pid")/$nq"
 		else
-			_mi_off "$n" "$(prj_field "$pid" name)" "  (unlocks after $(prj_after "$pid"))"
+			_mi_off "$n" "$name" "  (unlocks after $a)"
 		fi
-	done
+	done < "$PRJ_INDEX"
 	[ "$n" -gt 0 ] || { note "no projects yet"; pause_card; return 0; }
 	printf '\n  %snumber (enter to go back):%s ' "$D" "$N"
 	IFS= read -r pick 2>/dev/null || return 0

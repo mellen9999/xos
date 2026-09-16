@@ -151,8 +151,34 @@ level_path()  { echo "$LEVELS/$1"; }
 # chain file all go through these.
 blk_field() { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$1" 2>/dev/null; }   # FILE KEY
 blocks_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$1" 2>/dev/null; } # FILE
+
 level_field() { blk_field "$(level_path "$1")" "$2"; }
 level_nq()    { blocks_nq "$(level_path "$1")"; }
+
+# blk_index DIR CACHE -- "<id>\t<after>\t<nq>\t<name>", one row per file in
+# DIR, one pass, built once per run.
+#
+# a menu asks the same four things of every mission and every project it draws,
+# and asking them a file at a time cost three forks per field: the missions row
+# alone redrew in over a second on the stick, every keypress, because the menu
+# loop re-asked. the corpus is on a read-only rootfs and cannot change while
+# learn runs, so one pass answers for the whole session.
+#
+# name goes last: it is prose, and a field that might hold a tab has to be the
+# one `read` gives the remainder of the line to.
+blk_index() {
+	[ -s "$2" ] || awk -v OFS='\t' '
+		function flush() { if (id != "") print id, after, nq + 0, name }
+		FNR == 1  { flush(); n = split(FILENAME, p, "/"); id = p[n]
+		            after = ""; name = ""; nq = 0; head = 1 }
+		/^---$/   { nq++; head = 0; next }
+		!head     { next }
+		/^after:/ { if (after == "") { v = $0; sub(/^after: ?/, "", v); after = v } }
+		/^name:/  { if (name  == "") { v = $0; sub(/^name: ?/, "", v);  name  = v } }
+		END       { flush() }
+	' "$1"/* > "$2" 2>/dev/null
+	return 0
+}
 
 # level id as a plain number. ids are zero-padded ("08-cutting"), and ash reads
 # a leading zero in $(( )) as octal -- $((08)) is a FATAL arithmetic error, not
@@ -177,6 +203,18 @@ _ledger_add() { # FILE ID
 }
 level_passed()    { _ledger_add "$PASSED" "$1"; inprog_clear "$1"; }
 level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
+
+# passed_set -- the whole ledger as one space-padded string, and gate_open the
+# test against it. a menu draw asks "has this level fallen" once per mission and
+# once per project; as a grep apiece that was a fork apiece, and the answer is
+# the same file every time. level ids hold no spaces, so the padding makes an
+# exact match a substring match.
+passed_set() { _p=$(tr '\n' ' ' < "$PASSED" 2>/dev/null); echo " $_p "; }
+gate_open() { # GATE SET -- an ungated item is open; otherwise its level must have fallen
+	[ -n "$1" ] || return 0
+	case "$2" in *" $1 "*) return 0 ;; esac
+	return 1
+}
 
 # the placed ledger -- levels a placement run skipped past. resume treats
 # these the same as passed (don't re-teach them), but the gauntlet gate does
@@ -2688,7 +2726,7 @@ menu() {
 		# recounted every loop for the same reason held is: a review just
 		# taken has changed it, and a menu that says 17 due after you cleared
 		# them is a menu nobody trusts twice.
-		due=$(cards_ndue)
+		due=$(cards_ndue); due=${due:-0}
 
 		cls
 		hdr "learn" "the shell, one card at a time"

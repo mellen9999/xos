@@ -191,7 +191,15 @@ cards_due() {
 	' "$CARDS" 2>/dev/null | sort -t "$(printf '\t')" -k4,4n
 }
 
-cards_ndue() { cards_due | grep -c . ; }
+# the count alone, without building and sorting the queue to throw it away --
+# the menu redraws this on every keypress.
+cards_ndue() {
+	[ -s "$CARDS" ] || { echo 0; return 0; }
+	awk -F'\t' -v n="$(now)" "$_CARD_FNS"'
+		{ norm(); if (due <= n) c++ }
+		END { print c + 0 }
+	' "$CARDS" 2>/dev/null
+}
 
 # cards_leeches MIN -- the cards that keep getting away, worst first, as
 # "lapses<TAB>key".
@@ -240,22 +248,36 @@ cards_sort_weak() {
 # rebuilt from the level file and joined against the ledger. an orphan then
 # contributes to neither side, which is the only reading under which
 # mastered == cards means what it says.
-held_scan() {
-	awk -F'\t' '
+# the key list is the corpus half of that join, and the corpus cannot change
+# while learn runs: built once, it turns every later scan from thirty-one file
+# opens and 300k of level text into one file the size of the questions alone.
+# the menu redraws held on every keypress, and on a stick those opens are what
+# you were waiting for.
+KEYS="$TMP/keys"
+held_keys() {
+	[ -s "$KEYS" ] || awk -v OFS='\t' '
 		function flush() {
-			if (blk > 0) {
-				nq[id]++
-				k = id "/" blk "#" q; gsub(/\t/, "", k)
-				if (tier[k] == 2) m[id]++
-			}
+			if (blk > 0) { k = id "/" blk "#" q; gsub(/\t/, "", k); print id, k }
 			q = ""
 		}
-		NR == FNR { tier[$1] = $2; next }
-		FNR == 1  { flush(); n = split(FILENAME, p, "/"); id = p[n]; blk = 0 }
-		/^---$/   { flush(); blk++; next }
-		/^q:/     { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
-		END       { flush(); for (i in nq) print i, m[i] + 0, nq[i] }
-	' "$CARDS" "$LEVELS"/* 2>/dev/null
+		FNR == 1 { flush(); n = split(FILENAME, p, "/"); id = p[n]; blk = 0 }
+		/^---$/  { flush(); blk++; next }
+		/^q:/    { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
+		END      { flush() }
+	' "$LEVELS"/* > "$KEYS" 2>/dev/null
+	return 0
+}
+
+held_scan() {
+	held_keys
+	# which file a row came from is asked by name, not by NR == FNR: the ledger
+	# is empty on a fresh install, and that idiom reads the next file's rows as
+	# the empty one's.
+	awk -F'\t' -v cf="$CARDS" '
+		FILENAME == cf { tier[$1] = $2; next }
+		{ nq[$1]++; if (tier[$2] == 2) m[$1]++ }
+		END { for (i in nq) print i, m[i] + 0, nq[i] }
+	' "$CARDS" "$KEYS" 2>/dev/null
 }
 
 # held_ids -- the levels whose every card is at tier 2 right now. cards_decay
