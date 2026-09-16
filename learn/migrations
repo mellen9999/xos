@@ -43,3 +43,14 @@
 1 17-permissions 18-permissions
 1 16-processes 17-processes
 1 15-job-control 16-job-control
+#
+# schema 2 exists because schema 1 was edited in place. the merge that made
+# 30-root shipped by rewriting the v1 rows rather than adding new ones, so a
+# state file already stamped 1 had the OLD table applied and never sees the
+# new one -- migrate() bails when want <= cur. those installs are sitting on
+# 31-root and 30-proving-this-machine, two ids no level file answers to. a
+# version of their own is the only thing that reaches them; on a state file
+# still at 0 both rows are no-ops, because the v1 rows above produced neither
+# name. the lesson the hard way: a shipped row is frozen, always add.
+2 31-root 30-root
+2 30-proving-this-machine -
