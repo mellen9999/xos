@@ -47,7 +47,7 @@ trap cleanup EXIT
 trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
-for _l in ui ctx grade fixtures cards coach chal edit scenarios projects autopsy explain lint; do
+for _l in ui ctx grade fixtures cards coach chal edit scenarios projects autopsy fumble explain lint; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -860,7 +860,24 @@ stats() {
 				"$(printf '%s' "$ltpl" | sed 's/{\([^{}|]*\)|[^{}]*}/\1/g' | cut -c1-62)"
 		done
 	fi
+	# what you got wrong at the real prompt. everything above this line is
+	# the quiz grading itself; this is the machine grading you, on work you
+	# chose to do, with the tool deciding nothing about which command came up.
+	local fk fn fc
+	fk=$(fum_top 5)
+	if [ -n "$fk" ]; then
+		rule
+		note "fumbled at the prompt"
+		printf '%s\n' "$fk" | while IFS="$(printf '\t')" read -r fn fc; do
+			[ -n "$fc" ] || continue
+			printf '  %s%3sx%s %s%-12s%s %s\n' "$R" "$fn" "$N" "$W" "$fc" "$N" \
+				"$(summary_of "$fc" | cut -c1-48)"
+		done
+	fi
 	rule
+	if [ "${FUM_NEW:-0}" -gt 0 ]; then
+		note "$FUM_NEW command(s) came in from the prompt -- ${FUM_PULLED:-0} card(s) came due."
+	fi
 	note "tier 2 is mastered. every card carries its own due date -- $(cards_ndue) due now."
 	note "a card left more than $GRACE_DAYS days past due loses a rung."
 	note "a level in green is HELD: the gauntlet wants all of them at once."
@@ -2013,6 +2030,68 @@ c	1	0	0	1	1	3
 	  [ -z "$(cards_leeches 8)" ] || exit 1
 	  exit 0 ) 		|| { echo "FAIL cards: lapses do not accumulate, or the leech list is wrong" >&2; bad=$((bad+1)); }
 
+	# the prompt loop. the queue is written by a shell function in /etc/shrc
+	# that only a terminal can drive (build.sh G51 opens one); what runs here
+	# is the half that decides what is STORED, and the property that matters
+	# is the one a privacy claim rests on: a name this image does not teach
+	# cannot reach the ledger by any path, whatever put it in the queue.
+	( STATE="$TMP/fs"; mkdir -p "$STATE"
+	  FUMBLES="$STATE/fumbles"; FUMBLED="$STATE/fumbled"
+	  CARDS="$TMP/fc"; SESSION_SEEN="$TMP/fss"; _n=$(now)
+	  _real=$(ls -1 "$REF" | grep -x cut | head -1)
+	  [ "$_real" = cut ] || exit 1
+	  # a drained queue: the taught name is counted, everything else is not.
+	  # the strings below are the shapes a real hook must never let through --
+	  # a command that does not exist here, a path, and something typed into
+	  # the wrong window that is nobody's command at all.
+	  printf 'cut\ncut\nnosuchcommand\n/etc/passwd\nhunter2\n' > "$FUMBLES"
+	  fum_drain > "$TMP/fnew" || exit 1
+	  [ "$(cat "$FUMBLED")" = "$(printf '2\tcut')" ] || exit 1
+	  grep -q nosuchcommand "$FUMBLED" && exit 1
+	  grep -q hunter2 "$FUMBLED" && exit 1
+	  [ -f "$FUMBLES" ] || exit 1
+	  [ -s "$FUMBLES" ] && exit 1
+	  # counts accumulate across drains rather than replacing each other
+	  printf 'cut\n' > "$FUMBLES"; fum_drain > /dev/null || exit 1
+	  [ "$(cut -f1 "$FUMBLED")" = 3 ] || exit 1
+	  # an empty queue is not a drain, so nothing downstream runs on nothing
+	  fum_drain > /dev/null && exit 1
+	  # a card whose ANSWER runs the fumbled command comes due; its rung and
+	  # its interval are untouched, because tripping over a command at the
+	  # prompt is not the same as having forgotten the card.
+	  _lid=$(grep -rl "^a: .*\bcut\b" "$LEVELS" 2>/dev/null | head -1)
+	  [ -n "$_lid" ] || exit 1
+	  _lid=${_lid##*/}
+	  printf 'cut\n' > "$TMP/fnew"
+	  : > "$CARDS"
+	  _k=$(awk -F'\t' -v id="$_lid" '
+		function flush() { if (blk > 0 && hit && q != "" && !done) { print id "/" blk "#" q; done = 1 } q = ""; hit = 0 }
+		/^---$/ { flush(); blk++; next }
+		/^q:/ { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
+		/^a:/ { if ($0 ~ /(^|[^A-Za-z0-9._-])cut([^A-Za-z0-9._-]|$)/) hit = 1 }
+		END { flush() }
+	  ' "$LEVELS/$_lid" | head -1)
+	  [ -n "$_k" ] || exit 1
+	  printf '%s\t2\t%s\t%s\t75\t5\t0\n' "$_k" "$_n" "$((_n + 75 * 86400))" > "$CARDS"
+	  [ "$(cards_ndue)" = 0 ] || exit 1
+	  fum_pull "$TMP/fnew" > /dev/null
+	  [ "$(cards_ndue)" = 1 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 75 ] || exit 1
+	  [ "$(cut -f6 "$CARDS")" = 5 ] || exit 1
+	  # a command nothing answers with moves no due date
+	  printf '%s\t2\t%s\t%s\t75\t5\t0\n' "$_k" "$_n" "$((_n + 75 * 86400))" > "$CARDS"
+	  printf 'nosuchcommand\n' > "$TMP/fnew"
+	  fum_pull "$TMP/fnew" > /dev/null
+	  [ "$(cards_ndue)" = 0 ] || exit 1
+	  # off means off: no queue, nothing drains, and forget takes the counts
+	  fum_off; fum_is_on && exit 1
+	  fum_on;  fum_is_on || exit 1
+	  fum_forget
+	  [ -f "$FUMBLED" ] && exit 1
+	  fum_is_on && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL fumble: an untaught name reached the ledger, or a pull moved the wrong thing" >&2; bad=$((bad+1)); }
+
 	# every scenario names the level it unlocks after. nothing else checks
 	# that id, so a renumber that misses one pins the scenario to a level
 	# that will never exist -- and a scenario that can never unlock is
@@ -2365,6 +2444,43 @@ session_summary() {
 	fi
 }
 
+# ---- fumbles --------------------------------------------------------------
+
+# the one screen that says what is recorded, in the same words whether it is
+# on or off. a switch whose state you have to infer is a switch nobody trusts.
+fumbles() {
+	case "${1:-}" in
+		on)    fum_on;  ok "recording on -- open a new shell for it to take effect."
+		       note "only a command NAME, and only one this image teaches. never an argument." ;;
+		off)   fum_off; ok "recording off -- takes effect at the next prompt, in every shell."
+		       note "the counts already collected are kept. learn fumbles clear drops them too." ;;
+		clear) fum_forget; ok "cleared -- the queue and the counts are gone, and recording is off." ;;
+		'')    ;;
+		*)     die "usage: learn fumbles [on|off|clear]" ;;
+	esac
+	hdr "fumbles" "$(fum_is_on && echo recording || echo "not recording")"
+	echo "what you got wrong at the real prompt, not in the quiz. a command name is
+kept only when this image ships a reference page for it, and nothing else is
+kept at all -- no flag, no path, no argument, no time. a card whose answer
+runs one of these comes due the next time learn opens." | say
+	local n c
+	if [ -s "$FUMBLED" ]; then
+		rule
+		fum_top 10 | while IFS="$(printf '\t')" read -r n c; do
+			[ -n "$c" ] || continue
+			printf '  %s%3sx%s %s%-12s%s %s\n' "$R" "$n" "$N" "$W" "$c" "$N" \
+				"$(summary_of "$c" | cut -c1-48)"
+		done
+	fi
+	rule
+	if fum_is_on; then
+		note "learn fumbles off stops it. learn fumbles clear also drops the counts."
+	else
+		note "learn fumbles on starts it. it is off until you say otherwise."
+	fi
+	note "the prompt hook lives in /etc/shrc, so this fills up on the stick itself."
+}
+
 # ---- dispatch -------------------------------------------------------------
 
 MODE=learn
@@ -2374,6 +2490,14 @@ S_RIGHT=0; S_WRONG=0; S_STREAK=0; S_BEST=0; S_START=$(date +%s 2>/dev/null || ec
 cards_init
 migrate
 cards_decay
+# the prompt loop, drained before anything reads the schedule. cards_decay has
+# to have run first: it is what normalises a row an older build wrote, and
+# fum_pull moves a due date, which a three-field row does not have yet.
+FUM_NEW=0 FUM_PULLED=0
+if fum_drain > "$TMP/fumnew" 2>/dev/null; then
+	FUM_NEW=$(grep -c . "$TMP/fumnew" 2>/dev/null || echo 0)
+	FUM_PULLED=$(fum_pull "$TMP/fumnew" 2>/dev/null || echo 0)
+fi
 ctx_init
 
 usage() {
@@ -2395,6 +2519,7 @@ usage() {
 	learn autopsy [FILE]  your own shell history, held up to the curriculum
 	learn explain LINE    every command's summary plus the shell syntax in it
 	learn stats           what you have mastered
+	learn fumbles [on|off] what you got wrong at the real prompt
 	learn reset           forget all progress
 
 	at a question: type your answer with full vi editing -- Esc for normal
@@ -2612,6 +2737,7 @@ case "${1:-}" in
 	          	       else no "locked -- beat $(prj_after "$_pid") first."; fi ;;
 	          esac ;;
 	shell)    shift; playground "${1:-}" ;;
+	fumbles)  shift; fumbles "${1:-}" ;;
 	autopsy)  shift; autopsy "$@" ;;
 	explain)  shift; explain "$@" ;;
 	reset)    shift
@@ -2624,6 +2750,7 @@ case "${1:-}" in
 	          else _ok=0; fi
 	          if [ "$_ok" = 1 ]; then
 	          	rm -f "$CARDS" "$CARDS.lock" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" "$EDIT_HIST" "$INPROG".* 2>/dev/null
+	          	fum_forget
 	          	ok "progress cleared"
 	          else note "nothing erased (learn reset --yes skips the question)"; fi ;;
 	-h|--help|help) usage ;;

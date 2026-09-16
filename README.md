@@ -450,6 +450,14 @@ the last level is the machine itself.
     learn project     write a program against a spec, graded by running it
     learn shell       a shell in that same sandbox, to try things in
     learn autopsy     read your own shell history, name the drills that fit
+    learn fumbles     what you got wrong at the real prompt -- off until you say on
+
+`learn fumbles on` puts a hook in the prompt: a command that exits nonzero at
+`/bin/sh` has its NAME appended to a queue, and the next `learn` brings every card
+whose answer runs that command due. a name is written only if this image ships a
+reference page for it, so a password, a hostname or a typo is not a name that can
+be recorded -- that is the mechanism, not a filter. no argument, path, time or exit
+code is stored, ever, and nothing about it is on by default.
 
 `learn/install.sh` puts it on this host as a standalone command -- the corpus and
 the tree's own busybox, no stick needed. progress lives under `~/.local/state` and

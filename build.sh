@@ -950,6 +950,62 @@ esac
 PS1='\w \$ '
 [ -n "$_m" ] && PS1_CMD="\\w \\[$_m\\]\\\$\\[$_e[0m\\] "
 unset _e _m
+# the command you got wrong at the real prompt is the best thing learn could
+# ask you about, and it is readable for exactly one instant -- the moment the
+# next prompt is drawn, when $? still holds the status and the line you ran is
+# already the last line of the history file. ash has no precmd hook, so the
+# prompt itself is the hook: CONFIG_ASH_EXPAND_PRMT sends $PS1 through the
+# shell's own expansion, and a command substitution in it runs once per prompt.
+#
+# what is written: a command NAME, one per line, and only when this image
+# ships a reference page for that name. never an argument, never the line,
+# never a path, never a time, never the status. the corpus is an allowlist, so
+# a mistyped password, a hostname, or a command that does not exist here is
+# not a name that can be written -- that is the mechanism, not a filter
+# someone has to keep ahead of.
+#
+# OFF unless the queue file exists, and then the hook is not even in $PS1: no
+# file, no command substitution, no fork per prompt. `learn fumbles on`
+# creates it, `learn fumbles off` removes it, and the test inside the function
+# means off takes effect at the next prompt in shells already running.
+#
+# the history read is a builtin loop and not `tail`, so a failed command costs
+# no process at all. it reads the whole file to keep the last line -- a
+# thousand lines of a tmpfs file, once, only when something failed.
+_fumble() {
+	local q="${XDG_STATE_HOME:-$HOME/.local/state}/learn/fumbles" s="${1:-0}" l= p=
+	[ "$s" = 0 ] && return 0
+	[ -f "$q" ] || return 0
+	# the last successful read, not the variable the loop leaves behind: the
+	# read that meets EOF returns nonzero AND blanks its variable, so a loop
+	# that reads straight into l ends holding an empty string every time.
+	while IFS= read -r p; do l=$p; done < "${HISTFILE:-$HOME/.ash_history}" 2>/dev/null
+	set -- $l
+	l=
+	# the command is the first word that is not a flag, an assignment or a
+	# wrapper -- `FOO=1 env sed ...` is a sed line. same rule lib/autopsy
+	# reads history by, because two rules for "what command is this" is two
+	# answers to it.
+	for p in "$@"; do
+		case "$p" in
+			-*|*=*|env|time|nice|command|builtin|exec) continue ;;
+		esac
+		l=${p##*/}; break
+	done
+	case "$l" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
+	# a nonzero status is not always a mistake. these are asked a question and
+	# 1 is them answering no: a grep that matched nothing, a cmp of two files
+	# that differ, a pgrep for something not running. recording those would
+	# bury the real misses under the most-used tools on the machine. a usage
+	# error from the same commands is 2, and that still counts.
+	case "$l:$s" in
+		false:*|test:*|'[':*) return 0 ;;
+		grep:1|egrep:1|fgrep:1|cmp:1|diff:1|expr:1|pgrep:1|pkill:1|ping:1|which:1|kill:1) return 0 ;;
+	esac
+	[ -f "${LEARN_ROOT:-/usr/share/learn}/ref/$l" ] && echo "$l" >> "$q"
+	return 0
+}
+[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/learn/fumbles" ] && PS1='$(_fumble $?)'"$PS1"
 scrub() {
 	echo "reading every verity-covered byte -- a rotten block panics the machine, and that is the alarm working"
 	local d dev=""
@@ -1645,6 +1701,7 @@ TODO: write this entry by hand.
 #   G48 the remaining first-party scripts parse (the commit hook, arsenal)
 #   G49 the install entry point writes only through the guarded disk paths
 #   G50 every level's teaching brief fits one 80x25 screen
+#   G51 a failed command at the real prompt reaches learn, and only a name
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2002,6 +2059,14 @@ G44EOF
     e35=$("$bb35" ash -n "$f35" 2>&1) \
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
   done
+  # /etc/shrc is written by a quoted heredoc, so `bash -n build.sh` never looks
+  # inside it and nothing else did either. it is the first file every
+  # interactive shell on the stick sources: a syntax error in it is a broken
+  # prompt on every console, at once, with the build green.
+  if [ -f root/etc/shrc ]; then
+    e35=$("$bb35" ash -n root/etc/shrc 2>&1) \
+      || { g35=FAIL; printf '    root/etc/shrc does not parse: %s\n' "$e35" >&2; }
+  fi
   g "G35 first-party scripts parse under shipped ash" "$g35"
 
   # G38 -- build.sh and selftest.sh parse. G35 covers what ships; these two
@@ -2548,6 +2613,54 @@ G37
   done
   g "G50 every level brief fits one screen (worst ${br_worst}/20 lines)" \
     "$([ "$br_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G51 -- the loop back from the real prompt. a failed command at /bin/sh is
+  # the one thing learn cannot generate for itself, and the only place it is
+  # readable is the instant the next prompt is drawn -- which means this whole
+  # path depends on a busybox config symbol (ASH_EXPAND_PRMT), a shell
+  # function in /etc/shrc, and a terminal. no test that is not a terminal can
+  # see any of it: with prompt expansion off, $PS1 is simply printed and the
+  # hook never runs, silently, with every other gate still green.
+  #
+  # it also gates the privacy claim, which is the reason the feature is
+  # off by default: a name the image does not teach must never be written.
+  # so the session below fails a taught command, a command that does not
+  # exist, and something that is nobody's command at all -- and the queue
+  # afterwards must hold the first and nothing else.
+  local g51=FAIL
+  python3 - "$bb35" <<'G51' >/dev/null 2>&1 && g51=ok
+import os, pty, select, sys, time
+bb = sys.argv[1]
+root = os.getcwd()
+home = os.path.join(root, "build/g51home")
+q = os.path.join(home, ".local/state/learn/fumbles")
+os.makedirs(os.path.dirname(q), exist_ok=True)
+open(q, "w").close()
+env = dict(os.environ, HOME=home, ENV=root + "/root/etc/shrc",
+           LEARN_ROOT=root + "/learn", TERM="xterm", PS1="", PS1_CMD="")
+env.pop("XDG_STATE_HOME", None); env.pop("HISTFILE", None)
+pid, fd = pty.fork()
+if pid == 0:
+    os.chdir(home)
+    os.execve(bb, [bb, "ash", "-i"], env)
+lines = b"cut -Z /dev/null\nnosuchcommandatall\nhunter2\ngrep zzz /dev/null\ntrue\nexit\n"
+os.write(fd, lines)
+end = time.time() + 20
+while time.time() < end:
+    r, _, _ = select.select([fd], [], [], 0.2)
+    if r:
+        try: os.read(fd, 65536)
+        except OSError: break
+    try:
+        if os.waitpid(pid, os.WNOHANG)[0]: break
+    except ChildProcessError: break
+else:
+    os.kill(pid, 9); sys.exit(1)
+got = [l.strip() for l in open(q).read().split("\n") if l.strip()]
+sys.exit(0 if got == ["cut"] else 1)
+G51
+  rm -rf build/g51home
+  g "G51 a failed command at the real prompt reaches learn, and only a name" "$g51"
 
   # G29 -- the challenge track holds its shape. at least twelve stages, every
   # stage a real chain, the difficulty never falling and ending in the deep

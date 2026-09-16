@@ -22,3 +22,12 @@ ASH_TEST
 FEATURE_EDITING_VI    # vi keybindings at the shell prompt (set -o vi); bash has
                       # them, ash does not by default. we teach `set -o vi`, so
                       # this makes that lesson real.
+ASH_EXPAND_PRMT       # $PS1 goes through the shell's own expansion, so a prompt
+                      # can run a command. that is the only precmd hook ash has,
+                      # and learn/lib/fumble needs one: the exit status of the
+                      # line you just ran is readable at exactly one moment, the
+                      # moment the next prompt is drawn. without this symbol PS1
+                      # is printed literally and the status is gone. the \w and
+                      # \$ escapes are untouched -- expansion runs in
+                      # double-quote syntax, where a backslash before w or $
+                      # stays, and the line editor still resolves them after.

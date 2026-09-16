@@ -1,0 +1,149 @@
+# fumble -- what you get wrong at the real prompt, not in the quiz.
+#
+# every other signal in here is self-reported: you sat down to practise, so
+# the tool got to choose the questions. this one is the opposite. it is the
+# command you actually reached for, on this machine, when something needed
+# doing -- and it came back nonzero. that is the highest-signal learning
+# event a shell can produce, and until now nothing collected it.
+#
+# WHAT IS RECORDED, exactly: a command NAME, and only if a reference page for
+# that name ships in this image. nothing else. not a flag, not a path, not an
+# argument, not the line, not a timestamp, not an exit code, not a directory.
+# the corpus is an allowlist and not a denylist -- a mistyped password, a
+# hostname, a fat-fingered command that does not exist, a token pasted into
+# the wrong window: none of them are names this image teaches, so none of them
+# are ever written. that is a property of the mechanism, not a filter someone
+# has to keep ahead of. it is the same rule lib/autopsy holds, made stricter:
+# autopsy refuses to PRINT an argument, this refuses to STORE one.
+#
+# OFF until you say otherwise. `learn fumbles on` creates the queue file, and
+# the hook in /etc/shrc is a no-op -- not even installed in $PS1 -- while that
+# file does not exist. there is no default-on path and no flag that widens
+# what is kept.
+#
+# two files, and the split is the point:
+#
+#   $STATE/fumbles   the QUEUE. /etc/shrc appends a name to it. its existence
+#                    is the switch. learn drains it at every launch, so a name
+#                    lives here for as long as it takes you to open learn.
+#   $STATE/fumbled   the LEDGER: count<TAB>cmd. a rolled-up count per command,
+#                    no history, no order, no times. this is the only thing
+#                    that persists, and it is a list of commands this image
+#                    already teaches beside a number.
+#
+# draining does two things: it adds to the ledger, and it brings forward the
+# due date of every card whose answer runs a command you just fumbled. that
+# is the whole loop -- miss `find -newer` at the prompt on a tuesday, and the
+# find cards are waiting the next time you open learn. the interval is not
+# reset and no rep is taken: you have not forgotten the card, you tripped on
+# it once, so it comes back today and climbs again from where it was.
+
+FUMBLES="$STATE/fumbles"
+FUMBLED="$STATE/fumbled"
+
+fum_is_on() { [ -f "$FUMBLES" ]; }
+fum_on()    { mkdir -p "$STATE" 2>/dev/null || :; [ -f "$FUMBLES" ] || : > "$FUMBLES" 2>/dev/null || :; }
+fum_off()   { rm -f "$FUMBLES" 2>/dev/null || :; }
+fum_forget() { rm -f "$FUMBLES" "$FUMBLED" 2>/dev/null || :; }
+
+# fum_drain -- fold the queue into the ledger and empty it. prints the names
+# that came in, one per line, so the caller can act on THIS batch rather than
+# on the whole ledger (acting on the ledger would make every card that ever
+# followed a fumble due again at every launch, forever).
+#
+# the queue is renamed aside before it is read, not read then truncated: the
+# shell is still appending to it. a rename leaves an appender that already has
+# the file open writing into the file we are about to read, which is exactly
+# right; truncating under it would lose that write.
+#
+# every name is checked against the corpus AGAIN here. the hook already does
+# it, but the hook is a shell function in a file on a read-only filesystem and
+# this is the code that decides what gets stored -- a second look costs one
+# test per line and means no path exists by which a name learn does not teach
+# can reach the ledger.
+fum_drain() {
+	[ -s "$FUMBLES" ] || return 1
+	local q="$FUMBLES.drain.$$" tmp="$FUMBLED.tmp.$$" c new=
+	mv "$FUMBLES" "$q" 2>/dev/null || return 1
+	: > "$FUMBLES" 2>/dev/null || :
+	while IFS= read -r c; do
+		case "$c" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
+		[ -f "$REF/$(refname "$c")" ] || continue
+		new="$new$c
+"
+	done < "$q"
+	rm -f "$q" 2>/dev/null
+	[ -n "$new" ] || return 1
+	printf '%s' "$new" | sort -u
+	{ [ -f "$FUMBLED" ] && cat "$FUMBLED"; printf '%s' "$new"; } 2>/dev/null \
+		| awk -F'\t' -v OFS='\t' '
+			NF == 2 { n[$2] += $1; next }
+			NF == 1 { n[$1] += 1 }
+			END { for (c in n) print n[c], c }
+		' | sort -t "$(printf '\t')" -k1,1nr -k2,2 > "$tmp" 2>/dev/null \
+		&& mv "$tmp" "$FUMBLED" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	return 0
+}
+
+# fum_pull FILE -- every card whose answer runs one of the names in FILE comes
+# due now. the interval and the rep count are left alone; only the due date
+# moves, and only forward in time is never the direction -- a card already due
+# is untouched.
+#
+# the key is rebuilt from the level files the same way held_scan rebuilds it,
+# because a key that is rebuilt one way here and another way there is two
+# different card files. a block matches when its ANSWER names the command:
+# matching the question would miss every produce-the-command card, which is
+# most of the corpus, since those ask in prose and name the command only in
+# what you are meant to type.
+fum_pull() {
+	[ -s "$1" ] || return 0
+	[ -s "$CARDS" ] || return 0
+	local keys="$TMP/fumkeys" tmp="$CARDS.tmp.$$" n
+	awk -F'\t' '
+		function flush() {
+			if (blk > 0 && hit && q != "") {
+				k = id "/" blk "#" q; gsub(/\t/, "", k); print k
+			}
+			q = ""; hit = 0
+		}
+		NR == FNR { want[$1] = 1; next }
+		FNR == 1  { flush(); n = split(FILENAME, p, "/"); id = p[n]; blk = 0 }
+		/^---$/   { flush(); blk++; next }
+		/^q:/     { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
+		/^(a|ref):/ {
+			line = $0; sub(/^(a|ref): ?/, "", line)
+			nw = split(line, w, /[^A-Za-z0-9._-]+/)
+			for (i = 1; i <= nw; i++) {
+				t = w[i]; sub(/^.*\//, "", t)
+				if (t != "" && want[t]) { hit = 1; break }
+			}
+		}
+		END { flush() }
+	' "$1" "$LEVELS"/* > "$keys" 2>/dev/null
+	[ -s "$keys" ] || return 0
+	n=$(now)
+	_cards_lock
+	# the count is what MOVED, not what matched. a level file can name a
+	# command in sixteen answers while the learner holds one of those cards,
+	# and a line that says sixteen when one card came due is a line that
+	# teaches the reader to stop believing the screen.
+	awk -F'\t' -v OFS='\t' -v n="$n" -v cf="$TMP/fumcnt" '
+		NR == FNR { want[$0] = 1; next }
+		{
+			if (want[$1] && $4 != "" && $4 + 0 > n) { $4 = n; moved++ }
+			print
+		}
+		END { print moved + 0 > cf }
+	' "$keys" "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	_cards_unlock
+	cat "$TMP/fumcnt" 2>/dev/null || echo 0
+}
+
+# fum_top N -- the ledger, worst first, as "count<TAB>cmd".
+fum_top() {
+	[ -s "$FUMBLED" ] || return 0
+	sort -t "$(printf '\t')" -k1,1nr -k2,2 "$FUMBLED" 2>/dev/null | head -n "${1:-5}"
+}
+
+fum_total() { awk -F'\t' '{ n += $1 } END { print n + 0 }' "$FUMBLED" 2>/dev/null || echo 0; }

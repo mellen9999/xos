@@ -38,6 +38,7 @@ usr/share/learn/lib/explain
 usr/share/learn/lib/lint
 usr/share/learn/syntax
 usr/share/learn/lib/projects
+usr/share/learn/lib/fumble
 usr/share/learn/projects/01-triage
 usr/share/learn/projects/03-parcel
 usr/share/learn/scenarios/01-first-blood
