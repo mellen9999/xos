@@ -1076,13 +1076,17 @@ _answer_walk() {
 	ls -1 "$REF" > "$TMP/cmds" 2>/dev/null
 	sed "s/['\"]//g" | awk -v cl="$TMP/cmds" -v mode="$1" '
 		function popn() { while (nclose-- > 0 && depth > 0) cmd = stack[depth--]; nclose = 0 }
+		# endtok -- close the token. a separator glued to the end of a word ends
+		# the command too, and it ends the INNER one: in $(date;) the ; belongs to
+		# date, so clear before popn restores the command outside.
+		function endtok() { if (nsep) { cmd = ""; nsep = 0 } popn() }
 		BEGIN {
 			while ((getline c < cl) > 0) known[c] = 1
 			split("env timeout xargs nohup setsid watch flock sh ash chroot", w, " ")
 			for (i in w) wrapper[w[i]] = 1
 		}
 		{
-			cmd = ""; depth = 0; nclose = 0; n = split($0, t, /[ \t]+/)
+			cmd = ""; depth = 0; nclose = 0; nsep = 0; n = split($0, t, /[ \t]+/)
 			for (i = 1; i <= n; i++) {
 				tok = t[i]
 
@@ -1090,31 +1094,36 @@ _answer_walk() {
 				while (sub(/^[("`]*\$\(/, "", tok) || sub(/^[("`]*`/, "", tok)) {
 					stack[++depth] = cmd; cmd = ""
 				}
+				# a function definition is not a call: f() { ...; } and f(){ ...; }
+				# both define, and the first word of the body is the command to attribute.
+				if (tok ~ /^[A-Za-z_][A-Za-z_0-9]*\(\)\{?$/)      { cmd = ""; endtok(); continue }
 				# count the closers now, but do NOT pop until this token has been
 				# attributed. popping first blamed the -f1 in
 				# "$(sha256sum x | cut -d -f1)" on printf, the command outside.
 				nclose = gsub(/[)`]+$/, "", tok)
+				# "set -- a b c; shift" must attribute shift, not swallow it.
+				nsep = gsub(/[;&]+$/, "", tok)
 				gsub(/^["]+|["]+$/, "", tok)
 
-				if (tok == "")                                      { popn(); continue }
-				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; popn(); continue }
-				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in)$/) { cmd = ""; popn(); continue }
-				if (tok == "-exec" || tok == "-ok")   { if (mode == "flags") print cmd, tok; cmd = ""; popn(); continue }
-				if (tok ~ /^[0-9]?[<>]+$/)                          { popn(); continue }
+				if (tok == "")                                      { endtok(); continue }
+				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; endtok(); continue }
+				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in|while|until|if)$/) { cmd = ""; endtok(); continue }
+				if (tok == "-exec" || tok == "-ok")   { if (mode == "flags") print cmd, tok; cmd = ""; endtok(); continue }
+				if (tok ~ /^[0-9]?[<>]+$/)                          { endtok(); continue }
 				if (cmd == "") {
 					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) { cmd = tok; if (mode == "cmds") print tok }
-					popn(); continue
+					endtok(); continue
 				}
 				if (tok !~ /^-./) {
 					if (wrapper[cmd] && known[tok]) { cmd = tok; if (mode == "cmds") print tok }
-					popn(); continue
+					endtok(); continue
 				}
-				if (mode == "cmds")                                 { popn(); continue }
-				if (tok ~ /^-[0-9]+$/)                              { popn(); continue }
+				if (mode == "cmds")                                 { endtok(); continue }
+				if (tok ~ /^-[0-9]+$/)                              { endtok(); continue }
 				# chmod takes a symbolic MODE beginning with a dash: chmod -x f
-				if (cmd == "chmod" && tok ~ /^-[rwxXstugoa]+$/)     { popn(); continue }
+				if (cmd == "chmod" && tok ~ /^-[rwxXstugoa]+$/)     { endtok(); continue }
 				print cmd, tok
-				popn()
+				endtok()
 			}
 		}'
 }
