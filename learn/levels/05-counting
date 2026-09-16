@@ -115,9 +115,10 @@ ref: sort
 teach: sort -f
 hint: f folds case, treating upper and lower as equal
 ---
-q: {check with sort whether @txt@ is already sorted, without printing|verify with sort that @txt@ is in order, without printing anything|confirm with sort that @txt@'s lines are sorted, silently}
-a: sort -c @txt@
+q: {check with sort whether versions.txt is sorted, without printing|verify with sort that versions.txt is in order, printing nothing|confirm with sort that versions.txt is sorted, silently}
+a: sort -c versions.txt
 status: 1
+cmp: ref
 ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not

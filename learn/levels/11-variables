@@ -1,7 +1,7 @@
 name: variables
 boss: $VARIABLE
 flavor: I hold what you've forgotten.
-syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME}, $(CMD)
+syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME#%}, ${NAME}, $(CMD), `CMD`
 brief: A variable is NAME=VALUE, with no spaces around the =. You read it back
 brief: with $NAME. Command substitution $(CMD) runs a command and becomes its
 brief: output, which is how you get a number out of wc and into a comparison.
@@ -192,3 +192,45 @@ cmp: ref
 ref: echo
 teach: echo
 hint: without the braces the shell looks for a variable called @var@s instead
+---
+q: {put @txt@ in @var@, then %show% everything after its first dot|store @txt@ as @var@, then %show% just the part past the first dot|save @txt@ in @var@, then %show% only what comes after the dot}
+a: @var@=@txt@; echo ${@var@#*.}
+cmp: ref
+ref: sh
+teach: sh
+hint: "#" strips the shortest match off the front -- *. eats through the first dot, leaving the rest
+---
+q: {put @csv@ in @var@, then %show% it with the .csv ending removed|store @csv@ as @var@, then %show% it without the .csv part|save @csv@ in @var@, then %show% just the name, no .csv}
+a: @var@=@csv@; echo ${@var@%.csv}
+cmp: ref
+ref: sh
+teach: sh
+hint: "%" strips the shortest match off the end -- .csv has to match the literal ending
+---
+q: {put @ip@ in @var@, then %show% just its last octet|store @ip@ as @var@, then %show% only its last octet|save @ip@ in @var@, then %show% its last octet alone}
+a: @var@=@ip@; echo ${@var@##*.}
+cmp: ref
+ref: sh
+teach: sh
+hint: "##" is the greedy version of "#" -- it eats through the LAST dot, not just the first
+---
+q: {put @ip@ in @var@, then %show% just its first octet|store @ip@ as @var@, then %show% only its first octet|save @ip@ in @var@, then %show% its first octet alone}
+a: @var@=@ip@; echo ${@var@%%.*}
+cmp: ref
+ref: sh
+teach: sh
+hint: "%%" is the greedy version of "%" -- it eats from the FIRST dot onward, keeping only the start
+---
+q: {grab the current timestamp into @tvar@, but write it the older backtick way|save the current date/time into @tvar@ using backticks, not $( )|stash the timestamp in @tvar@ with backticks instead of $( )}
+a: @tvar@=`date`
+why: conceptual
+ref: sh
+teach: sh
+hint: backticks are the older command-substitution syntax -- $( ) reads better but scripts you'll read still use `cmd`
+---
+q: {give ls a shortcut called @word@, then list your aliases|make @word@ short for ls, then show your aliases|set @word@ as a nickname for ls, then list all aliases}, with alias
+a: alias @word@=ls; alias
+cmp: ref
+ref: alias
+teach: alias
+hint: alias with no name or value lists every alias you've defined, as name=value

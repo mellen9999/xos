@@ -1,6 +1,7 @@
 name: files
 boss: CopyPasta
 flavor: Every copy is a ghost of the original.
+syntax: *, ?, [...], ~
 brief: Six commands move bytes around: cp copies, mv renames or moves, rm
 brief: deletes, mkdir and rmdir make and unmake directories, touch creates an
 brief: empty file or bumps its timestamp.
@@ -254,3 +255,31 @@ why: primitive-cost
 ref: mktemp
 teach: mktemp -u
 hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
+---
+q: {list every *.log file inside logs, with ls|match logs/*.log and list every hit, with ls}
+a: ls logs/*.log
+cmp: ref
+ref: ls
+teach: ls
+hint: unquoted, logs/*.log expands before ls ever sees it -- quoting it would pass the literal string instead
+---
+q: {list image-a.txt and image-b.txt with ls image-?.txt|match image-?.txt with ls -- that's image-a.txt and image-b.txt}
+a: ls image-?.txt
+cmp: ref
+ref: ls
+teach: ls
+hint: ? matches exactly one character -- * would also catch image-ab.txt if that name existed, ? never would
+---
+q: {list src/main.c and src/util.c with ls src/[mu]*.c|match src/[mu]*.c with ls -- that's src/main.c and src/util.c}
+a: ls src/[mu]*.c
+cmp: ref
+ref: ls
+teach: ls
+hint: [mu] is one character from the set m or u -- pairs with * to catch the rest of each name
+---
+q: {list your home directory with ls ~, no path typed|show what ls ~ finds in your home directory}
+a: ls ~
+cmp: ref
+ref: ls
+teach: ls
+hint: ~ expands to $HOME before ls ever runs -- cd ~ takes you there the same way

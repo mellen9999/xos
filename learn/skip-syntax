@@ -23,16 +23,3 @@
 
 <<              # multiline -- a heredoc needs its body on the next line, and an answer is one line
 
-( )             # pending
-{ }             # pending
-$@              # pending
-$*              # pending
-$#              # pending
-$0              # pending
-$1..$9          # pending
-${NAME#%}       # pending
-`CMD`           # pending
-[...]           # pending
-?               # pending
-~               # pending
---              # pending

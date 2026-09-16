@@ -1,7 +1,7 @@
 name: exit status and the special variables
 boss: AndOr
 flavor: Exit zero and you pass. Anything else is mine.
-syntax: ||, $?, $$, $!, &
+syntax: ||, $?, $$, $!, &, $#, $@, $*, $0, $1..$9, --, ( ), { }
 brief: Every command returns a number. Zero means success; anything else is a
 brief: failure the command chose. $? holds the last one.
 brief:
@@ -16,6 +16,12 @@ brief: carrying on with wrong data.
 brief:
 brief: The other specials: $$ this shell's pid, $! the last background pid,
 brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
+brief:
+brief: $* joins that same list into one word instead of keeping every piece
+brief: separate. -- marks the end of options, so anything after it is a
+brief: literal argument even if it starts with -. ( ) run their commands in
+brief: a fresh subshell -- a copy that can't change the parent; { } run them
+brief: in the current shell, just grouped as one.
 ---
 q: {run false, then %show% the exit status it left behind in $?|run false and check what $? comes back as|execute false, then %show% its exit code from $?}
 a: false; echo $?
@@ -131,3 +137,52 @@ out: errexit
 ref: set
 teach: set -o
 hint: -o with no name lists every option and whether it's on or off
+---
+q: set -- a b c, then %show% how many positional parameters there are
+a: set -- a b c; echo $#
+cmp: ref
+ref: sh
+teach: sh
+hint: $# counts whatever set -- just loaded -- three words in, 3 comes back
+---
+q: set -- a b c, then %show% just the second parameter
+a: set -- a b c; echo $2
+cmp: ref
+ref: sh
+teach: sh
+hint: $1 is the first positional parameter, $2 the second, on through $9
+---
+q: set -- "a b" c, then %show% each with printf, one per line
+a: set -- "a b" c; printf '%s\n' "$@"
+cmp: ref
+ref: sh
+teach: sh
+hint: "$@" keeps each positional parameter as its own word, spaces and all
+---
+q: set -- "a b" c, then %show% them as one word with printf, using $*
+a: set -- "a b" c; printf '%s\n' "$*"
+cmp: ref
+ref: sh
+teach: sh
+hint: "$*" joins every positional parameter into a single word -- $@ keeps them apart
+---
+q: run sh -c to echo $0, invoked under the name myscript
+a: sh -c "echo \$0" myscript
+cmp: ref
+ref: sh
+teach: sh
+hint: extra words after sh -c 'CMD' become $0, $1, $2... -- myscript lands in $0
+---
+q: set x to 1, then 2 inside a subshell, then %show% x
+a: x=1; ( x=2 ); echo $x
+cmp: ref
+ref: sh
+teach: sh
+hint: ( ) forks a subshell -- x=2 in there is a copy; the outer x is still 1
+---
+q: set x to 1, then 2 inside a { } group, then %show% x
+a: x=1; { x=2; }; echo $x
+cmp: ref
+ref: sh
+teach: sh
+hint: { } runs in the current shell -- x=2 here really overwrites the outer x
