@@ -1082,7 +1082,7 @@ _answer_walk() {
 		function endtok() { if (nsep) { cmd = ""; nsep = 0 } popn() }
 		BEGIN {
 			while ((getline c < cl) > 0) known[c] = 1
-			split("env timeout xargs nohup setsid watch flock sh ash chroot", w, " ")
+			split("env timeout xargs nohup setsid watch flock sh ash chroot exec eval", w, " ")
 			for (i in w) wrapper[w[i]] = 1
 		}
 		{
@@ -1208,7 +1208,10 @@ st_block() {
 	esac
 
 	# ref must be a command we ship
-	if [ -n "$Q_REF" ] && [ ! -f "$REF/$Q_REF" ]; then
+	# refname, not the raw field: the page for . is on disk as ref/dot, so the
+	# raw test rejected `ref: .` outright -- and `ref: dot` would have passed
+	# here and then never matched answer_cmds, disabling tier 2 forever.
+	if [ -n "$Q_REF" ] && [ ! -f "$REF/$(refname "$Q_REF")" ]; then
 		echo "FAIL $lbl: ref '$Q_REF' is not a shipped command" >&2; bad=$((bad+1))
 	fi
 
@@ -1503,6 +1506,11 @@ selftest() {
 	y	cd ~ && rm -rf *
 	y	sh -c "rm -rf ~"
 	y	find / -delete
+	y	exec rm -rf \$HOME
+	y	eval rm /etc/x
+	y	exec dd of=/dev/sda
+	n	exec 2>&1
+	n	eval echo hi
 	y	sed -i s/a/b/ ~/.ssh/authorized_keys
 	y	xargs rm /etc/x
 	y	timeout 5 rm -rf /tmp/home

@@ -166,7 +166,9 @@ unsafe() {
 			for (i in w) writer[w[i]] = 1
 			# these run whatever follows them: the command they wrap is the
 			# one to judge (xargs rm /x, sh -c "rm /x", timeout 5 rm /x)
-			split("xargs env timeout nohup setsid sh ash nice", wr, " ")
+			# exec and eval belong here too: exec rm -rf /x and eval rm /x both
+			# reach the real command, and the fence judged exec/eval instead.
+			split("xargs env timeout nohup setsid sh ash nice exec eval", wr, " ")
 			for (i in wr) wrapper[wr[i]] = 1
 			split("mkfs mke2fs mkdosfs mkswap swapon swapoff cryptsetup fdisk losetup" \
 			      " umount blockdev sync halt reboot poweroff udhcpc dropbearkey", b, " ")

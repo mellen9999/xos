@@ -108,7 +108,7 @@ lint() {
 				if (tok ~ /^-/) { prev = 1; continue }   # a flag
 				if (prev)      { prev = 0; continue }    # and its value
 				# a wrapper runs what follows it: that is a command, not an argument
-				if (tok ~ /^(env|timeout|xargs|nohup|setsid|watch|flock|sh|ash|chroot)$/) { cmd = ""; continue }
+				if (tok ~ /^(env|timeout|xargs|nohup|setsid|watch|flock|sh|ash|chroot|exec|eval)$/) { cmd = ""; continue }
 				gsub(/^['\''"]|['\''"]$/, "", tok)
 				if (tok ~ /^[a-z][a-z0-9]*$/) dst[tok] = 1
 			}
