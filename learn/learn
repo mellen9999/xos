@@ -1873,6 +1873,21 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
 
+	# continue's confirm names a level before opening it, and a name that is
+	# not the level resume walks to is worse than no name at all. both must
+	# skip a beaten level and a placed one, and agree on the first survivor.
+	( STATE="$TMP/rt"; PASSED="$STATE/passed"; PLACED="$STATE/placed"; mkdir -p "$STATE"
+	  LEVELS="$TMP/rtl"; mkdir -p "$LEVELS"; : > "$LEVELS/01-a"; : > "$LEVELS/02-b"; : > "$LEVELS/03-c"
+	  [ "$(resume_target)" = 01-a ] || exit 1
+	  printf '01-a\n' > "$PASSED"
+	  [ "$(resume_target)" = 02-b ] || exit 1
+	  printf '02-b\n' > "$PLACED"
+	  [ "$(resume_target)" = 03-c ] || exit 1
+	  printf '03-c\n' >> "$PASSED"
+	  resume_target && exit 1                           # nothing left to open
+	  exit 0 ) \
+		|| { echo "FAIL resume: target disagrees with the walk" >&2; bad=$((bad+1)); }
+
 	# migrate rewrites saved state when a level is renamed. it must move a
 	# boss-fall rather than drop it, drop one outright when the level was
 	# merged away, run exactly once, and do nothing at all on a fresh
@@ -2574,11 +2589,23 @@ playground() {
 
 # the campaign: run every level not yet passed or placed, in order, until one
 # is left unfinished or the last boss falls.
+# a level `continue` still owes you: not beaten, not skipped at placement.
+level_pending() { ! level_is_passed "$1" && ! level_is_placed "$1"; }
+
+# the level continue would open, or 1 when the ladder is done. same predicate
+# as the walk below, so the confirm can never name a level resume would skip.
+resume_target() {
+	local _id
+	for _id in $(level_ids); do
+		level_pending "$_id" && { printf '%s\n' "$_id"; return 0; }
+	done
+	return 1
+}
+
 resume() {
 	local _all=1 _ran=0 _id _stale
 	for _id in $(level_ids); do
-		level_is_passed "$_id" && continue
-		level_is_placed "$_id" && continue
+		level_pending "$_id" || continue
 		_ran=1
 		run_level "$_id" || { _all=0; break; }
 	done
@@ -2605,6 +2632,39 @@ resume() {
 	elif [ "$_all" = 1 ]; then
 		victory
 	fi
+}
+
+# continue was the one key that committed on press: a slipped c dropped you
+# into a level mid-card, and a mid-level place can only be left by finishing
+# or quitting it. it names the level and the place first now, and offers the
+# one thing the menu had no way to do -- drop that place and take the level
+# from the top -- without touching any other progress.
+resume_confirm() {
+	local id k nq fp lname held=0
+	id=$(resume_target) || { resume; return 0; }
+	nq=$(level_nq "$id"); fp=$(level_fp "$id")
+	lname=$(level_field "$id" name)
+	inprog_load "$id" "$fp" "$nq" && held=1
+	cls
+	hdr "continue" "level ${id%%-*}  $lname"
+	if [ "$held" = 1 ]; then
+		note "$INPROG_DONE of $nq answered, $INPROG_RIGHT right -- picks up where you stopped."
+	else
+		note "$nq questions, from the top."
+	fi
+	printf '\n'
+	_mi y continue ""
+	[ "$held" = 1 ] && _mi r restart "drop the place, take it from the top"
+	_mi n back     ""
+	rule
+	printf '  %schoose%s ' "$D" "$N"
+	IFS= read -rsn1 k 2>/dev/null || return 0
+	echo
+	case "$k" in
+		''|y|Y) resume ;;
+		r|R)    [ "$held" = 1 ] && inprog_clear "$id"; resume ;;
+	esac
+	return 0
 }
 
 _mi() { printf '   %s%s%s   %s%-10s%s %s%s%s\n' "$C$B" "$1" "$N" "$W" "$2" "$N" "$D" "$3" "$N"; }
@@ -2662,7 +2722,7 @@ menu() {
 		IFS= read -rsn1 k 2>/dev/null || break
 		echo
 		case "$k" in
-			c) resume ;;
+			c) resume_confirm ;;
 			p) cls; printf '  %spractice which level? (1-%s)%s ' "$W" "$t" "$N"
 			   IFS= read -r k 2>/dev/null || continue
 			   id=$(level_ids | grep "^0*$k-" | head -1)
