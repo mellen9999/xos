@@ -356,6 +356,47 @@ qwidth_over() {
 # after the change that "caused" it. this has bitten twice: a mount-option
 # question that raced another process mounting something, and a socket list.
 #
+# ---- a state: the answer's own redirect already guarantees -------------------
+#
+# `> P` creates P before the command feeding it is even exec'd, and creates it
+# whether that command succeeds, fails, or does not exist. so `state: exists:P`
+# on an answer that writes P with a redirect asserts exactly one thing: that
+# the learner typed the redirect.
+#
+# 04-redirection's `ls d missing > all.txt 2>&1` card graded exists:all.txt --
+# and `2>&1 > all.txt`, the exact mistake its own brief warns about two screens
+# earlier, creates all.txt too and passed. the card could not fail on the thing
+# it exists to teach.
+#
+# scoped the way the weak-out: rule is scoped: a card also carrying out:,
+# status: or cmp: has another discriminator and is not judged here.
+#
+# state_selfmade -- prints every such block.
+state_selfmade() {
+	awk '
+		function flush(   pth, gp, rx) {
+			if (inblk && !other && ans != "" && st ~ /^exists:/) {
+				pth = substr(st, 8); gp = pth
+				# every non-word byte becomes . -- the token is matched
+				# literally, and busybox awk refuses a class holding {}
+				# ("Invalid contents of {}"), which made this whole check
+				# a silent no-op under the very shell the build runs it in.
+				gsub(/[^A-Za-z0-9_-]/, ".", gp)
+				rx = "(^|[ \t])[0-9]?>>?[ \t]*" gp "([ \t]|$)"
+				if (ans ~ rx)
+					printf "  %s:%d: state:%s is made by the redirect in the answer itself -- match: what only the right answer writes\n    %s\n", bf, al, st, ans
+			}
+			inblk = 0; st = ""; ans = ""; other = 0
+		}
+		FNR == 1 { flush(); n = split(FILENAME, pp, "/"); bf = pp[n] }
+		/^---$/  { flush(); inblk = 1; next }
+		inblk && /^state: / && st  == "" { st = substr($0, 8) }
+		inblk && /^a: /     && ans == "" { ans = substr($0, 4); al = FNR }
+		inblk && /^(out|status|cmp): /   { other = 1 }
+		END { flush() }
+	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
+}
+
 # ---- the grammar ledger ----------------------------------------------------
 #
 # learn/syntax is a closed set the same way the applet surface is: every row

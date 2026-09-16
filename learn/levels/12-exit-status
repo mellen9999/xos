@@ -221,3 +221,38 @@ a: a b c
 ref: sh
 teach: sh
 hint: "$*" joins every parameter into one word, so printf gets a single line
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: set -- "a b" c; printf '%s\n' "$@" | wc -l
+a: 2
+ref: sh
+teach: sh
+hint: quoted, "$@" keeps "a b" and c as two separate parameters, so printf runs twice
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: set -- "a b" c; for w in $@; do echo $w; done | wc -l
+a: 3
+ref: sh
+teach: sh
+hint: unquoted, $@ splits on whitespace just like $* does -- "a b" breaks into two words
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: false | true; echo $?
+a: 0
+ref: sh
+teach: sh
+hint: $? after a pipeline is the LAST command's status -- true wins even though false ran too
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: true | false; echo $?
+a: 1
+ref: sh
+teach: sh
+hint: same rule, flipped -- the last command in the pipeline is false, so that's the status kept
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: false && echo a || echo b
+a: b
+ref: sh
+teach: sh
+hint: && short-circuits on the failure, so its echo never runs -- || is what's left to fire

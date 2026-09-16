@@ -1598,6 +1598,14 @@ selftest() {
 	# the commands and not the shell -- a third of the grammar was claimed by
 	# no level, and sh is one page in ref/ so the flag gate could never see it.
 	local _syn
+	# a state: the card's own redirect guarantees grades the redirect, not the
+	# lesson -- both orders of `> f 2>&1` created the file, and both passed
+	local _selfmade
+	_selfmade=$(state_selfmade)
+	[ -z "$_selfmade" ] || { printf '%s\n' "$_selfmade" >&2
+		echo "FAIL: $(printf '%s\n' "$_selfmade" | grep -c 'redirect in the answer') state: check(s) assert only that a redirect was typed" >&2
+		bad=$((bad+1)); }
+
 	_syn=$(syntax_coverage)
 	[ -z "$_syn" ] || { printf '%s\n' "$_syn" >&2
 		echo "FAIL: $(printf '%s\n' "$_syn" | grep -c .) syntax row(s) neither drilled nor retired" >&2

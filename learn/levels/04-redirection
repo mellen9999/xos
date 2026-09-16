@@ -43,7 +43,7 @@ hint: < connects the file to stdin -- sort never sees a filename argument
 ---
 q: {run "ls @word@-missing" and send only its error message to errors.txt|run "ls @word@-missing", capturing just the error message in errors.txt|run "ls @word@-missing" so only the error text lands in errors.txt}
 a: ls @word@-missing 2> errors.txt
-state: exists:errors.txt
+state: match:errors.txt:No such file
 ref: ls
 teach: ls
 hint: the error channel is number 2
@@ -57,7 +57,7 @@ hint: /dev/null is the bit bucket -- everything written to it is discarded
 ---
 q: {run "ls @dir@ @word@-missing", output and errors both into all.txt|run "ls @dir@ @word@-missing", capturing output and errors in all.txt|run "ls @dir@ @word@-missing" so everything lands in all.txt}
 a: ls @dir@ @word@-missing > all.txt 2>&1
-state: exists:all.txt
+state: match:all.txt:No such file
 ref: ls
 teach: ls
 hint: redirect stdout first, then point stderr at wherever stdout now goes
@@ -79,7 +79,7 @@ hint: without -a, tee truncates the file the way > does
 q: %count% @txt@'s lines and write the number into @cvar@.txt, with wc
 a: wc -l < @txt@ > @cvar@.txt
 a: wc -l @txt@ > @cvar@.txt
-state: exists:@cvar@.txt
+state: match:@cvar@.txt:^[0-9]
 ref: wc
 teach: wc -l
 hint: redirecting in with < keeps the filename out of wc's output
@@ -126,3 +126,38 @@ out: such
 ref: grep
 teach: grep
 hint: 2>&1 before the pipe merges stderr into the same stream grep reads -- 2>&1 after the pipe would be too late
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: echo one > f; echo two > f; cat f
+a: two
+ref: sh
+teach: sh
+hint: > truncates the file each time it runs, so only the last write survives
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: echo one > f; echo two >> f; wc -l < f
+a: 2
+ref: sh
+teach: sh
+hint: >> adds onto what's there instead of truncating it like > does
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: echo hi 2>/dev/null
+a: hi
+ref: sh
+teach: sh
+hint: 2>/dev/null only redirects the error channel -- stdout still comes through
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: : > f; ls f nope > out.txt 2>&1 | wc -l
+a: 0
+ref: sh
+teach: sh
+hint: > out.txt moves stdout to the file first, so 2>&1 copies that -- nothing is left to reach the pipe
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: : > f; ls f nope 2>&1 > out.txt | wc -l
+a: 1
+ref: sh
+teach: sh
+hint: 2>&1 fires first and copies stdout's old target, the pipe -- > out.txt then only moves stdout, leaving the error behind in it

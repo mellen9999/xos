@@ -255,3 +255,59 @@ a: fallback
 ref: sh
 teach: sh
 hint: u was never set, so the value after :- is used instead
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=foo.bar.baz; echo ${x#*.}
+a: bar.baz
+ref: sh
+teach: sh
+hint: # strips the shortest match off the front -- *. stops at the first dot
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=foo.bar.baz; echo ${x##*.}
+a: baz
+ref: sh
+teach: sh
+hint: ## is greedy -- *. now stretches to the LAST dot, taking everything before it
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=foo.bar.baz; echo ${x%.*}
+a: foo.bar
+ref: sh
+teach: sh
+hint: % strips the shortest match off the end -- .* stops at the last dot
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=foo.bar.baz; echo ${x%%.*}
+a: foo
+ref: sh
+teach: sh
+hint: %% is greedy -- .* now stretches back to the FIRST dot, taking everything after it
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: unset v; : ${v:=hello}; echo $v
+a: hello
+ref: sh
+teach: sh
+hint: := doesn't just substitute a fallback like :- does -- it actually assigns it to v
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: v=x; echo ${v:+replaced}
+a: replaced
+ref: sh
+teach: sh
+hint: :+ is the mirror of :- -- it substitutes its word when v IS set, ignoring v's own value entirely
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: v="a b"; printf '[%s]' $v; echo
+a: [a][b]
+ref: sh
+teach: sh
+hint: unquoted $v splits on the space into two words -- printf's format recycles for each one
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: v="a b"; printf '[%s]' "$v"; echo
+a: [a b]
+ref: sh
+teach: sh
+hint: quoted, "$v" stays one word, space and all -- printf's format runs just once

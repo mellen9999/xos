@@ -139,3 +139,38 @@ cmp: ref
 ref: sh
 teach: sh
 hint: until is while's mirror -- it loops as long as the test still fails
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x="a b"; for w in $x; do echo $w; done | wc -l
+a: 2
+ref: sh
+teach: sh
+hint: unquoted, $x splits on the space, so for sees two words and loops twice
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x="a b"; for w in "$x"; do echo $w; done | wc -l
+a: 1
+ref: sh
+teach: sh
+hint: quoted, "$x" is one word with the space still in it, so for loops just once
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: printf 'a\nb' | while read -r l; do echo "$l"; done | wc -l
+a: 1
+ref: sh
+teach: sh
+hint: the last line has no trailing newline, so read hits EOF and fails before the loop body runs for it
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=b; case $x in a|b) echo first;; b) echo second;; esac
+a: first
+ref: sh
+teach: sh
+hint: case stops at the first pattern that matches -- the later b) branch never gets a turn
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: echo $((7/2))
+a: 3
+ref: sh
+teach: sh
+hint: $(( )) is integer arithmetic -- it truncates instead of rounding, no floats involved

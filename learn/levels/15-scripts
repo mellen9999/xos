@@ -119,3 +119,45 @@ cmp: ref
 ref: let
 teach: let
 hint: let does arithmetic without $(( )) around it
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: v=1; f() { local v=2; }; f; echo $v
+a: 1
+ref: sh
+teach: sh
+hint: local keeps the assignment inside f -- the caller's v was never touched
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: set -- a b; shift 5; echo $#
+a: 2
+ref: sh
+teach: sh
+hint: shift past the end of the list is a no-op, not an error -- $# is left exactly as it was
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: f() { return 1; }; f; echo after
+a: after
+ref: sh
+teach: sh
+hint: return only ends the function -- the caller keeps running right after the call
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: f() { return 7; }; f; echo $?
+a: 7
+ref: sh
+teach: sh
+hint: return's argument becomes the function's exit status, same as $? after any command
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: trap 'echo bye' EXIT
+a: bye
+ref: sh
+teach: sh
+hint: EXIT fires when the shell ends for any reason, including just running off the last line
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x='$y'; y=hi; eval echo $x
+a: hi
+ref: sh
+teach: sh
+hint: the line expands $x to the literal text $y first -- eval then expands THAT, reaching y's value

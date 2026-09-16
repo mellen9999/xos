@@ -41,7 +41,7 @@ hint: awk '{print $1}' keeps only the first field, dropping the filename
 ---
 q: {save the hashes of every .log file here into sums.txt|hash every .log file and redirect the results into sums.txt|write sha256sum's output for all .log files to sums.txt}, with sha256sum
 a: sha256sum *.log > sums.txt
-state: exists:sums.txt
+state: match:sums.txt:^[0-9a-f]{64}  
 ref: sha256sum
 teach: sha256sum
 hint: sha256sum's normal output format is exactly what -c later expects to read

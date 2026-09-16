@@ -158,3 +158,38 @@ out: ^either$
 ref: [
 teach: [ -o
 hint: -o inside [ ] means logical OR between two conditions
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: x=; [ -n $x ] && echo yes || echo no
+a: yes
+ref: sh
+teach: sh
+hint: x is empty so $x vanishes, leaving [ -n ] -- a single word, which tests true as non-empty
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: unset x; [ -z "$x" ] && echo yes || echo no
+a: yes
+ref: sh
+teach: sh
+hint: -z counts unset the same as empty -- both have length zero
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: unset x; [ -n "$x" ] && echo yes || echo no
+a: no
+ref: sh
+teach: sh
+hint: -n is the opposite of -z -- an unset variable has no length, so this fails
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: [ 9 = 09 ] && echo eq || echo ne
+a: ne
+ref: sh
+teach: sh
+hint: = compares the characters -- "9" and "09" aren't the same string, leading zero and all
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: [ 9 -eq 09 ] && echo eq || echo ne
+a: eq
+ref: sh
+teach: sh
+hint: -eq compares the numbers, not the digits -- 9 and 09 are the same value

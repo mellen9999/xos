@@ -309,7 +309,7 @@ hint: xzcat is xz -dc -- decompress straight to stdout, as zcat does for gzip
 ---
 q: pack @txt@ into a newc-format archive out.cpio with cpio
 a: echo @txt@ | cpio -o -H newc > out.cpio
-state: exists:out.cpio
+state: match:out.cpio:070701
 ref: cpio
 teach: cpio -o
 teach: cpio -H
