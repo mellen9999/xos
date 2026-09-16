@@ -1,0 +1,85 @@
+name: blobs
+after: 22-bytes
+intro: A file on a machine you were handed does not have to tell you what it
+intro: is, and its name is whatever the last person felt like. Three programs
+intro: for deciding that yourself: name it by what is in its first four bytes,
+intro: say whether it is text or not, and pull the readable part out.
+---
+q: what.sh -- name a file by its first four bytes
+spec: It takes one file and prints exactly one word, from this list, by what
+spec: the file's first four bytes are:
+spec:
+spec:   7f 45 4c 46          elf
+spec:   1f 8b (then any two) gzip
+spec:   50 4b 03 04          zip
+spec:   30 37 30 37          cpio
+spec:   anything else        text
+spec:
+spec: With anything other than exactly one argument it exits 2.
+file: what.sh
+prog: #!/bin/sh
+prog: [ $# -eq 1 ] || exit 2
+prog: m=$(od -An -tx1 -N4 "$1" | tr -d ' \n')
+prog: case "$m" in
+prog: 7f454c46) echo elf ;;
+prog: 1f8b*)    echo gzip ;;
+prog: 504b0304) echo zip ;;
+prog: 30373037) echo cpio ;;
+prog: *)        echo text ;;
+prog: esac
+case: sh what.sh @bin@
+case: sh what.sh archive/site-backup.tar.gz
+case: sh what.sh archive.zip
+case: sh what.sh archive.cpio
+case: sh what.sh @txt@
+case: sh what.sh; echo $?
+ref: sh
+teach: sh
+hint: the hard part is getting those four bytes into something you can compare -- after that it is one case
+---
+q: bytes.sh -- how much of a file is not text
+spec: It takes one file and prints two lines and nothing else:
+spec:
+spec:   bytes N     how many bytes the file holds
+spec:   binary N    how many of those are not printable ASCII
+spec:
+spec: A byte counts as printable when it is a tab, a newline, a carriage
+spec: return, or falls in 32 to 126. Everything else is binary.
+spec:
+spec: With anything other than exactly one argument it exits 2.
+file: bytes.sh
+prog: #!/bin/sh
+prog: [ $# -eq 1 ] || exit 2
+prog: echo "bytes $(wc -c < "$1")"
+prog: od -An -tu1 -v "$1" | awk '{ for (i = 1; i <= NF; i++) if ($i < 9 || ($i > 13 && $i < 32) || $i > 126) n++ } END { print "binary", n + 0 }'
+case: sh bytes.sh @bin@
+case: sh bytes.sh @txt@
+case: sh bytes.sh archive.zip
+case: sh bytes.sh; echo $?
+ref: sh
+teach: sh
+hint: od can hand you every byte as a number, one screenful of columns at a time -- the counting is then arithmetic, not pattern matching
+---
+q: strings-in.sh -- the readable part of everything in a directory
+spec: It takes a directory. For every regular file directly inside it, it
+spec: prints the file's name -- the bare name, no path -- then one space,
+spec: then the first run of 6 or more printable characters in that file.
+spec:
+spec: A file with no such run prints nothing at all. Subdirectories are
+spec: skipped.
+spec:
+spec: With anything other than exactly one argument it exits 2.
+file: strings-in.sh
+prog: #!/bin/sh
+prog: [ $# -eq 1 ] || exit 2
+prog: for f in "$1"/*; do
+prog: [ -f "$f" ] || continue
+prog: s=$(strings -n 6 "$f" | head -n 1)
+prog: [ -n "$s" ] && echo "${f##*/} $s"
+prog: done
+case: sh strings-in.sh samples
+case: sh strings-in.sh src
+case: sh strings-in.sh; echo $?
+ref: sh
+teach: sh
+hint: ${f##*/} strips every path component off a name, and a glob already hands you one file at a time
