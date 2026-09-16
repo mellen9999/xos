@@ -873,7 +873,7 @@ rootfs() {
   # data structures -- which is what lets the one shell be ash.
   [ -x learn/learn ] || { echo "FAIL: learn/learn missing or not executable" >&2; return 1; }
   local part
-  for part in ref lib pools levels scenarios; do
+  for part in ref lib pools levels scenarios projects; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
   for _f in skip skip-syntax builtins phrases syntax vs chains migrations; do
@@ -881,7 +881,7 @@ rootfs() {
   done
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
-  cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios root/usr/share/learn/
+  cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
   cp learn/skip learn/skip-syntax learn/builtins learn/phrases learn/chains \
      learn/syntax learn/vs learn/migrations root/usr/share/learn/
 

@@ -1,0 +1,62 @@
+name: triage
+after: 15-scripts
+intro: Three small programs, each one file. You get a spec and nothing else --
+intro: no answer to recall, no flag being tested. Write it, leave the editor,
+intro: and it is run against cases you do not see; a case that does not match
+intro: tells you which input broke it and what came out instead.
+intro:
+intro: Anything that behaves right passes. There is no shape it has to have.
+---
+q: count.sh -- how many lines of a file carry a word
+spec: It takes two arguments: a word, then a file. It prints how many lines
+spec: of that file contain the word, and nothing else.
+spec:
+spec: Given fewer than two arguments it prints nothing and exits 2.
+file: count.sh
+prog: #!/bin/sh
+prog: [ $# -ge 2 ] || exit 2
+prog: grep -c "$1" "$2"
+case: sh count.sh ERROR @log@
+case: sh count.sh NOTHINGLIKETHIS @log@; echo $?
+case: sh count.sh ERROR; echo $?
+case: sh count.sh; echo $?
+ref: sh
+teach: sh
+hint: $# is how many arguments arrived, and grep counts lines for you -- the script's job is the guard around it
+---
+q: first.sh -- the opening line of every file you name
+spec: It takes any number of files and prints the first line of each, in the
+spec: order you named them.
+spec:
+spec: Given no arguments at all it prints nothing and exits 1.
+file: first.sh
+prog: #!/bin/sh
+prog: [ $# -gt 0 ] || exit 1
+prog: for f in "$@"; do
+prog: head -n 1 "$f"
+prog: done
+case: sh first.sh @log@ @txt@
+case: sh first.sh @txt@
+case: sh first.sh; echo $?
+ref: sh
+teach: sh
+hint: "$@" walks the arguments keeping each as its own word, however many there are
+---
+q: tmp.sh -- clean up after yourself, whatever happens
+spec: It takes one file. It writes that file's sorted, de-duplicated lines to
+spec: a working file called out.tmp, prints how many lines that came to, and
+spec: nothing else.
+spec:
+spec: out.tmp must not exist afterwards -- not on the way out, and not if the
+spec: script dies partway.
+file: tmp.sh
+prog: #!/bin/sh
+prog: t=out.tmp
+prog: trap 'rm -f "$t"' EXIT
+prog: sort -u "$1" > "$t"
+prog: wc -l < "$t"
+case: sh tmp.sh @txt@; ls out.tmp 2>/dev/null | wc -l
+case: sh tmp.sh @log@; ls out.tmp 2>/dev/null | wc -l
+ref: sh
+teach: sh
+hint: trap CMD EXIT runs CMD however the shell ends, which is the only way to clean up a path you did not plan for

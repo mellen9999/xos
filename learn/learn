@@ -47,7 +47,7 @@ trap cleanup EXIT
 trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
-for _l in ui ctx grade fixtures cards coach chal edit scenarios autopsy explain lint; do
+for _l in ui ctx grade fixtures cards coach chal edit scenarios projects autopsy explain lint; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -334,6 +334,21 @@ blk_load() {
 	# produce-the-command cannot tell those pairs apart, which is exactly why
 	# 04-redirection graded its own lesson wrong for so long.
 	Q_PREDICT=$(sed -n 's/^predict: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	# a project block: the spec you read, the file you write, the reference
+	# program and the cases both are run against. read only for a file under
+	# projects/ -- every other card would pay four sed passes a question for
+	# four fields it never has. the bodies go through render_tokens, not
+	# render: they are code, and code has braces and pipes in it that the
+	# {a|b|c} pass would read as a choice and throw half of away.
+	Q_SPEC= Q_FILE= Q_PROG= Q_CASES= Q_START=
+	case "$1" in
+		"$PROJECTS"/*)
+			Q_SPEC=$(sed -n 's/^spec: \{0,1\}//p' "$blk" | render_named "$seed")
+			Q_FILE=$(sed -n 's/^file: \{0,1\}//p' "$blk" | head -1)
+			Q_PROG=$(sed -n 's/^prog: \{0,1\}//p' "$blk" | render_tokens)
+			Q_START=$(sed -n 's/^start: \{0,1\}//p' "$blk" | render_tokens)
+			Q_CASES=$(sed -n 's/^case: \{0,1\}//p' "$blk" | render_tokens) ;;
+	esac
 	[ -n "$Q_PROMPT" ]
 }
 
@@ -611,7 +626,7 @@ run_level() {
 		if [ "$rc" = 0 ]; then
 			level_is_passed "$id"; _was=$?
 			level_passed "$id"
-			[ "$_was" = 0 ] || { scn_announce "$id" && pause_card; }
+			[ "$_was" = 0 ] || { { scn_announce "$id"; prj_announce "$id"; } && pause_card; }
 			return 0
 		fi
 		[ "$rc" = 2 ] && return 2
@@ -781,7 +796,7 @@ daily() {
 
 stats() {
 	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
-	local id n m sn sm
+	local id n m sn sm pn pm
 	# one pass, and the same one held_ids uses: counting by key prefix here
 	# and by rebuilt key there would be two answers to "have you still got
 	# this level", which is the drift every shared walker in here exists to
@@ -800,6 +815,14 @@ stats() {
 		sm=$(awk -F'\t' '$1 ~ /^scn\// && $2 == 2 { c++ } END { print c + 0 }' "$CARDS" 2>/dev/null)
 		printf '  %s%-28s%s %s%s/%s%s\n' "$W" missions "$N" \
 			"$([ "$sm" = "$sn" ] && echo "$G" || echo "$D")" "$sm" "$sn" "$N"
+	fi
+	# projects sit apart on purpose: they are not cards, they do not decay,
+	# and a program you wrote is a thing you did rather than a thing you hold.
+	pn=$(for id in $(project_ids); do prj_nq "$id"; done | awk '{ n += $1 } END { print n + 0 }')
+	if [ "$pn" -gt 0 ]; then
+		pm=$(for id in $(project_ids); do prj_ndone "$id"; done | awk '{ n += $1 } END { print n + 0 }')
+		printf '  %s%-28s%s %s%s/%s%s\n' "$W" projects "$N" \
+			"$([ "$pm" = "$pn" ] && echo "$G" || echo "$D")" "$pm" "$pn" "$N"
 	fi
 	rule
 	note "tier 2 is mastered. a card unproved for $DECAY_DAYS days drops a tier."
@@ -895,10 +918,29 @@ order() {
 	set --
 	for id in $(level_ids); do set -- "$@" "$(level_path "$id")"; done
 	order_syntax gate "$@" >> "$TMP/ord"
+	# a project's after: is a claim about where in the curriculum it sits.
+	# this is what makes the claim true: its reference solution and its cases
+	# may only reach for commands that gate level, or an earlier one, taught.
+	# without it a spec could be unlocked at 15 and need a tool from 22.
+	for pid in $(project_ids); do
+		: > "$TMP/pseen"
+		for id in $(level_ids); do
+			sed -n 's/^teach: \{0,1\}//p' "$(level_path "$id")" | awk '{ print $1 }' >> "$TMP/pseen"
+			[ "$id" = "$(prj_after "$pid")" ] && break
+		done
+		sort -u "$TMP/pseen" > "$TMP/pseen2" && mv "$TMP/pseen2" "$TMP/pseen"
+		sed -n 's/^prog: \{0,1\}//p; s/^case: \{0,1\}//p' "$(prj_path "$pid")" \
+			| answer_cmds | sort -u | while read -r c; do
+			[ -n "$c" ] || continue
+			[ -f "$REF/$(refname "$c")" ] || continue
+			grep -qxF -- "$c" "$TMP/pseen" \
+				|| echo "OUT OF ORDER $pid: uses '$c', which no level up to $(prj_after "$pid") introduces"
+		done
+	done >> "$TMP/ord" 2>&1
 	bad=$(awk 'END { print NR }' "$TMP/ord")
 	[ "$bad" -eq 0 ] || cat "$TMP/ord" >&2
-	printf 'learn: %d level(s) checked for order, %d violation(s)\n' \
-		"$(level_ids | grep -c .)" "$bad"
+	printf 'learn: %d level(s) and %d project(s) checked for order, %d violation(s)\n' \
+		"$(level_ids | grep -c .)" "$(project_ids | grep -c .)" "$bad"
 	[ "$bad" -eq 0 ]
 }
 
@@ -2091,8 +2133,15 @@ c' 20)" = 3 ] || exit 1
 			|| { echo "FAIL coach: crashed on: $a" >&2; bad=$((bad+1)); }
 	done
 
-	printf 'learn: %d questions in %d levels, %d chain stages, %d scenario steps, %d bad\n' \
-		"$nq_lvl" "$(level_ids | grep -c .)" "$nq_chain" "$nq_scn" "$bad"
+	# projects are not cards and st_block cannot read them -- they have no
+	# listed answer to grade and no flag to claim. their own checker asks the
+	# two questions that matter instead: does the reference reproduce itself
+	# on a freshly built tree, and can an empty program fail a case.
+	prj_check || bad=$((bad + $?))
+
+	printf 'learn: %d questions in %d levels, %d chain stages, %d scenario steps, %d program(s), %d bad\n' \
+		"$nq_lvl" "$(level_ids | grep -c .)" "$nq_chain" "$nq_scn" \
+		"$(for _p in $(project_ids); do prj_nq "$_p"; done | awk '{ n += $1 } END { print n + 0 }')" "$bad"
 	[ "$bad" -eq 0 ]
 }
 
@@ -2144,6 +2193,7 @@ usage() {
 	learn daily           today's one -- a hard card under the clock, same everywhere
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn scenario [NAME] missions -- narrative pipelines, or the list of unlocked ones
+	learn project [NAME]  write a program against a spec, or the list of them
 	learn shell [SEED]    a shell in the tree the cards run against
 	learn autopsy [FILE]  your own shell history, held up to the curriculum
 	learn explain LINE    every command's summary plus the shell syntax in it
@@ -2274,6 +2324,8 @@ menu() {
 		_mi f find      "any command's reference"
 		if scenarios_any_unlocked; then _mi m missions "pipelines on real machine state"
 		else _mi_off m missions "locked until a level unlocks one"; fi
+		if projects_any_unlocked; then _mi w projects "write a program against a spec"
+		else _mi_off w projects "locked until a level unlocks one"; fi
 		_mi t shell     "a shell in the tree the cards use"
 		_mi s stats     "what you've mastered"
 		_mi a autopsy   "your shell history vs the curriculum"
@@ -2297,6 +2349,7 @@ menu() {
 			   IFS= read -r k 2>/dev/null || continue
 			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
 			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
+			w) if projects_any_unlocked; then projects_menu; else no "no projects unlocked yet."; pause_card; fi ;;
 			t) playground "" ;;
 			s) cls; stats; pause_card ;;
 			a) cls; autopsy; pause_card ;;
@@ -2347,6 +2400,16 @@ case "${1:-}" in
 	          	else no "locked -- beat $(scn_after "$_sid") first."; fi
 	          fi
 	          session_summary ;;
+	project)  shift
+	          case "${1:-}" in
+	          	check) prj_check && echo "learn: $(project_ids | grep -c .) project(s) check out" ;;
+	          	'')    projects_menu ;;
+	          	*)     _pid=$(project_ids | grep "^0*$1-" | head -1)
+	          	       [ -n "$_pid" ] || _pid=$(project_ids | grep -xF -- "$1")
+	          	       if [ -z "$_pid" ]; then die "no project $1"
+	          	       elif prj_unlocked "$_pid"; then run_project "$_pid"
+	          	       else no "locked -- beat $(prj_after "$_pid") first."; fi ;;
+	          esac ;;
 	shell)    shift; playground "${1:-}" ;;
 	autopsy)  shift; autopsy "$@" ;;
 	explain)  shift; explain "$@" ;;

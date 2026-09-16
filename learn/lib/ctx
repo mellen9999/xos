@@ -149,6 +149,13 @@ PHRASES="$ROOT/phrases"
 render()       { _render "$SUBST"    "$1"; }
 render_named() { _render "$SUBST_HI" "$1" "$HI1" "$HI2"; }
 
+# render_tokens -- the roll's names only, no phrase macros and no {a|b|c}.
+# a program body is CODE: `{ grep x "$1" | wc -l; }` is a command group with a
+# pipe in it, and the alternation pass below would read it as a two-branch
+# choice and throw half the line away. the same goes for a printf format --
+# "%s" is not a macro, but a body is not prose and should not be read as any.
+render_tokens() { sed -f "$SUBST"; }
+
 _render() {
 	sed -f "$1" | awk -v seed="$2" -v pf="$PHRASES" -v hi1="${3:-}" -v hi2="${4:-}" '
 		BEGIN {

@@ -37,6 +37,8 @@ usr/share/learn/lib/autopsy
 usr/share/learn/lib/explain
 usr/share/learn/lib/lint
 usr/share/learn/syntax
+usr/share/learn/lib/projects
+usr/share/learn/projects/01-triage
 usr/share/learn/scenarios/01-first-blood
 usr/share/learn/scenarios/10-the-sweep
 etc/shrc

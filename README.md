@@ -447,6 +447,7 @@ the last level is the machine itself.
     learn place       climb the curriculum, skip what you already know
     learn challenge   timed chains, one life -- unlocked at the last boss
     learn scenario    narrative missions against the real machine
+    learn project     write a program against a spec, graded by running it
     learn shell       a shell in that same sandbox, to try things in
     learn autopsy     read your own shell history, name the drills that fit
 

@@ -1,0 +1,293 @@
+# projects -- write a program, not a line.
+#
+# every other card in the corpus is answered with ONE line. that is the right
+# shape for a flag and the wrong shape for the thing flags are for: 916 of the
+# corpus's answers are a single command, and a learner who has held all thirty
+# levels can still not sit down and write a script. a project is the missing
+# half -- a written spec, a file you author in the editor the curriculum
+# already taught, and hidden cases that run it.
+#
+# no boss and no clock. a boss is five recalls in thirty seconds each, which is
+# the correct test for "do you still know -n" and a meaningless one for "can
+# you write this" -- so a project is not a card either: it is done or it is
+# not, recorded in its own ledger, and it never enters the review pool. what
+# you would re-do is the writing, and re-doing writing is not repetition.
+#
+# a project is graded the way `cmp: ref` grades a line, one rung up: the
+# reference solution runs the same hidden cases against the same seeded tree,
+# and your program has to print what it prints and exit how it exits. so any
+# honest implementation passes and there is nothing to guess about the author.
+
+PROJECTS="$ROOT/projects"
+PRJ_DONE="$STATE/projects"
+
+project_ids() { ls -1 "$PROJECTS" 2>/dev/null | sort; }
+prj_path()    { echo "$PROJECTS/$1"; }
+prj_nq()      { blocks_nq "$(prj_path "$1")"; }
+prj_field()   { blk_field "$(prj_path "$1")" "$2"; }
+prj_after()   { prj_field "$1" after | head -1; }
+
+prj_unlocked() { local a; a=$(prj_after "$1"); [ -n "$a" ] || return 0; level_is_passed "$a"; }
+projects_any_unlocked() { local p; for p in $(project_ids); do prj_unlocked "$p" && return 0; done; return 1; }
+
+# the ledger is one line per finished program, "id/index". a project is not a
+# card: there is no tier to hold and nothing to decay, so `passed` is the
+# precedent here, not `cards` -- a thing you did, kept.
+prj_is_done() { grep -qxF -- "$1/$2" "$PRJ_DONE" 2>/dev/null; }
+prj_mark()    { prj_is_done "$1" "$2" || { mkdir -p "$STATE" 2>/dev/null; echo "$1/$2" >> "$PRJ_DONE" 2>/dev/null; }; }
+prj_ndone()   { local p=$1 n=0 i; i=1; while [ "$i" -le "$(prj_nq "$p")" ]; do prj_is_done "$p" "$i" && n=$((n + 1)); i=$((i + 1)); done; echo "$n"; }
+
+# prj_announce LEVEL -- name every project that level's fall just opened.
+# the mirror of scn_announce, and for the same reason: a thing that unlocks
+# silently is a thing nobody finds.
+prj_announce() {
+	local pid n=0
+	for pid in $(project_ids); do
+		[ "$(prj_after "$pid")" = "$1" ] || continue
+		n=$((n + 1)); ok "project unlocked -- $(prj_field "$pid" name)"
+	done
+	[ "$n" -gt 0 ] || return 1
+	note "press w at the menu to write $([ "$n" -gt 1 ] && echo them || echo it)."
+	return 0
+}
+
+# ---- running a program ----------------------------------------------------
+
+# prj_run WORKFILE NAME CASE -- one case, against a freshly built tree.
+#
+# the tree is rebuilt for EVERY run, both the learner's and the reference's: a
+# program that writes, deletes or appends leaves a different world behind it,
+# and a reference run that inherited that world would be grading the learner's
+# side effects instead of the reference's output. the working copy lives
+# outside the sandbox for the same reason -- the first rebuild would delete it.
+prj_run() {
+	SANDBOX_DIRTY=1
+	sandbox_reset || return 1
+	cp "$1" "$SANDBOX/$2" 2>/dev/null || return 1
+	chmod 0644 "$SANDBOX/$2" 2>/dev/null
+	# shellcheck disable=SC2086
+	( cd "$SANDBOX" 2>/dev/null || exit 1
+	  HOME="$SANDBOX" TMPDIR="$SANDBOX" timeout 5 $DROP "$SHELLBIN" -c "$3" </dev/null 2>&1 )
+}
+
+# prj_grade WORKFILE -- 0 when every case matches the reference.
+# on a miss PRJ_CASE/PRJ_GOT/PRJ_WANT name the first one that did not, which is
+# the whole of the feedback: which input broke it, and what came out instead.
+PRJ_CASE= PRJ_GOT= PRJ_WANT=
+prj_grade() {
+	local work=$1 name=${Q_FILE:-answer.sh} ref="$TMP/prj.ref" c got want gs ws
+	PRJ_CASE= PRJ_GOT= PRJ_WANT=
+	[ -n "$Q_CASES" ] || return 1
+	printf '%s\n' "$Q_PROG" > "$ref" || return 1
+	printf '%s\n' "$Q_CASES" > "$TMP/prj.cases"
+	while IFS= read -r c <&4; do
+		[ -n "$c" ] || continue
+		got=$(prj_run "$work" "$name" "$c"); gs=$?
+		want=$(prj_run "$ref"  "$name" "$c"); ws=$?
+		[ "$got" = "$want" ] && [ "$gs" = "$ws" ] && continue
+		PRJ_CASE=$c; PRJ_GOT=$got; PRJ_WANT=$want
+		return 1
+	done 4< "$TMP/prj.cases"
+	[ -z "$PRJ_CASE" ]
+}
+
+# prj_cases_bite WORKFILE -- true when an EMPTY program fails at least one
+# case. a spec is only a spec if something can fail it: without this a project
+# whose cases all print nothing would pass for anyone who saved a blank file,
+# and the build would call it taught. the `necessity` auditor asks the same
+# question of a flag; this asks it of a whole program.
+prj_cases_bite() {
+	local empty="$TMP/prj.empty"
+	printf '#!/bin/sh\n' > "$empty"
+	prj_grade "$empty" && return 1
+	return 0
+}
+
+# ---- the interaction ------------------------------------------------------
+
+# one project step: read the spec, write the file, run it, read what broke.
+# the editor is the shipped vi, not a second editor built into learn -- level
+# 29 teaches that one and it is the one you would have on a machine you were
+# handed. learn hands the terminal over the way playground does and takes it
+# back the same way.
+ask_program() {
+	local path=$1 idx=$2 pid=$3 name work k rc
+	q_load "$path" "$idx" || return 1
+	name=${Q_FILE:-answer.sh}
+	work="$TMP/prj.work.$idx"
+	[ -f "$work" ] || printf '%s\n' "${Q_START:-#!/bin/sh}" > "$work"
+
+	printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
+	[ -n "$Q_SPEC" ] && { printf '%s\n' "$Q_SPEC" | say; echo; }
+	note "you are writing $name.  it is run for you when you leave the editor."
+
+	while :; do
+		rule
+		printf '  %se%s edit   %sr%s run it   %sa%s show the answer   %sq%s leave\n' \
+			"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+		printf '  %schoose%s ' "$D" "$N"
+		IFS= read -rsn1 k 2>/dev/null || return 2
+		echo
+		case "$k" in
+			e|'')  prj_edit "$work" "$name" ;;
+			r)     ;;
+			a)     rule
+			       note "the reference solution -- yours does not have to look like it."
+			       printf '%s\n' "$Q_PROG" | sed 's/^/    /'
+			       return 1 ;;
+			q|"$E_EOT") return 2 ;;
+			*)     continue ;;
+		esac
+		rule
+		note "running $(printf '%s\n' "$Q_CASES" | grep -c .) case(s)..."
+		if prj_grade "$work"; then
+			ok "every case matches. $(prj_field "$pid" name) -- $name is done."
+			prj_mark "$pid" "$idx"
+			return 0
+		fi
+		no "a case did not match"
+		_c_row case "$PRJ_CASE"
+		_c_row yours  "$(_c_line "$PRJ_GOT")"
+		_c_row wanted "$(_c_line "$PRJ_WANT")"
+	done
+}
+
+# prj_edit WORK NAME -- hand the terminal to vi on a copy in the sandbox, so
+# the file sits next to the fixtures it is written against, and take the saved
+# buffer back out. the copy is read back rather than edited in place because
+# every run rebuilds the tree underneath it.
+prj_edit() {
+	local work=$1 name=$2 tty_
+	SANDBOX_DIRTY=1
+	sandbox_reset || { no "cannot build the sandbox"; return 1; }
+	cp "$work" "$SANDBOX/$name" 2>/dev/null || return 1
+	tty_=$(stty -g 2>/dev/null) || tty_=
+	[ -n "$tty_" ] && stty sane 2>/dev/null
+	# shellcheck disable=SC2086
+	( cd "$SANDBOX" 2>/dev/null || exit 1
+	  HOME="$SANDBOX" TMPDIR="$SANDBOX" $DROP "$SHELLBIN" -c 'vi "$1"' _ "$name" )
+	[ -n "$tty_" ] && stty "$tty_" 2>/dev/null
+	cp "$SANDBOX/$name" "$work" 2>/dev/null
+	cls
+}
+
+# a project file: every program in it, in the order it was written.
+run_project() {
+	local pid=$1 nq i rc done_=0
+	nq=$(prj_nq "$pid")
+	[ "${nq:-0}" -gt 0 ] || { note "project '$pid' is empty"; return 0; }
+
+	cls
+	hdr "$(prj_field "$pid" name)" "project  ${nq} program(s)"
+	prj_field "$pid" intro | say
+	pause_card || return 2
+
+	MODE=learn
+	i=1
+	while [ "$i" -le "$nq" ]; do
+		cls
+		statusbar "$(prj_field "$pid" name)" "project" "$i" "$nq" ""
+		ask_program "$(prj_path "$pid")" "$i" "$pid"; rc=$?
+		[ "$rc" = 2 ] && return 2
+		[ "$rc" = 0 ] && done_=$((done_ + 1))
+		i=$((i + 1))
+		pause_card || return 2
+	done
+
+	cls
+	rule
+	if [ "$done_" -eq "$nq" ]; then ok "$(prj_field "$pid" name) -- written."
+	else no "$(prj_field "$pid" name) -- $done_ of $nq. come back to it."; fi
+	pause_card
+}
+
+projects_menu() {
+	local pid n=0 pick
+	cls
+	hdr "projects" "write a program against a spec"
+	for pid in $(project_ids); do
+		n=$((n + 1))
+		if prj_unlocked "$pid"; then
+			_mi "$n" "$(prj_field "$pid" name)" "$(prj_ndone "$pid")/$(prj_nq "$pid")"
+		else
+			_mi_off "$n" "$(prj_field "$pid" name)" "  (unlocks after $(prj_after "$pid"))"
+		fi
+	done
+	[ "$n" -gt 0 ] || { note "no projects yet"; pause_card; return 0; }
+	printf '\n  %snumber (enter to go back):%s ' "$D" "$N"
+	IFS= read -r pick 2>/dev/null || return 0
+	[ -n "$pick" ] || return 0
+	pid=$(project_ids | sed -n "${pick}p")
+	if [ -z "$pid" ]; then no "no such project"; pause_card
+	elif prj_unlocked "$pid"; then run_project "$pid"
+	else no "locked -- beat $(prj_after "$pid") first."; pause_card; fi
+}
+
+# ---- the build's view -----------------------------------------------------
+
+# prj_check -- every project block, held to what a project has to be. run by
+# selftest, so G25 owns it.
+#
+# the two that matter are not "is it well formed":
+#
+#   the reference is DETERMINISTIC -- grading it against itself runs the same
+#   program twice on two freshly built trees and demands the same bytes. a
+#   reference that reads the clock, the process table or the network passes
+#   once and fails the learner at random hours later, which is the exact bug
+#   cmpref_moving exists to stop one rung down.
+#
+#   the cases BITE -- an empty program must fail at least one of them. a spec
+#   nothing can fail is not a spec, and without this a project whose every
+#   case prints nothing would be handed to a learner who saved a blank file.
+prj_check() {
+	local pid path nq i bad=0 lbl
+	for pid in $(project_ids); do
+		path=$(prj_path "$pid")
+		nq=$(prj_nq "$pid")
+		[ "$(prj_field "$pid" name)" ] || { echo "FAIL $pid: no name:" >&2; bad=$((bad + 1)); }
+		[ "$(prj_after "$pid")" ] || { echo "FAIL $pid: no after: -- a project with no gate is one nobody reaches in order" >&2; bad=$((bad + 1)); }
+		level_path "$(prj_after "$pid")" >/dev/null 2>&1 && [ -f "$(level_path "$(prj_after "$pid")")" ] \
+			|| { echo "FAIL $pid: after: '$(prj_after "$pid")' is not a level" >&2; bad=$((bad + 1)); }
+		[ "${nq:-0}" -gt 0 ] || { echo "FAIL $pid: no programs" >&2; bad=$((bad + 1)); continue; }
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			lbl="$pid#$i"
+			if ! q_load "$path" "$i"; then
+				echo "FAIL $lbl: will not load" >&2; bad=$((bad + 1)); i=$((i + 1)); continue
+			fi
+			[ -n "$Q_SPEC" ]  || { echo "FAIL $lbl: no spec: -- there is nothing to write against" >&2; bad=$((bad + 1)); }
+			[ -n "$Q_FILE" ]  || { echo "FAIL $lbl: no file: -- the prompt cannot say what to write" >&2; bad=$((bad + 1)); }
+			[ -n "$Q_PROG" ]  || { echo "FAIL $lbl: no prog:" >&2; bad=$((bad + 1)); }
+			[ -n "$Q_CASES" ] || { echo "FAIL $lbl: no case:" >&2; bad=$((bad + 1)); }
+			case "$Q_FILE" in
+				*/*|'') echo "FAIL $lbl: file: '$Q_FILE' must be a bare name in the tree" >&2; bad=$((bad + 1)) ;;
+			esac
+			# the prompt has to name the file, the way a level prompt has to
+			# name its command: a spec that never says what to save is an
+			# unanswerable question, not a hard one.
+			case "$Q_PROMPT $Q_SPEC" in
+				*"$Q_FILE"*) ;;
+				*) echo "FAIL $lbl: neither q: nor spec: names $Q_FILE" >&2; bad=$((bad + 1)) ;;
+			esac
+			# every case has to invoke the file, or it is testing something else
+			printf '%s\n' "$Q_CASES" | grep -q . && {
+				if printf '%s\n' "$Q_CASES" | grep -vq -- "$Q_FILE"; then
+					echo "FAIL $lbl: a case: never runs $Q_FILE" >&2; bad=$((bad + 1))
+				fi
+			}
+			[ -n "$Q_PROG" ] && [ -n "$Q_CASES" ] && {
+				printf '%s\n' "$Q_PROG" > "$TMP/prj.self"
+				prj_grade "$TMP/prj.self" || {
+					echo "FAIL $lbl: the reference does not reproduce itself -- case '$PRJ_CASE' printed '$PRJ_GOT' then '$PRJ_WANT'" >&2
+					bad=$((bad + 1))
+				}
+				prj_cases_bite || {
+					echo "FAIL $lbl: an empty program passes every case -- the cases test nothing" >&2
+					bad=$((bad + 1))
+				}
+			}
+			i=$((i + 1))
+		done
+	done
+	return "$bad"
+}
