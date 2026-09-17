@@ -2902,7 +2902,7 @@ resume_confirm() {
 	if [ "$fresh" = 1 ]; then
 		printf '  %snew game? (Y/n)%s ' "$W" "$N"
 	else
-		printf '  %scontinue? (Y/n = new game)%s ' "$W" "$N"
+		printf '  %scontinue? (Y/n)%s ' "$W" "$N"
 	fi
 	IFS= read -rsn1 k 2>/dev/null || return 0
 	echo
