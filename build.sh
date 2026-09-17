@@ -1582,6 +1582,35 @@ toolchain_versions() {
 }
 toolchain() { toolchain_versions | sha256sum | awk '{print $1}'; }
 
+# the four artifact values image.sha256 pins, compared in ONE place. G13 and
+# repro() each did this inline and drifted apart: repro checked two of the
+# four, so a kernel or a roothash that did not reproduce still printed
+# "reproduced" -- on the single command a stranger is told to run. the pin is
+# always THIS tree's committed claim; $1 says where the bytes being judged
+# were built. prints one line per mismatch, returns 1 if any differ or any is
+# unpinned -- an unpinned value is a FAIL, never a skip, because a pin taken
+# before a line existed is stale, not permissive.
+cmp_pin() { # $1 dir holding xos.img/rootfs.squashfs/verity.roothash/bzImage
+  local d="${1:-.}" k want have rc=0
+  for k in image squashfs roothash kernel; do
+    want=$(awk -v k="$k" '$1==k{print $2}' image.sha256)
+    case "$k" in
+      image)    have=$(sha256sum < "$d/xos.img"         | awk '{print $1}') ;;
+      squashfs) have=$(sha256sum < "$d/rootfs.squashfs" | awk '{print $1}') ;;
+      roothash) have=$(cat "$d/verity.roothash" 2>/dev/null) ;;
+      kernel)   have=$(sha256sum < "$d/bzImage"         | awk '{print $1}') ;;
+    esac
+    if [ -z "$want" ]; then
+      printf '    %-9s not pinned -- image.sha256 is stale, run ./build.sh cpin\n' "$k" >&2
+      rc=1; continue
+    fi
+    [ "$want" = "$have" ] && continue
+    printf '    %-9s pinned %s\n              built  %s\n' "$k" "${want:0:32}..." "${have:0:32}..." >&2
+    rc=1
+  done
+  return $rc
+}
+
 pin() {
   say "pinning the bytes this source produces"
   [ -f xos.img ] || { echo "FAIL: no xos.img -- build first" >&2; return 1; }
@@ -1835,16 +1864,10 @@ gates() {
   # this is the whole point of a pinned clock, salt and uuid: without it,
   # "reproducible" is a claim in a README that nothing ever checks.
   if [ -f image.sha256 ]; then
-    local want_img have_img want_sq have_sq want_tc have_tc want_rh have_rh want_kv have_kv
-    want_img=$(awk '$1=="image"{print $2}'     image.sha256)
-    want_sq=$(awk '$1=="squashfs"{print $2}'   image.sha256)
+    # only the toolchain values are read here; cmp_pin reads the four
+    # artifact digests itself, from the one place they are parsed.
+    local want_tc have_tc
     want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
-    want_rh=$(awk '$1=="roothash"{print $2}'   image.sha256)
-    want_kv=$(awk '$1=="kernel"{print $2}'     image.sha256)
-    have_img=$(sha256sum < xos.img | awk '{print $1}')
-    have_sq=$(sha256sum < rootfs.squashfs | awk '{print $1}')
-    have_rh=$(cat verity.roothash 2>/dev/null)
-    have_kv=$(sha256sum < bzImage 2>/dev/null | awk '{print $1}')
     have_tc=$(toolchain)
     # a pin with no toolchain line is a TRUNCATED pin, not a foreign host. it
     # can never equal the real fingerprint, so the SKIP below would fire every
@@ -1858,31 +1881,16 @@ gates() {
       printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
       printf '    so a byte mismatch here would prove nothing. rebuild is unverified.\n' >&2
     else
-      # check the squashfs and roothash digests too -- pin() records both, so a
-      # mismatch localises drift (filesystem vs verity padding/tree), and stops
-      # either recorded line from being decoration nothing ever reads.
-      # want_kv is empty on a pin taken before the kernel line existed; treat
-      # that as a stale pin rather than silently skipping the kernel.
-      g "G13 image matches committed digest" \
-        "$([ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] \
-           && [ -n "$want_kv" ] && [ "$want_kv" = "$have_kv" ] && echo ok || echo FAIL)"
-      [ -n "$want_kv" ] || printf '    image.sha256 predates the kernel pin -- ./build.sh pin\n' >&2
-      [ "$want_img" = "$have_img" ] || \
-        printf '    image pinned %s\n    image built  %s\n' "${want_img:0:32}..." "${have_img:0:32}..." >&2
-      [ "$want_sq" = "$have_sq" ] || \
-        printf '    squashfs pinned %s\n    squashfs built  %s\n' "${want_sq:0:32}..." "${have_sq:0:32}..." >&2
-      [ "$want_rh" = "$have_rh" ] || \
-        printf '    roothash pinned %s\n    roothash built  %s\n' "${want_rh:0:32}..." "${have_rh:0:32}..." >&2
-      [ -z "$want_kv" ] || [ "$want_kv" = "$have_kv" ] || \
-        printf '    kernel pinned %s\n    kernel built  %s\n' "${want_kv:0:32}..." "${have_kv:0:32}..." >&2
+      # all four values, via the comparator repro() also uses, so the two can
+      # never again disagree about what "reproduced" means.
+      local g13=ok; cmp_pin . || g13=FAIL
+      g "G13 image matches committed digest" "$g13"
       # the remedy, because it is nearly always this one and `all && pin` can
       # never reach it: the gates run at the END of `all`, so a stale pin fails
       # the run that would have refreshed it. pin cannot move inside `all`
       # either -- taken before the gates it would satisfy G13 by construction
       # and stop meaning anything.
-      [ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ] && [ "$want_rh" = "$have_rh" ] \
-        && [ -n "$want_kv" ] && [ "$want_kv" = "$have_kv" ] || \
-        printf '    if this build is the one you meant: ./build.sh pin\n' >&2
+      [ "$g13" = ok ] || printf '    if this build is the one you meant: ./build.sh pin\n' >&2
     fi
   else
     g "G13 image digest pinned" FAIL
@@ -3343,7 +3351,7 @@ vouch() {
 
 repro() {
   say "independent rebuild -- clone committed HEAD, build, compare to the pin"
-  local d want_img have_img want_sq have_sq want_tc have_tc
+  local d want_tc have_tc
   # fail fast, and honestly: reproducibility is verifiable only on the toolchain
   # the pin was taken with. on any other gcc/squashfs-tools/systemd the bytes
   # differ for innocent reasons, so a rebuild here would build for an hour and
@@ -3366,17 +3374,15 @@ repro() {
     tail -5 "$d/build.log" >&2
     rm -rf "$d"; return 1
   fi
-  want_img=$(awk '$1=="image"{print $2}'   image.sha256)
-  want_sq=$(awk '$1=="squashfs"{print $2}' image.sha256)
-  have_img=$(sha256sum < "$d/tree/xos.img" | awk '{print $1}')
-  have_sq=$(sha256sum < "$d/tree/rootfs.squashfs" | awk '{print $1}')
-  rm -rf "$d"
-  if [ "$want_img" = "$have_img" ] && [ "$want_sq" = "$have_sq" ]; then
+  # compare BEFORE deleting: cmp_pin reads the files. the old code hashed
+  # into variables first and could afford to rm early -- and on a mismatch it
+  # deleted the build log, which is exactly what a stranger needs to report.
+  if cmp_pin "$d/tree"; then
+    rm -rf "$d"
     printf '  \033[1;32mreproduced\033[0m -- a stranger cloning this repo builds these exact bytes\n'
   else
-    printf '  \033[1;31mNOT REPRODUCIBLE\033[0m -- clean clone built different bytes than the pin:\n' >&2
-    printf '    image:    pin %s  clone %s\n' "$want_img" "$have_img" >&2
-    printf '    squashfs: pin %s  clone %s\n' "$want_sq" "$have_sq" >&2
+    printf '  \033[1;31mNOT REPRODUCIBLE\033[0m -- clean clone built different bytes than the pin\n' >&2
+    printf '  build log kept: %s/build.log\n' "$d" >&2
     return 1
   fi
 }
