@@ -20,6 +20,7 @@ RUN printf 'Server=https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$AL
  && pacman -Syu --noconfirm --needed \
       gcc binutils make curl tar python openssl squashfs-tools cryptsetup \
       cmake flex bison bc pkgconf xz musl git diffutils rsync patch which \
+      gnupg \
  && pacman -Scc --noconfirm
 
 WORKDIR /build

@@ -395,6 +395,14 @@ sigok() { # $1 pinned fingerprint  [gpg status stream on stdin]
 # case a fingerprint pin cannot save you from.
 sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned fingerprint  [$5 xz]  [$6 expired-ok]
   command -v gpg >/dev/null 2>&1 || {
+    # host-optional, with one exception. on a dev box the digest pin still
+    # binds the tarball, so skipping is honest. under XOS_STRICT -- the repro
+    # container, and any build whose output gets published -- it is not: a
+    # build that verified nothing must not be able to claim it did.
+    [ -z "${XOS_STRICT:-}" ] || {
+      printf '  \033[1;31mFAIL: %s: gpg is not installed and XOS_STRICT is set\033[0m\n' "$1" >&2
+      printf '    a published build does not fall back to the digest pin alone.\n' >&2
+      return 1; }
     printf '  %s: gpg not installed -- signature not checked (digest pin still enforced)\n' "$1"; return 0; }
   local gh st rc=0; gh=$(mktemp -d) || return 1
   gpg -q --homedir "$gh" --import "$3" 2>/dev/null
@@ -1719,6 +1727,7 @@ TODO: write this entry by hand.
 #   G50 every level's teaching brief fits one 80x25 screen
 #   G51 a failed command at the real prompt reaches learn, and only a name
 #   G52 every commit since the epoch is signed by the pinned key
+#   G52 the maintainer signatures were actually checked, not skipped
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2399,6 +2408,21 @@ G43OLD
   [ "${n45:-0}" -eq 1 ] \
     || { g45=FAIL; printf '    %s source(s) waive key expiry -- exactly 1 (lvm2) is accounted for\n' "${n45:-0}" >&2; }
   g "G45 expired or revoked source key refused" "$g45"
+
+  # G52 -- the signature tier has to have RUN. sigver() falls back to "digest
+  # pin only" when gpg is absent, announcing it in one printf inside an hour
+  # of build log, and G45's live-gpg half above is itself wrapped in a
+  # command -v gpg, so on a gpg-less host it prints to stderr and still says
+  # ok. a build that checked zero maintainer signatures reported every gate
+  # green. the repro container never named gnupg either, which made the
+  # canonical reproducible build the likeliest one of all to verify nothing.
+  local g52=ok n52
+  n52=$(sed -n '/^fetch() {/,/^}/p' build.sh | grep -c '^  sigver ' || true)
+  command -v gpg >/dev/null 2>&1 \
+    || { g52=FAIL; printf '    gpg is not installed -- every maintainer signature was skipped, not checked\n' >&2; }
+  [ "${n52:-0}" -ge 6 ] \
+    || { g52=FAIL; printf '    %s sigver() calls in fetch() -- a signed upstream stopped being checked\n' "${n52:-0}" >&2; }
+  g "G52 maintainer signatures were checked ($n52 signed upstreams)" "$g52"
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and
@@ -3401,7 +3425,7 @@ in_toolchain() {
   say "building the pinned toolchain container ($CTAG)"
   docker build --network=host -q -t "$CTAG" -f repro/Dockerfile repro/ >/dev/null \
     || { echo "FAIL: could not build the toolchain container" >&2; return 1; }
-  docker run --rm --network=host -v "$src:/src" -w /src "$CTAG" "$@"
+  docker run --rm --network=host -e XOS_STRICT=1 -v "$src:/src" -w /src "$CTAG" "$@"
 }
 
 # take the canonical pin INSIDE the pinned toolchain, so image.sha256's toolchain
