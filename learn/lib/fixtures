@@ -234,8 +234,35 @@ _sandbox_fill() {
 		fx=$((fx + 1)); _fx_log "$(( ${FX_SEED:-0} + fx ))" > "$f"
 	done
 
+	# every pooled .txt must differ from every other one. _fx_txt shuffles a
+	# fixed multiset, so two files can land on the same order -- about one seed
+	# in fifty puts an identical pair in the tree. level 21 then asks `cmp A B`,
+	# expects "differ" and status 1, and grades a CORRECT answer wrong because
+	# the two files really are identical. it also reds the gate run at random,
+	# which is how it was found. same multiset, just re-drawn until distinct.
+	local _w _dup _try _fx_written
+	_fx_written=""
 	for f in $(grep . "$POOLS/txts"); do
-		fx=$((fx + 1)); _fx_txt "$(( ${FX_SEED:-0} + fx ))" > "$f"
+		fx=$((fx + 1)); _try=0
+		while :; do
+			_fx_txt "$(( ${FX_SEED:-0} + fx + _try * 997 ))" > "$f"
+			_dup=0
+			for _w in $_fx_written; do
+				cmp -s "$_w" "$f" && { _dup=1; break; }
+			done
+			[ "$_dup" -eq 0 ] && break
+			_try=$((_try + 1))
+			# 60 distinct shuffles of the base multiset and ten files: a draw
+			# this unlucky means the generator changed, so stop rather than spin.
+			[ "$_try" -ge 30 ] && break
+		done
+		# and if it really could not, say so, for the same reason the pool
+		# manifest check below exists -- better a loud sandbox failure than a
+		# correct answer graded wrong.
+		[ "$_dup" -eq 0 ] || {
+			echo "learn: sandbox: $f cannot be made distinct from the other pooled .txt files" >&2
+			return 1; }
+		_fx_written="$_fx_written $f"
 	done
 
 	for f in $(grep . "$POOLS/csvs"); do
