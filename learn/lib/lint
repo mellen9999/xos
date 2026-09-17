@@ -37,6 +37,27 @@
 #                   on screen, and a why: conceptual block is exempt: there
 #                   the words of the answer ARE the knowledge under test.
 #                   `learn lint -vv` prints each one with its prompt.
+#   motiveless      levels only, and only cards that teach a FLAG: nothing on
+#                   screen says what the flag is FOR -- no setup:, and no --
+#                   aside the roll is sure to show. generous by design: plenty
+#                   of asides only disambiguate, so this is a floor on the
+#                   debt, never a worklist, and it is not meant to reach zero.
+#   orphan-setup    levels only: a card with no setup whose lesson-mate has
+#                   one -- the same cmd/flag pair, or the same first answer, in
+#                   any file. every setup added RAISES this until the rest of
+#                   the run matches, which is the point. `learn lint -vv`
+#                   names the sibling.
+#
+# three fields, three questions, and a card that answers one of them twice is a
+# card that answers another not at all. setup: is why anyone wants this -- the
+# situation the flag exists for, one line, in the learner's own voice. q: is
+# what to do in it. hint: is how to derive the answer, and only that. a q: that
+# explains itself is prose instead of an order; a setup: that names the flag is
+# the hint, early. where a run of sibling cards shares a situation they share
+# its setup word for word -- one lesson reads as one lesson, and orphan-setup
+# above is what notices when half a run got it. 30-root is the deliberate
+# exception: there the setups are a single argument built card to card, in
+# capitalised sentences, and nothing else in the corpus writes that way.
 #
 # an ungraded block carries a why: line naming the reason it stays on string
 # matching -- selftest fails any that has neither a grading field nor a why:.
@@ -205,13 +226,30 @@ lint() {
 						printf "  %s: %s\n    %s\n", bf, bad, q > "/dev/stderr"
 				}
 			}
-			inblk = 0; delete atok; delete qtok; delete alit; delete aword
+			# motiveless -- the card teaches a FLAG and nothing on screen says
+			# what the flag is FOR: no setup:, and no -- aside in the q:. the
+			# aside counts only where every {a|b|c} branch carries it, the same
+			# branch rule the token metric keeps -- an aside one branch has is
+			# an aside the roll may never show. generous on purpose: plenty of
+			# asides only disambiguate, so this is a floor on the debt, never a
+			# worklist, and it is not meant to reach zero.
+			if (k == "lvl" && tflag && !hassetup && !inevery(" -- ", q)) {
+				nomot++; fm[bf]++
+				if (verbose == "-vv") printf "  %s/%d: no motive\n    %s\n", bf, bi, q > "/dev/stderr"
+			}
+			# the orphan pass needs the whole corpus before it can judge one
+			# card, so the lesson keys are banked here and resolved in END.
+			if (k == "lvl") {
+				nblk++; bs[nblk] = hassetup; bn[nblk] = bf "/" bi; bfile[nblk] = bf
+				for (t in bkey) { bk[nblk] = bk[nblk] t "\n"; if (hassetup) mot[t] = 1 }
+			}
+			inblk = 0; delete atok; delete qtok; delete alit; delete aword; delete bkey
 		}
 		# bf pins the block to the file it came from: at FNR==1 awk has already
 		# advanced FILENAME, so flushing by FILENAME charges each file
 		# closing block to the next file in the glob
-		FNR == 1 { flushblk() }
-		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; hashint = 0; graded = 0; predict = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; ctxq = ""; refcmd = ""; firsta = ""; conceptual = 0; next }
+		FNR == 1 { flushblk(); bi = 0 }
+		/^---$/  { flushblk(); inblk = 1; bf = FILENAME; bi++; hashint = 0; graded = 0; predict = 0; haswhy = 0; weak = 0; strong = 0; q = ""; ctxs = ""; ctxq = ""; refcmd = ""; firsta = ""; conceptual = 0; hassetup = 0; tflag = 0; next }
 		inblk && /^hint:/ { hashint = 1 }
 		inblk && /^why:/  { haswhy = 1 }
 		# predict: is a grading field too -- st_block runs the line and holds
@@ -233,17 +271,46 @@ lint() {
 		# counting it let a word the learner never sees pass for named.
 		inblk && /^(setup|hint): / { ctxq = ctxq " " substr($0, index($0, ":") + 2) }
 		inblk && /^ref: / { refcmd = substr($0, 6); sub(/ .*/, "", refcmd) }
-		inblk && /^a: / && firsta == "" { firsta = substr($0, 4); lits(firsta, alit); words(firsta, aword) }
+		inblk && /^setup:/ { hassetup = 1 }
+		# a teach: line reads "<command> <flag>...": everything after the first
+		# word is a flag, dashed or not: the tar modes are bare letters. the
+		# pair is the lesson key: two cards teaching `mount -o` teach one thing,
+		# whichever file they sit in.
+		inblk && /^teach: / { tn = split(substr($0, 8), tp, " ")
+			for (ti = 2; ti <= tn; ti++) { bkey[tp[1] " " tp[ti]] = 1; tflag = 1 } }
+		# the answer is a lesson key too: `teach: strings` names no flag, so the
+		# pair key is blind to the one card that exists in two levels. a bare
+		# number is not a key -- two cards answering 3 are not one lesson.
+		inblk && /^a: / && firsta == "" { firsta = substr($0, 4); lits(firsta, alit); words(firsta, aword)
+			if (firsta !~ /^[0-9]+$/) bkey["a\t" firsta] = 1 }
 		END {
 			flushblk()
+			# orphan setups: a card with no setup whose lesson-mate has one.
+			# resolved here because it takes the whole corpus to know which
+			# lesson has been motivated. every setup an authoring pass adds
+			# RAISES this number until the rest of the run matches -- which is
+			# the point: half a run of siblings cannot ship quietly.
+			for (oi = 1; oi <= nblk; oi++) {
+				if (bs[oi]) continue
+				on = split(bk[oi], op, "\n")
+				for (oj = 1; oj <= on; oj++)
+					if (op[oj] != "" && (op[oj] in mot)) {
+						norph++; fo[bfile[oi]]++
+						if (verbose == "-vv") {
+							ok = op[oj]; sub(/^a\t/, "answer ", ok)
+							printf "  %s: no setup, but %s is set up elsewhere\n", bn[oi], ok > "/dev/stderr"
+						}
+						break
+					}
+			}
 			if (verbose == "-v")
 				for (f in ft) {
 					n = split(f, p, "/")
-					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal  %3d unnamed-word\n", \
-						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0, fx[f] + 0
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal  %3d unnamed-word  %3d motiveless  %3d orphan-setup\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0, fx[f] + 0, fm[f] + 0, fo[f] + 0
 				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal, %d with an unnamed word\n", \
-				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0, noword + 0
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal, %d with an unnamed word, %d teaching a flag with no motive, %d orphan setups\n", \
+				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0, noword + 0, nomot + 0, norph + 0
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }
@@ -352,6 +419,76 @@ qwidth_over() {
 				printf "  %s:%d  %d cols\n", FILENAME, FNR, length(s)
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
+}
+
+# ---- the rows a setup spends ----------------------------------------------
+#
+# setup: prints above the prompt and ask() adds its height to Q_ROWS, so a long
+# one shrinks the hint/ref panel instead of scrolling the question off -- down
+# to the floor of three rows in _ed_panel_load, and no further. on 80x24, with
+# a one-row prompt, the note row and an empty answer line, the panel is left
+# 15 - R rows for a setup R rows tall: it loses its frame at 11 and the
+# question starts leaving the screen at 13, where the clamp stops shrinking.
+# the clamp guards the arithmetic, not the page. a predict card spends three
+# rows more, so it hits the wall at ten.
+#
+# measured through the real say() and _prows -- the same two calls ask() makes
+# -- so the number here is the number the screen will have. the widest roll is
+# substituted first: a @token@ mark is NOT zero width in wrap(), so a one-row
+# setup must stay one row under the longest value its pool can hold.
+#
+# setup_budget_under N -- prints every card whose panel budget falls under N.
+setup_budget_under() {
+	local max=${1:-8} f i pred s rows budget
+	token_pools > "$TMP/qwidth.map"
+	awk -v map="$TMP/qwidth.map" -v pools="$POOLS" '
+		function longest(file,   l, best) {
+			best = ""
+			while ((getline l < file) > 0) {
+				sub(/[ \t]+$/, "", l)
+				if (l == "" || l ~ /^#/) continue
+				if (length(l) > length(best)) best = l
+			}
+			close(file)
+			return best
+		}
+		function widest(t,   k, pad, i) {
+			while (match(t, /@[a-z0-9]+@/)) {
+				k = substr(t, RSTART + 1, RLENGTH - 2)
+				pad = ""
+				for (i = 0; i < (k in W ? W[k] : 8); i++) pad = pad "x"
+				t = substr(t, 1, RSTART - 1) pad substr(t, RSTART + RLENGTH)
+			}
+			return t
+		}
+		BEGIN {
+			while ((getline l < map) > 0) {
+				split(l, kv, " ")
+				W[kv[1]] = length(longest(pools "/" kv[2]))
+			}
+			close(map)
+			W["n"] = 2; W["n3"] = 2
+		}
+		# one record per card that has a setup: file, block, predict flag, and
+		# the setup rows joined by \r -- a multi-line setup has to survive the
+		# trip through one line of read.
+		function flush() {
+			if (inblk && s != "") printf "%s\t%d\t%d\t%s\n", FILENAME, bi, pred, widest(s)
+			inblk = 0; s = ""; pred = 0
+		}
+		FNR == 1 { flush(); bi = 0 }
+		/^---$/  { flush(); inblk = 1; bi++; next }
+		inblk && /^setup:/   { l = $0; sub(/^setup: ?/, "", l); s = s (s == "" ? "" : "\r") l }
+		inblk && /^predict:/ { pred = 1 }
+		END { flush() }
+	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null |
+	while IFS="$(printf '\t')" read -r f i pred s; do
+		rows=$( ( COLS=80; printf '%s\n' "$s" | tr '\r' '\n' | say | hi_strip | _prows 80 ) )
+		budget=$(( 24 - 1 - (3 + 1 + rows + 1 + 1 + (pred ? 3 : 0)) - 2 ))
+		[ "$budget" -lt "$max" ] \
+			&& printf '  %s/%s: setup is %d rows, panel left with %d\n' "${f##*/}" "$i" "$rows" "$budget"
+	done
+	return 0
 }
 
 # ---- cmp: ref against a moving target -------------------------------------
