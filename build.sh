@@ -2305,17 +2305,22 @@ gates() {
   # errored, its stderr went to /dev/null, the count came back 0 and the gate
   # reported ok. a detector that ERRORS must go red, never green, so its stderr
   # is captured and checked now instead of discarded.
+  # NOTE: the redirection is a literal `2>"$perr"`, never `${perr:+2>"$perr"}`.
+  # bash does not perform redirection that arrives from a parameter expansion --
+  # it hands grep the string `2>/tmp/...` as a FILENAME, and the gate then fails
+  # on "no such file" for a tree that is perfectly clean. that bug lived in this
+  # very check for about twenty minutes.
   local plain plain_rc=0 perr
-  perr=$(mktemp) || perr=""
+  perr=$(mktemp)
   plain=$(grep -rlE "$KEYPAT" . \
             --exclude-dir=src --exclude-dir=root --exclude-dir=.git --exclude-dir=sysroot \
-            --exclude-dir=.worktrees ${perr:+2>"$perr"} | grep -c . || true)
-  if [ -n "$perr" ] && [ -s "$perr" ]; then
+            --exclude-dir=.worktrees 2>"$perr" | grep -c . || true)
+  if [ -s "$perr" ]; then
     plain_rc=1
     printf '    the private-key detector wrote to stderr -- it may not have run:\n' >&2
     sed 's/^/      /' "$perr" >&2
   fi
-  [ -n "$perr" ] && rm -f "$perr"
+  rm -f "$perr"
   # both walls have to carry the SAME pattern. they are in different files by
   # necessity (the hook cannot source this script -- sourcing it runs its
   # dispatch), so nothing but this line stops one of them being fixed alone,
