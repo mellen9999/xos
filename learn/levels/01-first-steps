@@ -81,14 +81,14 @@ ref: echo
 teach: echo -n
 hint: n for newline -- the flag suppresses it
 ---
-q: %show% the value of your HOME variable with echo
+q: %show% the value of $HOME with echo
 a: echo $HOME
 a: echo "$HOME"
 a: echo ${HOME}
 cmp: ref
 ref: echo
 teach: echo
-hint: a dollar sign in front of the name
+hint: echo prints what the expansion turns into, not the name
 ---
 q: {change into @dir@|move your working directory to @dir@|put yourself inside @dir@}
 a: cd @dir@
@@ -197,4 +197,4 @@ a: echo $PWD
 cmp: ref
 ref: echo
 teach: echo
-hint: the shell keeps it in PWD, and $NAME is how you read a variable back
+hint: the shell keeps where you are in $PWD

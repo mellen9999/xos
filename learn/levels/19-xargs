@@ -135,7 +135,7 @@ a: which sed
 cmp: ref
 ref: which
 teach: which
-hint: which searches PATH and reports the file it would run
+hint: which searches $PATH and reports the file it would run
 ---
 q: {is sed a builtin, a file, or a function|ask type to classify what sed actually is|use type to find out what kind of command sed is}
 a: type sed
@@ -145,12 +145,12 @@ teach: type
 hint: type reports whether a name is a builtin, a file, a function or an alias
 ---
 setup: you're about to call sed hundreds of times in a loop
-q: {stop the shell from searching PATH for sed every single time|cache sed's location so future calls skip the PATH search|make the shell remember where sed is instead of looking it up again}
+q: {stop the shell from searching $PATH for sed every single time|cache sed's location so future calls skip the $PATH search|make the shell remember where sed is instead of looking it up again}
 a: hash sed
 why: primitive-cost
 ref: hash
 teach: hash
-hint: hash remembers a command's location so future lookups skip the PATH search
+hint: hash remembers a command's location so future lookups skip the $PATH search
 ---
 q: {check whether sed is available, the portable way|use command -v to check for sed portably, across shells|test whether sed exists using the POSIX-portable command -v}
 a: command -v sed

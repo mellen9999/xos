@@ -170,21 +170,21 @@ ref: command
 teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
 ---
-setup: your PATH might be hijacked or broken
-q: %list% @txt@ with ls run through command, standard PATH not yours
+setup: your `$PATH` might be hijacked or broken
+q: %list% @txt@ with ls run through command, standard $PATH not yours
 a: command -p ls @txt@
 out: @txt@
 cmp: ref
 ref: command
 teach: command -p
-hint: -p ignores your PATH and uses the system's standard one instead
+hint: -p ignores your $PATH and uses the system's standard one instead
 ---
-q: %show% every place in your PATH with a command called sh, with which
+q: %show% every place in your $PATH with a command called sh, with which
 a: which -a sh
 cmp: ref
 ref: which
 teach: which -a
-hint: -a lists every match in PATH, not just the first one found
+hint: -a lists every match in $PATH, not just the first one found
 ---
 q: set @var@ to @word@, then echo it with s glued on the end
 a: @var@=@word@; echo ${@var@}s
