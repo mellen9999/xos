@@ -550,3 +550,15 @@ re-run to update.
 - no wifi: wired, usb-ethernet or tether, plus wireguard
 - iphone tethering needs usbmuxd, which xos does not ship; android works
 - don't enroll these keys on hardware whose own secure boot chain you still need
+
+## license
+
+gplv3 -- the scripts, configs and recipes in this repo. see `LICENSE`. a fork
+that hardens xos and ships it has to ship its source too, which is the same
+property the stick itself claims: you can read what you are running.
+
+a built image is an aggregate, not a relicensing. linux, busybox, cryptsetup and
+lvm2 stay under their own terms (gplv2-only, mostly), dropbear and bearssl under
+theirs; `SOURCES.md` names every upstream and where it came from. build it
+yourself and the question never arises -- hand someone a stick and you are
+distributing their work as well as this, on their terms.
