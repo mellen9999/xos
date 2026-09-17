@@ -3414,7 +3414,12 @@ snap() {
 # from inside the same image (as root), then drop the now-empty dir.
 desnap() {
   [ -n "$1" ] && [ -d "$1" ] || return 0
-  docker run --rm -v "$1:/s" "$CTAG" rm -rf /s/tree 2>/dev/null || true
+  # same content tag in_toolchain built; the bare $CTAG may not exist at all
+  # now that images are tagged by Dockerfile content.
+  local tag="$CTAG"
+  [ -f "$1/tree/repro/Dockerfile" ] \
+    && tag="$CTAG:$(sha256sum < "$1/tree/repro/Dockerfile" | cut -c1-12)"
+  docker run --rm -v "$1:/s" "$tag" rm -rf /s/tree 2>/dev/null || true
   rm -rf "$1" 2>/dev/null || true
 }
 
@@ -3427,11 +3432,20 @@ in_toolchain() {
   local src="$1"; shift
   command -v docker >/dev/null 2>&1 \
     || { echo "FAIL: this needs docker -- the pinned toolchain runs in a container" >&2; return 1; }
-  [ -f repro/Dockerfile ] || { echo "FAIL: repro/Dockerfile missing" >&2; return 1; }
-  say "building the pinned toolchain container ($CTAG)"
-  docker build --network=host -q -t "$CTAG" -f repro/Dockerfile repro/ >/dev/null \
+  # build the container from the SNAPSHOT's Dockerfile, not this checkout's.
+  # for cpin/crepro the two are the same tree so it never showed, but the
+  # moment anything verifies an older commit, the caller's Dockerfile would
+  # silently decide the toolchain -- an old claim checked against today's
+  # compiler, passing. that is a false pass, which is the one failure class
+  # this repo cannot tolerate.
+  [ -f "$src/repro/Dockerfile" ] || { echo "FAIL: $src/repro/Dockerfile missing" >&2; return 1; }
+  # and tag by the Dockerfile's content, so two commits with different
+  # toolchains cannot clobber each other's image behind one fixed tag.
+  local tag="$CTAG:$(sha256sum < "$src/repro/Dockerfile" | cut -c1-12)"
+  say "building the pinned toolchain container ($tag)"
+  docker build --network=host -q -t "$tag" -f "$src/repro/Dockerfile" "$src/repro" >/dev/null \
     || { echo "FAIL: could not build the toolchain container" >&2; return 1; }
-  docker run --rm --network=host -e XOS_STRICT=1 -v "$src:/src" -w /src "$CTAG" "$@"
+  docker run --rm --network=host -e XOS_STRICT=1 -v "$src:/src" -w /src "$tag" "$@"
 }
 
 # take the canonical pin INSIDE the pinned toolchain, so image.sha256's toolchain
