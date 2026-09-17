@@ -47,7 +47,7 @@ done <<< "$staged"
 while read -r f; do
 	[ -z "$f" ] && continue
 	[ -f "$f" ] || continue
-	if git show ":$f" 2>/dev/null | grep -qE 'BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY'; then
+	if git show ":$f" 2>/dev/null | grep -qE 'BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY'; then
 		say "refusing to commit a file containing a PRIVATE KEY: $f"
 	fi
 done <<< "$staged"
