@@ -34,3 +34,6 @@ bzImage.config.sha256
 /cmdline.txt
 /ta.h
 dbxauth/
+
+# the chain head, recomputed on every verify_log -- a derived value, never a claim
+/attest/.head
