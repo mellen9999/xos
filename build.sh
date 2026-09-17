@@ -1837,7 +1837,14 @@ gates() {
     have_rh=$(cat verity.roothash 2>/dev/null)
     have_kv=$(sha256sum < bzImage 2>/dev/null | awk '{print $1}')
     have_tc=$(toolchain)
-    if [ "$want_tc" != "$have_tc" ]; then
+    # a pin with no toolchain line is a TRUNCATED pin, not a foreign host. it
+    # can never equal the real fingerprint, so the SKIP below would fire every
+    # run and G13 would quietly stop comparing digests forever. repro() has
+    # guarded this since it was written; this gate never did.
+    if [ -z "$want_tc" ]; then
+      g "G13 image digest pinned" FAIL
+      printf '    image.sha256 has no toolchain line -- truncated pin, run ./build.sh cpin\n' >&2
+    elif [ "$want_tc" != "$have_tc" ]; then
       g "G13 reproducible (needs the pinned toolchain)" SKIP
       printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
       printf '    so a byte mismatch here would prove nothing. rebuild is unverified.\n' >&2
