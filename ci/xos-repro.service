@@ -1,10 +1,10 @@
 [Unit]
-Description=xos CI -- buildless checks + reproducibility rebuild
+Description=xos reproducibility -- chain, signatures, byte-for-byte rebuild
 
 [Service]
 Type=oneshot
 # runs as the user (systemd --user); docker + the unencrypted deploy key are the
 # only outside needs, both the user's. keep it off the box's foreground cores.
-ExecStart=%h/.local/bin/xos-ci
+ExecStart=%h/.local/bin/xos-repro
 Nice=15
 IOSchedulingClass=idle

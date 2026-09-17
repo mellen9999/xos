@@ -1,8 +1,8 @@
 [Unit]
-Description=weekly xos CI heartbeat
+Description=nightly xos reproducibility check
 
 [Timer]
-OnCalendar=weekly
+OnCalendar=daily
 Persistent=true
 RandomizedDelaySec=1h
 

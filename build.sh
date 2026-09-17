@@ -3723,7 +3723,12 @@ lint() {
     return 2
   fi
   local out=""
-  out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script; echo)
+  # the ci runners and the commit wall were outside this for as long as it
+  # existed: a shellcheck error planted in ci/xos-ci was never seen, because
+  # lint only scanned the files someone happened to list. they are first-party
+  # bash that decides whether a push is accepted -- scan them.
+  out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script \
+                    ci/xos-repro ci/xos-ci-full githooks/pre-commit githooks/pre-push; echo)
   out+=$(shellcheck -s sh learn/lib/*; echo)
   printf '%s\n' "$out"
   # warnings/info are noise until they aren't; only error-severity fails the
@@ -3768,9 +3773,12 @@ ci() {
   say "parsing every first-party script"
   for f in build.sh selftest.sh init learn/learn learn/lib/* \
            overlay/usr/share/udhcpc/default.script githooks/pre-commit githooks/pre-push \
-           learn/install.sh learn/push learn/wrapper ci/xos-ci ci/xos-ci-full \
+           learn/install.sh learn/push learn/wrapper ci/xos-* \
            arsenal/*.sh arsenal/arsenal arsenal/xexec; do
     [ -f "$f" ] || continue
+    # ci/xos-* also matches the systemd units and the tier README; those are
+    # not scripts and `sh -n` on one is a confusing failure, not a finding.
+    case "$f" in *.service|*.timer|*.md) continue ;; esac
     case "$(head -1 "$f")" in
       *bash) chk="bash -n" ;;
       *)     [ -n "$bb" ] && chk="$bb ash -n" || chk="sh -n" ;;
