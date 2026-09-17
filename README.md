@@ -181,13 +181,14 @@ for a WIP branch). the building gates and the qemu self-test stay a deliberate
 
 ## checking it yourself
 
-none of this asks you to trust whoever built the stick. four rungs, cheapest
+none of this asks you to trust whoever built the stick. five rungs, cheapest
 first:
 
-    ./build.sh vouch    git + ssh-keygen -- whose source this is
-    ./build.sh ci       reads the tree -- no key, no build, no network, no root
-    ./build.sh crepro   docker only -- rebuilds a clean clone, compares to the pin
-    ./selftest.sh       your own keyset, qemu -- every tamper must be refused
+    ./build.sh vouch       git + ssh-keygen -- whose source this is
+    ./build.sh verify_log  the attestation chain, in a second, no docker
+    ./build.sh ci          reads the tree -- no key, no build, no network, no root
+    ./build.sh verify      docker+git+gpg -- signed claim, then a rebuild that must match
+    ./selftest.sh          your own keyset, qemu -- every tamper must be refused
 
 `crepro` reproduces the `image.sha256` bytes from source you can read, on your
 machine, with no signing key involved anywhere -- so the digest a signature
@@ -206,6 +207,41 @@ by hand, if you would rather not have `build.sh` vouch for `build.sh`:
 the fingerprint `vouch` prints is worth something only against a copy you did
 not get from this clone. what it buys and what it does not is in `SOURCES.md`,
 "this tree's own commits".
+
+`vouch` covers every commit; `attest/` covers each *release* -- one signed
+manifest per release, chained so that rewriting any entry breaks every link
+after it, and `./build.sh verify` is the one command that checks the whole
+thing end to end:
+
+```sh
+git clone https://github.com/mellen9999/xos && cd xos
+./build.sh verify
+```
+
+docker, git and gpg. no signing key, no qemu, no root, no KVM, no Arch, no host
+toolchain. it walks the chain, checks every manifest against a release key
+pinned in `build.sh`, re-derives every digest in the manifest for that commit,
+then rebuilds that commit inside the pinned container and compares all four
+artifact digests. the rebuild takes **20-40 minutes** and pulls about a
+gigabyte the first time -- it is compiling a kernel, and it is meant to be
+quiet. `./build.sh verify_log` and `./build.sh verify_sigs` do the first two
+steps alone, in a second, without docker.
+
+each release announcement carries the chain **head**. pin it and a history
+rewritten for you alone stops working:
+
+```sh
+XOS_EXPECT_HEAD=<the head you were told> ./build.sh verify
+```
+
+building on a distro that is not arch: `docs/building.md`. `verify` and
+`crepro` never were arch-bound -- they run everything in the container -- so
+only the qemu lab and a local signing build need the host toolchain.
+
+`docs/attestation.md` says what this defends against and, at the same length,
+what it does not: a stolen key can still append honest-looking entries, a split
+view shown to exactly one person is not covered, and a tree that reproduces
+perfectly can still be malicious. reading the source is still your job.
 
 `selftest.sh` generates its own keys and boots the real chain in a vm before
 attacking it, so it proves the chain without trusting the keys that ship. the
@@ -571,6 +607,14 @@ re-run to update.
 - no wifi: wired, usb-ethernet or tether, plus wireguard
 - iphone tethering needs usbmuxd, which xos does not ship; android works
 - don't enroll these keys on hardware whose own secure boot chain you still need
+- gcc is the root of trust and stays there: the compiler, binutils,
+  squashfs-tools and veritysetup arrive as prebuilt distro packages, and
+  nothing here detects a compiler that lies. see `trust.manifest`
+- a signature says who built it, never that they are honest; a reproducible
+  build says the bytes match the source, never that the source is safe
+- the attestation log has no witness network, so a consistent history shown to
+  one person alone is not detectable from inside the repo -- pin the head you
+  were told out of band (`XOS_EXPECT_HEAD`)
 
 ## license
 
