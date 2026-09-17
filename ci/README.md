@@ -7,6 +7,11 @@ neither needs the production signing key or a human.
   `./build.sh ci` (shellcheck, every script parsed, the learn ledger, the
   Dockerfile-pin check) then `./build.sh crepro` -- a full reproducibility
   rebuild inside the pinned toolchain container. docker only; no host toolchain.
+  it runs `./build.sh vouch` first and echoes the fingerprint, so the journal
+  records which key signed the tree it rebuilt. CI only ever *verifies*
+  signatures and never makes one -- no signing key of any kind reaches a
+  runner. neither tier clones shallow: the chain back to the epoch has to
+  be walkable or the check reports unverified forever.
 
 - **full tier** (`xos-ci-full`, weekly, staggered): a complete SIGNED build with
   every gate and the qemu self-test. it mints a throwaway keyset sealed with a

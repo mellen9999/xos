@@ -25,6 +25,12 @@ stick. effort is spent top-down.
   you, or watch your traffic.
 - **the tamperer with a window.** someone had brief physical access to the stick
   and tried to alter it, swap it, or roll it back, then handed it back.
+- **whoever takes the publishing account.** github credentials, a session, a
+  token. they can push whatever they like, and a reproducible build will
+  reproduce it faithfully -- reproducibility answers *what was built*, never
+  *whose source it was*. -> every commit since `SIGN_EPOCH` is ssh-signed by a
+  key that is not the push key, pinned in `build.sh` and `signers`, checked by
+  `./build.sh vouch` and G52 and walled at push.
 - **you, six months ago.** the build was wrong: an unsigned tarball, a swapped
   dependency, a key committed to git, a non-reproducible artifact. **self-inflicted
   compromise is the second-most-likely breach and the repo's history proves it.**
@@ -49,6 +55,10 @@ naming these is the point -- it's what keeps the effort honest.
   ch341, pl2303, cdc-acm).** knowingly accepted attack surface, reachable only by
   physically plugging a device in, and none can bind a disk. documented, not
   defended.
+- **the author's own machine while it is signing.** the build host is trusted
+  here by definition -- it holds the sealed image key and now the ssh signing
+  key too. a key on a compromised host signs whatever it is told. a signature
+  proves the key was present, never that the person was.
 - **hardware implants / evil-maid firmware below our chain.** recon catches a
   *changed* host; it can't vouch for one that was hostile from the factory.
 

@@ -33,6 +33,7 @@ one is attached.
     ./build.sh usb /dev/sdX       write a stick (install wraps this)
     ./build.sh addstate /dev/sdX  add the encrypted state partition
     ./build.sh revoke IMAGE       retire a superseded image
+    ./build.sh vouch              check every commit is signed by the pinned key
     ./build.sh repro              rebuild a clean clone, compare to the pin
     ./build.sh crepro             the same, inside the pinned toolchain (docker)
     ./build.sh reseal             change the signing-key passphrase
@@ -180,16 +181,32 @@ for a WIP branch). the building gates and the qemu self-test stay a deliberate
 
 ## checking it yourself
 
-none of this asks you to trust whoever built the stick. three tiers, cheapest
+none of this asks you to trust whoever built the stick. four rungs, cheapest
 first:
 
+    ./build.sh vouch    git + ssh-keygen -- whose source this is
     ./build.sh ci       reads the tree -- no key, no build, no network, no root
     ./build.sh crepro   docker only -- rebuilds a clean clone, compares to the pin
     ./selftest.sh       your own keyset, qemu -- every tamper must be refused
 
-`crepro` is the one that matters to a stranger: it reproduces the `image.sha256`
-bytes from source you can read, on your machine, with no signing key involved
-anywhere -- so the digest a signature attests to is the digest this source makes.
+`crepro` reproduces the `image.sha256` bytes from source you can read, on your
+machine, with no signing key involved anywhere -- so the digest a signature
+attests to is the digest this source makes. but reproducibility has no opinion
+about *whose* source it is: whoever takes the publishing account can push a tree
+that reproduces perfectly. `vouch` is the other half -- every commit since the
+epoch carries an ssh signature from one key, pinned by fingerprint in `build.sh`
+and by public key in `signers`, and G52 checks it on every gate run. run it
+first; it is the cheapest rung and the only one that answers *who*.
+
+by hand, if you would rather not have `build.sh` vouch for `build.sh`:
+
+    git -c gpg.ssh.allowedSignersFile=signers verify-commit HEAD
+    git -c gpg.ssh.allowedSignersFile=signers log --format='%G? %h' | grep -v '^G '
+
+the fingerprint `vouch` prints is worth something only against a copy you did
+not get from this clone. what it buys and what it does not is in `SOURCES.md`,
+"this tree's own commits".
+
 `selftest.sh` generates its own keys and boots the real chain in a vm before
 attacking it, so it proves the chain without trusting the keys that ship. the
 signed-image gates in between are `./build.sh gates`.
@@ -220,6 +237,10 @@ before a byte is written.
   build, its fingerprint and digest pinned as ever
 - **reproducibility** -- image, filesystem or verity hash off `image.sha256` on the
   pinned toolchain
+- **provenance** -- a commit since `SIGN_EPOCH` not signed by the key pinned in
+  `build.sh` and `signers`, a second or swapped key in `signers`, or a history
+  rewritten so the epoch is no longer an ancestor of HEAD. the pre-push hook
+  refuses to publish one; G52 refuses to call a build green with one
 - **the shell** -- a second shell parser, a `/bin/sh` that is not busybox ash, or a
   first-party script the shipped ash cannot parse
 - **the corpus** -- a shipped command with no `learn` entry or the reverse, a

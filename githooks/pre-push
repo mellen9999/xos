@@ -16,4 +16,27 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 # to report its own breakage -- check that one file here, directly.
 bash -n build.sh || { echo "pre-push: build.sh does not parse -- refusing to push" >&2; exit 1; }
 ./build.sh ci || { echo "pre-push: ci checks failed -- fix them or XOS_NOVERIFY=1 to override" >&2; exit 1; }
+
+# push is the moment a commit stops being local and becomes a public claim, so
+# it is the right place for the signature wall -- ci's vouch treats unverified
+# as non-fatal (a stranger on a shallow clone must still be able to run it),
+# but nothing unsigned may leave this machine. git feeds us one line per ref:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# a remote sha of all-zeroes means a new branch, so fall back to the epoch.
+SIGN_EPOCH=$(sed -n 's/^SIGN_EPOCH=//p' build.sh)
+zero=0000000000000000000000000000000000000000
+while read -r _lref lsha _rref rsha; do
+  [ "$lsha" = "$zero" ] && continue          # a delete pushes nothing
+  [ "$rsha" = "$zero" ] && rsha="$SIGN_EPOCH~1"
+  git rev-parse --verify -q "$rsha" >/dev/null 2>&1 || rsha="$SIGN_EPOCH~1"
+  unsigned=$(git -c gpg.ssh.allowedSignersFile=signers \
+               log --format='%G? %h %s' "$rsha..$lsha" 2>/dev/null | grep -vc '^G ' || true)
+  if [ "${unsigned:-0}" -ne 0 ]; then
+    echo "pre-push: $unsigned commit(s) are not signed by the pinned key -- refusing to publish them:" >&2
+    git -c gpg.ssh.allowedSignersFile=signers \
+        log --format='%G? %h %s' "$rsha..$lsha" 2>/dev/null | grep -v '^G ' | head -10 >&2
+    echo "  sign them (git rebase --exec 'git commit --amend --no-edit -S') or XOS_NOVERIFY=1 to override" >&2
+    exit 1
+  fi
+done
 exit 0

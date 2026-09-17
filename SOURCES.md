@@ -18,6 +18,7 @@ what that first sighting was anchored to. They are not equal:
 | json-c 0.19 | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
 | wireguard-tools 1.0.20260223 | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
 | dropbear 2026.94 | official release tarball, maintainer PGP signature (Matt Johnston), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| this tree | ssh signature over every commit since `SIGN_EPOCH`, key pinned by fingerprint in `build.sh` and by blob in `signers` | **good -- signed by the author, key anchored trust-on-first-use** |
 
 Those pins protect against a *later* substitution, not against the tarball
 having been wrong when first fetched. That is a real gap and is recorded here
@@ -108,3 +109,48 @@ but not a compromised compiler that reports the same version. Closing this would
 mean a bootstrappable or content-addressed toolchain (Nix/Guix, `mkosi`, a
 pinned musl build) -- out of scope for a lab artifact, but named here so the
 reproducibility claim is not read as more than it is.
+
+## this tree's own commits
+
+`sources.sha256` and `sigs/` anchor what comes *in*. Nothing anchored what this
+tree *is* until `SIGN_EPOCH`. Every commit before that point is unsigned and
+always will be -- a signature cannot be added to an object without changing its
+hash, and rewriting that history would invalidate every digest anyone already
+holds. So the claim is bounded, and the bound is the point: **from `SIGN_EPOCH`
+forward, every commit is signed by one ssh key, pinned by fingerprint in
+`build.sh` (`SIGN_FPR`) and by public key in `signers`.** `./build.sh vouch`
+checks it, G52 checks it on every gate run, and the pre-push hook refuses to
+publish a commit that fails it.
+
+What it buys: whoever takes the github account can no longer publish a tree that
+verifies. `crepro` will reproduce their bytes perfectly -- reproducibility never
+had an opinion about who wrote the source -- but `vouch` stops at the first
+unsigned commit, and the push that swapped `signers` is itself unsigned. The
+signing key is deliberately *not* the key that authenticates pushes, so stealing
+the push key buys push access and no ability to forge a signature.
+
+What it does not buy, named here rather than left to be assumed:
+
+- **It is not an identity check.** `signers` names a principal; a principal is a
+  string in a file in this tree. The fingerprint is the only thing worth
+  comparing, and only against a copy you did not get from this clone. `vouch`
+  prints it for exactly that reason.
+- **An in-clone check cannot catch a consistent forgery.** Run inside a clone,
+  every check here reads files the same attacker would have rewritten --
+  `signers`, `SIGN_FPR`, this paragraph. What it converts is the *cost*: an
+  account takeover no longer suffices, the key has to be taken too, and anyone
+  who has seen the fingerprint once will see it change.
+- **It does not defend the author's machine.** The build host is already trusted
+  by `docs/threat-model.md`. A signing key on a compromised host signs whatever
+  it is told, and so does the sealed key that signs the boot chain. A signature
+  proves the key was present, never that the person was.
+- **First clone is still trust-on-first-use** -- the same tier `ii`, `abduco`
+  and `popt` sit in. What changes afterwards is continuity: the key cannot be
+  replaced except by a commit signed with the key it replaces.
+- **It says nothing about content.** A signed mistake is signed.
+- **A shallow clone can only check HEAD.** The epoch is not there to walk back
+  to, so `vouch` says unverified, not ok -- the same rule G13 follows off the
+  pinned toolchain.
+- **The secure-boot key is not involved and never will be.** It is sealed,
+  passphrased, and exists to sign images, not history. Two keys, two jobs:
+  losing the ssh key costs history, not the boot chain.

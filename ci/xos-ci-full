@@ -16,7 +16,8 @@ REPO=${XOS_CI_REPO:-git@github.com:mellen9999/xos.git}
 BRANCH=${XOS_CI_BRANCH:-main}
 d=$(mktemp -d /tmp/xos-cif.XXXXXX)
 trap 'rm -rf "$d" 2>/dev/null || true' EXIT
-git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$d/tree" || { echo "xos-ci-full: clone failed"; exit 1; }
+# no --depth: G52 walks the signature chain back to the epoch.
+git clone -q --branch "$BRANCH" "$REPO" "$d/tree" || { echo "xos-ci-full: clone failed"; exit 1; }
 cd "$d/tree"
 export XOS_KEYPASS="$(head -c24 /dev/urandom | base64)"   # throwaway, this run only
 echo "xos-ci-full: testing $(git rev-parse --short HEAD)"

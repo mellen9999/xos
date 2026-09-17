@@ -11,9 +11,14 @@ BRANCH=${XOS_CI_BRANCH:-main}
 d=$(mktemp -d /tmp/xos-ci.XXXXXX)
 trap 'rm -rf "$d" 2>/dev/null || true' EXIT
 echo "xos-ci: cloning $REPO ($BRANCH)"
-git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$d/tree"
+# no --depth: vouch walks every commit back to the epoch, and a shallow clone
+# cannot hold that chain -- it would report unverified here forever.
+git clone -q --branch "$BRANCH" "$REPO" "$d/tree"
 cd "$d/tree"
 echo "xos-ci: testing $(git rev-parse --short HEAD)"
+# provenance first, and echoed: the journal should record which key signed the
+# tree this run rebuilt. CI only ever verifies -- no key reaches a runner.
+./build.sh vouch
 ./build.sh ci
 ./build.sh crepro
 echo "xos-ci: PASS $(git rev-parse --short HEAD)"
