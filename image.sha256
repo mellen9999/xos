@@ -6,12 +6,11 @@ image     b748f8c74afa9cbc25f21061444036158fdf88e5766470c91830e5391e7bef70
 squashfs  4f8c81fb2e799288f165760825a97cecb29b2012d5f32ab85fab66f849af0fa1
 roothash  1287598d62e8acc6d3073d65adc2c3c5ac89db54b26dc12f94b08029d74b799f
 kernel    d5485274fb217e1dfb0423218410dcf7c17694339d6bb8c8d41cf9feb0ab63c3
-toolchain ec2999cfe97f355b873303d571823dd98b01cdae49fa8b40e4c137d1dcf7081e
+toolchain 9c0f2f276be250580023cc2d8bfb7acf9c4f8d484e61634fc29ce43fa11133a7
 # toolchain this pin was taken with -- install these to reproduce:
 #   gcc (GCC) 16.2.1 20260810
 #   GNU ld (GNU Binutils) 2.47
 #   mksquashfs version 4.7.5 (2026/03/01)
 #   veritysetup 2.8.8 flags: UDEV BLKID KEYRING KERNEL_CAPI HW_OPAL 
 #   dd498f8ef9c4c3b59eba409ab9d0e2b7790ef34fa9f0993cb6f6449129ff4f90
-#   fc152c3707d54f2a4d8fa1e8d159ab9fde560460a89521737fb93b1cc85f06c3
 #   0022
