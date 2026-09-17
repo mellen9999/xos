@@ -221,7 +221,7 @@ level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
 # once per project; as a grep apiece that was a fork apiece, and the answer is
 # the same file every time. level ids hold no spaces, so the padding makes an
 # exact match a substring match.
-passed_set() { _p=$(tr '\n' ' ' < "$PASSED" 2>/dev/null); echo " $_p "; }
+passed_set() { _p=$(tr '\n' ' ' 2>/dev/null < "$PASSED"); echo " $_p "; }
 gate_open() { # GATE SET -- an ungated item is open; otherwise its level must have fallen
 	[ -n "$1" ] || return 0
 	case "$2" in *" $1 "*) return 0 ;; esac
@@ -307,7 +307,7 @@ _inprog_file() { printf '%s.%s\n' "$INPROG" "$1"; }
 # the level's CONTENT, not its name. an edited level renumbers its questions,
 # and resuming into the old numbering would ask card 7 of a file that no
 # longer has one -- or, worse, a different card 7.
-level_fp() { md5sum < "$(level_path "$1")" 2>/dev/null | cut -d' ' -f1; }
+level_fp() { md5sum 2>/dev/null < "$(level_path "$1")" | cut -d' ' -f1; }
 inprog_save() { # ID FP RIGHT ANSWERED REMAINING...
 	local f; f=$(_inprog_file "$1"); shift
 	mkdir -p "$STATE" 2>/dev/null || return 0
@@ -2024,6 +2024,28 @@ selftest() {
 	  [ ! -s "$PASSED" ] 2>/dev/null || [ ! -f "$PASSED" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL migrate: rename, drop, idempotence or fresh install" >&2; bad=$((bad+1)); }
+
+	# the home screen on a fresh install: nothing but the menu may reach it.
+	# a stray shell diagnostic is a message from a place that had no business
+	# speaking, and the same text twice is one row's problem announced by
+	# every row that asks -- "can't open passed" printed once per gate that
+	# read a ledger a new player does not have yet. stderr must be empty and
+	# no line of text may be drawn twice in one draw.
+	( STATE="$TMP/menu"; PASSED="$STATE/passed"; PLACED="$STATE/placed"
+	  BRIEFED="$STATE/briefed"; CARDS="$STATE/cards"; SCHEMA="$STATE/schema"
+	  INPROG="$STATE/inprogress"; SESSION_SEEN="$TMP/menuseen"
+	  mkdir -p "$STATE"
+	  menu < /dev/null > "$TMP/menu.out" 2> "$TMP/menu.err"
+	  [ -s "$TMP/menu.err" ] && { cat "$TMP/menu.err" >&2; exit 1; }
+	  # colour and padding are not content: strip them, then a repeat of what
+	  # is left is a repeat the player would read as one.
+	  awk '{ gsub(/\033\[[0-9;]*[a-zA-Z]/, ""); gsub(/[ \t]+/, " ")
+	         sub(/^ /, ""); sub(/ $/, "")
+	         if ($0 !~ /[A-Za-z0-9]/) next
+	         if (seen[$0]++) { print "  twice: " $0 > "/dev/stderr"; dup = 1 } }
+	       END { exit dup ? 1 : 0 }' "$TMP/menu.out" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL menu: a draw spoke on stderr or said the same thing twice" >&2; bad=$((bad+1)); }
 
 	# held must survive an orphaned card key. this is the whole reason it
 	# rebuilds keys from the level file instead of counting by prefix the way
