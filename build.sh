@@ -2076,7 +2076,12 @@ G44EOF
   # even parse is a boot- or lease-time failure no other gate can see, because
   # init and the dhcp hook only ever run on the stick.
   local g35=ok bb35 f35 e35
-  bb35=./busybox; [ -x "$bb35" ] || bb35=$(type -P busybox 2>/dev/null)
+  # absolute, not ./busybox: G51 forks a pty whose child chdirs into a temp
+  # HOME before it execs this, and a relative path does not survive that --
+  # it failed with ENOENT, inside a heredoc whose output goes to /dev/null,
+  # so the gate simply read FAIL with nothing to say why. type -P already
+  # returns an absolute path, so both branches agree.
+  bb35=$PWD/busybox; [ -x "$bb35" ] || bb35=$(type -P busybox 2>/dev/null)
   for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script; do
     e35=$("$bb35" ash -n "$f35" 2>&1) \
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
