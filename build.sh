@@ -57,7 +57,7 @@ POPT_SHA512=5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639
 # an object changes its hash and would invalidate every digest anyone holds.
 # checked by vouch() and G52. see SOURCES.md, "this tree's own commits".
 SIGN_FPR=SHA256:bx1WU9z4RCs344i+7dMptTQZgavHxofR0XF0FD2D7Pw
-SIGN_EPOCH=4ef42d5ca19c160d79193187cdbbd68b39fdac19
+SIGN_EPOCH=e187b513c8057079c18a26861384c7a275d5db2e
 # one cflags line for every first-party and upstream userland build. the
 # -ffile-prefix-map used to live only in cryptsetup_(), where a __FILE__ in an
 # assert string had already leaked the absolute build path into the image; a
