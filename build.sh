@@ -1718,7 +1718,15 @@ TODO: write this entry by hand.
 gates() {
   say "gates"
   local bad=0 ran=0 skipped=0
-  local EXPECTED_GATES=49   # roster above, minus G8/G9 (checked elsewhere)
+  # 52 gates in the roster above, minus G8/G9 (the pre-commit hook checks those,
+  # not this function) = 50 g() calls per run. G13/G14/G17/G19/G42 each have
+  # more than one call site, but they are mutually exclusive branches -- exactly
+  # one of each fires. derive it the same way if you add a gate:
+  #   roster:     grep -oE '^#   G[0-9]+' build.sh | sort -u | wc -l
+  #   call sites: grep -oE 'g "G[0-9]+' build.sh | sort -u | wc -l
+  # this said 48 while 49 ran, so the truncation guard below was crying wolf on
+  # every full run -- the one thing it exists to stop being ignored.
+  local EXPECTED_GATES=50
   # a gate is ok, FAIL, or SKIP. SKIP is for a check that cannot run here and
   # whose result would be meaningless if forced -- G13 on a foreign toolchain.
   # it is counted (so the truncation guard still holds) and reported, but it
