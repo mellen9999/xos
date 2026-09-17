@@ -1,0 +1,6 @@
+# prebuilt host binaries that enter the SIGNED image but are not built here.
+# ONE digest per path. regenerate with ./build.sh blobpin; blobver() checks
+# this before uki() wraps anything, and G57 checks that it still does.
+# these bytes come from a distro's build servers -- pinning makes them fixed
+# and visible in a diff, it does not make them trustworthy. see trust.manifest.
+fc152c3707d54f2a4d8fa1e8d159ab9fde560460a89521737fb93b1cc85f06c3  /usr/lib/systemd/boot/efi/linuxx64.efi.stub

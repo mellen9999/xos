@@ -1304,6 +1304,9 @@ uki() {
   [ -f cmdline.txt ] || { echo "FAIL: run verity first" >&2; return 1; }
   local stub="$STUB"
   [ -f "$stub" ] || { echo "FAIL: systemd-stub missing" >&2; return 1; }
+  # hard fail HERE, before the stub is wrapped -- not in gates(), which runs
+  # after the signed image already exists.
+  blobver || return 1
   grep -q '^CONFIG_EFI_STUB=y' "src/linux-$KVER/.config" || {
     echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
 
@@ -1679,6 +1682,80 @@ cmp_pin() { # $1 dir holding xos.img/rootfs.squashfs/verity.roothash/bzImage
   return $rc
 }
 
+# ────────────────────────────────────────────────────────────────────────────
+# host blobs -- prebuilt binaries that enter the SIGNED artifact
+# ────────────────────────────────────────────────────────────────────────────
+# the systemd EFI stub is a 134 KB prebuilt PE this build wraps into the UKI,
+# signs, and ships as BOOTX64.EFI. it runs BEFORE anything dm-verity covers,
+# and for as long as it existed the only thing checked about it was that the
+# file was there. its sha256 sat in image.sha256 as a comment nothing parsed.
+#
+# blobs.sha256, not sources.sha256: that file means "tarballs I fetch into
+# $XOS_CACHE", and both get() and the completeness sweep assume that shape.
+# ONE accepted digest per path, never a list -- a multi-digest file decays into
+# "every version I have ever seen" and the diff stops meaning anything.
+#
+# what this does NOT claim: pinning does not make the stub trustworthy. the
+# bytes still came from a distro's build servers. it makes them FIXED, NAMED,
+# and visible in a diff -- so the stub cannot change under a signed image
+# without someone deciding to change it. that is the whole claim.
+#
+# a different distro lays these bytes out identically but builds them
+# differently, so blobver fails there. that is honest: the pin says "these
+# exact bytes". crepro and verify are unaffected -- neither runs uki().
+blobver() {
+  local f=blobs.sha256 n=0 want path have
+  [ -f "$f" ] || {
+    echo "FAIL: blobs.sha256 is missing -- the signed image would wrap an unpinned blob" >&2
+    return 1; }
+  while read -r want path; do
+    case "$want" in ''|\#*) continue ;; esac
+    [ -n "$path" ] || { echo "FAIL: blobs.sha256: malformed line: $want" >&2; return 1; }
+    [ -f "$path" ] || {
+      echo "FAIL: $path is pinned in blobs.sha256 but is not on this host" >&2
+      return 1; }
+    have=$(sha256sum < "$path" | awk '{print $1}')
+    [ "$want" = "$have" ] || {
+      echo "FAIL: $path does not match blobs.sha256" >&2
+      printf '  pinned %s\n  found  %s\n' "$want" "$have" >&2
+      printf '  this blob is wrapped into the SIGNED image. if the change is one you\n' >&2
+      printf '  made deliberately (a systemd upgrade), re-pin it with ./build.sh blobpin\n' >&2
+      printf '  so it lands in a commit someone can read.\n' >&2
+      return 1; }
+    n=$((n + 1))
+  done < "$f"
+  # an emptied or reformatted file must be a hard refusal, never a vacuous
+  # zero-of-zero pass -- the same floor the gate roster and the ELF sweep keep.
+  [ "$n" -gt 0 ] || { echo "FAIL: blobs.sha256 pins nothing" >&2; return 1; }
+  printf '  %d host blob(s) match blobs.sha256\n' "$n"
+}
+
+# re-pin the host blobs. mirrors pin(): a pin is a claim about what gets
+# signed, so it refuses a dirty tree and the result belongs in a commit.
+blobpin() {
+  say "pinning the host blobs this build signs into the image"
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+     && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "FAIL: tracked files are modified -- commit (or discard) before pinning:" >&2
+    git status --porcelain --untracked-files=no >&2
+    return 1
+  fi
+  # the set of host blobs, in one place. one entry today; a second one is a
+  # single edit here, and blobver picks it up from the file without changing.
+  local b blobs=("$STUB")
+  for b in "${blobs[@]}"; do
+    [ -f "$b" ] || { echo "FAIL: $b is not on this host -- nothing to pin" >&2; return 1; }
+  done
+  { echo "# prebuilt host binaries that enter the SIGNED image but are not built here."
+    echo "# ONE digest per path. regenerate with ./build.sh blobpin; blobver() checks"
+    echo "# this before uki() wraps anything, and G57 checks that it still does."
+    echo "# these bytes come from a distro's build servers -- pinning makes them fixed"
+    echo "# and visible in a diff, it does not make them trustworthy. see trust.manifest."
+    for b in "${blobs[@]}"; do printf '%s  %s\n' "$(sha256sum < "$b" | awk '{print $1}')" "$b"; done
+  } > blobs.sha256
+  cat blobs.sha256
+}
+
 pin() {
   say "pinning the bytes this source produces"
   [ -f xos.img ] || { echo "FAIL: no xos.img -- build first" >&2; return 1; }
@@ -1826,6 +1903,7 @@ TODO: write this entry by hand.
 #   G52 every commit since the epoch is signed by the pinned key
 #   G52 the maintainer signatures were actually checked, not skipped
 #   G53 selftest.sh counts the sections it actually has
+#   G57 the signed image still checks its host blobs before wrapping them
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2945,6 +3023,23 @@ G51
   fi
   g "G53 selftest section count declared ($have53)" "$g53"
 
+  # G57 -- structural, in the G45/G47 mould. blobver() only helps while uki()
+  # still calls it, and it is one line someone debugging a systemd upgrade
+  # would comment out in thirty seconds. so check the SHAPE: blobs.sha256 names
+  # the stub, and uki()'s body calls blobver before it reaches ukify. checking
+  # the digest here instead would be the wrong gate -- gates() runs after the
+  # image is already built and signed.
+  local g57=ok body57
+  body57=$(sed -n '/^uki() {/,/^}/p' build.sh)
+  grep -qF -- "$STUB" blobs.sha256 2>/dev/null \
+    || { g57=FAIL; printf '    the EFI stub is not pinned in blobs.sha256\n' >&2; }
+  # anchored: a commented-out call, or the word appearing in prose, must not
+  # satisfy this. it has to be a statement that actually runs.
+  printf '%s\n' "$body57" | awk '/^[[:space:]]*blobver([[:space:]]|$)/{b=NR} /ukify[[:space:]]/{u=NR} END{exit !(b && u && b < u)}' \
+    || { g57=FAIL; printf '    uki() no longer calls blobver before ukify -- the signed image\n' >&2
+         printf '    would wrap an unchecked blob\n' >&2; }
+  g "G57 host blobs checked before they are signed" "$g57"
+
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are
   # the ones the roster names. the count catches a truncated run and a gate
@@ -3597,7 +3692,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|ovmf|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac
