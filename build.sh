@@ -1762,6 +1762,101 @@ blobver() {
   printf '  %d host blob(s) match blobs.sha256\n' "$n"
 }
 
+# the container's package list, read from the ONE place it is written. the
+# Dockerfile's ARG PKGS is the list; the build, toolpin and both gates read it
+# from there rather than each keeping a copy that drifts.
+dfpkgs() {
+  # `|| true`: an empty list is a condition the callers report on, not a reason
+  # for set -e to kill the script before they can.
+  { sed -n 's/^ARG PKGS="\(.*\)"$/\1/p' repro/Dockerfile \
+      | tr ' ' '\n' | grep -v '^$' | sort -u; } || true
+}
+
+# the container toolchain, by bytes.
+#
+# repro/Dockerfile pins the base image by digest and the Arch archive day. but
+# an archive day is a PATH, not a digest: it says where the packages came from,
+# never which bytes arrived. repro/toolchain.sha256 closes that for every
+# package the Dockerfile names, and the Dockerfile checks it before installing
+# a single one -- so the container's statement is "the compiler is these exact
+# bytes", not "these version strings from this day".
+#
+# what it does not cover, and the file says so too: the dependency closure of
+# those packages, which still rests on the archive day plus pacman's own
+# signature checking.
+toolver() {
+  local f=repro/toolchain.sha256 rc=0 x names
+  [ -f "$f" ] || { echo "FAIL: $f is missing -- the container's packages are unpinned" >&2; return 1; }
+  # || true throughout: a file that matches nothing must reach the guard below
+  # and be REPORTED, not abort the script silently at the assignment.
+  names=$(grep -vE '^[[:space:]]*(#|$)' "$f" | awk '{print $2}' \
+          | sed 's/-[^-]*-[^-]*-[^-]*\.pkg\.tar\.zst$//' | sort -u || true)
+  [ -n "$names" ] || { echo "FAIL: $f pins no packages" >&2; return 1; }
+  local want; want=$(dfpkgs || true)
+  [ -n "$want" ] || { echo "FAIL: repro/Dockerfile has no ARG PKGS list" >&2; return 1; }
+  while IFS= read -r x; do
+    [ -n "$x" ] || continue
+    printf '%s\n' "$names" | grep -qxF "$x" \
+      || { printf '    the container installs %s and toolchain.sha256 does not pin it\n' "$x" >&2; rc=1; }
+  done <<< "$want"
+  while IFS= read -r x; do
+    [ -n "$x" ] || continue
+    printf '%s\n' "$want" | grep -qxF "$x" \
+      || { printf '    toolchain.sha256 pins %s and the container does not install it\n' "$x" >&2; rc=1; }
+  done <<< "$names"
+  # and the check has to still happen BEFORE the install. a pin file the build
+  # never reads is a file, not a pin.
+  awk '/sha256sum -c/{c=NR} /pacman -Su /{i=NR} END{exit !(c && i && c < i)}' repro/Dockerfile \
+    || { printf '    repro/Dockerfile no longer verifies toolchain.sha256 before installing\n' >&2; rc=1; }
+  [ "$rc" -eq 0 ] && printf '  %d container package(s) pinned by digest\n' "$(printf '%s\n' "$names" | grep -c .)"
+  return $rc
+}
+
+# regenerate repro/toolchain.sha256 from the pinned base image and archive day.
+# it has to run inside the base image: the digests are of the package files
+# THAT day's mirror serves, and nothing on the host can tell you those.
+toolpin() {
+  say "pinning the container toolchain by bytes"
+  command -v docker >/dev/null 2>&1 || { echo "FAIL: toolpin needs docker" >&2; return 1; }
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+     && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "FAIL: tracked files are modified -- commit (or discard) before pinning:" >&2
+    git status --porcelain --untracked-files=no >&2
+    return 1
+  fi
+  local base ala pkgs out
+  base=$(sed -n 's/^FROM[[:space:]]\+\(.*\)$/\1/p' repro/Dockerfile | head -1)
+  ala=$(sed -n 's/^ARG ALA=\(.*\)$/\1/p' repro/Dockerfile | head -1)
+  pkgs=$(dfpkgs | tr '\n' ' ')
+  [ -n "$base" ] && [ -n "$ala" ] && [ -n "$pkgs" ] \
+    || { echo "FAIL: repro/Dockerfile does not pin a base, an ALA day and a package list" >&2; return 1; }
+  out=$(docker run --rm --network=host "$base" sh -euc '
+    printf "Server=https://archive.archlinux.org/repos/%s/\$repo/os/\$arch\n" "$1" \
+      > /etc/pacman.d/mirrorlist
+    pacman -Syuw --noconfirm $2 >/dev/null 2>&1
+    cd /var/cache/pacman/pkg
+    for p in $2; do sha256sum "$(pacman -Sp --print-format "%f" "$p" | tail -1)"; done \
+      | sort -u -k2' _ "$ala" "$pkgs") \
+    || { echo "FAIL: could not download the packages in the pinned base image" >&2; return 1; }
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq "$(dfpkgs | grep -c .)" ] \
+    || { echo "FAIL: got $(printf '%s\n' "$out" | grep -c .) digests for $(dfpkgs | grep -c .) packages" >&2; return 1; }
+  { echo "# the container's toolchain, by BYTES."
+    echo "#"
+    echo "# repro/Dockerfile pins the base image by digest and aims pacman at a frozen"
+    echo "# Arch Linux Archive day. but an archive day is a PATH, not a digest: it says"
+    echo "# where the packages came from, not which bytes arrived. this closes that --"
+    echo "# every package the Dockerfile names explicitly is checked against this file"
+    echo "# before a single one is installed."
+    echo "#"
+    echo "# what it does NOT cover, said plainly: the dependency CLOSURE of these."
+    echo "# those still rest on the archive day plus pacman's own signature checking."
+    echo "# regenerate with ./build.sh toolpin; G58 checks this file against the"
+    echo "# Dockerfile's package list in both directions."
+    printf '%s\n' "$out"
+  } > repro/toolchain.sha256
+  cat repro/toolchain.sha256
+}
+
 # ────────────────────────────────────────────────────────────────────────────
 # the trust surface, checked against the tree
 # ────────────────────────────────────────────────────────────────────────────
@@ -1779,7 +1874,7 @@ trustver() {
   local f=trust.manifest rc=0 x
   [ -f "$f" ] || { echo "FAIL: trust.manifest is missing" >&2; return 1; }
   local rows tm_tool tm_source tm_pkg tm_blob tm_ca tm_prefix
-  rows=$(grep -vE '^[[:space:]]*(#|$)' "$f")
+  rows=$(grep -vE '^[[:space:]]*(#|$)' "$f" || true)
   # an emptied or reformatted file must not pass vacuously.
   [ "$(printf '%s\n' "$rows" | grep -c .)" -gt 0 ] \
     || { echo "FAIL: trust.manifest holds no rows" >&2; return 1; }
@@ -1799,14 +1894,14 @@ trustver() {
   # 1. host tools. this is the class that actually grows, so it has the teeth.
   local deps_tools
   deps_tools=$(awk '/local (base|extra)="/{i=1} i{print} i&&/"[[:space:]]*$/{i=0}' build.sh \
-               | grep -oE '[a-z0-9_.+-]+:[a-z0-9_.+-]+' | awk -F: '{print $1}' | sort -u)
+               | grep -oE '[a-z0-9_.+-]+:[a-z0-9_.+-]+' | awk -F: '{print $1}' | sort -u || true)
   _d "deps() needs a host tool with no trust.manifest row" "$deps_tools" "$tm_tool"
   _d "trust.manifest names a tool deps() no longer needs" "$tm_tool" "$deps_tools"
 
   # 2. pinned sources, by version-stripped name so a bump is not a churn.
   local src_names
   src_names=$(grep -vE '^[[:space:]]*(#|$)' sources.sha256 | awk '{print $2}' \
-              | sed 's/[-.][0-9].*$//' | sort -u)
+              | sed 's/[-.][0-9].*$//' | sort -u || true)
   _d "a pinned source with no trust.manifest row" "$src_names" "$tm_source"
   _d "trust.manifest names a source that is no longer pinned" "$tm_source" "$src_names"
 
@@ -1829,20 +1924,18 @@ trustver() {
 
   # 3. the blobs file, both ways.
   local blob_paths
-  blob_paths=$(grep -vE '^[[:space:]]*(#|$)' blobs.sha256 | awk '{print $2}' | sort -u)
+  blob_paths=$(grep -vE '^[[:space:]]*(#|$)' blobs.sha256 | awk '{print $2}' | sort -u || true)
   _d "a pinned blob with no trust.manifest row" "$blob_paths" "$tm_blob"
   _d "trust.manifest names a blob that is not in blobs.sha256" "$tm_blob" "$blob_paths"
 
   # 4. the container's package list.
-  local dpkgs
-  dpkgs=$(awk '/pacman -Syu/{i=1;next} /pacman -Scc/{i=0} i' repro/Dockerfile \
-          | tr -d '\\' | tr -s ' \t' '\n' | grep -E '^[a-z][a-z0-9.+-]*$' | sort -u)
+  local dpkgs; dpkgs=$(dfpkgs)
   _d "a container package with no trust.manifest row" "$dpkgs" "$tm_pkg"
   _d "trust.manifest names a package the container does not install" "$tm_pkg" "$dpkgs"
 
   # 5. the shipped trust anchors.
   local pems
-  pems=$(cd trust 2>/dev/null && ls -1 ./*.pem 2>/dev/null | sed 's|^\./||' | sort -u)
+  pems=$( { cd trust 2>/dev/null && ls -1 ./*.pem 2>/dev/null | sed 's|^\./||' | sort -u; } || true)
   _d "a shipped CA with no trust.manifest row" "$pems" "$tm_ca"
   _d "trust.manifest names a CA that is not in trust/" "$tm_ca" "$pems"
 
@@ -1852,7 +1945,10 @@ trustver() {
   local up covered pre
   for up in $(grep -oE '/usr/[A-Za-z0-9_./-]+' build.sh | sort -u); do
     covered=0
-    printf '%s\n' "$blob_paths" | grep -qxF "$up" && covered=1
+    # against the MANIFEST's blob rows, not blobs.sha256: this check asks
+    # whether trust.manifest accounts for the path. check 3 above is what ties
+    # the manifest to the pin file.
+    printf '%s\n' "$tm_blob" | grep -qxF "$up" && covered=1
     if [ "$covered" -eq 0 ]; then
       for pre in $tm_prefix; do
         case "$up" in "$pre"*) covered=1; break ;; esac
@@ -2045,6 +2141,7 @@ TODO: write this entry by hand.
 #   G55 every attestation is signed by a pinned release key
 #   G56 a rewritten attestation log is refused (the detector can fail)
 #   G57 the signed image still checks its host blobs before wrapping them
+#   G58 the container toolchain is pinned by bytes, not by an archive day
 #   G59 the trust manifest accounts for everything in the tree
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
@@ -3210,6 +3307,11 @@ G51
          printf '    would wrap an unchecked blob\n' >&2; }
   g "G57 host blobs checked before they are signed" "$g57"
 
+  # G58 -- the container's packages by content, not by the path they came from.
+  local g58=ok
+  toolver || g58=FAIL
+  g "G58 container toolchain pinned by bytes" "$g58"
+
   # G59 -- the trust surface, as data, checked against the tree. the same
   # function ci() runs, so a regression is named on the push that caused it.
   local g59=ok
@@ -3937,6 +4039,7 @@ ci() {
       || { printf '  \033[1;31mFROM is not pinned by digest\033[0m\n' >&2; dok=0; rc=1; }
     grep -qE '^ARG ALA=[0-9]{4}/[0-9]{2}/[0-9]{2}$' repro/Dockerfile \
       || { printf '  \033[1;31mALA is not a frozen YYYY/MM/DD day\033[0m\n' >&2; dok=0; rc=1; }
+    toolver || { dok=0; rc=1; }
     [ "$dok" -eq 1 ] && printf '  base pinned by digest, packages frozen to one ALA day\n'
   fi
   # the trust surface. buildless by construction -- it reads committed files
@@ -4250,7 +4353,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac

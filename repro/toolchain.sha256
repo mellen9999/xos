@@ -1,0 +1,34 @@
+# the container's toolchain, by BYTES.
+#
+# repro/Dockerfile pins the base image by digest and aims pacman at a frozen
+# Arch Linux Archive day. but an archive day is a PATH, not a digest: it says
+# where the packages came from, not which bytes arrived. this closes that --
+# every package the Dockerfile names explicitly is checked against this file
+# before a single one is installed.
+#
+# what it does NOT cover, said plainly: the dependency CLOSURE of these 22.
+# those still rest on the archive day plus pacman's own signature checking.
+# regenerate with ./build.sh toolpin; G58 checks this file against the
+# Dockerfile's package list in both directions.
+b9e5f0d61a674c9be1a0608f3fcab766d989d9a002c37e55a74ccfc8e87027ab  bc-1.08.2-1-x86_64.pkg.tar.zst
+d9508ad848fd6c31473ac0925cf8c3ec0d2a71bbbb5c7e39274186338a285660  binutils-2.47-4-x86_64.pkg.tar.zst
+417f8e94f7088e6de69cd36d7927d82988266f298e8d4fed3166abb13e971941  bison-3.8.2-8-x86_64.pkg.tar.zst
+90352d3550b4b7276cdb741dc0ea51867795869f1b72ecfc4238c8e2aca71429  cmake-4.4.3-2-x86_64.pkg.tar.zst
+322f0e79a7d659d5e645e96cad3d30966f7dd5476f984f96b50a4f4cea274640  cryptsetup-2.8.8-1-x86_64.pkg.tar.zst
+60b5c0ccc169cf1e36c95a5b2cab79d73c1490715e6b122828a9590fd2fcfc1c  curl-8.22.0-1-x86_64.pkg.tar.zst
+53830e09d46ceccde48a0fc1dcee026902e2a639a1b8a5e2a091d2a9d90b6967  diffutils-3.12-2-x86_64.pkg.tar.zst
+2a4479da79f8f50c940c4bcc7b5c5945081af3f6d8ebbec802d5118800a184ae  flex-2.6.4-6-x86_64.pkg.tar.zst
+1d79371ccf3138e3c172dd83b51560687b65ab824c1ad7e9cb41b7857ed9c55f  gcc-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst
+fbb24f455cb1de1c004a76b5a4dab92e4a9137764fbc3bc46afe13b7a38814fe  git-2.55.0-1-x86_64.pkg.tar.zst
+c758ccf2d09d85b033b30828800844609f47016ee93cd790315dea3818a95cc5  gnupg-2.4.9-3-x86_64.pkg.tar.zst
+b03efac9175b986a5f29302336fb1271874464644de3191e6a40079eb8cc5276  make-4.4.1-3-x86_64.pkg.tar.zst
+476173e159e6eafb918bbeb804e322b51d2ad8cdd64ffb577e180d8ebfb3942c  musl-1.2.6-2-x86_64.pkg.tar.zst
+2a3744b5ea31fcb0ac50ca89a2d6a9886eadfb51b63d76bcbd7952794b03631c  openssl-3.6.4-1-x86_64.pkg.tar.zst
+b4685fc56dfc18afb754f64099b82396885fefe43e82f20b37477650f642303c  patch-2.8-1-x86_64.pkg.tar.zst
+12035a6c30576a5ebdbb2fc24706f3643bbb82108223dff8700ab1a0042a7313  pkgconf-3.0.7-1-x86_64.pkg.tar.zst
+8a350ce53aae01ae687f043b301931e411bf06333ba480b42b3b5432a0e6c79b  python-3.14.7-1-x86_64.pkg.tar.zst
+7b71e674ad3c9d15c6b93097fb65a270703962fc982f7dee46bd6e6bd802e5d0  rsync-3.5.0-1-x86_64.pkg.tar.zst
+ebb145471e5a1c47b5bc49bbc21f83c6ab6ee61940ab5aeb5fea51d936407c9b  squashfs-tools-4.7.5-1-x86_64.pkg.tar.zst
+e8a3baa1b4bd754442f92c1c25794b9225700f931e1d2c175bb2e7d9a28725e7  tar-1.35-5-x86_64.pkg.tar.zst
+f9a30aca3eba69a4ad5e9b0117f8fcc60a33770e4ed435634b8d4c167363fe4f  which-2.25-1-x86_64.pkg.tar.zst
+89b8e777c8f7a39413e1b223d4c212caec6ddd9470b3d1ea1d5161bcc6215c04  xz-5.8.4-1-x86_64.pkg.tar.zst
