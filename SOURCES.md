@@ -1,7 +1,7 @@
 # upstream sources and how each pin is anchored
 
 `trust.manifest` is the machine-checked index of the whole trust surface, and
-G59 fails the build the moment anything in this file stops matching the tree.
+G60 fails the build the moment anything in this file stops matching the tree.
 This document stays the narrative; the manifest is the ledger.
 
 `sources.sha256` pins every tarball by digest, checked before extraction (G8).

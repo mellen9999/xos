@@ -7,7 +7,7 @@ decoration is bloat.
 
 `trust.manifest` enumerates everything this file's conclusions rest on -- every
 host tool, pinned source, container package, prebuilt blob and trust anchor --
-and G59 checks it against the tree on every push. prose that nothing checks is
+and G60 checks it against the tree on every push. prose that nothing checks is
 how the EFI stub stayed unpinned while being honestly described.
 
 ## the one sentence

@@ -1906,7 +1906,7 @@ toolpin() {
     echo "#"
     echo "# what it does NOT cover, said plainly: the dependency CLOSURE of these."
     echo "# those still rest on the archive day plus pacman's own signature checking."
-    echo "# regenerate with ./build.sh toolpin; G58 checks this file against the"
+    echo "# regenerate with ./build.sh toolpin; G59 checks this file against the"
     echo "# Dockerfile's package list in both directions."
     printf '%s\n' "$out"
   } > repro/toolchain.sha256
@@ -2052,7 +2052,7 @@ blobpin() {
   done
   { echo "# prebuilt host binaries that enter the SIGNED image but are not built here."
     echo "# ONE digest per path. regenerate with ./build.sh blobpin; blobver() checks"
-    echo "# this before uki() wraps anything, and G57 checks that it still does."
+    echo "# this before uki() wraps anything, and G58 checks that it still does."
     echo "# these bytes come from a distro's build servers -- pinning makes them fixed"
     echo "# and visible in a diff, it does not make them trustworthy. see trust.manifest."
     for b in "${blobs[@]}"; do printf '%s  %s\n' "$(sha256sum < "$b" | awk '{print $1}')" "$b"; done
@@ -2205,14 +2205,14 @@ TODO: write this entry by hand.
 #   G50 every level's teaching brief fits one 80x25 screen
 #   G51 a failed command at the real prompt reaches learn, and only a name
 #   G52 every commit since the epoch is signed by the pinned key
-#   G52 the maintainer signatures were actually checked, not skipped
-#   G53 selftest.sh counts the sections it actually has
-#   G54 the attestation chain is intact
-#   G55 every attestation is signed by a pinned release key
-#   G56 a rewritten attestation log is refused (the detector can fail)
-#   G57 the signed image still checks its host blobs before wrapping them
-#   G58 the container toolchain is pinned by bytes, not by an archive day
-#   G59 the trust manifest accounts for everything in the tree
+#   G53 the maintainer signatures were actually checked, not skipped
+#   G54 selftest.sh counts the sections it actually has
+#   G55 the attestation chain is intact
+#   G56 every attestation is signed by a pinned release key
+#   G57 a rewritten attestation log is refused (the detector can fail)
+#   G58 the signed image still checks its host blobs before wrapping them
+#   G59 the container toolchain is pinned by bytes, not by an archive day
+#   G60 the trust manifest accounts for everything in the tree
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2921,20 +2921,20 @@ G43OLD
          printf '    an independent distributor -- that leaves one dead key holding it up\n' >&2; }
   g "G45 expired or revoked source key refused" "$g45"
 
-  # G52 -- the signature tier has to have RUN. sigver() falls back to "digest
+  # G53 -- the signature tier has to have RUN. sigver() falls back to "digest
   # pin only" when gpg is absent, announcing it in one printf inside an hour
   # of build log, and G45's live-gpg half above is itself wrapped in a
   # command -v gpg, so on a gpg-less host it prints to stderr and still says
   # ok. a build that checked zero maintainer signatures reported every gate
   # green. the repro container never named gnupg either, which made the
   # canonical reproducible build the likeliest one of all to verify nothing.
-  local g52=ok n52
-  n52=$(sed -n '/^fetch() {/,/^}/p' build.sh | grep -c '^  sigver ' || true)
+  local g53=ok n53
+  n53=$(sed -n '/^fetch() {/,/^}/p' build.sh | grep -c '^  sigver ' || true)
   command -v gpg >/dev/null 2>&1 \
-    || { g52=FAIL; printf '    gpg is not installed -- every maintainer signature was skipped, not checked\n' >&2; }
-  [ "${n52:-0}" -ge 6 ] \
-    || { g52=FAIL; printf '    %s sigver() calls in fetch() -- a signed upstream stopped being checked\n' "${n52:-0}" >&2; }
-  g "G52 maintainer signatures were checked ($n52 signed upstreams)" "$g52"
+    || { g53=FAIL; printf '    gpg is not installed -- every maintainer signature was skipped, not checked\n' >&2; }
+  [ "${n53:-0}" -ge 6 ] \
+    || { g53=FAIL; printf '    %s sigver() calls in fetch() -- a signed upstream stopped being checked\n' "${n53:-0}" >&2; }
+  g "G53 maintainer signatures were checked ($n53 signed upstreams)" "$g53"
 
   # G36 -- learn REACHES its first prompt on a terminal that answers nothing.
   # parsing is not running: the unicode probe asks the terminal a question, and
@@ -3360,70 +3360,70 @@ G51
   fi
   g "G47 arsenal sources pinned before build" "$g47"
 
-  # G53 -- selftest.sh keeps the same guard this runner does: a hand-written
+  # G54 -- selftest.sh keeps the same guard this runner does: a hand-written
   # EXPECTED_SECTIONS it compares its own run against. that number is the one
   # thing in it nothing else checks, and it rots exactly the way EXPECTED_GATES
   # did -- silently, until a truncated run reads as a short but clean one. it
   # cannot derive the number from itself (that would go green on a deleted
   # section, the very thing it exists to catch), so cross-check it from OUT
   # HERE: the declaration against the sections actually written in the file.
-  local g53=ok want53 have53
-  want53=$(sed -n 's/^EXPECTED_SECTIONS=\([0-9][0-9]*\).*/\1/p' selftest.sh | head -1)
-  have53=$(grep -c '^section "A' selftest.sh || true)
-  if [ -z "$want53" ]; then
-    g53=FAIL; printf '    selftest.sh declares no EXPECTED_SECTIONS\n' >&2
-  elif [ "${have53:-0}" -eq 0 ]; then
-    g53=FAIL; printf '    selftest.sh has no `section "A...` lines -- the count would be vacuous\n' >&2
-  elif [ "$want53" -ne "$have53" ]; then
-    g53=FAIL
-    printf '    selftest.sh declares %s sections but writes %s\n' "$want53" "$have53" >&2
+  local g54=ok want54 have54
+  want54=$(sed -n 's/^EXPECTED_SECTIONS=\([0-9][0-9]*\).*/\1/p' selftest.sh | head -1)
+  have54=$(grep -c '^section "A' selftest.sh || true)
+  if [ -z "$want54" ]; then
+    g54=FAIL; printf '    selftest.sh declares no EXPECTED_SECTIONS\n' >&2
+  elif [ "${have54:-0}" -eq 0 ]; then
+    g54=FAIL; printf '    selftest.sh has no `section "A...` lines -- the count would be vacuous\n' >&2
+  elif [ "$want54" -ne "$have54" ]; then
+    g54=FAIL
+    printf '    selftest.sh declares %s sections but writes %s\n' "$want54" "$have54" >&2
   fi
-  g "G53 selftest section count declared ($have53)" "$g53"
+  g "G54 selftest section count declared ($have54)" "$g54"
 
-  # G54/G55 -- the published claim, checked the way a stranger checks it. these
+  # G55/G56 -- the published claim, checked the way a stranger checks it. these
   # run the same two functions ./build.sh verify runs, so the repo cannot ship
   # a chain or a signature that its own verifier would reject. output is
   # captured and only shown when something is wrong: a green gate line is the
   # whole report a reader wants here.
-  local g54=ok g55=ok out54 out55
-  out54=$(verify_log 2>&1) || { g54=FAIL; printf '%s\n' "$out54" >&2; }
-  g "G54 attestation chain intact" "$g54"
-  out55=$(verify_sigs 2>&1) || { g55=FAIL; printf '%s\n' "$out55" >&2; }
-  g "G55 attestations signed by a pinned key" "$g55"
+  local g55=ok g56=ok out55 out56
+  out55=$(verify_log 2>&1) || { g55=FAIL; printf '%s\n' "$out55" >&2; }
+  g "G55 attestation chain intact" "$g55"
+  out56=$(verify_sigs 2>&1) || { g56=FAIL; printf '%s\n' "$out56" >&2; }
+  g "G56 attestations signed by a pinned key" "$g56"
 
-  # G56 -- and the check above is worth nothing if it cannot fail. four
+  # G57 -- and the check above is worth nothing if it cannot fail. four
   # rewrites, four refusals, on a synthetic chain.
-  local g56=ok
-  log_selftest || g56=FAIL
-  g "G56 a rewritten chain is refused" "$g56"
+  local g57=ok
+  log_selftest || g57=FAIL
+  g "G57 a rewritten chain is refused" "$g57"
 
-  # G57 -- structural, in the G45/G47 mould. blobver() only helps while uki()
+  # G58 -- structural, in the G45/G47 mould. blobver() only helps while uki()
   # still calls it, and it is one line someone debugging a systemd upgrade
   # would comment out in thirty seconds. so check the SHAPE: blobs.sha256 names
   # the stub, and uki()'s body calls blobver before it reaches ukify. checking
   # the digest here instead would be the wrong gate -- gates() runs after the
   # image is already built and signed.
-  local g57=ok body57
-  body57=$(sed -n '/^uki() {/,/^}/p' build.sh)
+  local g58=ok body58
+  body58=$(sed -n '/^uki() {/,/^}/p' build.sh)
   grep -qF -- "$STUB" blobs.sha256 2>/dev/null \
-    || { g57=FAIL; printf '    the EFI stub is not pinned in blobs.sha256\n' >&2; }
+    || { g58=FAIL; printf '    the EFI stub is not pinned in blobs.sha256\n' >&2; }
   # anchored: a commented-out call, or the word appearing in prose, must not
   # satisfy this. it has to be a statement that actually runs.
-  printf '%s\n' "$body57" | awk '/^[[:space:]]*blobver([[:space:]]|$)/{b=NR} /ukify[[:space:]]/{u=NR} END{exit !(b && u && b < u)}' \
-    || { g57=FAIL; printf '    uki() no longer calls blobver before ukify -- the signed image\n' >&2
+  printf '%s\n' "$body58" | awk '/^[[:space:]]*blobver([[:space:]]|$)/{b=NR} /ukify[[:space:]]/{u=NR} END{exit !(b && u && b < u)}' \
+    || { g58=FAIL; printf '    uki() no longer calls blobver before ukify -- the signed image\n' >&2
          printf '    would wrap an unchecked blob\n' >&2; }
-  g "G57 host blobs checked before they are signed" "$g57"
+  g "G58 host blobs checked before they are signed" "$g58"
 
-  # G58 -- the container's packages by content, not by the path they came from.
-  local g58=ok
-  toolver || g58=FAIL
-  g "G58 container toolchain pinned by bytes" "$g58"
-
-  # G59 -- the trust surface, as data, checked against the tree. the same
-  # function ci() runs, so a regression is named on the push that caused it.
+  # G59 -- the container's packages by content, not by the path they came from.
   local g59=ok
-  trustver || g59=FAIL
-  g "G59 trust manifest accounts for the tree" "$g59"
+  toolver || g59=FAIL
+  g "G59 container toolchain pinned by bytes" "$g59"
+
+  # G60 -- the trust surface, as data, checked against the tree. the same
+  # function ci() runs, so a regression is named on the push that caused it.
+  local g60=ok
+  trustver || g60=FAIL
+  g "G60 trust manifest accounts for the tree" "$g60"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are
@@ -3769,7 +3769,7 @@ verify_log() {
   fi
 }
 
-# G56's engine. a detector that cannot fail is not a detector, so this builds a
+# G57's engine. a detector that cannot fail is not a detector, so this builds a
 # SYNTHETIC three-entry chain in a throwaway directory, proves verify_log
 # accepts it, then applies one rewrite per way a history can be tampered with
 # and proves it refuses each. three entries, not however many attest/ happens

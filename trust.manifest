@@ -6,7 +6,7 @@
 # and sitting next to an unpinned binary for as long as it existed.
 #
 # this file is the INDEX. the four documents stay the narrative and point here.
-# G59 parses it and does a set-difference against the tree in six directions,
+# G60 parses it and does a set-difference against the tree in six directions,
 # so a new host tool, a new source, a new container package, a new blob or a
 # new trust anchor cannot arrive without a row appearing beside it.
 #
