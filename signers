@@ -1,0 +1,14 @@
+# signers -- the ssh public key every commit in this tree is signed with, in
+# openssh's allowed_signers format. this is a PIN, not an identity: the
+# principal below is a string in a file in this repo, and so is the fingerprint
+# in build.sh. what a pin buys is continuity -- the key cannot be replaced
+# except by a commit signed with the key it replaces. see SOURCES.md, "this
+# tree's own commits", for what that does and does not prove.
+#
+# verify a clone with:  ./build.sh vouch
+# or by hand:           git -c gpg.ssh.allowedSignersFile=signers verify-commit HEAD
+#
+# rotation: add the new line in a commit signed by the OLD key, then remove the
+# old line in a commit signed by the NEW one. an ssh signature has no
+# revocation certificate -- the chain of signed commits IS the revocation.
+mellen@heatsync.org namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOktU50D4u8K7xeAq/NLWYtE5jVqomsS6plXPDGEnLFi
