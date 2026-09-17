@@ -1,0 +1,173 @@
+# the trust surface of xos, as data.
+#
+# docs/threat-model.md, SOURCES.md, trust/README and README.md each describe
+# part of this well, in prose. nothing checked any of them against the tree --
+# and the EFI stub proved what that costs: honestly described in SOURCES.md,
+# and sitting next to an unpinned binary for as long as it existed.
+#
+# this file is the INDEX. the four documents stay the narrative and point here.
+# G59 parses it and does a set-difference against the tree in six directions,
+# so a new host tool, a new source, a new container package, a new blob or a
+# new trust anchor cannot arrive without a row appearing beside it.
+#
+# fixed columns: KIND  NAME  ANCHOR  NOTE. not a markdown table -- parsing `|`
+# rots. not a doc plus a machine file -- that reintroduces the drift being
+# fixed.
+#
+#   tool    a host program the build runs. anchor: repro (its behaviour ends up
+#           in the pinned bytes) or lab (signing, boot, disk, qemu only)
+#   source  a pinned upstream tarball. anchor: sig:VAR (a maintainer signature
+#           matched to that pinned fingerprint), urlsha512, or tofu
+#   pkg     a package in the pinned container. anchor: the frozen archive day
+#   blob    a prebuilt binary that enters the SIGNED image. anchor: blobs.sha256
+#   host    a host path the build reads but cannot pin. a PREFIX; anything
+#           under it is covered
+#   img     a path inside the BUILT image, not a host input. also a prefix
+#   ca      a trust anchor shipped in the image
+#   out     something this build produces and pins
+#kind  name                                         anchor           note
+
+# ---- host tools --------------------------------------------------------------
+tool   bc                                           repro            arch:bc -- kernel build
+tool   bison                                        repro            arch:bison -- util-linux only
+tool   cmake                                        repro            arch:cmake -- json-c only
+tool   cmp                                          repro            arch:diffutils -- byte comparisons
+tool   curl                                         repro            arch:curl -- fetches the pinned tarballs (digest+signature decide, not the url)
+tool   flex                                         repro            arch:flex -- util-linux only
+tool   gcc                                          repro            arch:gcc -- compiles every shipped byte -- the root of this whole table
+tool   ld                                           repro            arch:binutils -- links every shipped byte
+tool   lsblk                                        lab              arch:util-linux -- the mounted-disk guard reads its MOUNTPOINTS column
+tool   make                                         repro            arch:make -- drives every upstream build
+tool   mcopy                                        lab              arch:mtools -- writes the ESP
+tool   mkfs.fat                                     lab              arch:dosfstools -- formats the ESP
+tool   mksquashfs                                   repro            arch:squashfs-tools -- builds the read-only root
+tool   mmd                                          lab              arch:mtools -- writes the ESP
+tool   objdump                                      repro            arch:binutils -- disassembles for the G22 canary check
+tool   openssl                                      repro            arch:openssl -- seals the signing keys at rest
+tool   partprobe                                    lab              arch:parted -- re-reads the table after a flash
+tool   patch                                        repro            arch:patch -- applies the carried patches
+tool   pkg-config                                   repro            arch:pkgconf -- cryptsetup configure
+tool   python3                                      repro            arch:python -- ukify and pehash.py
+tool   qemu-system-x86_64                           lab              arch:qemu-base -- the selftest lab
+tool   readelf                                      repro            arch:binutils -- reads ELF headers for G2/G3/G16/G22
+tool   rsync                                        repro            arch:rsync -- stages the image root
+tool   sbsign                                       lab              arch:sbsigntools -- signs the UKI
+tool   sbverify                                     lab              arch:sbsigntools -- verifies it back
+tool   sfdisk                                       lab              arch:util-linux -- writes the stick GPT
+tool   strings                                      repro            arch:binutils -- reads the built busybox for G46
+tool   strip                                        repro            arch:binutils -- strips the shipped binaries
+tool   tar                                          repro            arch:tar -- unpacks them
+tool   ukify                                        lab              arch:systemd -- wraps kernel+cmdline+stub into one PE
+tool   unsquashfs                                   repro            arch:squashfs-tools -- reads it back for G12
+tool   veritysetup                                  repro            arch:cryptsetup -- computes the dm-verity tree and root hash
+tool   virt-fw-vars                                 lab              arch:virt-firmware -- enrolls PK/KEK/db into the qemu firmware
+tool   wipefs                                       lab              arch:util-linux -- clears a stick before writing
+tool   xz                                           repro            arch:xz -- kernel tarball
+
+# ---- pinned upstream sources --------------------------------------------------
+source LVM2                                         tofu             
+source abduco                                       tofu             session detach. no upstream signature
+source bearssl                                      tofu             tls for tlstunnel. no upstream signature
+source busybox                                      sig:BB_FPR       the entire userland bar EXTRA_BINS
+source cryptsetup                                   sig:CS_FPR       p3 luks
+source dropbear                                     sig:DB_FPR       the one listening service
+source ii                                           tofu             irc client. suckless publishes no signature -- trust-on-first-use over tls
+source json-c                                       tofu             cryptsetup dependency. github tag tarball, no signature
+source linux                                        sig:LNX_FPR      the kernel
+source popt                                         urlsha512        the fedora lookaside url names the sha512, so the host cannot serve anything else there
+source util-linux                                   sig:UTL_FPR      libuuid/libblkid for cryptsetup
+source wireguard-tools                              tofu             configures the in-kernel wireguard. no per-release signature
+
+# ---- packages in the pinned container -----------------------------------------
+pkg    bc                                           ala:2026/09/12   
+pkg    binutils                                     ala:2026/09/12   
+pkg    bison                                        ala:2026/09/12   
+pkg    cmake                                        ala:2026/09/12   
+pkg    cryptsetup                                   ala:2026/09/12   
+pkg    curl                                         ala:2026/09/12   
+pkg    diffutils                                    ala:2026/09/12   
+pkg    flex                                         ala:2026/09/12   
+pkg    gcc                                          ala:2026/09/12   
+pkg    git                                          ala:2026/09/12   
+pkg    gnupg                                        ala:2026/09/12   
+pkg    make                                         ala:2026/09/12   
+pkg    musl                                         ala:2026/09/12   
+pkg    openssl                                      ala:2026/09/12   
+pkg    patch                                        ala:2026/09/12   
+pkg    pkgconf                                      ala:2026/09/12   
+pkg    python                                       ala:2026/09/12   
+pkg    rsync                                        ala:2026/09/12   
+pkg    squashfs-tools                               ala:2026/09/12   
+pkg    tar                                          ala:2026/09/12   
+pkg    which                                        ala:2026/09/12   
+pkg    xz                                           ala:2026/09/12   
+
+# ---- prebuilt binaries inside the signed image --------------------------------
+blob   /usr/lib/systemd/boot/efi/linuxx64.efi.stub  blobs.sha256     the systemd EFI stub. runs before dm-verity covers anything
+
+# ---- host paths the build reads -----------------------------------------------
+host   /usr/lib/musl/                               UNPINNED         the libc every shipped binary statically links. see "the frontier"
+host   /usr/share/edk2/                             lab              qemu secure-boot firmware. never shipped, never in a pinned byte
+host   /usr/share/OVMF/                             lab              the same, laid out debian-style
+host   /usr/share/qemu/                             lab              the same again
+
+# ---- paths inside the built image, not host inputs ----------------------------
+img    /usr/local                                   -                the prefix upstream configures install into
+img    /usr/share/learn                             -                the learn corpus, shipped in the squashfs
+img    /usr/share/xos                               -                the fingerprint wordlist
+img    /usr/share/udhcpc                            -                the dhcp hook script
+
+# ---- trust anchors shipped in the image ---------------------------------------
+ca     isrg-root-x1.pem                             tofu             the only CA tlstunnel will accept. see trust/README
+
+# ---- what this build produces ------------------------------------------------
+out    xos.img                                      image.sha256     the verity-backed root image
+out    rootfs.squashfs                              image.sha256     the read-only root
+out    verity.roothash                              image.sha256     goes into the SIGNED cmdline
+out    bzImage                                      image.sha256     the kernel
+out    xos-signed.efi                               keys/db          the UKI. signed with the secure-boot db key, not pinned -- it carries a signature
+out    attest/NNNN.manifest                         RELEASE_FPRS     the release claim. signed, chained, see docs/attestation.md
+
+# ---- the frontier ------------------------------------------------------------
+#
+# gcc is the root of this table and nothing below changes that. a compiler that
+# lies backdoors everything above it, and no row here detects that.
+#
+# diverse double-compilation (Wheeler): SCOPED AND REJECTED. naive cross-distro
+# byte-comparison is not DDC and cannot work -- a different gcc/binutils/musl
+# produces different bytes every time, which is exactly why G13 SKIPs off its
+# pinned toolchain. real DDC compiles gcc's own source with a second compiler,
+# rebuilds gcc with the result, and compares against the suspect compiler's
+# self-build. it needs gcc built from source twice, gcc's own build made
+# bit-reproducible (a research project), 8-16 GB of RAM this hardware does not
+# have, 10-20 machine-hours per run, and a re-run on every gcc bump. calling
+# anything cheaper "DDC" would be the overselling SOURCES.md exists to avoid.
+# (gcc's own stage2-vs-stage3 `make bootstrap` comparison is NOT DDC: a
+# trojaned stage1 propagates into both.)
+#
+# worth recording: arsenal/build-arsenal-c.sh already builds in Alpine -- a
+# second, independently OPERATED toolchain. not independently ROOTED: Alpine,
+# Arch, Debian and Fedora all bootstrap from a previous binary of themselves,
+# and there is no independently-rooted x86-64 C compiler outside the
+# Guix/live-bootstrap lineage. comparing two detects a compromise at one
+# distro's build farm, not a Thompson attack in the shared ancestry.
+#
+# full-source bootstrap (hex0 -> tcc -> gcc): SCOPED AND REJECTED, documented
+# rather than built. ~250 sequential steps, 10-20 machine-hours per run, 8-16 GB
+# for the upper gcc stages, and 2-4 person-months merely to CONSUME an existing
+# bootstrap. the ongoing cost is worse than the one-time cost: every gcc bump
+# re-runs the chain or the claim goes stale, and a 15-hour gate blocking a
+# CVE-driven re-pin loses that fight every time. docs/threat-model.md already
+# puts this adversary below its defend line, and its own four-question test
+# answers this one no. see live-bootstrap and bootstrappable.org. no gate: a
+# gate for something you are not doing is decoration.
+#
+# building the EFI stub from systemd source: SCOPED AND REJECTED. it trades one
+# digest-pinned 134 KB blob for meson, ninja, jinja, the systemd tree and three
+# new unpinned host deps -- the opposite of shrinking this table.
+#
+# deleting the stub and using the kernel's own EFI stub: SCOPED AND REJECTED,
+# and this one is not close. systemd-stub refuses a firmware-supplied cmdline
+# under SecureBoot; the kernel stub does not -- it parses initrd= and nokaslr
+# out of LoadOptions first, and CONFIG_BLK_DEV_INITRD=y means anyone who can
+# write a BootXXXX NVRAM entry could attach an unsigned initrd.

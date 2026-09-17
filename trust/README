@@ -5,6 +5,9 @@ A normal distro ships ~150 of these. xos ships the ones it needs and no
 more, and because they live in git, adding one is a visible commit with a
 diff -- not an invisible default.
 
+Every .pem here needs a `ca` row in trust.manifest; G59 fails if one appears
+without it, or if a row names a file that is gone.
+
   isrg-root-x1.pem   Let's Encrypt / ISRG Root X1.
                      sha256 96:BC:EC:06:...:DF:08:C6
                      Verified two ways: fetched from letsencrypt.org AND

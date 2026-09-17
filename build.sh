@@ -1746,6 +1746,112 @@ blobver() {
   printf '  %d host blob(s) match blobs.sha256\n' "$n"
 }
 
+# ────────────────────────────────────────────────────────────────────────────
+# the trust surface, checked against the tree
+# ────────────────────────────────────────────────────────────────────────────
+# four documents describe this repo's trust surface well, in prose, and nothing
+# checked a word of any of them against the tree. the EFI stub is the proof of
+# what that costs: honestly described in SOURCES.md, sitting beside an unpinned
+# binary for as long as it existed.
+#
+# trust.manifest is the index. this is the check. six set-differences, each
+# BOTH ways, so neither a new thing in the tree nor a stale row in the file can
+# survive unnoticed. lives here rather than inline in gates() because ci()
+# needs it too: a trust-surface regression should be named on the push that
+# caused it, not on the next full build.
+trustver() {
+  local f=trust.manifest rc=0 x
+  [ -f "$f" ] || { echo "FAIL: trust.manifest is missing" >&2; return 1; }
+  local rows tm_tool tm_source tm_pkg tm_blob tm_ca tm_prefix
+  rows=$(grep -vE '^[[:space:]]*(#|$)' "$f")
+  # an emptied or reformatted file must not pass vacuously.
+  [ "$(printf '%s\n' "$rows" | grep -c .)" -gt 0 ] \
+    || { echo "FAIL: trust.manifest holds no rows" >&2; return 1; }
+  tmcol() { printf '%s\n' "$rows" | awk -v k="$1" '$1==k{print $2}' | sort -u; }
+  tm_tool=$(tmcol tool); tm_source=$(tmcol source); tm_pkg=$(tmcol pkg)
+  tm_blob=$(tmcol blob); tm_ca=$(tmcol ca)
+  tm_prefix=$(printf '%s\n' "$rows" | awk '$1=="host"||$1=="img"{print $2}' | sort -u)
+
+  # name what is on one side and not the other, in the caller's words.
+  _d() { # $1 message  $2 list to walk  $3 list to look in
+    while IFS= read -r x; do
+      [ -n "$x" ] || continue
+      printf '%s\n' "$3" | grep -qxF "$x" || { printf '    %s: %s\n' "$1" "$x" >&2; rc=1; }
+    done <<< "$2"
+  }
+
+  # 1. host tools. this is the class that actually grows, so it has the teeth.
+  local deps_tools
+  deps_tools=$(awk '/local (base|extra)="/{i=1} i{print} i&&/"[[:space:]]*$/{i=0}' build.sh \
+               | grep -oE '[a-z0-9_.+-]+:[a-z0-9_.+-]+' | awk -F: '{print $1}' | sort -u)
+  _d "deps() needs a host tool with no trust.manifest row" "$deps_tools" "$tm_tool"
+  _d "trust.manifest names a tool deps() no longer needs" "$tm_tool" "$deps_tools"
+
+  # 2. pinned sources, by version-stripped name so a bump is not a churn.
+  local src_names
+  src_names=$(grep -vE '^[[:space:]]*(#|$)' sources.sha256 | awk '{print $2}' \
+              | sed 's/[-.][0-9].*$//' | sort -u)
+  _d "a pinned source with no trust.manifest row" "$src_names" "$tm_source"
+  _d "trust.manifest names a source that is no longer pinned" "$tm_source" "$src_names"
+
+  # 2b. and a claimed signature anchor must be REAL. this is the failure mode a
+  # hand-maintained doc always eventually has: the manifest says a source is
+  # signature-anchored and the build never checks one.
+  local a v fbody
+  fbody=$(sed -n '/^fetch() {/,/^}/p' build.sh)
+  while IFS= read -r x; do
+    [ -n "$x" ] || continue
+    a=$(printf '%s\n' "$rows" | awk -v n="$x" '$1=="source"&&$2==n{print $3}')
+    case "$a" in
+      sig:*|dsc:*) v=${a#*:}
+        grep -qE "^$v=" build.sh \
+          || { printf '    %s claims %s but build.sh assigns no such variable\n' "$x" "$a" >&2; rc=1; continue; }
+        printf '%s\n' "$fbody" | has "sigver .*\\\$$v" \
+          || { printf '    %s claims %s but fetch() never calls sigver with it\n' "$x" "$a" >&2; rc=1; } ;;
+    esac
+  done <<< "$tm_source"
+
+  # 3. the blobs file, both ways.
+  local blob_paths
+  blob_paths=$(grep -vE '^[[:space:]]*(#|$)' blobs.sha256 | awk '{print $2}' | sort -u)
+  _d "a pinned blob with no trust.manifest row" "$blob_paths" "$tm_blob"
+  _d "trust.manifest names a blob that is not in blobs.sha256" "$tm_blob" "$blob_paths"
+
+  # 4. the container's package list.
+  local dpkgs
+  dpkgs=$(awk '/pacman -Syu/{i=1;next} /pacman -Scc/{i=0} i' repro/Dockerfile \
+          | tr -d '\\' | tr -s ' \t' '\n' | grep -E '^[a-z][a-z0-9.+-]*$' | sort -u)
+  _d "a container package with no trust.manifest row" "$dpkgs" "$tm_pkg"
+  _d "trust.manifest names a package the container does not install" "$tm_pkg" "$dpkgs"
+
+  # 5. the shipped trust anchors.
+  local pems
+  pems=$(cd trust 2>/dev/null && ls -1 ./*.pem 2>/dev/null | sed 's|^\./||' | sort -u)
+  _d "a shipped CA with no trust.manifest row" "$pems" "$tm_ca"
+  _d "trust.manifest names a CA that is not in trust/" "$tm_ca" "$pems"
+
+  # 6. absolute host paths. exact blob rows, or a host/img row that PREFIXES
+  # them -- so the twelve OVMF alternatives are three rows, not twelve, and a
+  # brand new /usr path still forces someone to say which it is.
+  local up covered pre
+  for up in $(grep -oE '/usr/[A-Za-z0-9_./-]+' build.sh | sort -u); do
+    covered=0
+    printf '%s\n' "$blob_paths" | grep -qxF "$up" && covered=1
+    if [ "$covered" -eq 0 ]; then
+      for pre in $tm_prefix; do
+        case "$up" in "$pre"*) covered=1; break ;; esac
+      done
+    fi
+    [ "$covered" -eq 1 ] || {
+      printf '    build.sh names %s and trust.manifest accounts for neither it nor\n' "$up" >&2
+      printf '    a prefix of it -- say whether it is a blob, a host path, or in the image\n' >&2
+      rc=1; }
+  done
+  [ "$rc" -eq 0 ] && printf '  trust.manifest accounts for %d row(s) against the tree\n' \
+    "$(printf '%s\n' "$rows" | grep -c .)"
+  return $rc
+}
+
 # re-pin the host blobs. mirrors pin(): a pin is a claim about what gets
 # signed, so it refuses a dirty tree and the result belongs in a commit.
 blobpin() {
@@ -1923,6 +2029,7 @@ TODO: write this entry by hand.
 #   G55 every attestation is signed by a pinned release key
 #   G56 a rewritten attestation log is refused (the detector can fail)
 #   G57 the signed image still checks its host blobs before wrapping them
+#   G59 the trust manifest accounts for everything in the tree
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -3076,6 +3183,12 @@ G51
          printf '    would wrap an unchecked blob\n' >&2; }
   g "G57 host blobs checked before they are signed" "$g57"
 
+  # G59 -- the trust surface, as data, checked against the tree. the same
+  # function ci() runs, so a regression is named on the push that caused it.
+  local g59=ok
+  trustver || g59=FAIL
+  g "G59 trust manifest accounts for the tree" "$g59"
+
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are
   # the ones the roster names. the count catches a truncated run and a gate
@@ -3799,6 +3912,12 @@ ci() {
       || { printf '  \033[1;31mALA is not a frozen YYYY/MM/DD day\033[0m\n' >&2; dok=0; rc=1; }
     [ "$dok" -eq 1 ] && printf '  base pinned by digest, packages frozen to one ALA day\n'
   fi
+  # the trust surface. buildless by construction -- it reads committed files
+  # and nothing else -- and the class of regression it catches (a new host
+  # tool, a new source, a new container package with nobody accounting for it)
+  # is exactly the kind you want named on the push, not six days later.
+  say "trust surface"
+  trustver || rc=1
   # the learn authoring ledger: pure static analysis, no busybox needed. it is
   # advisory by design (see lib/lint) -- printed so drift shows in the ci log,
   # never a hard fail, so it cannot breed filler.

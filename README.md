@@ -609,7 +609,9 @@ re-run to update.
 - don't enroll these keys on hardware whose own secure boot chain you still need
 - gcc is the root of trust and stays there: the compiler, binutils,
   squashfs-tools and veritysetup arrive as prebuilt distro packages, and
-  nothing here detects a compiler that lies. see `trust.manifest`
+  nothing here detects a compiler that lies. `trust.manifest` enumerates the
+  whole set as data, G59 checks it against the tree, and its closing section
+  says which rungs above this one were scoped and rejected, and why
 - a signature says who built it, never that they are honest; a reproducible
   build says the bytes match the source, never that the source is safe
 - the attestation log has no witness network, so a consistent history shown to
