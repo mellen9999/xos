@@ -1757,6 +1757,7 @@ TODO: write this entry by hand.
 #   G51 a failed command at the real prompt reaches learn, and only a name
 #   G52 every commit since the epoch is signed by the pinned key
 #   G52 the maintainer signatures were actually checked, not skipped
+#   G53 selftest.sh counts the sections it actually has
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2855,6 +2856,26 @@ G51
     g47=FAIL; printf '    arsenal build script or pins file missing (%s / %s)\n' "$acs" "$pins" >&2
   fi
   g "G47 arsenal sources pinned before build" "$g47"
+
+  # G53 -- selftest.sh keeps the same guard this runner does: a hand-written
+  # EXPECTED_SECTIONS it compares its own run against. that number is the one
+  # thing in it nothing else checks, and it rots exactly the way EXPECTED_GATES
+  # did -- silently, until a truncated run reads as a short but clean one. it
+  # cannot derive the number from itself (that would go green on a deleted
+  # section, the very thing it exists to catch), so cross-check it from OUT
+  # HERE: the declaration against the sections actually written in the file.
+  local g53=ok want53 have53
+  want53=$(sed -n 's/^EXPECTED_SECTIONS=\([0-9][0-9]*\).*/\1/p' selftest.sh | head -1)
+  have53=$(grep -c '^section "A' selftest.sh || true)
+  if [ -z "$want53" ]; then
+    g53=FAIL; printf '    selftest.sh declares no EXPECTED_SECTIONS\n' >&2
+  elif [ "${have53:-0}" -eq 0 ]; then
+    g53=FAIL; printf '    selftest.sh has no `section "A...` lines -- the count would be vacuous\n' >&2
+  elif [ "$want53" -ne "$have53" ]; then
+    g53=FAIL
+    printf '    selftest.sh declares %s sections but writes %s\n' "$want53" "$have53" >&2
+  fi
+  g "G53 selftest section count declared ($have53)" "$g53"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are
