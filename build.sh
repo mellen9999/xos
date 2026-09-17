@@ -473,11 +473,17 @@ sigok() { # $1 pinned fingerprint  [gpg status stream on stdin]
 # $5=xz: kernel.org signs the UNCOMPRESSED tar (one .tar.sign covers .gz and
 # .xz), so the tarball is decompressed into gpg's stdin. a truncated or
 # corrupt .xz cannot pass: gpg sees a short stream and the signature fails.
-# $6=expired-ok: this upstream signs releases with a key it let expire. the
-# exception is per-source, printed on every build, and never covers revocation
-# -- a revoked key means the private half is presumed stolen, which is the one
-# case a fingerprint pin cannot save you from.
-sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned fingerprint  [$5 xz]  [$6 expired-ok]
+# $6=expired-ok:YYYY-MM-DD: this upstream signs releases with a key it let
+# expire. the exception is per-source, printed on every build, and never covers
+# revocation -- a revoked key means the private half is presumed stolen, which
+# is the one case a fingerprint pin cannot save you from.
+#
+# the DATE is the point. a waiver with no end is a waiver nobody ever looks at
+# again, and this one has outlived the key it excuses by years. past that day
+# the build refuses until someone renews it deliberately -- the same staleness
+# shape G30 already applies to the clock floor. a waiver you renew on purpose
+# is not the same thing as one you forgot.
+sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned fingerprint  [$5 xz]  [$6 expired-ok:DATE]
   command -v gpg >/dev/null 2>&1 || {
     # host-optional, with one exception. on a dev box the digest pin still
     # binds the tarball, so skipping is honest. under XOS_STRICT -- the repro
@@ -501,14 +507,24 @@ sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned finger
     0) printf '  %s: maintainer signature verified (%s...)\n' "$1" "$(printf '%s' "$4" | cut -c1-16)" ;;
     2) local exp; exp=$(printf '%s\n' "$st" | sed -n 's/^\[GNUPG:\] KEYEXPIRED \([0-9]*\).*/\1/p' | head -1)
        [ -n "$exp" ] && exp=$(date -u -d "@$exp" +%Y-%m-%d 2>/dev/null) || exp="an unknown date"
-       [ "${6:-}" = expired-ok ] || {
-         echo "FAIL: $1 is signed by a key that expired on $exp" >&2
-         echo "  the signature is the maintainer's, but an expired key stops limiting" >&2
-         echo "  the damage of a leak. refresh sigs/ from upstream, or mark this source" >&2
-         echo "  expired-ok in fetch() once you have decided that is acceptable." >&2
-         return 1; }
-       printf '  \033[1;33m%s: signed by a key that expired on %s -- accepted by an explicit\033[0m\n' "$1" "$exp"
-       printf '  \033[1;33m  exception in fetch(); fingerprint and digest are still pinned\033[0m\n' ;;
+       case "${6:-}" in
+         expired-ok:[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+         *) echo "FAIL: $1 is signed by a key that expired on $exp" >&2
+            echo "  the signature is the maintainer's, but an expired key stops limiting" >&2
+            echo "  the damage of a leak. refresh sigs/ from upstream, or mark this source" >&2
+            echo "  expired-ok:YYYY-MM-DD in fetch() once you have decided that is" >&2
+            echo "  acceptable -- the date is when you will look at it again." >&2
+            return 1 ;;
+       esac
+       local until="${6#expired-ok:}"
+       if [ "$(date -u +%Y-%m-%d)" \> "$until" ]; then
+         echo "FAIL: the expiry waiver for $1 lapsed on $until" >&2
+         echo "  it was never meant to be permanent. re-anchor this source to a live" >&2
+         echo "  signer, or move the date forward in fetch() on purpose." >&2
+         return 1
+       fi
+       printf '  \033[1;33m%s: signed by a key that expired on %s -- waived until %s by an\033[0m\n' "$1" "$exp" "$until"
+       printf '  \033[1;33m  explicit exception in fetch(); fingerprint and digest are still pinned\033[0m\n' ;;
     3) echo "FAIL: $1 is signed by a REVOKED key -- the private half is presumed stolen" >&2
        echo "  there is no exception for this. do not build against this tarball." >&2
        return 1 ;;
@@ -553,7 +569,7 @@ fetch() {
   # lvm2 signs releases with a key it let expire on 2022-06-09 and has not
   # extended on any keyserver -- checked, not assumed. the fingerprint pin and
   # the digest pin both still apply; only the freshness of the key is waived.
-  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR" "" expired-ok
+  sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR" "" expired-ok:2027-03-31
   # popt: ftp.rpm.org is plain http (its tls certificate is for another
   # name). fedora's source cache carries the identical bytes over tls, at a
   # url that names their sha512 -- so the host cannot serve anything else there.
@@ -2688,6 +2704,17 @@ G43OLD
   local n45; n45=$(sed -n '/^fetch() {/,/^}/p' build.sh | grep -c 'expired-ok' || true)
   [ "${n45:-0}" -eq 1 ] \
     || { g45=FAIL; printf '    %s source(s) waive key expiry -- exactly 1 (lvm2) is accounted for\n' "${n45:-0}" >&2; }
+  # and that waiver has a review-by date that has not passed. checked HERE and
+  # not only in sigver, because gates run on every host while fetch runs on a
+  # build -- a lapsed waiver should be loud before anyone spends an hour.
+  local w45; w45=$(sed -n '/^fetch() {/,/^}/p' build.sh \
+                   | sed -n 's/.*expired-ok:\([0-9-]*\).*/\1/p' | head -1)
+  if [ -z "$w45" ]; then
+    g45=FAIL; printf '    the expiry waiver carries no review-by date -- a waiver with no end\n' >&2
+    printf '    is one nobody looks at again\n' >&2
+  elif [ "$(date -u +%Y-%m-%d)" \> "$w45" ]; then
+    g45=FAIL; printf '    the expiry waiver lapsed on %s -- re-anchor lvm2 or renew it on purpose\n' "$w45" >&2
+  fi
   g "G45 expired or revoked source key refused" "$g45"
 
   # G52 -- the signature tier has to have RUN. sigver() falls back to "digest
