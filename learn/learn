@@ -89,9 +89,21 @@ ref() {
 	# flag column to one width and wraps the whole thing in rules, top and bottom.
 	_ref_rows "$REF/$_r" |
 	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" \
+	    -v LON="$LIT_ON" -v LOFF="$LIT_OFF$N" \
 	    -v RL="$RULE" -v vs="$(vs_of "$1")" '
 		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
 		function fcol(s,w){ return pad(s,w-1) " " }
+		# a ref page has written its literals in backticks since it was
+		# written -- `command -v`, `set -u`. same mark here as in a brief,
+		# so the convention is one convention wherever prose is read. pairs
+		# only, and the page is already wrapped, so nothing is measured.
+		function lit(s,   o){
+			while (match(s, /`[^`]*`/)) {
+				o = o substr(s, 1, RSTART-1) LON substr(s, RSTART+1, RLENGTH-2) LOFF
+				s = substr(s, RSTART+RLENGTH)
+			}
+			return o s
+		}
 		{ line[NR]=$0 }
 		END {
 			# measure the flag column across every tab-led row
@@ -125,7 +137,7 @@ ref() {
 					if(d=="") printf "  %s%s%s\n", C, f, N
 					else      printf "  %s%s%s%s\n", C, fcol(f,col), N, d
 				} else {                                       # prose
-					print "  " l                          # the meat: plain
+					print "  " lit(l)                     # the meat: plain but for its literals
 				}
 			}
 			print RL
@@ -1506,7 +1518,7 @@ st_block() {
 	# matched or written down: an answer carrying one would be graded against
 	# bytes no learner can type.
 	case "$Q_ANSWERS$Q_OUT$Q_STATE$Q_PROMPT" in
-		*"$HI1"*|*"$HI2"*) echo "FAIL $lbl: display fence leaked into an answer or a grader" >&2; bad=$((bad+1)) ;;
+		*"$HI1"*|*"$HI2"*|*"$LIT1"*|*"$LIT2"*) echo "FAIL $lbl: display fence leaked into an answer or a grader" >&2; bad=$((bad+1)) ;;
 	esac
 	# and the two copies of the question must be the same sentence: one roll,
 	# one set of {a|b|c} branches, marks the only difference between them.
@@ -2295,6 +2307,54 @@ c' 20)" = 3 ] || exit 1
 	  _ui_hi none;   [ "$HI_ON" = "'" ] || exit 1    # no attributes -> quotes
 	  exit 0 ) \
 		|| { echo "FAIL ui mark: the name mark differs between terminals" >&2; bad=$((bad+1)); }
+
+	# the second mark, on the same terms. a literal in a brief is underlined on
+	# every tier that has attributes -- the vt320 is the floor, and it renders
+	# bold as a shade more phosphor, which is why the name mark is not bold
+	# either. colour rides on top where there is colour. the two marks must
+	# never converge: a page where a rolled name and a command look alike has
+	# lost the distinction both of them exist to make.
+	( _ui_lit colour; _c=$LIT_ON
+	  case "$_c" in *'[0;4;36m') ;; *) exit 1 ;; esac
+	  _ui_lit mono;  case "$LIT_ON" in *'[0;4m') ;; *) exit 1 ;; esac
+	  _ui_hi colour; [ "$HI_ON" != "$_c" ] || exit 1
+	  _ui_hi mono;   [ "$HI_ON" != "$LIT_ON" ] || exit 1
+	  _ui_lit none;  [ "$LIT_ON" = '`' ] && [ "$LIT_OFF" = '`' ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui mark: the literal mark is wrong, or is the name mark" >&2; bad=$((bad+1)); }
+
+	# and the claim the whole marking rests on: a mark changes how a line looks,
+	# never which lines exist. wrap() treats the two literal fences as zero
+	# width, so a marked brief and its bare self break in exactly the same
+	# places -- if that ever stops being true, G50 measures one page and the
+	# image draws another, and the two briefs sitting at 20 rows scroll their
+	# own first paragraph away.
+	( for _f in $(level_ids); do
+		_m=$(sed -n 's/^brief: \{0,1\}//p' "$(level_path "$_f")")
+		_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
+		_b=$(printf '%s\n' "$_m" | lit_fence | wrap 76 | lit_strip)
+		[ "$_a" = "$_b" ] || exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL wrap: a marked brief wraps differently from a bare one" >&2; bad=$((bad+1)); }
+
+	# the corpus side of it. an unpaired backtick prints as itself -- loud, and
+	# never a mark that runs to the end of the page -- but it is still a typo,
+	# and the only place it can be caught is here. a raw fence byte in a source
+	# file would be a mark nobody typed.
+	( _c=0
+	  for _f in $(level_ids); do
+		_p=$(level_path "$_f")
+		awk '/^brief:/ { n = gsub(/`/, "`"); if (n % 2) exit 1 } END { }' "$_p" || exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q '``' && exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q '`' && _c=$((_c + 1))
+	  done
+	  # and the marking is still THERE. a pass that unmarked the corpus would
+	  # otherwise be a green build: only 30-root is pure argument, no literals.
+	  [ "$_c" -ge 25 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL brief markup: an unpaired backtick, a raw fence, or the marks are gone" >&2; bad=$((bad+1)); }
 
 	# no prompt may wrap an 80-column terminal at its widest rendering: it
 	# would cost the reference panel a row and read as prose, not an order.

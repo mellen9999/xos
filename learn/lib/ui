@@ -98,6 +98,58 @@ hi_expand() { sed -e "s/$HI1/$HI_ON/g" -e "s/$HI2/$HI_OFF$N${1:-}/g"; }
 # and written down. every width, every grader and every ledger sees this one.
 hi_strip() { tr -d "$HI1$HI2"; }
 
+# ---- literal text inside prose --------------------------------------------
+#
+# the second mark, and the other half of the same problem: a teaching page is
+# English with commands buried in it. "pwd prints the directory you are standing
+# in" is a sentence until you already know pwd is a command -- the one word on
+# the line that is not English, unmarked. questions solve this for a rolled
+# name; briefs never went through that path and printed flat.
+#
+# the source markup is the backtick, because it already was: ref/* prose has
+# written `command -v` and `set -u` since it was written, and so does level 28's
+# brief. pairs only, and inside one line -- a literal split across two brief:
+# lines leaves a lone backtick, which prints as itself rather than opening a
+# mark that never closes. the corpus gate catches it either way.
+#
+# UNDERLINE on every tier that has attributes, and cyan on top where there is
+# colour. the vt320 is the floor this is drawn for: it renders bold as a shade
+# more phosphor -- the reason the name mark is reverse -- so bold would put the
+# literal straight back into the prose on the one terminal that needs it most.
+# reverse is taken, and a page with ten reversed words is a block pattern, not a
+# sentence. underline carries the distinction, cyan is the courtesy on top of
+# it: NO_COLOR and a vt320 lose nothing, which is the rule the whole file keeps.
+# where there are no attributes at all the mark is the backtick the author
+# typed -- the same degradation the name mark makes to quotes.
+#
+# what to mark, when writing a brief: what you would TYPE. a command named as a
+# command (`pwd`, `ls -l`), a flag (`-i`), an operator (`>>`, `2>&1`, `&&`), an
+# expansion (`$HOME`, `${NAME:-WORD}`), a path, a value you would type back
+# (`755`, `rwxr-xr-x`). not English that happens to be a command name -- "it
+# walks a tree and tests every entry" is prose, "`find` searches FOR them" is
+# the command -- and not jargon: stdin, glob and regex are words, not literals.
+LIT1=$(printf '\005')
+LIT2=$(printf '\006')
+
+# _ui_lit TIER -- a function for the same reason _ui_hi is one: the two marks
+# must never converge, and that can only be asserted without a terminal.
+_ui_lit() {
+	case "$1" in
+		none) LIT_ON='`'                       LIT_OFF='`' ;;
+		mono) LIT_ON=$(printf '\033[0;4m')     LIT_OFF= ;;
+		*)    LIT_ON=$(printf '\033[0;4;36m')  LIT_OFF= ;;
+	esac
+}
+_ui_lit "$_tier"
+
+# lit_fence -- backtick pairs to fences, on stdin. one byte per mark, so the
+# text is still its own width: wrap() knows these two bytes are zero-width and
+# every line lands where it landed before anything was marked.
+lit_fence() { sed 's/`\([^`]*\)`/'"$LIT1"'\1'"$LIT2"'/g'; }
+
+# lit_strip -- the text with the fences gone: what gets measured or written down.
+lit_strip() { tr -d "$LIT1$LIT2"; }
+
 # synchronised output: the editor reprints the whole answer line on every
 # keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
 # redraw in these markers tells the terminal to paint it in one frame. unknown
@@ -247,17 +299,34 @@ hdr() {
 # end of the line it ends, and a word longer than W cut at W rather than run
 # over. selftest holds this against the real fold wherever one exists, so the
 # brief-height gate keeps measuring what the image will actually draw.
+#
+# the two literal fences are ZERO WIDTH here, and that is the whole reason the
+# brief can be marked at all: counting them would cost a marked line two columns
+# of its 76 for every literal on it, re-wrapping the paragraph for typography
+# and pushing the two briefs already at 20 rows past the screen G50 holds them
+# to. a mark changes how a line LOOKS, never which lines exist. text carrying no
+# fence takes the same path it always did, byte for byte -- selftest holds both
+# halves of that against the real fold.
 wrap() {
-	awk -v w="$1" '
+	awk -v w="$1" -v f1="$LIT1" -v f2="$LIT2" '
+		function vlen(s,   t) { t = s; gsub(f1, "", t); gsub(f2, "", t); return length(t) }
 		{
 			line = $0
-			while (length(line) > w) {
+			while (vlen(line) > w) {
+				# the raw index of the w-th VISIBLE character: where an
+				# unmarked line would have been measured to.
+				vc = 0; rw = length(line)
+				for (i = 1; i <= length(line); i++) {
+					c = substr(line, i, 1)
+					if (c != f1 && c != f2) vc++
+					if (vc == w) { rw = i; break }
+				}
 				cut = 0
-				for (i = w; i >= 1; i--) {
+				for (i = rw; i >= 1; i--) {
 					c = substr(line, i, 1)
 					if (c == " " || c == "\t") { cut = i; break }
 				}
-				if (cut == 0) { print substr(line, 1, w); line = substr(line, w + 1) }
+				if (cut == 0) { print substr(line, 1, rw); line = substr(line, rw + 1) }
 				else          { print substr(line, 1, cut); line = substr(line, cut + 1) }
 			}
 			print line
@@ -265,7 +334,13 @@ wrap() {
 	'
 }
 
-say() { wrap $(( COLS < 78 ? COLS - 2 : 76 )) | sed '/./s/^/  /'; }
+# say -- fence first, wrap at the text's own width, indent, then expand: the
+# marks become escapes only once nothing is left to measure. handing wrap whole
+# escape sequences to count is what tears a paragraph.
+say() {
+	lit_fence | wrap $(( COLS < 78 ? COLS - 2 : 76 )) \
+		| sed -e '/./s/^/  /' -e "s/$LIT1/$LIT_ON/g" -e "s/$LIT2/$LIT_OFF$N/g"
+}
 
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
 no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }

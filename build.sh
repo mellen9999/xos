@@ -2601,9 +2601,14 @@ G37
   # 80x25 console -- 25 rows less the header (3) and the pause (2) -- so 20
   # rendered lines at learn's own 76-column wrap. a level with no brief at all
   # is the same failure, earlier.
+  #
+  # the backticks that mark a literal come out first: they are one byte each in
+  # the source and zero columns on the screen -- learn's wrap() skips them -- so
+  # counting them here would measure a page the image never draws, and would
+  # make marking a paragraph a typographic decision.
   local br_ok=1 br_f br_n br_worst=0
   for br_f in learn/levels/*; do
-    br_n=$(sed -n 's/^brief: \{0,1\}//p' "$br_f" | fold -s -w 76 | wc -l)
+    br_n=$(sed -n 's/^brief: \{0,1\}//p' "$br_f" | tr -d '`' | fold -s -w 76 | wc -l)
     [ "$br_n" -gt "$br_worst" ] && br_worst=$br_n
     if [ "$br_n" -eq 0 ]; then
       br_ok=0; printf '    %s has no brief\n' "${br_f##*/}" >&2
