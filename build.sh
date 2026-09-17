@@ -1658,7 +1658,14 @@ TODO: write this entry by hand.
 # gate roster -- every G-number that exists, in one place, so a silently
 # dropped gate is visible instead of hiding in a diff. most run in gates()
 # below; G8 runs in fetch(), G9 lives in githooks/pre-commit (not this
-# script).
+# script). a trailing * marks a gate rostered here but not expected to run
+# in gates().
+#
+# this block is DATA: gates() reads it back out of build.sh, so the expected
+# count is derived from it and can never drift from it again. the hand-kept
+# 48 went stale the day G51 landed, and every gates run since died crying
+# "truncated" about a run that was complete -- while that early return sat
+# in front of the bad check and masked GATES FAILED behind it.
 #   G1  image <= IMAGE_MAX
 #   G2  no dynamic loader (no INTERP segment on any ELF)
 #   G3  every ELF is PIE
@@ -1666,9 +1673,9 @@ TODO: write this entry by hand.
 #   G5  no world-writable files
 #   G6  cmdline root hash matches the built tree
 #   G7  kernel has no module loader
-#   G8  every source pinned + verified before extraction; six upstreams
+#   G8* every source pinned + verified before extraction; six upstreams
 #       also matched to committed maintainer signatures    (fetch())
-#   G9  no build artifacts/keys committed                  (githooks/pre-commit)
+#   G9* no build artifacts/keys committed                  (githooks/pre-commit)
 #   G10 build clock pinned (busybox banner matches SOURCE_DATE_EPOCH)
 #   G11 no plaintext private key on disk
 #   G12 image has every manifest entry
@@ -1717,22 +1724,19 @@ TODO: write this entry by hand.
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
-  local bad=0 ran=0 skipped=0
-  # 52 gates in the roster above, minus G8/G9 (the pre-commit hook checks those,
-  # not this function) = 50 g() calls per run. G13/G14/G17/G19/G42 each have
-  # more than one call site, but they are mutually exclusive branches -- exactly
-  # one of each fires. derive it the same way if you add a gate:
-  #   roster:     grep -oE '^#   G[0-9]+' build.sh | sort -u | wc -l
-  #   call sites: grep -oE 'g "G[0-9]+' build.sh | sort -u | wc -l
-  # this said 48 while 49 ran, so the truncation guard below was crying wolf on
-  # every full run -- the one thing it exists to stop being ignored.
-  local EXPECTED_GATES=50
+  local bad=0 ran=0 skipped=0 saw=""
+  # the roster above is the list, and this reads it back: an unstarred
+  # G-number is one this run must emit, so the count follows from the roster
+  # instead of being retyped beside it and left to rot.
+  local roster EXPECTED_GATES
+  roster=$(sed -n 's/^#   \(G[0-9][0-9]*\) .*/\1/p' build.sh | sort -u)
+  EXPECTED_GATES=$(printf '%s\n' "$roster" | grep -c . || true)
   # a gate is ok, FAIL, or SKIP. SKIP is for a check that cannot run here and
   # whose result would be meaningless if forced -- G13 on a foreign toolchain.
   # it is counted (so the truncation guard still holds) and reported, but it
   # is never a green pass: reporting it as ok is how "unverified" became
   # indistinguishable from "verified" for as long as that line existed.
-  g() { printf '  %-42s %s\n' "$1" "$2"; ran=$((ran+1))
+  g() { printf '  %-42s %s\n' "$1" "$2"; ran=$((ran+1)); saw="$saw ${1%% *}"
         case "$2" in ok) ;; SKIP) skipped=$((skipped+1)) ;; *) bad=1 ;; esac; }
 
   local sz; sz=$(stat -c%s xos.img)
@@ -2809,9 +2813,23 @@ G51
   g "G47 arsenal sources pinned before build" "$g47"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
-  # so prove every gate actually executed.
-  if [ "$ran" -ne "$EXPECTED_GATES" ]; then
-    printf '\033[1;31m  only %d of %d gates ran -- the gate run was truncated\033[0m\n\n' "$ran" "$EXPECTED_GATES"
+  # so prove every gate actually executed -- and that the ones that ran are
+  # the ones the roster names. the count catches a truncated run and a gate
+  # emitted twice; the set difference names WHICH gate went missing, and
+  # catches a gate added to the code that never reached the roster, plus one
+  # rostered that nothing implements. no integer can see those last two.
+  local seen missing="" extra="" gi
+  seen=$(printf '%s\n' "$saw" | tr ' ' '\n' | grep -v '^$' | sort -u)
+  for gi in $roster; do printf '%s\n' "$seen"   | grep -qx "$gi" || missing="$missing $gi"; done
+  for gi in $seen;   do printf '%s\n' "$roster" | grep -qx "$gi" || extra="$extra $gi";     done
+  # an unparseable roster must be a hard red, never a vacuous zero-of-zero
+  # green -- the same floor the ELF sweep keeps with n_elf -gt 0.
+  if [ "$EXPECTED_GATES" -eq 0 ] || [ "$ran" -ne "$EXPECTED_GATES" ] \
+     || [ -n "$missing" ] || [ -n "$extra" ]; then
+    printf '\033[1;31m  %d gates ran, the roster names %d -- the run does not match the roster\033[0m\n' "$ran" "$EXPECTED_GATES"
+    [ -z "$missing" ] || printf '\033[1;31m  rostered but did not run:%s\033[0m\n' "$missing"
+    [ -z "$extra" ]   || printf '\033[1;31m  ran but not in the roster:%s\033[0m\n' "$extra"
+    echo
     return 1
   fi
 
