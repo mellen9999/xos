@@ -37,6 +37,7 @@ ref: find
 teach: find -iname
 hint: i for case-insensitive, same idea as grep -i
 ---
+setup: this tree mixes files and directories together, and you want only one kind
 q: {list only regular files under here, not directories|you want files, never directories, from under here|keep regular files under here and drop every directory}, with find
 a: find . -type f
 cmp: ref
@@ -44,6 +45,7 @@ ref: find
 teach: find -type
 hint: f is a regular file, d a directory, l a symlink
 ---
+setup: this tree mixes files and directories together, and you want only one kind
 q: {list only the directories under here|you want directories only, nothing else, from under here|pull out just the directories under here}, with find
 a: find . -type d
 cmp: ref
@@ -58,6 +60,7 @@ ref: find
 teach: find -maxdepth
 hint: -maxdepth caps how far down find will go
 ---
+setup: you want what's nested inside, not the top-level structure itself
 q: {skip anything shallower than 2 levels down|list only entries at least 2 levels deep under here|you only want entries 2 levels down or deeper}, with find
 a: find . -mindepth 2
 cmp: ref
@@ -177,6 +180,7 @@ ref: find
 teach: find -exec
 hint: ending with + batches the results; ending with \; forks per file
 ---
+setup: you are cataloguing what lives on this disk, not what is mounted into it
 q: {list entries under here without leaving this filesystem|you want entries under here, none from another filesystem|stay on this filesystem -- list entries under here only}, with find
 a: find . -xdev
 cmp: ref
@@ -191,6 +195,7 @@ ref: find
 teach: find -L
 hint: makes find follow symlinks and describe what they point to
 ---
+setup: whatever you do to a directory must happen after its contents
 q: {list everything here bottom-up, contents before their directory|walk this tree so each directory prints after its contents|you want a bottom-up listing here, contents before the directory}, with find
 a: find . -depth
 cmp: ref

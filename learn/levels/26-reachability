@@ -94,6 +94,7 @@ ref: traceroute
 teach: traceroute -i
 hint: -i picks which interface the probes go out of
 ---
+setup: the box has more than one address, and the far side needs to see the probes coming from a particular one
 q: {traceroute to @ip@ using @ip2@ as a chosen source address|traceroute to @ip@ with @ip2@ as the source you pick|set @ip2@ as the source address for a traceroute to @ip@}
 a: traceroute -s @ip2@ @ip@
 why: live-net
@@ -101,6 +102,7 @@ ref: traceroute
 teach: traceroute -s
 hint: -s sets the source address the probes claim to be from
 ---
+setup: the default wait per hop makes a long trace take forever, and you want through it faster
 q: {traceroute to @ip@, waiting at most 2 seconds for each probe|cap each probe's wait to 2 seconds on a traceroute to @ip@|traceroute to @ip@, waiting no more than 2 seconds per probe}
 a: traceroute -w 2 @ip@
 why: live-net
@@ -185,6 +187,7 @@ ref: netstat
 teach: netstat -r
 hint: -r switches netstat to print the routing table instead of sockets
 ---
+setup: a service talks over a local socket file, not the network, and the usual listing won't show it
 q: %show% unix domain sockets, with netstat
 a: netstat -x
 why: live-net
@@ -192,6 +195,7 @@ ref: netstat
 teach: netstat -x
 hint: -x filters to unix domain sockets
 ---
+setup: something on this box talks in raw packets, skipping tcp and udp entirely, and you want to see it
 q: %show% raw sockets, with netstat
 a: netstat -w
 why: live-net
@@ -199,6 +203,7 @@ ref: netstat
 teach: netstat -w
 hint: -w filters to raw sockets
 ---
+setup: you need to know which user owns a socket, not just that it's open
 q: %show% netstat output with extended information
 a: netstat -e
 why: live-net

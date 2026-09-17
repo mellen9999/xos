@@ -151,6 +151,7 @@ ref: touch
 teach: touch
 hint: with no flags, touch just sets the timestamp to now
 ---
+setup: bumping the clock on a file that is already gone would leave a fake one behind
 q: {touch missing.txt but do NOT create it if it is absent|touch missing.txt, but skip creating it if it does not exist|refresh missing.txt's timestamp with touch, only if it is already there}
 a: touch -c missing.txt
 state: gone:missing.txt
@@ -165,6 +166,7 @@ ref: ln
 teach: ln -s
 hint: s for symbolic; without it you get a hard link
 ---
+setup: a symlink dies when the original is moved -- this one must survive that
 q: %make% a hard link called @word@-hard to @txt@
 a: ln @txt@ @word@-hard
 state: exists:@word@-hard
@@ -186,6 +188,7 @@ ref: cp
 teach: cp -i
 hint: i for interactive -- prompts before clobbering
 ---
+setup: a plain overwrite is being refused and you do not care what is in the way
 q: {cp @cfg@ onto @cfg2@, deleting it first if the write fails|cp @cfg@ onto @cfg2@, removing it if it won't take a write|force cp of @cfg@ onto @cfg2@, deleting it if the write fails}
 a: cp -f @cfg@ @cfg2@
 state: exists:@cfg2@
@@ -249,12 +252,13 @@ ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
 ---
+setup: the program you hand this to insists on creating the file itself
 q: get a temporary name from mktemp without actually creating anything
 a: mktemp -u
 state: made:none
 ref: mktemp
 teach: mktemp -u
-hint: u for unsafe -- hands you a name without reserving it, so something else could grab it first
+hint: u for unsafe -- it hands you a name without reserving it
 ---
 q: {list every *.log file inside logs, with ls|match logs/*.log and list every hit, with ls}
 a: ls logs/*.log

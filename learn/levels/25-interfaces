@@ -147,6 +147,7 @@ ref: route
 teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
+setup: the plain route table doesn't say enough to diagnose what's wrong
 q: %show% route table entries with extended fields
 a: route -e
 why: live-hw
@@ -189,6 +190,7 @@ ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface
 ---
+setup: a host lives on a different segment, and its neighbours need to think it's local
 q: {publish an arp entry for @ip@ on @iface@, on another's behalf|answer arp requests for @ip@ on @iface@, on another's behalf|publish a proxy arp entry for @ip@ out of @iface@}
 a: arp -D @iface@ -s @ip@
 why: live-hw
@@ -228,6 +230,7 @@ ref: arping
 teach: arping -s
 hint: -s sets the source address the probe claims to be from
 ---
+setup: arping can run forever waiting for an answer that never comes, and a script needs it to give up
 q: {stop arping @ip@ after 5 seconds whatever happens|cap arping @ip@ at 5 seconds no matter what|make arping @ip@ give up after 5 seconds}
 a: arping -w 5 @ip@
 why: live-hw

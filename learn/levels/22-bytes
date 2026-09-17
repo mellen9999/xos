@@ -39,6 +39,7 @@ ref: hexdump
 teach: hexdump -s
 hint: -s skips that many bytes before the dump begins
 ---
+setup: you're piping this into something that counts lines, and folded repeats would throw the count off
 q: {@bin@ hex and text, repeats not folded to *|show every line of @bin@, repeats included|@bin@ hex and text, no asterisk for repeats}, with hexdump
 a: hexdump -C -v @bin@
 cmp: ref
@@ -46,6 +47,7 @@ ref: hexdump
 teach: hexdump -v
 hint: hexdump normally folds repeated lines into a *; -v turns that off
 ---
+setup: another script needs to parse this dump and the usual hex-plus-text layout doesn't line up cleanly for it
 q: {dump @bin@ with your own format string|dump @bin@ with a format string you supply|write your own format, dump @bin@ with it}, with hexdump
 a: hexdump -e '16/1 "%02x " "\n"' @bin@
 out: [0-9a-f]
@@ -61,6 +63,7 @@ ref: od
 teach: od
 hint: od's default is octal words -- no flags needed here
 ---
+setup: another tool already gave you the offset in decimal -- octal here would only confuse the match
 q: %show% @bin@'s address column with od, decimal not octal
 a: od -A d @bin@
 out: ^0000016
@@ -68,6 +71,7 @@ ref: od
 teach: od -A
 hint: -A picks the radix for the address column -- d decimal, x hex, n none at all
 ---
+setup: you need to check bytes one at a time, not grouped into the default word-sized chunks
 q: @bin@ is an elf binary -- %show% single hex bytes with od
 a: od -t x1 @bin@
 out: 7f 45 4c 46
@@ -96,6 +100,7 @@ ref: dd
 teach: dd
 hint: bs= sets the block size, count= how many blocks to copy
 ---
+setup: a binary format's spec puts a field 32 bytes in, 16 bytes long, and you need just that slice
 q: {embedded 32 bytes into @log@ -- read 16 there|starting 32 bytes into @log@, read 16 more|skip 32 bytes into @log@, read 16 from there}, with dd
 a: dd if=@log@ bs=1 skip=32 count=16
 out: 16 bytes
@@ -159,6 +164,7 @@ ref: shred
 teach: shred -u
 hint: shred overwrites the bytes first; -u then unlinks the file
 ---
+setup: someone insists three passes isn't enough and wants the old-school seven
 q: overwrite @txt@ seven times with shred before removing it
 a: shred -n 7 -u @txt@
 state: gone:@txt@
@@ -166,13 +172,15 @@ ref: shred
 teach: shred -n
 hint: -n sets how many overwrite passes; the default is three
 ---
+setup: you don't want it obvious afterward that this file was ever wiped
 q: shred @txt@ with a final zero pass, then remove it
 a: shred -z -u @txt@
 state: gone:@txt@
 ref: shred
 teach: shred -z
-hint: -z adds a last zero pass, hiding that shredding happened at all
+hint: -z adds a last zero pass
 ---
+setup: you need a megabyte-sized file to test with and no megabyte to spend on it
 q: %make% a 1-megabyte file sparse.img with truncate
 a: truncate -s 1M sparse.img
 state: exists:sparse.img
@@ -180,6 +188,7 @@ ref: truncate
 teach: truncate -s
 hint: -s sets the size; the file reads as that many bytes without using the space
 ---
+setup: you need the space guaranteed now, not created as a hole that might fail to fill later
 q: preallocate 64 kilobytes of real space for blob.bin with fallocate
 a: fallocate -l 64k blob.bin
 state: exists:blob.bin

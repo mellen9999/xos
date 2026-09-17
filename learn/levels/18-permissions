@@ -106,6 +106,7 @@ ref: id
 teach: id -n
 hint: -n added to -u prints the name instead of the number
 ---
+setup: a command wants your numeric gid, nothing else
 q: %show% just your numeric group id, nothing else
 a: id -g
 why: primitive-cost
@@ -143,6 +144,7 @@ ref: stat
 teach: stat -c
 hint: -c takes a format; %s is size, %n name, %a permission bits
 ---
+setup: a script compares this against a number, not against a string like rwxr-xr-x
 q: you want @script@'s mode as a plain octal number, with stat not ls
 a: stat -c %a @script@
 cmp: ref
@@ -150,6 +152,7 @@ ref: stat
 teach: stat -c
 hint: %a in the format string is permission bits
 ---
+setup: you're about to write something large and need to know what filesystem actually holds it
 q: forget @txt@ itself -- with stat, %show% the filesystem it lives on
 a: stat -f @txt@
 out: ID|Block
@@ -164,6 +167,7 @@ ref: stat
 teach: stat -L
 hint: -L follows the link and reports on its target instead of the link itself
 ---
+setup: a backup tool only touches files older than a cutoff date, and @txt@ needs to look like it predates it
 q: {back-date @txt@'s timestamp to 2024-03-01, not right now|@txt@ needs to look last touched on 2024-03-01|stamp @txt@ with 2024-03-01, not the current time}, with touch
 a: touch -d 2024-03-01 @txt@
 state: stamp:@txt@:2024-03-01
@@ -186,6 +190,7 @@ ref: setuidgid
 teach: setuidgid
 hint: setuidgid USER PROG switches to USER's uid and gid, then runs PROG -- learn runs your answers this way
 ---
+setup: a script running as root keeps clobbering @txt@ by accident and you want that impossible, not just discouraged
 q: make @txt@ immutable with chattr
 a: chattr +i @txt@
 why: root
@@ -193,12 +198,13 @@ ref: chattr
 teach: chattr
 hint: +i makes it unchangeable even by root; chattr -i clears it again
 ---
+setup: you want a log that can grow but never be edited or truncated, even by you
 q: set @txt@ append-only with chattr
 a: chattr +a @txt@
 why: root
 ref: chattr
 teach: chattr
-hint: +a is the append-only attribute, useful for a tamper-resistant log
+hint: +a is the append-only attribute
 ---
 q: %list% @txt@'s ext2 file attributes with lsattr
 a: lsattr @txt@

@@ -113,6 +113,7 @@ ref: pgrep
 teach: pgrep -v
 hint: -v inverts the match, like grep -v
 ---
+setup: something keeps reparenting to pid 1 and you want to know what's running under it
 q: %find% the children of process 1, with pgrep
 a: pgrep -P 1
 why: live-hw
@@ -249,6 +250,7 @@ ref: fuser
 teach: fuser -k
 hint: -k sends the default signal to every pid it finds
 ---
+setup: a process is using more memory than expected and you want to see what's mapped into it
 q: %show% the memory map of process 1
 a: pmap 1
 why: live-hw
@@ -256,6 +258,7 @@ ref: pmap
 teach: pmap
 hint: pmap lists the memory regions mapped into a process
 ---
+setup: a process is using more memory than expected and you want to see what's mapped into it
 q: %show% process 1's memory map, full per-mapping detail, with pmap
 a: pmap -x 1
 why: live-hw
@@ -263,6 +266,7 @@ ref: pmap
 teach: pmap -x
 hint: -x adds size and usage detail per mapping
 ---
+setup: you have a pid but no idea which directory it's actually running from
 q: %show% the working directory of process 1
 a: pwdx 1
 why: live-hw
@@ -284,6 +288,7 @@ ref: killall
 teach: killall -l
 hint: -l lists the signal names killall recognizes
 ---
+setup: you want to poke around as root without any of it reaching the real filesystem or network
 q: run a shell in new mount, net and pid namespaces with unshare
 a: unshare -r -m -n -p sh
 why: root
@@ -294,6 +299,7 @@ teach: unshare -n
 teach: unshare -p
 hint: -r maps you to root; -m -n -p give the new shell its own mounts, network and pids
 ---
+setup: something behaves differently when it's the first process in a pid namespace and you need to reproduce that here
 q: unshare a new pid namespace and fork so the shell becomes pid 1 inside it
 a: unshare -f -p sh
 why: root
@@ -301,6 +307,7 @@ ref: unshare
 teach: unshare -f
 hint: a pid namespace only takes effect for children, so -f forks before exec
 ---
+setup: you need a shell inside another process's world to see what it sees, not a new one of your own
 q: enter pid 1's mount, net and pid namespaces with nsenter
 a: nsenter -t 1 -m -n -p sh
 why: root

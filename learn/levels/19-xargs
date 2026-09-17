@@ -60,6 +60,7 @@ ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
+setup: each of these is slow and independent, and doing them strictly one at a time wastes time
 q: {echo ls's names one per run, 2 runs going at a time|run echo over ls's names one name each, 2 in parallel|echo each name ls prints, one per run, capped at 2 parallel}, with xargs
 a: ls | xargs -P 2 -n 1 echo
 why: primitive-cost

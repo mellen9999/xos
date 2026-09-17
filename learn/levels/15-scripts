@@ -28,6 +28,7 @@ ref: sh
 teach: sh
 hint: the braces hold the body, and the bare name on its own calls it
 ---
+setup: this function's v shouldn't stomp on a variable the caller already has
 q: define f to put 1 in v with local and echo v, then run f
 a: f() { local v=1; echo $v; }; f
 cmp: ref
@@ -70,6 +71,7 @@ ref: .
 teach: .
 hint: a dot-run script can change this shell, and a child could not
 ---
+setup: a file needs to go back to empty without deleting it outright
 q: empty f with the null command, then count its bytes with wc
 a: : > f; wc -c < f
 cmp: ref
@@ -84,6 +86,7 @@ ref: trap
 teach: trap
 hint: EXIT fires however the shell ends, which is where cleanup belongs
 ---
+setup: every command from here on should send its errors where stdout already goes, without redirecting each one
 q: send errors to stdout with exec, then ls the missing file nosuch
 a: exec 2>&1; ls nosuch
 cmp: ref
@@ -91,6 +94,7 @@ ref: exec
 teach: exec
 hint: exec with only redirections rewires this shell instead of replacing it
 ---
+setup: this script's only job left is to hand off to one program, not linger after it
 q: replace this shell with echo done, using exec
 a: exec echo done
 cmp: ref
@@ -98,6 +102,7 @@ ref: exec
 teach: exec
 hint: with a command, exec becomes it -- nothing after the line ever runs
 ---
+setup: the command wasn't written as one line -- it came together piece by piece
 q: put the text echo hi in c, then run what it holds with eval
 a: c="echo hi"; eval $c
 cmp: ref
@@ -105,6 +110,7 @@ ref: eval
 teach: eval
 hint: eval expands the line a second time, then runs the result
 ---
+setup: this value must never change again, even by an accidental later assignment
 q: pin r to 1 with readonly, then try to assign 2 to it
 a: readonly r=1; r=2
 status: 2
@@ -113,6 +119,7 @@ ref: readonly
 teach: readonly
 hint: a readonly name cannot be reassigned, and the attempt ends the shell
 ---
+setup: you want the arithmetic done without wrapping it in $(( ))
 q: use let to work out 1 + 2 into x, then echo x
 a: let x=1+2; echo $x
 cmp: ref

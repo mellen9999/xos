@@ -128,6 +128,7 @@ ref: read
 teach: read
 hint: read takes one line from stdin and stores it in the named variable
 ---
+setup: the line you are reading is a windows path, and a shell that eats backslashes would mangle it
 q: {read a raw path into @var@ so backslashes survive intact|read user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}, with read
 a: read -r @var@
 why: interactive
@@ -142,6 +143,7 @@ ref: read
 teach: read -p
 hint: -p prints its argument as a prompt before reading
 ---
+setup: the delimiter you need is sitting in a variable, not written as a literal
 q: set d to a comma, then %show% @csv@'s first column with cut
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
@@ -179,6 +181,7 @@ ref: command
 teach: command -p
 hint: -p ignores your $PATH and uses the system's standard one instead
 ---
+setup: your `$PATH` might be hijacked or broken
 q: %show% every place in your $PATH with a command called sh, with which
 a: which -a sh
 cmp: ref
@@ -221,6 +224,7 @@ ref: sh
 teach: sh
 hint: "%%" is the greedy version of "%" -- it eats from the FIRST dot onward, keeping only the start
 ---
+setup: you're reading someone else's script that predates $( )
 q: {grab the current timestamp into @tvar@, but write it the older backtick way|save the current date/time into @tvar@ using backticks, not $( )|stash the timestamp in @tvar@ with backticks instead of $( )}
 a: @tvar@=`date`
 why: conceptual

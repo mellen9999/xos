@@ -74,6 +74,7 @@ ref: awk
 teach: awk -F
 hint: -F sets the field separator, same idea as cut -d
 ---
+setup: @csv@ is name,id,status,count
 q: %show% the name column of @csv@, skipping the header, with awk
 a: awk -F, 'NR > 1 {print $1}' @csv@
 out: ^gateway$
@@ -81,6 +82,7 @@ ref: awk
 teach: awk -F
 hint: NR is the line number, so NR>1 means "not the first line"
 ---
+setup: @csv@ is name,id,status,count
 q: {add up the count column of @csv@, skipping the header row|sum the count column of @csv@, ignoring the header|total the count column of @csv@ without the header}, with awk
 a: awk -F, 'NR > 1 {s += $4} END {print s}' @csv@
 out: ^[0-9]+$
@@ -152,6 +154,7 @@ ref: awk
 teach: awk
 hint: NF is the field count for the current line
 ---
+setup: awk's next argument could be misread as a filename instead of the program
 q: {print @log@'s first field, giving awk its program via -e|pass awk its program with -e to print @log@'s first field|use -e, not positional, to have awk print @log@'s first field}
 a: awk -e '{print $1}' @log@
 out: 2024-03-01
@@ -160,6 +163,7 @@ ref: awk
 teach: awk -e
 hint: -e names the program explicitly, the role the positional argument usually plays
 ---
+setup: the word might show up in the message text too, not just the severity field
 q: @log@ may mention @sev@ -- match only the severity field, with awk
 a: awk '$3 ~ /@sev@/' @log@
 out: @sev@

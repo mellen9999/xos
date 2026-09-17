@@ -105,6 +105,7 @@ ref: tar
 teach: tar -T
 hint: -T reads the list of names to archive from a file instead of the command line
 ---
+setup: you need the directory entry itself preserved -- its permissions -- without archiving what's inside it yet
 q: {bundle @dir@ into bundle.tar with tar, not descending into it|use tar --no-recursion so @dir@ lands flat inside bundle.tar|archive @dir@ into bundle.tar flat, with tar, skipping inside it}
 a: tar -cf bundle.tar --no-recursion @dir@
 state: exists:bundle.tar
@@ -112,6 +113,7 @@ ref: tar
 teach: tar --no-recursion
 hint: --no-recursion archives a directory entry itself without descending into it
 ---
+setup: the archive comes from somewhere you don't trust and you don't want its recorded permissions honored
 q: %unpack% archive/site-backup.tar.gz, ignoring recorded modes, with tar
 a: tar -xzf archive/site-backup.tar.gz --no-same-permissions
 why: fixture-cost
@@ -119,6 +121,7 @@ ref: tar
 teach: tar --no-same-permissions
 hint: --no-same-permissions applies your umask instead of the recorded modes
 ---
+setup: the archive's uid and gid don't correspond to any user or group on this machine
 q: %unpack% archive/site-backup.tar.gz, skipping owner lookups, with tar
 a: tar -xzf archive/site-backup.tar.gz --numeric-owner
 why: fixture-cost
@@ -307,6 +310,7 @@ ref: xzcat
 teach: xzcat
 hint: xzcat is xz -dc -- decompress straight to stdout, as zcat does for gzip
 ---
+setup: you're building an initramfs, which must be packed in this specific format
 q: pack @txt@ into a newc-format archive out.cpio with cpio
 a: echo @txt@ | cpio -o -H newc > out.cpio
 state: match:out.cpio:070701

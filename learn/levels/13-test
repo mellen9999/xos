@@ -11,6 +11,7 @@ brief:
 brief: Quote your variables. `[ -n $x ]` with `x` empty becomes `[ -n ]`, which is
 brief: true, which is the opposite of what you asked. `[ -n "$x" ]` is correct.
 ---
+setup: you don't know yet whether the path is a file, a directory, or something else -- only that it's there
 q: {make sure @txt@ is actually there before you read it|check that @txt@ exists before you rely on it|confirm @txt@ is really on disk}
 a: [ -e @txt@ ]
 status: 0
@@ -96,6 +97,7 @@ ref: [
 teach: [ -f
 hint: || only runs echo when the test in front of it fails
 ---
+setup: you're reading a portable script written without square brackets
 q: {use test, not [ ], to check @dir@ is a directory, printing ok|check @dir@ is a directory with the test command, printing ok|run test -d on @dir@, printing ok, no square brackets}
 a: test -d @dir@ && echo ok
 cmp: ref

@@ -35,6 +35,7 @@ ref: sed
 teach: sed
 hint: i (or I) after the slashes makes the match case-insensitive
 ---
+setup: you're chasing one failure in a log too long to read start to finish
 q: %show% only line 3 of @log@ with sed, nothing else
 a: sed -n '3p' @log@
 out: WARN
@@ -43,6 +44,7 @@ ref: sed
 teach: sed -n
 hint: -n suppresses the automatic print, so only what you p yourself appears
 ---
+setup: you're chasing one failure in a log too long to read start to finish
 q: %show% lines 2 through 4 of @log@ with sed
 a: sed -n '2,4p' @log@
 cmp: ref
@@ -50,6 +52,7 @@ ref: sed
 teach: sed -n
 hint: same p as line 3, but a range with a comma before it
 ---
+setup: you're chasing one failure in a log too long to read start to finish
 q: %show% every @log@ line mentioning @sev@, using sed not grep
 a: sed -n '/@sev@/p' @log@
 out: @sev@
@@ -100,14 +103,16 @@ ref: sed
 teach: sed -e
 hint: -e lets you give more than one script
 ---
+setup: you want capture groups without backslash-escaping every paren
 q: {pull the port number out of @cfg@ using extended regex|extract the port number from @cfg@ with extended regex|using extended regex, pull the port number from @cfg@}, with sed
 a: sed -E 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 cmp: ref
 ref: sed
 teach: sed -E
-hint: -E gives you (groups) without backslashes; \1 is what the group caught
+hint: \1 refers to whatever the first (group) matched
 ---
+setup: you're not sure this sed has the newer regex flag
 q: {pull the port from @cfg@ again with sed, using the older regex flag|repeat the port pull from @cfg@ with sed's older flag|redo the port pull from @cfg@ with sed's legacy flag}
 a: sed -r 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
@@ -116,6 +121,7 @@ ref: sed
 teach: sed -r
 hint: -r and -E are the same flag; -E is the portable spelling
 ---
+setup: you want capture groups without backslash-escaping every paren
 q: {@csv@ is name,id,status,count -- with sed, swap name and id|@csv@ is name,id,status,count -- with sed, put id ahead of name|@csv@ is name,id,status,count -- with sed, reverse name and id}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@
 cmp: ref
@@ -130,6 +136,7 @@ ref: sed
 teach: sed -i
 hint: -i writes the file back rather than printing it
 ---
+setup: you're chasing one failure in a log too long to read start to finish
 q: @log@ ends with why it died -- %show% that line, sed not tail
 a: sed -n '$p' @log@
 out: out of memory
@@ -138,6 +145,7 @@ ref: sed
 teach: sed -n
 hint: $ means "the last line"
 ---
+setup: you're chasing one failure in a log too long to read start to finish
 q: %show% @log@ from the first @sev@ to the end, with sed
 a: sed -n '/@sev@/,$p' @log@
 cmp: ref

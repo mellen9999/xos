@@ -137,12 +137,13 @@ ref: sort
 teach: sort -i
 hint: -i drops the bytes with no glyph before comparing -- case-blind sorting is -f's job
 ---
+setup: redirecting a command's output back onto the file it's reading from empties the file before anything gets read
 q: {sort @txt@ writing the result into sorted.txt|sort @txt@ and write the sorted result into sorted.txt|sort @txt@, saving the output into sorted.txt rather than printing it}
 a: sort -o sorted.txt @txt@
 state: exists:sorted.txt
 ref: sort
 teach: sort -o
-hint: -o names the output file -- it can even be the same file you're sorting
+hint: -o names the output file -- sort reads it all into memory before writing
 ---
 q: {sort versions.txt so 1.10 follows 1.9, print only the last|sort versions.txt's version numbers, print just the highest|order versions.txt so 1.10 follows 1.9, print only the last}, with sort
 a: sort -V versions.txt | tail -1

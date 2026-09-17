@@ -129,6 +129,7 @@ ref: md5sum
 teach: md5sum -s
 hint: -s keeps the successes quiet, printing failures only
 ---
+setup: an old tool or protocol still expects the legacy checksum, not a modern hash
 q: {compute the old unix checksum and byte count of @txt@|run cksum on @txt@ for its legacy checksum and size|get @txt@'s cksum value alongside its byte count}
 a: cksum @txt@
 out: [0-9]+ [0-9]+
@@ -152,6 +153,7 @@ ref: cmp
 teach: cmp -s
 hint: -s suppresses all output, leaving only the exit status to check
 ---
+setup: you already know image-a.txt and image-b.txt differ somewhere and need to see every place, not just the first
 q: %list% every differing byte between image-a.txt and image-b.txt, with cmp
 a: cmp -l image-a.txt image-b.txt
 out: ^ *[0-9]+ +[0-9]+ +[0-9]+
@@ -160,6 +162,7 @@ ref: cmp
 teach: cmp -l
 hint: -l lists every differing byte position and value, not just the first
 ---
+setup: you only care whether the headers of image-a.txt and image-b.txt match, not the whole files
 q: {cmp just the first 10 bytes of image-a.txt and image-b.txt|cmp whether image-a.txt and image-b.txt agree in their first 10 bytes|cmp image-a.txt against image-b.txt, the first 10 bytes only}
 a: cmp -n 10 image-a.txt image-b.txt
 status: 0

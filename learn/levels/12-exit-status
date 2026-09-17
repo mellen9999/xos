@@ -37,6 +37,7 @@ ref: true
 teach: true
 hint: true always exits 0, no matter what
 ---
+setup: a script needs to know something is there without any output leaking through
 q: %show% the word @word@ only if @log@ contains @sev@, using grep
 a: grep -q @sev@ @log@ && echo @word@
 out: @word@
@@ -45,6 +46,7 @@ ref: grep
 teach: grep -q
 hint: -q silences grep's output, leaving only its exit status for &&
 ---
+setup: the absence is the thing worth reporting here, not the presence
 q: %show% "missing" if @log@ has no match for nonexistent, with grep
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
@@ -53,6 +55,7 @@ ref: grep
 teach: grep -q
 hint: || runs its right side only when the left side fails
 ---
+setup: the script has to say something either way, and it gets one line to do it
 q: %show% found if @needle@ is in @log@, else missing, with grep
 a: grep -q @needle@ @log@ && echo found || echo missing
 cmp: ref
@@ -89,6 +92,7 @@ ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
+setup: this step should pass only when the thing is NOT there -- a guard, not a search
 q: {grep @log@ for nonexistent, succeed only if there's no match|flip grep's status so no match for nonexistent in @log@ succeeds|with grep, make a missing nonexistent match in @log@ succeed}
 a: ! grep -q nonexistent @log@
 status: 0
@@ -131,6 +135,7 @@ ref: set
 teach: set
 hint: + turns an option off, the mirror of - turning it on
 ---
+setup: you don't know which options this shell already has switched on
 q: %show% the shell's current option settings, with set
 a: set -o
 out: errexit
@@ -187,12 +192,13 @@ ref: sh
 teach: sh
 hint: { } runs in the current shell -- x=2 here really overwrites the outer x
 ---
+setup: an argument you need to pass looks exactly like a flag
 q: load -n as a plain argument with set, then print it back with printf
 a: set -- -n; printf '%s\n' "$1"
 cmp: ref
 ref: printf
 teach: printf
-hint: without the -- in front, set would read -n as an option to itself
+hint: -- marks the end of options, so -n after it is read as a plain word
 ---
 q: {what does this print?|call it -- what comes out?|read it: what does it print?}
 predict: set -- "a b" c; echo $#

@@ -76,6 +76,7 @@ ref: tail
 teach: tail -n
 hint: a plus sign in front of the number changes it from "last N" to "from N"
 ---
+setup: something keeps appending to @log@ and you want to watch it happen, not re-read the whole file each time
 q: {watch @log@, printing new lines as they are appended|follow @log@, printing each new line as it's appended|keep @log@ open, printing new lines as they arrive}, with tail
 a: tail -f @log@
 why: interactive

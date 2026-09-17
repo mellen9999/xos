@@ -85,6 +85,7 @@ ref: dmesg
 teach: dmesg
 hint: dmesg alone dumps the whole kernel ring buffer
 ---
+setup: routine kernel chatter is drowning the console, but a real error still has to get through
 q: {set the console log level so only errors reach the screen|limit what reaches the console to error-level kernel messages|turn the console log level down to errors only}, with dmesg
 a: dmesg -n 3
 why: live-hw
@@ -92,6 +93,7 @@ ref: dmesg
 teach: dmesg -n
 hint: -n sets the console log level -- 3 is errors -- not what dmesg prints
 ---
+setup: you want proof the integrity checks actually started at boot, not just that they should have
 q: {hunt the kernel log for verity, ignoring case|verity might use either case -- search the kernel log|you need every mention of verity in the kernel log, any case}, with dmesg
 a: dmesg | grep -i verity
 why: live-hw
@@ -127,6 +129,7 @@ ref: date
 teach: date
 hint: %s in a +FORMAT string is seconds since the epoch
 ---
+setup: another program expects a strict date format, and a hand-rolled one is one typo from being wrong
 q: {the date in iso 8601 form using the flag rather than a format string|today's date in iso 8601 form, via the dedicated flag|report the date in iso 8601 form without writing a format string}
 a: date -I
 out: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
@@ -183,6 +186,7 @@ ref: tty
 teach: tty
 hint: tty with no arguments prints the path of your controlling terminal
 ---
+setup: a script needs to know if a human's even watching, without printing anything to find out
 q: {test whether this is a terminal at all, silently|silently check whether this session is attached to a terminal|find out, with no output, whether stdin is a terminal}, with tty
 a: tty -s
 status: 1
@@ -219,6 +223,7 @@ ref: stty
 teach: stty -g
 hint: -g prints settings in a compact form meant to be fed back to stty
 ---
+setup: you're logged in on one terminal but something's wrong on another
 q: {query /dev/tty1's settings, a terminal other than your own|report every setting of /dev/tty1, not your own terminal|check /dev/tty1's settings, not the terminal you are on}, with stty
 a: stty -F /dev/tty1 -a
 why: live-hw
@@ -296,6 +301,7 @@ ref: logger
 teach: logger
 hint: logger writes its arguments as one line to the system log
 ---
+setup: your line will land in the log beside a hundred others, with nothing to say which is yours
 q: {log the line investigating under the tag xos|log investigating, tagged xos|send the log line investigating with xos as its tag}, with logger
 a: logger -t xos investigating
 why: live-hw
@@ -303,6 +309,7 @@ ref: logger
 teach: logger -t
 hint: -t sets the tag that shows up in the log for this line
 ---
+setup: you want this on screen as well, not buried in the log alone
 q: {log the line checking and print it to your terminal too|log checking, echoing it to your terminal as well|send checking to the log and to your own terminal}, with logger
 a: logger -s checking
 why: live-hw
@@ -310,6 +317,7 @@ ref: logger
 teach: logger -s
 hint: -s echoes the message to stderr as well as logging it
 ---
+setup: a plain log line is easy to miss -- this one needs to stand out as a warning
 q: {log the line suspicious at priority user.warn|log suspicious, tagged user.warn|send the log line suspicious at user.warn}, with logger
 a: logger -p user.warn suspicious
 why: live-hw
@@ -324,6 +332,7 @@ ref: microcom
 teach: microcom -s
 hint: when ethernet is dead, this is how you reach a router or another machine
 ---
+setup: the remote end might never answer, and a script waiting on it can't hang forever
 q: {talk to /dev/ttyS0, giving up after 10000ms of silence|open /dev/ttyS0 but bail out after 10000ms of silence|connect to /dev/ttyS0, timing out after 10000ms idle}, with microcom
 a: microcom -t 10000 /dev/ttyS0
 why: live-hw
@@ -331,6 +340,7 @@ ref: microcom
 teach: microcom -t
 hint: -t sets an idle timeout in milliseconds before it gives up
 ---
+setup: the battery-backed clock has no timezone of its own, and this box keeps it set to utc
 q: set the system clock from the rtc, as UTC, with hwclock
 a: hwclock -s -u
 why: root
@@ -346,6 +356,7 @@ ref: hwclock
 teach: hwclock -w
 hint: -w is the reverse of -s: it stores the current system time into the rtc
 ---
+setup: some register only shows up in a datasheet -- no driver here will read it for you
 q: read the 32-bit word at physical address 0x1000 with devmem
 a: devmem 0x1000
 why: root
@@ -353,6 +364,7 @@ ref: devmem
 teach: devmem
 hint: devmem peeks (or pokes) a physical address directly, for hardware you can't reach otherwise
 ---
+setup: the console's keymap doesn't match your keyboard, and typing blind through it invites mistakes
 q: load the keymap in @word@.bmap with loadkmap
 a: loadkmap < @word@.bmap
 why: live-hw
@@ -360,6 +372,7 @@ ref: loadkmap
 teach: loadkmap
 hint: loadkmap reads a binary keymap on stdin; dumpkmap writes the current one out
 ---
+setup: you're about to load a different keymap, and want this one back if it goes wrong
 q: save the console's current keyboard map to keymap.bin with dumpkmap
 a: dumpkmap > keymap.bin
 why: live-hw
@@ -374,6 +387,7 @@ ref: lsscsi
 teach: lsscsi
 hint: lsscsi names each scsi/usb disk and its host, the layer under lsblk
 ---
+setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
 q: record this whole session to session.log with script, quietly
 a: script -q session.log
 why: interactive
@@ -381,6 +395,7 @@ ref: script
 teach: script -q
 hint: script logs everything printed to the terminal into a typescript file
 ---
+setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
 q: capture just the output of uname into session.log with script
 a: script -c uname session.log
 why: interactive
@@ -388,6 +403,7 @@ ref: script
 teach: script -c
 hint: -c runs one PROG and records only it, instead of a whole interactive shell
 ---
+setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
 q: append this session to session.log with script
 a: script -a session.log
 why: interactive
@@ -395,6 +411,7 @@ ref: script
 teach: script -a
 hint: -a appends to the typescript; without it script starts the file fresh
 ---
+setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
 q: replay the recorded session.log at its original speed, with scriptreplay
 a: scriptreplay timing session.log
 why: fixture-cost

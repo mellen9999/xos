@@ -58,6 +58,7 @@ ref: wget
 teach: wget -S
 hint: -S prints the server's response headers as they arrive
 ---
+setup: the server won't serve this without a token in the request, and wget doesn't send custom headers by default
 q: {fetch file.txt from @host@ using header 'X-Token: abc'|send header 'X-Token: abc' fetching file.txt from @host@|get file.txt from @host@ with header 'X-Token: abc'}, with wget
 a: wget --header 'X-Token: abc' http://@host@/file.txt
 why: live-net
@@ -93,6 +94,7 @@ ref: wget
 teach: wget -o
 hint: -o redirects wget's log messages into a file
 ---
+setup: the cert can't be validated here -- no ca, maybe self-signed -- but you already know this is the right host
 q: {fetch https://@host@/file.txt uncertified with wget -- know why|skip cert checks with wget fetching https://@host@/file.txt|pull https://@host@/file.txt via wget, cert check off, risky}
 a: wget --no-check-certificate https://@host@/file.txt
 why: live-net
@@ -237,6 +239,7 @@ ref: udhcpc
 teach: udhcpc -n
 hint: -n exits immediately if no lease shows up, rather than retrying forever
 ---
+setup: udhcpc only negotiates the lease -- something else has to apply the address and routes it hands back
 q: {run /usr/share/udhcpc/default.script on @iface@ once the lease arrives|name /usr/share/udhcpc/default.script to run when @iface@ gets a lease|have @iface@'s lease run /usr/share/udhcpc/default.script}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
 why: live-net

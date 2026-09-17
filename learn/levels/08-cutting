@@ -22,6 +22,7 @@ teach: cut -d
 teach: cut -f
 hint: -d sets the delimiter, -f picks the field number
 ---
+setup: @csv@ is name,id,status,count
 q: %show% just the status column of @csv@, with cut
 a: cut -d, -f3 @csv@
 cmp: ref
@@ -29,6 +30,7 @@ ref: cut
 teach: cut -f
 hint: field numbers start at 1, not 0
 ---
+setup: @csv@ is name,id,status,count
 q: %show% the name and status columns of @csv@, with cut
 a: cut -d, -f1,3 @csv@
 out: gateway,up
@@ -36,6 +38,7 @@ ref: cut
 teach: cut -f
 hint: comma-separate the field numbers to pick more than one
 ---
+setup: @csv@ is name,id,status,count
 q: %show% every column of @csv@ except the name, with cut
 a: cut -d, -f2-4 @csv@
 out: 1,up,42
@@ -43,6 +46,7 @@ ref: cut
 teach: cut -f
 hint: a dash between two numbers means a range
 ---
+setup: @csv@ is name,id,status,count
 q: %show% status and everything after it in @csv@, with cut
 a: cut -d, -f3- @csv@
 out: up,42
@@ -64,6 +68,7 @@ ref: cut
 teach: cut -c
 hint: same trailing-dash trick as field ranges, but for characters
 ---
+setup: this text might not be plain ascii -- a character can span more than one byte
 q: %show% the first 8 bytes of each line of @log@, with cut
 a: cut -b1-8 @log@
 out: ^2024-03
@@ -71,6 +76,7 @@ ref: cut
 teach: cut -b
 hint: -b counts bytes; same as -c unless the text is multibyte
 ---
+setup: a line with no comma at all must not slip through as if it were a name
 q: %show% @csv@'s name column with cut, skipping lines with no comma
 a: cut -d, -f1 -s @csv@
 out: ^gateway$

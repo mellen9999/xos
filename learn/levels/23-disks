@@ -92,6 +92,7 @@ ref: du
 teach: du -c
 hint: -c appends one extra 'total' line summing everything above it
 ---
+setup: you are sizing what this directory itself holds, not what is mounted into it
 q: {measure @dir@ without crossing onto another filesystem, with du|measure @dir@ but stay on its own filesystem, with du|report the size of @dir@ without other mounts, with du}
 a: du -x @dir@
 why: fixture-cost
@@ -127,6 +128,7 @@ ref: mount
 teach: mount -r
 hint: on a machine you do not trust, read-only is the default you want
 ---
+setup: you name the type yourself rather than let a probe choose which parser runs
 q: {auto-detect got it wrong -- mount /dev/sdb1 at /mnt as ext4|mount /dev/sdb1 at /mnt, naming ext4 instead of guessing|name ext4 as the type, then mount /dev/sdb1 at /mnt}
 a: mount -t ext4 /dev/sdb1 /mnt
 why: root
@@ -134,6 +136,7 @@ ref: mount
 teach: mount -t
 hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
+setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
 q: {don't trust it -- mount /dev/sdb1 at /mnt with nosuid, nodev, noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes, execution|mount /dev/sdb1 at /mnt with the nosuid, nodev, noexec options}
 a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
 a: mount -o noexec,nodev,nosuid /dev/sdb1 /mnt
@@ -191,6 +194,7 @@ ref: losetup
 teach: losetup -r
 hint: -r attaches the loop device read-only
 ---
+setup: there's no partition table to read -- only the fact that a real partition starts a megabyte in
 q: {attach disk.img with losetup at a 1048576 byte offset -- one mb in|loop-attach disk.img with losetup, skipping 1048576 bytes in|attach disk.img to a loop device, 1048576 bytes in, with losetup}
 a: losetup -o 1048576 -f disk.img
 why: root
@@ -212,6 +216,7 @@ ref: fdisk
 teach: fdisk -l
 hint: -l just lists the partition table, no interactive prompt
 ---
+setup: a raw write has to be sized to the device's own block, or it won't land right
 q: {report the block size of /dev/sda, with blockdev|with blockdev, what is the block size of /dev/sda|find the block size of /dev/sda, using blockdev}
 a: blockdev --getbsz /dev/sda
 why: root
@@ -254,13 +259,14 @@ ref: sync
 teach: sync -d
 hint: -d limits the flush to the file you name
 ---
+setup: two scripts could grab the same lock at once, and only one may hold it while it writes
 q: {hold an exclusive lock on lock.file, with flock, echoing held|with flock, lock lock.file exclusively, running echo held|take lock.file's exclusive lock with flock, around echo held}
 a: flock -x lock.file echo held
 out: held
 cmp: ref
 ref: flock
 teach: flock -x
-hint: -x is flock's default, an exclusive lock -- named here for clarity
+hint: -x takes an exclusive lock -- the default flock would use anyway
 ---
 q: {lock lock.file with flock, giving up at once if held, echo held|with flock, try lock.file's lock, failing fast, not waiting|take lock.file's lock with flock, bailing if someone has it}
 a: flock -n lock.file echo held
@@ -325,6 +331,7 @@ ref: cryptsetup
 teach: cryptsetup
 hint: luksDump reads the header itself -- it never touches the encrypted data
 ---
+setup: cryptsetup's default cipher can change between versions, and whatever unlocks this later has to match exactly
 q: {format /dev/sda3 with cryptsetup, naming aes-xts-plain64 cipher|with cryptsetup, format /dev/sda3 with aes-xts-plain64, not default|choose aes-xts-plain64 yourself, formatting /dev/sda3, cryptsetup}
 a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
 why: root
@@ -332,6 +339,7 @@ ref: cryptsetup
 teach: cryptsetup --cipher
 hint: --cipher names the cipher instead of taking cryptsetup's default
 ---
+setup: xts splits the key across two sub-ciphers, so a 256 bit cipher takes a 512 bit key
 q: {format /dev/sda3 with a 512 bit key, with cryptsetup|with cryptsetup, format /dev/sda3 using a 512 bit key|choose a 512 bit key formatting /dev/sda3, with cryptsetup}
 a: cryptsetup luksFormat --key-size 512 /dev/sda3
 why: root
@@ -339,6 +347,7 @@ ref: cryptsetup
 teach: cryptsetup --key-size
 hint: --key-size is in bits, and must match what the cipher supports
 ---
+setup: argon2id needs more memory to derive the key than this device can spare
 q: {format /dev/sda3 with cryptsetup, choosing pbkdf2 over argon2id|with cryptsetup, format /dev/sda3 with pbkdf2, not argon2id|swap /dev/sda3's key derivation to pbkdf2, with cryptsetup}
 a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
 why: root
@@ -360,6 +369,7 @@ ref: cryptsetup
 teach: cryptsetup --verbose
 hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
+setup: /state is yours, but nothing stored on it is ever meant to run
 q: {mount /dev/mapper/state at /state -- no setuid, no device nodes, no exec|mount the unlocked state device at /state: nosuid, nodev, noexec|mount /dev/mapper/state at /state with nosuid, nodev and noexec}
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
 a: mount -o noexec,nodev,nosuid /dev/mapper/state /state
@@ -420,12 +430,13 @@ ref: mke2fs
 teach: mke2fs
 hint: mke2fs with no flags builds an ext2 filesystem by default
 ---
+setup: this runs from a script, with nothing there to answer an are-you-sure prompt
 q: %make% an ext filesystem on /dev/mapper/state, with mke2fs
 a: mke2fs -F /dev/mapper/state
 why: root
 ref: mke2fs
 teach: mke2fs -F
-hint: -F skips the confirmation prompt, useful for scripting
+hint: -F skips the confirmation prompt
 ---
 q: %make% an ext filesystem on /dev/mapper/state labelled data, with mke2fs
 a: mke2fs -L data /dev/mapper/state
@@ -434,6 +445,7 @@ ref: mke2fs
 teach: mke2fs -L
 hint: -L sets the filesystem's volume label
 ---
+setup: ext reserves a slice of every filesystem for root to log in when it's full -- nothing here ever needs that margin
 q: {make /dev/mapper/state's filesystem with mke2fs, no admin space|with mke2fs, reserve zero blocks for admin on /dev/mapper/state|build /dev/mapper/state's filesystem with mke2fs, none for root}
 a: mke2fs -m 0 /dev/mapper/state
 why: root
@@ -477,12 +489,13 @@ ref: mountpoint
 teach: mountpoint -q
 hint: -q prints nothing and answers in the exit status -- zero when it is a mount
 ---
+setup: the installed system won't boot on its own, but its own tools are still there to fix it with
 q: run a shell inside the rootfs at /mnt with chroot
 a: chroot /mnt sh
 why: root
 ref: chroot
 teach: chroot
-hint: chroot runs PROG with NEWROOT as / -- the way you repair a broken install
+hint: chroot runs PROG with NEWROOT as /
 ---
 q: have the kernel re-read /dev/sdb's partition table with partprobe
 a: partprobe /dev/sdb
@@ -498,6 +511,7 @@ ref: blkdiscard
 teach: blkdiscard -s
 hint: -s asks the drive for a secure discard, not just a plain trim
 ---
+setup: wiping the whole disk would take too long, and only the front needs to go
 q: discard the first 1G of /dev/sdb with blkdiscard
 a: blkdiscard -l 1G /dev/sdb
 why: root

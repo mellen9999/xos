@@ -139,6 +139,7 @@ ref: abduco
 teach: abduco
 hint: abduco with no session name lists what it's holding
 ---
+setup: you are nesting one session inside another, and the default detach key would reach through both
 q: {rebind the detach key to ctrl-q before attaching to work, with abduco|attach to work with abduco, using ctrl-q as the detach key|use abduco and ctrl-q as your detach key when you attach to work}
 a: abduco -e ^q -a work
 why: interactive

@@ -32,6 +32,7 @@ ref: tlstunnel
 teach: tlstunnel
 hint: pipe a raw http request into tlstunnel the same way you would into nc
 ---
+setup: the trust roots aren't in a file you could edit -- they're compiled straight into the binary
 q: %count% "Internet Security Research Group" in /bin/tlstunnel with strings
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 cmp: ref
@@ -117,6 +118,7 @@ ref: wg
 teach: wg
 hint: genkey writes a fresh private key to stdout
 ---
+setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: {derive the public key from private.key|derive the matching public key from private.key|compute the public key that pairs with private.key}, with wg
 a: wg pubkey < private.key
 why: live-net
@@ -124,6 +126,7 @@ ref: wg
 teach: wg
 hint: pubkey reads a private key on stdin and writes the matching public key
 ---
+setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: %make% a wireguard interface called wg0, with ip
 a: ip link add wg0 type wireguard
 why: live-net
@@ -131,6 +134,7 @@ ref: ip
 teach: ip
 hint: ip link add type wireguard creates the interface itself, before any config
 ---
+setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: {give wg0 the address 10.9.0.2 in a /24|assign wg0 the address 10.9.0.2 with a /24 netmask|add the address 10.9.0.2/24 to wg0}, with ip
 a: ip addr add 10.9.0.2/24 dev wg0
 why: live-net
@@ -138,6 +142,7 @@ ref: ip
 teach: ip
 hint: the ip addr add ADDR/PREFIX dev IFACE you know, now on a wireguard iface
 ---
+setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: {bring wg0 up|bring the wg0 interface up|set wg0 up}, with ip
 a: ip link set wg0 up
 why: live-net
@@ -145,6 +150,7 @@ ref: ip
 teach: ip
 hint: the ip link set IFACE up you already know, on a wireguard interface
 ---
+setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: {set wg0's private key from private.key|load wg0's private key from private.key|configure wg0 to use the key in private.key}, with wg
 a: wg set wg0 private-key private.key
 why: live-net
@@ -161,6 +167,7 @@ ref: wg
 teach: wg
 hint: peer, endpoint and allowed-ips are all set together in one wg set call
 ---
+setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: %show% the state of every wireguard interface
 a: wg show
 why: live-net

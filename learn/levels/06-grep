@@ -35,6 +35,7 @@ ref: grep
 teach: grep -v
 hint: v for invert
 ---
+setup: a script needs the count of @sev@ lines, not the lines themselves
 q: {%count% how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report the number of @sev@ lines in @log@}, with grep
 a: grep -c @sev@ @log@
 out: ^[0-9]+$
@@ -51,6 +52,7 @@ ref: grep
 teach: grep -n
 hint: n prefixes each match with its line number
 ---
+setup: @term@ could be anywhere in this tree and checking every file by hand isn't realistic
 q: {not sure which file has @term@ -- grep it anywhere below|@term@ could be in any file here -- grep the whole tree|grep every file below for @term@}
 a: grep -r @term@ .
 cmp: ref
@@ -72,6 +74,7 @@ ref: grep
 teach: grep -L
 hint: capital L is the opposite of -l -- files with NO match
 ---
+setup: you want to pull @sev@ out to use it elsewhere, not the whole line around it
 q: %show% the matched @sev@ text in @log@, not the line, with grep
 a: grep -o @sev@ @log@
 out: ^@sev@$
@@ -88,6 +91,7 @@ ref: grep
 teach: grep -w
 hint: w anchors the match to word boundaries
 ---
+setup: another line in @log@ merely contains @sev@
 q: %show% @log@ lines that match @sev@ exactly, with grep
 a: grep -x @sev@ @log@
 out: ^@sev@$
@@ -136,6 +140,7 @@ ref: grep
 teach: grep -F
 hint: F for fixed string
 ---
+setup: writing this pattern in basic regex means backslash before every +
 q: %find% ip-shaped numbers in @log@ with grep's extended regex
 a: grep -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' @log@
 out: [0-9]
@@ -144,6 +149,7 @@ ref: grep
 teach: grep -E
 hint: E turns on extended regex, so + doesn't need a backslash
 ---
+setup: you want a hit on @needle@ or @term@ without searching twice
 q: {match @needle@ or @term@ in @log@ in one regex pass|find @needle@ or @term@ in @log@, one pass|search @log@ for @needle@ or @term@ at once}, with grep
 a: grep -E '@needle@|@term@' @log@
 cmp: ref
@@ -151,13 +157,14 @@ ref: grep
 teach: grep -E
 hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped
 ---
+setup: a script needs to know if @sev@ is there without printing anything
 q: {grep @log@ for @sev@ quietly -- just an exit status|grep @sev@ in @log@ silently, via exit status|grep @log@ for @sev@ without printing anything}
 a: grep -q @sev@ @log@
 status: 0
 cmp: ref
 ref: grep
 teach: grep -q
-hint: this is the form you use inside an if
+hint: grep's exit status is 0 for a match, 1 for none
 ---
 q: {grep @log@ for @sev@ without a missing-file error|grep @log@ for @sev@, no script-halting error|grep @log@ for @sev@ without a can't-read-file complaint}
 a: grep -s @sev@ @log@
@@ -174,12 +181,13 @@ ref: grep
 teach: grep -f
 hint: f reads patterns from a file instead of the command line, one per line
 ---
+setup: your pattern starts with a dash and would otherwise get read as a flag
 q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using -e to name the pattern}
 a: grep -e @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -e
-hint: -e is how you search for something starting with a dash
+hint: -e marks what follows as the pattern, not another flag
 ---
 q: {@log@ may use tabs, not spaces -- grep either with a POSIX class|grep @log@ for space or tab with a POSIX class|grep for whitespace in @log@ with a POSIX class}
 a: grep '[[:space:]]' @log@
