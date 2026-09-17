@@ -1192,21 +1192,86 @@ recon_accept() {
 	done
 	[ "$n" -gt 0 ] || echo "nothing to accept -- no machine is reported as changed"
 }
+# one channel, one screen, from the same two fifos. the top rows are a scroll
+# region fed by tail -f on the channel's out; the row above the bottom is where
+# you type; the very bottom row is a spacer, so the newline Enter itself echoes
+# never scrolls the whole screen out from under the region. every incoming line
+# is bracketed by save- and restore-cursor, so it lands in the region without
+# eating the half-typed line you are on. a line starting with / is an irc
+# command to the server; anything else is a message to the channel, shown
+# locally as well because a server never sends your own line back. Ctrl-C or
+# /quit resets the region and the cursor. nothing new ships for any of this --
+# ii's files, an ash read loop, and the scroll region every terminal from the
+# vt100 on has.
+_ircui() {
+	local dir="$1" chan="$2" out="$1/$2/out" in="$1/$2/in" srv="$1/in"
+	local e r rows n line tpf rpid
+	e=$(printf '\033')
+	rows=$(stty size 2>/dev/null | cut -d' ' -f1)
+	case "${rows:-}" in ''|*[!0-9]*) rows=${LINES:-24} ;; esac
+	case "$rows" in ''|*[!0-9]*) rows=24 ;; esac
+	[ "$rows" -lt 6 ] && rows=24
+	r=$((rows - 2))
+	# ii makes the server in first and the channel out only once joined. wait
+	# for the server fifo, join if the channel is not already open, then wait
+	# for its out to appear before painting anything.
+	n=0; while [ ! -e "$srv" ] && [ "$n" -lt 10 ]; do sleep 1; n=$((n + 1)); done
+	[ -e "$out" ] || printf '/j %s\n' "$chan" > "$srv"
+	n=0; while [ ! -e "$out" ] && [ "$n" -lt 10 ]; do sleep 1; n=$((n + 1)); done
+	[ -e "$out" ] || { echo "irc: $chan never opened (joined? $out)"; return 1; }
+	tpf="/tmp/.ircui.$$"
+	printf '%s[2J%s[H%s[1;%dr' "$e" "$e" "$e" "$r"
+	# the reader runs in the background writing only the region; its tail pid is
+	# stashed so both halves are reaped on the way out (an EXIT trap would fire
+	# on the whole login shell, not this function, so cleanup is explicit).
+	( tail -n 200 -f "$out" 2>/dev/null & echo $! > "$tpf"; wait ) | while IFS= read -r line; do
+		printf '%s7%s[%d;1H\n%s%s8' "$e" "$e" "$r" "$line" "$e"
+	done &
+	rpid=$!
+	trap 'printf "%s[r%s[?25h%s[%d;1H\r%s[2K" "$e" "$e" "$e" "$rows" "$e"; kill "$rpid" 2>/dev/null; kill "$(cat "$tpf" 2>/dev/null)" 2>/dev/null; rm -f "$tpf"; return 0' INT TERM
+	while :; do
+		printf '%s[%d;1H%s[2K%s> ' "$e" "$((r + 1))" "$e" "$chan"
+		IFS= read -r line || break
+		case "$line" in
+			/quit|/q) break ;;
+			/*) printf '%s\n' "$line" > "$srv" ;;
+			'') : ;;
+			*)  printf '%s\n' "$line" > "$in"
+			    printf '%s7%s[%d;1H\n<you> %s%s8' "$e" "$e" "$r" "$line" "$e" ;;
+		esac
+	done
+	printf '%s[r%s[?25h%s[%d;1H\r%s[2K' "$e" "$e" "$e" "$rows" "$e"
+	kill "$rpid" 2>/dev/null
+	kill "$(cat "$tpf" 2>/dev/null)" 2>/dev/null
+	rm -f "$tpf"
+	trap - INT TERM
+}
+
 # irc brings the whole tls-irc plumbing up as one word, and is safe to type
 # again -- typing it twice must not spawn a second reader on the same fifos, and
 # a tunnel that died leaving its socket file behind must not make ii hang against
 # nothing. tlstunnel does the TLS behind a unix socket; ii speaks plaintext to
 # it, so a channel stays a directory you tail and an `in` you echo to -- every
-# text tool on this system still works on the log. no client, no ui, nothing new
-# in the image: the two binaries that already ship, wired the one way that
-# reaches a real network. libera by default; a nick then a server override in
-# that order. a registered nick's password rides IRC_PASS, read from the
-# environment by name so it never lands in argv or the shell history. tlstunnel's
-# own output goes to a log so the console stays clean and the refusal reason is
-# still there to read.
+# text tool on this system still works on the log. `irc #chan` opens that same
+# directory as a live one-screen chat; with no channel it just prints the paths.
+# no client, nothing new in the image: the two binaries that already ship, wired
+# the one way that reaches a real network. libera by default; a leading #channel,
+# then a nick, then a server override, each read the way it looks. a registered
+# nick's password rides IRC_PASS, read from the environment by name so it never
+# lands in argv or the shell history. tlstunnel's own output goes to a log so the
+# console stays clean and the refusal reason is still there to read.
 irc() {
-	local nick="${1:-${IRC_NICK:-xos}}" host="${2:-irc.libera.chat}" port=6697
-	local sock="/tmp/$host.sock" dir="$HOME/irc/$host" log="/tmp/irc-$host.log" n=0 kflag=""
+	# an arg beginning with # is a channel to open in one screen; the rest, in
+	# order, stay [nick] [host] exactly as before.
+	local chan="" nick="" host="" _a
+	for _a in "$@"; do
+		case "$_a" in
+			\#*) chan="$_a" ;;
+			*)   if [ -z "$nick" ]; then nick="$_a"; elif [ -z "$host" ]; then host="$_a"; fi ;;
+		esac
+	done
+	nick="${nick:-${IRC_NICK:-xos}}"; host="${host:-irc.libera.chat}"
+	local port=6697 sock="/tmp/$host.sock" dir="$HOME/irc/$host" log="/tmp/irc-$host.log" n=0 kflag=""
 	command -v tlstunnel >/dev/null && command -v ii >/dev/null \
 		|| { echo "irc: tlstunnel or ii is missing from this image"; return 1; }
 	# reuse a live tunnel; it validates the cert against the compiled-in anchors
@@ -1227,8 +1292,11 @@ irc() {
 		ii -s "$host" -u "$sock" -n "$nick" $kflag -i "$HOME/irc" &
 		sleep 1
 	fi
+	[ -n "$chan" ] && { _ircui "$dir" "$chan"; return; }
 	echo "irc: $nick on $host"
+	echo "  chat:  irc #chan            -- one screen, type to send"
 	echo "  join:  echo /j #chan > $dir/in"
+	echo "  send:  echo hi      > $dir/#chan/in"
 	echo "  read:  tail -f $dir/#chan/out"
 }
 SHRC
