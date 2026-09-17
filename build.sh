@@ -63,6 +63,12 @@ BB_FPR=C9E9416F76E610DBD09D040F47B70C55ACC9965B    # Denys Vlasenko (busybox)
 # revocation certificate, which sigok()'s REVKEYSIG branch already turns red.
 # do not "fix" this by adding one.
 RELEASE_FPRS="227F91A83156DECA2B8BEA93958CD4D44A09531E"
+# the private-key pattern, in ONE place. a real optional group, not an
+# alternation ending in an empty branch: the old `(RSA |EC |OPENSSH |ENCRYPTED |)`
+# is a regex error to ugrep and some BSD greps, and the gate that used it
+# discarded the error and counted zero. githooks/pre-commit carries the same
+# literal and G11 fails if the two ever stop matching.
+KEYPAT='BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY'
 # lvm2's maintainer key expired 2022-06-09 and has NOT been extended anywhere:
 # checked against keys.openpgp.org (404) and keyserver.ubuntu.com (same key,
 # same expiry) on 2026-09-17. the signature still proves who made it; what an
@@ -2289,11 +2295,37 @@ gates() {
   # check was `keys/*.key` -- one directory, one extension -- so a decrypted
   # copy left at the tree root during debugging passed as 0. src/ and root/
   # are upstream and image trees (dropbear ships test keys); .git is history.
-  local plain
-  plain=$(grep -rlE 'BEGIN (RSA |EC |OPENSSH |ENCRYPTED |)PRIVATE KEY' . \
+  #
+  # the pattern used to be `BEGIN (RSA |EC |OPENSSH |ENCRYPTED |)PRIVATE KEY`,
+  # which had two defects. it missed DSA and, more to the point, armored
+  # OpenPGP secret keys -- and this repo now HOLDS one: the release signing
+  # key, the single key whose leak lets someone forge attestations. and its
+  # alternation ended in an EMPTY branch, which GNU grep accepts and ugrep and
+  # some BSD greps reject as a regex error -- on such a host the detector
+  # errored, its stderr went to /dev/null, the count came back 0 and the gate
+  # reported ok. a detector that ERRORS must go red, never green, so its stderr
+  # is captured and checked now instead of discarded.
+  local plain plain_rc=0 perr
+  perr=$(mktemp) || perr=""
+  plain=$(grep -rlE "$KEYPAT" . \
             --exclude-dir=src --exclude-dir=root --exclude-dir=.git --exclude-dir=sysroot \
-            --exclude-dir=.worktrees 2>/dev/null | grep -c . || true)
-  g "G11 no plaintext private key on disk ($plain)" "$([ "$plain" -eq 0 ] && echo ok || echo FAIL)"
+            --exclude-dir=.worktrees ${perr:+2>"$perr"} | grep -c . || true)
+  if [ -n "$perr" ] && [ -s "$perr" ]; then
+    plain_rc=1
+    printf '    the private-key detector wrote to stderr -- it may not have run:\n' >&2
+    sed 's/^/      /' "$perr" >&2
+  fi
+  [ -n "$perr" ] && rm -f "$perr"
+  # both walls have to carry the SAME pattern. they are in different files by
+  # necessity (the hook cannot source this script -- sourcing it runs its
+  # dispatch), so nothing but this line stops one of them being fixed alone,
+  # which is exactly what happened: the hook learned about PGP keys and the
+  # gate did not.
+  grep -qF -- "$KEYPAT" githooks/pre-commit \
+    || { plain_rc=1; printf '    githooks/pre-commit does not carry the same private-key pattern\n' >&2
+         printf '    as this gate -- one wall was fixed and the other was not\n' >&2; }
+  g "G11 no plaintext private key on disk ($plain)" \
+    "$([ "$plain" -eq 0 ] && [ "$plain_rc" -eq 0 ] && echo ok || echo FAIL)"
 
   # G12 -- the image contains everything the manifest declares. component
   # copies were `[ -f x ] && cp x`, so a component that failed to build made

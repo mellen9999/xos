@@ -47,6 +47,9 @@ done <<< "$staged"
 while read -r f; do
 	[ -z "$f" ] && continue
 	[ -f "$f" ] || continue
+	# this literal is duplicated in build.sh as KEYPAT, by necessity -- a hook
+	# cannot source build.sh (sourcing it runs its bottom-of-file dispatch).
+	# G11 fails if the two ever stop matching.
 	if git show ":$f" 2>/dev/null | grep -qE 'BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY'; then
 		say "refusing to commit a file containing a PRIVATE KEY: $f"
 	fi
