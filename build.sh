@@ -1919,6 +1919,9 @@ TODO: write this entry by hand.
 #   G52 every commit since the epoch is signed by the pinned key
 #   G52 the maintainer signatures were actually checked, not skipped
 #   G53 selftest.sh counts the sections it actually has
+#   G54 the attestation chain is intact
+#   G55 every attestation is signed by a pinned release key
+#   G56 a rewritten attestation log is refused (the detector can fail)
 #   G57 the signed image still checks its host blobs before wrapping them
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
@@ -3039,6 +3042,23 @@ G51
   fi
   g "G53 selftest section count declared ($have53)" "$g53"
 
+  # G54/G55 -- the published claim, checked the way a stranger checks it. these
+  # run the same two functions ./build.sh verify runs, so the repo cannot ship
+  # a chain or a signature that its own verifier would reject. output is
+  # captured and only shown when something is wrong: a green gate line is the
+  # whole report a reader wants here.
+  local g54=ok g55=ok out54 out55
+  out54=$(verify_log 2>&1) || { g54=FAIL; printf '%s\n' "$out54" >&2; }
+  g "G54 attestation chain intact" "$g54"
+  out55=$(verify_sigs 2>&1) || { g55=FAIL; printf '%s\n' "$out55" >&2; }
+  g "G55 attestations signed by a pinned key" "$g55"
+
+  # G56 -- and the check above is worth nothing if it cannot fail. four
+  # rewrites, four refusals, on a synthetic chain.
+  local g56=ok
+  log_selftest || g56=FAIL
+  g "G56 a rewritten chain is refused" "$g56"
+
   # G57 -- structural, in the G45/G47 mould. blobver() only helps while uki()
   # still calls it, and it is one line someone debugging a systemd upgrade
   # would comment out in thirty seconds. so check the SHAPE: blobs.sha256 names
@@ -3398,7 +3418,47 @@ verify_log() {
       return 1; }
     printf '  head matches XOS_EXPECT_HEAD\n'
   fi
-  printf '%s\n' "$expect" > "$ATTEST/.head"   # for callers; gitignored
+}
+
+# G56's engine. a detector that cannot fail is not a detector, so this builds a
+# SYNTHETIC three-entry chain in a throwaway directory, proves verify_log
+# accepts it, then applies one rewrite per way a history can be tampered with
+# and proves it refuses each. three entries, not however many attest/ happens
+# to hold, so the test means the same thing on the first release and the
+# hundredth. never touches attest/.
+log_selftest() {
+  local t rc=0 i seq mh link
+  t=$(mktemp -d) || return 1
+  _mkchain() {
+    local i seq mh link="$ZERO" line
+    : > "$t/log"
+    for i in 1 2 3; do
+      printf -v seq '%04d' "$i"
+      printf 'synthetic %s\n' "$seq" > "$t/$seq.manifest"
+      mh=$(h256 "$t/$seq.manifest")
+      line="$seq  $mh  $link"
+      printf '%s\n' "$line" >> "$t/log"
+      link=$(printf '%s\n' "$line" | sha256sum | awk '{print $1}')
+    done
+  }
+  _refuses() { # $1 what was done
+    ( ATTEST="$t"; verify_log ) >/dev/null 2>&1 \
+      && { printf '    a rewritten chain was ACCEPTED: %s\n' "$1" >&2; rc=1; }
+  }
+  _mkchain
+  ( ATTEST="$t"; verify_log ) >/dev/null 2>&1 \
+    || { printf '    verify_log rejects a chain it built itself\n' >&2; rc=1; }
+  # 1. flip one digit of a link
+  _mkchain; sed -i '3s/\(  [0-9a-f]\)\([0-9a-f]\{63\}\)$/x\2/' "$t/log"; _refuses "a link digit was changed"
+  # 2. swap two entries
+  _mkchain; { sed -n '2p' "$t/log"; sed -n '1p' "$t/log"; sed -n '3p' "$t/log"; } > "$t/log.x"
+  mv "$t/log.x" "$t/log"; _refuses "two entries were swapped"
+  # 3. delete a middle entry
+  _mkchain; sed -i '2d' "$t/log"; _refuses "a middle entry was deleted"
+  # 4. replace a manifest and leave the log alone
+  _mkchain; printf 'tampered\n' > "$t/0002.manifest"; _refuses "a manifest was replaced under its log line"
+  rm -rf "$t"
+  return $rc
 }
 
 # every manifest carries a signature by a PINNED release key.
