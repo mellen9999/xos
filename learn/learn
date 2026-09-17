@@ -2893,7 +2893,7 @@ resume_confirm() {
 	lname=$(level_field "$id" name)
 	inprog_load "$id" "$fp" "$nq" && held=1
 	if [ "$held" = 1 ]; then
-		printf '  %slevel %s  %s%s %s-- %s of %s answered, %s right  (r restarts it)%s\n' \
+		printf '  %slevel %s  %s%s %s-- %s of %s answered, %s correct  (r restarts it)%s\n' \
 			"$W" "$n" "$lname" "$N" "$D" "$INPROG_DONE" "$nq" "$INPROG_RIGHT" "$N"
 	else
 		printf '  %slevel %s  %s%s %s-- %s questions, from the top%s\n' \
