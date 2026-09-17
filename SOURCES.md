@@ -17,7 +17,7 @@ what that first sighting was anchored to. They are not equal:
 | abduco | none available (brain-dump.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | cryptsetup 2.8.7 | maintainer PGP signature (Milan Broz, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | util-linux 2.42.2 | maintainer PGP signature (Karel Zak, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
-| lvm2 2.03.42 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| lvm2 2.03.42 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch, **plus** fedora rawhide's published sha512 for the identical tarball, pinned as `LVM_SHA512` and checked on every fetch | **two anchors, one of them dead** -- the key expired 2022-06-09 and has not been extended on keys.openpgp.org or keyserver.ubuntu.com (checked 2026-09-17). the waiver is dated and lapses 2027-03-31. debian cannot re-anchor it: sid is eleven releases behind and repacks the orig tarball, so its signed `.dsc` does not cover these bytes |
 | popt | none available; fetched from fedora's source cache over TLS at a url naming its sha512 (upstream ftp.rpm.org is plain http) | **weakest -- trust-on-first-use over TLS only** |
 | json-c 0.19 | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
 | wireguard-tools 1.0.20260223 | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |

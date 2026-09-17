@@ -65,7 +65,7 @@ tool   wipefs                                       lab              arch:util-l
 tool   xz                                           repro            arch:xz -- kernel tarball
 
 # ---- pinned upstream sources --------------------------------------------------
-source LVM2                                         tofu             
+source LVM2                                         sig:LVM_FPR      libdevmapper.a only. key EXPIRED 2022-06-09 and is extended nowhere; the waiver is dated (lapses 2027-03-31) and G45 enforces it. second anchor: LVM_SHA512, fedora rawhide's digest for the identical tarball
 source abduco                                       tofu             session detach. no upstream signature
 source bearssl                                      tofu             tls for tlstunnel. no upstream signature
 source busybox                                      sig:BB_FPR       the entire userland bar EXTRA_BINS

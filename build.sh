@@ -63,6 +63,27 @@ BB_FPR=C9E9416F76E610DBD09D040F47B70C55ACC9965B    # Denys Vlasenko (busybox)
 # revocation certificate, which sigok()'s REVKEYSIG branch already turns red.
 # do not "fix" this by adding one.
 RELEASE_FPRS="227F91A83156DECA2B8BEA93958CD4D44A09531E"
+# lvm2's maintainer key expired 2022-06-09 and has NOT been extended anywhere:
+# checked against keys.openpgp.org (404) and keyserver.ubuntu.com (same key,
+# same expiry) on 2026-09-17. the signature still proves who made it; what an
+# expired key stops doing is limiting the damage of a leak.
+#
+# re-anchoring it to a live downstream signer was the plan and it does not work:
+# debian is eleven releases behind (2.03.31 in sid) and REPACKS the orig tarball
+# as .tar.xz, so its signed .dsc does not cover these bytes at all. written down
+# here so nobody spends an afternoon rediscovering it.
+#
+# fedora does corroborate: rawhide packages this exact LVM2.2.03.42.tgz and
+# publishes the sha512 below. two independent parties therefore agree on these
+# bytes -- the maintainer, by a signature from a key now dead, and fedora, by a
+# digest published today. that is a second opinion on the FIRST SIGHTING, which
+# is precisely what a dead key stops providing. it is not a live signature and
+# SOURCES.md does not call it one.
+#
+# the teeth are on the NEXT bump: re-pin lvm2 without re-corroborating and the
+# build refuses, which forces whoever does it to go and get a second opinion
+# again -- exactly when the first-sighting problem recurs.
+LVM_SHA512=0d65f37521eb6a472011aee52a72a4e65a14ce71050aac04451a01f84e177282d6a4bdc3db0807f360101824a399803bedb93aa1c6dc894c0ae8347a35a68f29
 # popt has no signature; this sha512 is part of the fetch url (see fetch()).
 POPT_SHA512=5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639d55ee77ca31f29bb631c0b53368c1893bd96cf76422d257f7997a11f6466
 
@@ -532,6 +553,24 @@ sigver() { # $1 tarball  $2 committed sig  $3 committed pubkey  $4 pinned finger
   esac
 }
 
+# a second party's published digest for the same bytes. not a signature and
+# never presented as one -- it says an independent distributor, fetching from a
+# different place at a different time, got the same tarball. that is a second
+# opinion on the first sighting, which a digest pin alone cannot give you and an
+# expired key has stopped giving you.
+corrob() { # $1 tarball  $2 pinned sha512  $3 who publishes it
+  local have; have=$(sha512sum < "$XOS_CACHE/$1" | awk '{print $1}')
+  [ -n "$2" ] || { echo "FAIL: $1 has no corroborating digest pinned" >&2; return 1; }
+  [ "$2" = "$have" ] || {
+    echo "FAIL: $1 does not match the sha512 $3 publishes for it" >&2
+    printf '  pinned %s\n  built  %s\n' "$2" "$have" >&2
+    printf '  if you bumped this source, re-take the corroborating digest from %s\n' "$3" >&2
+    printf '  rather than deleting the check -- it is the only live second opinion\n' >&2
+    printf '  this source has.\n' >&2
+    return 1; }
+  printf '  %s: digest corroborated by %s\n' "$1" "$3"
+}
+
 fetch() {
   say "fetching + verifying sources"
   local here="$PWD"
@@ -570,6 +609,8 @@ fetch() {
   # extended on any keyserver -- checked, not assumed. the fingerprint pin and
   # the digest pin both still apply; only the freshness of the key is waived.
   sigver "LVM2.$LVMVER.tgz" "sigs/LVM2.$LVMVER.tgz.asc" sigs/lvm2-release-key.asc "$LVM_FPR" "" expired-ok:2027-03-31
+  # the second anchor, because the first one's key is dead. see LVM_SHA512.
+  corrob "LVM2.$LVMVER.tgz" "$LVM_SHA512" "fedora rawhide"
   # popt: ftp.rpm.org is plain http (its tls certificate is for another
   # name). fedora's source cache carries the identical bytes over tls, at a
   # url that names their sha512 -- so the host cannot serve anything else there.
@@ -1930,6 +1971,20 @@ trustver() {
           || { printf '    %s claims %s but fetch() never calls sigver with it\n' "$x" "$a" >&2; rc=1; } ;;
     esac
   done <<< "$tm_source"
+  # and the reverse, which is the mistake that actually happened: a row that
+  # UNDERSTATES its anchor. lvm2 sat at `tofu` in the first version of this
+  # file while fetch() had verified its signature all along -- the check above
+  # cannot see that, because an honest-looking weaker claim raises no flag.
+  local sv
+  for sv in $(printf '%s\n' "$fbody" | sed -n 's/^[[:space:]]*sigver[[:space:]]*"\([^"]*\)".*/\1/p' \
+              | sed 's/[-.]\$.*//' | sort -u); do
+    a=$(printf '%s\n' "$rows" | awk -v n="$sv" '$1=="source"&&$2==n{print $3}')
+    case "$a" in
+      sig:*|dsc:*) ;;
+      '') printf '    fetch() verifies a signature for %s and trust.manifest has no row for it\n' "$sv" >&2; rc=1 ;;
+      *)  printf '    fetch() verifies a signature for %s but trust.manifest calls it %s\n' "$sv" "$a" >&2; rc=1 ;;
+    esac
+  done
 
   # 3. the blobs file, both ways.
   local blob_paths
@@ -2821,6 +2876,12 @@ G43OLD
   elif [ "$(date -u +%Y-%m-%d)" \> "$w45" ]; then
     g45=FAIL; printf '    the expiry waiver lapsed on %s -- re-anchor lvm2 or renew it on purpose\n' "$w45" >&2
   fi
+  # the waived source carries a second, live anchor. a waiver plus one dead key
+  # is one anchor; a waiver plus a corroborating digest from an independent
+  # distributor is two, and this is the line that keeps the second one wired up.
+  sed -n '/^fetch() {/,/^}/p' build.sh | has '^  corrob ' \
+    || { g45=FAIL; printf '    fetch() no longer corroborates the expiry-waived source against\n' >&2
+         printf '    an independent distributor -- that leaves one dead key holding it up\n' >&2; }
   g "G45 expired or revoked source key refused" "$g45"
 
   # G52 -- the signature tier has to have RUN. sigver() falls back to "digest
