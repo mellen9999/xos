@@ -3096,8 +3096,11 @@ stick_install() {
 lint() {
   say "shellcheck"
   if ! command -v shellcheck >/dev/null 2>&1; then
-    echo "  shellcheck not installed -- skipping (paru -S shellcheck)"
-    return 0
+    # 2 is "did not run", distinct from 0 "passed" and 1 "found errors". a
+    # host build may skip this (shellcheck is not in deps() and touches no
+    # shipped byte) but ci() must not certify what it never ran.
+    printf '  \033[1;33mshellcheck not installed -- NOT CHECKED (paru -S shellcheck)\033[0m\n'
+    return 2
   fi
   local out=""
   out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script; echo)
@@ -3126,7 +3129,16 @@ ci() {
   # whose tree this is. unverified is not a failure -- a stranger on a shallow
   # clone, or the repro container with no openssh, must still be able to run ci.
   vouch || [ "$?" -eq 2 ] || rc=1
-  lint || rc=1
+  # a check that could not run is not a check that passed. G13 may SKIP
+  # because forcing it would prove nothing; shellcheck's absence proves
+  # nothing either way and is one package away, so ci refuses rather than
+  # printing "buildless checks pass" over an unlinted tree.
+  local lrc=0; lint || lrc=$?
+  case $lrc in
+    0) ;;
+    2) printf '  \033[1;31mci needs shellcheck -- it cannot certify what it did not run\033[0m\n' >&2; rc=1 ;;
+    *) rc=1 ;;
+  esac
   # parse every first-party script under the shell its shebang names -- the
   # same coverage as gates G35/G38/G48, but runnable before anything is built.
   # type -P, not command -v: build.sh defines a busybox() build function, and
@@ -3428,7 +3440,11 @@ build_all() {
   # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
   # and G11 stays green. a sealed tree short-circuits keys() and skips this.
   if [ -f keys/db.key ]; then seal; fi
-  uki; stick; gates; lint
+  uki; stick; gates
+  # lint is host-optional here: 2 is "shellcheck absent", a skip for a host
+  # build. any other non-zero is a real shellcheck error and still fails.
+  local lrc=0; lint || lrc=$?
+  [ "$lrc" -eq 0 ] || [ "$lrc" -eq 2 ] || return 1
 }
 
 # flash -- the one-word install for a newbie: build a signed xos, then flash it
