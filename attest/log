@@ -1,0 +1,6 @@
+# append-only hash chain. SEQ  MANIFEST-SHA256  LINK, where LINK is the
+# sha256 of the previous line's bytes including its newline (the first is
+# 64 zeros). comment lines are not part of the chain. rewriting any entry
+# breaks every link after it -- see docs/attestation.md for what that does
+# and, just as importantly, what it does not, defend against.
+0001  21d2dd202f918814a406fb6c0609243de05dce64aa7f4e1b0c590d1b3a8e559f  0000000000000000000000000000000000000000000000000000000000000000
