@@ -1675,14 +1675,23 @@ toolchain_versions() {
   mksquashfs -version 2>&1 | head -1
   veritysetup --version
   sha256sum musl-static-pie.specs | awk '{print $1}'
-  # the EFI stub is not built here -- it comes from the host's systemd and
-  # is then wrapped in the signature. two hosts with different systemd
-  # versions produce different signed bytes from identical source, which is
-  # a toolchain difference, so it belongs in the fingerprint rather than in
-  # the pin: G13 then says "toolchain differs" instead of crying wolf.
-  sha256sum "$STUB" 2>/dev/null | awk '{print $1}'
   umask
 }
+# the EFI stub used to be hashed into the line above, on the reasoning that two
+# systemd versions give different signed bytes from identical source. that
+# reasoning is right about the SIGNED bytes and wrong about this fingerprint:
+# build_repro contains no uki(), so not one of the four digests image.sha256
+# pins can depend on the stub. its presence here could only ever make G13 SKIP
+# after an innocent systemd upgrade -- monthly, on arch -- and could never catch
+# anything. it also read `sha256sum "$STUB" 2>/dev/null`, which on a host with
+# no systemd emitted nothing and let the fingerprint compute anyway.
+#
+# clean split, and blobs.sha256 is the other half of it:
+#   toolchain()     things that move the PINNED bytes
+#   blobs.sha256    things that move the SIGNED bytes
+# the payoff is that G13 now runs on every host whose gcc, binutils,
+# squashfs-tools and veritysetup match, instead of only those whose systemd
+# happens to match too.
 toolchain() { toolchain_versions | sha256sum | awk '{print $1}'; }
 
 # the four artifact values image.sha256 pins, compared in ONE place. G13 and
