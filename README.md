@@ -452,6 +452,10 @@ the last level is the machine itself.
     learn autopsy     read your own shell history, name the drills that fit
     learn fumbles     what you got wrong at the real prompt -- off until you say on
 
+with no argument `learn` names the level it would open and where it picks up
+before it opens anything -- restart clears that one level's place and nothing
+else, and `n` wipes every ledger for a new game, behind a second confirm.
+
 `learn fumbles on` puts a hook in the prompt: a command that exits nonzero at
 `/bin/sh` has its NAME appended to a queue, and the next `learn` brings every card
 whose answer runs that command due. a name is written only if this image ships a
