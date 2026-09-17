@@ -2,14 +2,14 @@ name: test and logic
 boss: TestCase
 flavor: Every question I ask has exactly two answers.
 syntax: [ ]
-brief: [ is a command, not syntax. That is why it needs spaces around it and a
-brief: closing ] as its last argument -- it is reading arguments like anything
-brief: else. test is the same command without the bracket.
+brief: `[` is a command, not syntax. That is why it needs spaces around it and a
+brief: closing `]` as its last argument -- it is reading arguments like anything
+brief: else. `test` is the same command without the bracket.
 brief:
-brief: It answers by exit status, so it slots straight into if, && and ||.
+brief: It answers by exit status, so it slots straight into `if`, `&&` and `||`.
 brief:
-brief: Quote your variables. [ -n $x ] with x empty becomes [ -n ], which is
-brief: true, which is the opposite of what you asked. [ -n "$x" ] is correct.
+brief: Quote your variables. `[ -n $x ]` with `x` empty becomes `[ -n ]`, which is
+brief: true, which is the opposite of what you asked. `[ -n "$x" ]` is correct.
 ---
 q: {make sure @txt@ is actually there before you read it|check that @txt@ exists before you rely on it|confirm @txt@ is really on disk}
 a: [ -e @txt@ ]

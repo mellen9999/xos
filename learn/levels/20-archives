@@ -1,20 +1,20 @@
 name: archives
 boss: Clobber
 flavor: Unpack me carelessly and I scatter across everything you own.
-brief: tar bundles many files into one. It does not compress by itself -- -z
-brief: pipes the bundle through gzip, -j through bzip2. That is why you see
-brief: czf and xzf so often: create/extract, compress, file.
+brief: `tar` bundles many files into one. It does not compress by itself -- `-z`
+brief: pipes the bundle through `gzip`, `-j` through `bzip2`. That is why you see
+brief: `czf` and `xzf` so often: create/extract, compress, file.
 brief:
-brief: Always look before you extract. tar tf lists the contents without
+brief: Always look before you extract. `tar tf` lists the contents without
 brief: writing anything, and an archive that expands into the current
 brief: directory instead of a subdirectory will scatter files everywhere.
 brief:
-brief: -c here means stdout, not count.
+brief: `-c` here means stdout, not count.
 brief:
-brief: Compression on its own file: gzip, bzip2 and xz shrink one in place,
-brief: gunzip, bunzip2 and unxz put it back, and zcat and xzcat read a
-brief: compressed file straight through without unpacking it first. unzip
-brief: handles the .zip archives that arrive from elsewhere. cpio is the older
+brief: Compression on its own file: `gzip`, `bzip2` and `xz` shrink one in place,
+brief: `gunzip`, `bunzip2` and `unxz` put it back, and `zcat` and `xzcat` read a
+brief: compressed file straight through without unpacking it first. `unzip`
+brief: handles the `.zip` archives that arrive from elsewhere. `cpio` is the older
 brief: bundler that never went away -- an initramfs, including this system's,
 brief: is a cpio archive.
 ---

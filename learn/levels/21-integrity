@@ -5,18 +5,18 @@ brief: A hash turns any amount of data into a short fixed string. Change one
 brief: bit anywhere and the hash changes completely. That is the whole idea,
 brief: and it is what this entire operating system is built on.
 brief:
-brief: Use sha256sum. sha512sum is the same idea, wider. md5sum and sha1sum
+brief: Use `sha256sum`. `sha512sum` is the same idea, wider. `md5sum` and `sha1sum`
 brief: still exist because old systems published those, and you will need to
 brief: check them -- but neither is safe against someone deliberately
 brief: constructing a collision. For "did this file arrive intact" they are
-brief: fine. For "did an attacker swap it", they are not. cksum guards against
+brief: fine. For "did an attacker swap it", they are not. `cksum` guards against
 brief: accident only; never reach for it to answer the second question.
 brief:
-brief: When two files disagree, cmp names the first byte that differs and
-brief: diff names the lines. base64 is neither a hash nor encryption -- it
+brief: When two files disagree, `cmp` names the first byte that differs and
+brief: `diff` names the lines. `base64` is neither a hash nor encryption -- it
 brief: carries arbitrary bytes through something that only accepts text.
 brief:
-brief: -c here means check, not count.
+brief: `-c` here means check, not count.
 ---
 q: {check @txt@ against a published hash -- get its sha256 first|hash @txt@ with sha256 to compare against what was published|run sha256sum on @txt@ to see its current hash}
 a: sha256sum @txt@

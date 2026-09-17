@@ -1,16 +1,16 @@
 name: searching text
 boss: Murmur
 flavor: I decide what your commands get to read.
-brief: grep prints the lines that match a pattern. It is the single most
+brief: `grep` prints the lines that match a pattern. It is the single most
 brief: useful command on this system, and most of its power is in six flags:
-brief: -i ignore case, -v invert, -n number, -c count, -l name files, -r walk
+brief: `-i` ignore case, `-v` invert, `-n` number, `-c` count, `-l` name files, `-r` walk
 brief: a tree.
 brief:
-brief: Patterns are regular expressions unless you say otherwise. -F turns
+brief: Patterns are regular expressions unless you say otherwise. `-F` turns
 brief: that off and matches the text literally, which is what you want the
 brief: moment your pattern contains a dot or a bracket you meant as itself.
 brief:
-brief: regex here, not filename globs: grep's * means "any number of the last
+brief: regex here, not filename globs: `grep`'s `*` means "any number of the last
 brief: thing", the shell's means "any run of characters".
 ---
 q: {%show% every line of @log@ containing @sev@|which lines of @log@ mention @sev@?|pull the @sev@ lines out of @log@}

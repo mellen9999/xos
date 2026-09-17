@@ -1,20 +1,20 @@
 name: bytes
 boss: Void
 flavor: Nothing you deleted is as gone as you think.
-brief: Text tools stop at the first byte that is not text. hexdump and od show
-brief: you what is really there. dd moves raw blocks with no interpretation at
+brief: Text tools stop at the first byte that is not text. `hexdump` and `od` show
+brief: you what is really there. `dd` moves raw blocks with no interpretation at
 brief: all, which is why it can copy a whole disk -- and why a typo in its
 brief: arguments is the most expensive typo on this system.
 brief:
-brief: dd names its arguments with = rather than flags: if= in, of= out, bs=
-brief: block size, count= how many blocks.
+brief: `dd` names its arguments with `=` rather than flags: `if=` in, `of=` out, `bs=`
+brief: block size, `count=` how many blocks.
 brief:
-brief: Sizing and slicing: truncate sets a file's length to whatever you say,
-brief: fallocate reserves the blocks up front so the space is already yours,
-brief: split cuts one large file into numbered pieces you can move separately.
-brief: hexedit changes bytes in place.
+brief: Sizing and slicing: `truncate` sets a file's length to whatever you say,
+brief: `fallocate` reserves the blocks up front so the space is already yours,
+brief: `split` cuts one large file into numbered pieces you can move separately.
+brief: `hexedit` changes bytes in place.
 brief:
-brief: shred overwrites a file before unlinking it. That is honest on a spinning
+brief: `shred` overwrites a file before unlinking it. That is honest on a spinning
 brief: disk and a half-truth on flash, where the controller decides which cells
 brief: a write actually lands in and the old ones may still hold your data.
 ---

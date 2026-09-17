@@ -1,18 +1,18 @@
 name: awk
 boss: Indexer
 flavor: Zero-indexed. Off by one and you get nothing.
-brief: awk splits every line into fields and runs your program on each one.
-brief: $1 is the first field, $NF the last, $0 the whole line. NR is the line
+brief: `awk` splits every line into fields and runs your program on each one.
+brief: `$1` is the first field, `$NF` the last, `$0` the whole line. `NR` is the line
 brief: number. That is most of it.
 brief:
-brief: A program is pattern { action }. Leave off the pattern and it runs on
-brief: every line; leave off the action and it prints the line. BEGIN runs
-brief: before the first line, END after the last -- which is where totals go.
+brief: A program is `pattern { action }`. Leave off the pattern and it runs on
+brief: every line; leave off the action and it prints the line. `BEGIN` runs
+brief: before the first line, `END` after the last -- which is where totals go.
 brief:
-brief: Where cut takes columns, awk takes columns AND does arithmetic, keeps
-brief: counters, and holds a map. That is why it outlives cut in your fingers.
+brief: Where `cut` takes columns, `awk` takes columns AND does arithmetic, keeps
+brief: counters, and holds a map. That is why it outlives `cut` in your fingers.
 brief:
-brief: awk | sort | uniq -c is the shape behind most "how many of each"
+brief: `awk | sort | uniq -c` is the shape behind most "how many of each"
 brief: questions: pull the field, group it, count the runs.
 ---
 setup: @log@ lines run "date time SEV message"

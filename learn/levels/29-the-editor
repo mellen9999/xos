@@ -1,19 +1,19 @@
 name: the editor
 boss: Mux
 flavor: Detach all you like. I keep the session.
-brief: vi is on every unix that has ever existed and it is on this one. You do
+brief: `vi` is on every unix that has ever existed and it is on this one. You do
 brief: not have to like it; you have to be able to leave it, and to fix a
 brief: config file on a machine that has nothing else.
 brief:
-brief: Two modes. You start in normal mode, where keys are commands. i enters
+brief: Two modes. You start in normal mode, where keys are commands. `i` enters
 brief: insert mode, where keys are text. Escape returns. Everything else is
 brief: detail you can pick up later.
 brief:
-brief: The one you must know: press Escape, then type :q! and Enter. That
+brief: The one you must know: press Escape, then type `:q!` and Enter. That
 brief: leaves without saving, from any state you have got yourself into.
 brief:
-brief: :set inside vi turns an option on for the session -- :set number puts
-brief: line numbers down the left. less reads a file the same way vi does,
+brief: `:set` inside `vi` turns an option on for the session -- `:set number` puts
+brief: line numbers down the left. `less` reads a file the same way `vi` does,
 brief: with the same keys to move, and no way to change what it shows.
 ---
 q: {open @txt@ in the editor|pull up @txt@ in vi|start editing @txt@ in vi}

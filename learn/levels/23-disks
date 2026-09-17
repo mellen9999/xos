@@ -4,23 +4,23 @@ flavor: Every privilege is a door I already opened.
 brief: A disk is a block device, a filesystem is a structure written onto it,
 brief: and until you mount that structure somewhere it is just bytes.
 brief:
-brief: Looking: lsblk draws what is attached, blkid names each filesystem and
-brief: its uuid, findfs turns a UUID= back into a device, blockdev asks the
-brief: device its size, df how full a mount is, du what a directory costs.
+brief: Looking: `lsblk` draws what is attached, `blkid` names each filesystem and
+brief: its uuid, `findfs` turns a `UUID=` back into a device, `blockdev` asks the
+brief: device its size, `df` how full a mount is, `du` what a directory costs.
 brief:
-brief: Making: fdisk edits the partition table and partprobe re-reads it,
-brief: mkdosfs and mke2fs write a fat or ext filesystem, losetup turns a file
-brief: into a block device, cryptsetup makes a luks container that is noise
+brief: Making: `fdisk` edits the partition table and `partprobe` re-reads it,
+brief: `mkdosfs` and `mke2fs` write a fat or ext filesystem, `losetup` turns a file
+brief: into a block device, `cryptsetup` makes a luks container that is noise
 brief: without the key.
 brief:
-brief: Attaching: mount, mountpoint tests a path, sync forces writes out,
-brief: umount detaches -- pull a stick first and the loss is yours. chroot
-brief: runs a command with a mounted tree as its root, blkdiscard tells a
-brief: device to forget everything, flock keeps two scripts off one disk.
+brief: Attaching: `mount`, `mountpoint` tests a path, `sync` forces writes out,
+brief: `umount` detaches -- pull a stick first and the loss is yours. `chroot`
+brief: runs a command with a mounted tree as its root, `blkdiscard` tells a
+brief: device to forget everything, `flock` keeps two scripts off one disk.
 brief:
 brief: Here the root is a read-only squashfs verified block by block and the
 brief: host's own drives are invisible -- no NVMe or SATA drivers are compiled
-brief: in. You see the stick you booted from, and USB. -s means summarize.
+brief: in. You see the stick you booted from, and USB. `-s` means summarize.
 ---
 q: {how full are this machine's disks -- show free space on each filesystem|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
 a: df

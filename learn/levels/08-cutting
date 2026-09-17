@@ -1,16 +1,16 @@
 name: cutting text apart
 boss: Sieve
 flavor: What passes through me is all that remains.
-brief: cut takes columns out of a line: -f fields with -d as the separator, or
-brief: -c characters by position. tr rewrites or deletes characters, one for
+brief: `cut` takes columns out of a line: `-f` fields with `-d` as the separator, or
+brief: `-c` characters by position. `tr` rewrites or deletes characters, one for
 brief: one, and only ever reads standard input -- it takes no filename.
 brief:
-brief: cut's default delimiter is TAB, not space. That surprises everyone once.
-brief: For anything space-separated, awk is the better tool, and it is next.
+brief: `cut`'s default delimiter is TAB, not space. That surprises everyone once.
+brief: For anything space-separated, `awk` is the better tool, and it is next.
 brief:
-brief: -c here picks characters by position, not a count.
+brief: `-c` here picks characters by position, not a count.
 brief:
-brief: sort comes back in this level. Cutting a field out is half the job;
+brief: `sort` comes back in this level. Cutting a field out is half the job;
 brief: what you do with the column afterwards is the other half.
 ---
 setup: @csv@ is name,id,status,count

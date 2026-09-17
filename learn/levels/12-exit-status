@@ -3,24 +3,24 @@ boss: AndOr
 flavor: Exit zero and you pass. Anything else is mine.
 syntax: ||, $?, $$, $!, &, $#, $@, $*, $0, $1..$9, --, ( ), { }, \
 brief: Every command returns a number. Zero means success; anything else is a
-brief: failure the command chose. $? holds the last one.
+brief: failure the command chose. `$?` holds the last one.
 brief:
-brief: That number is what && and || branch on. cmd1 && cmd2 runs the second
-brief: only if the first succeeded; cmd1 || cmd2 only if it failed. This is
+brief: That number is what `&&` and `||` branch on. `cmd1 && cmd2` runs the second
+brief: only if the first succeeded; `cmd1 || cmd2` only if it failed. This is
 brief: the smallest conditional the shell has, and the most used.
 brief:
-brief: true and false do nothing but return a status, which is how you test a
-brief: chain without doing any work. exit N ends a shell with the status you
-brief: pick. set -e stops a script at the first command that fails, instead of
+brief: `true` and `false` do nothing but return a status, which is how you test a
+brief: chain without doing any work. `exit N` ends a shell with the status you
+brief: pick. `set -e` stops a script at the first command that fails, instead of
 brief: carrying on with wrong data.
 brief:
-brief: The other specials: $$ this shell's pid, $! the last background pid,
-brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
+brief: The other specials: `$$` this shell's pid, `$!` the last background pid,
+brief: `$#` how many arguments, `$@` all of them, `$0` the name it was invoked as.
 brief:
-brief: $* joins that same list into one word instead of keeping every piece
-brief: separate. -- marks the end of options, so anything after it is a
-brief: literal argument even if it starts with -. ( ) run their commands in
-brief: a fresh subshell -- a copy that can't change the parent; { } run them
+brief: `$*` joins that same list into one word instead of keeping every piece
+brief: separate. `--` marks the end of options, so anything after it is a
+brief: literal argument even if it starts with `-`. `( )` run their commands in
+brief: a fresh subshell -- a copy that can't change the parent; `{ }` run them
 brief: in the current shell, just grouped as one.
 ---
 q: {run false, then %show% the exit status it left behind in $?|run false and check what $? comes back as|execute false, then %show% its exit code from $?}

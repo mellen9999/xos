@@ -2,15 +2,15 @@ name: sed
 boss: Lookaround
 flavor: I remember what you wrote. I match it again.
 syntax: &&
-brief: sed edits a stream. It reads a line, applies your commands, prints the
-brief: result. The one you will use forever is s/old/new/ -- and the trailing
-brief: g, which changes every match on the line instead of only the first.
+brief: `sed` edits a stream. It reads a line, applies your commands, prints the
+brief: result. The one you will use forever is `s/old/new/` -- and the trailing
+brief: `g`, which changes every match on the line instead of only the first.
 brief:
-brief: -n turns off the automatic printing, which turns sed into a selector:
-brief: -n '5p' prints only line 5. -i edits the file in place, and on a
+brief: `-n` turns off the automatic printing, which turns `sed` into a selector:
+brief: `-n '5p'` prints only line 5. `-i` edits the file in place, and on a
 brief: read-only root that only works on files you put somewhere writable.
 brief:
-brief: && runs the next command only if the last one worked -- copy first,
+brief: `&&` runs the next command only if the last one worked -- copy first,
 brief: edit only if the copy landed.
 ---
 q: {replace first @old@ per line of @cfg@ with @new@|swap the first @old@ per line of @cfg@ for @new@|change the first @old@ per line to @new@ in @cfg@}, with sed

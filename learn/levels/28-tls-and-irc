@@ -2,18 +2,18 @@ name: tls and irc
 boss: Rebase
 flavor: Your history is mine to rewrite.
 syntax: -
-brief: Everything nc carries is plaintext -- readable and editable by anyone on
-brief: the path. tlstunnel is this system's answer: it wraps a plain connection
+brief: Everything `nc` carries is plaintext -- readable and editable by anyone on
+brief: the path. `tlstunnel` is this system's answer: it wraps a plain connection
 brief: in TLS, checking the server's certificate against trust anchors compiled
 brief: into the binary itself, not read from a file some attacker could edit.
 brief:
-brief: ii is irc as a directory tree. Each channel is a folder with an `out`
+brief: `ii` is irc as a directory tree. Each channel is a folder with an `out`
 brief: file you read and an `in` named pipe you write to -- a file that hands
 brief: what you write straight to the program reading it rather than storing
-brief: it. No client, no ui, which means tail, grep and echo are the client.
+brief: it. No client, no ui, which means `tail`, `grep` and `echo` are the client.
 brief:
-brief: The other two ways out of this machine. ssh here is dropbear: dbclient
-brief: connects, dropbearkey makes the key, dropbear is the server. wg is
+brief: The other two ways out of this machine. ssh here is dropbear: `dbclient`
+brief: connects, `dropbearkey` makes the key, `dropbear` is the server. `wg` is
 brief: wireguard -- a private link to a machine elsewhere, brought up before
 brief: anything speaks over it.
 ---

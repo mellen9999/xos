@@ -5,20 +5,19 @@ syntax: 2>&1, >&2, 2>, >>, >, <, |, '...'
 brief: A command has three channels: stdin (0) it reads, stdout (1) it prints,
 brief: and stderr (2) it complains on. Redirection re-points them at files.
 brief:
-brief: > truncates the target first. >> appends. That single character is the
+brief: `>` truncates the target first. `>>` appends. That single character is the
 brief: difference between adding today's log and destroying yesterday's, and
 brief: no confirmation stands between you and it.
 brief:
-brief: 2> catches errors only. > file 2>&1 catches both, in that order --
-brief: 2>&1 > file does not, because the duplication happens before the move.
+brief: `2>` catches errors only. `> file 2>&1` catches both, in that order --
+brief: `2>&1 > file` does not, because the duplication happens before the move.
 brief:
-brief: | wires one command's stdout into the next's stdin -- tee, later in
+brief: `|` wires one command's stdout into the next's stdin -- `tee`, later in
 brief: this level, needs it.
 brief:
-brief: The commands either side are ones you have: ls, grep, sort, wc, echo.
-brief: printf is the new one, and the better one -- it prints exactly the
-brief: format you hand it, no newline unless you write 
-brief:  yourself.
+brief: The commands either side are ones you have: `ls`, `grep`, `sort`, `wc`, `echo`.
+brief: `printf` is the new one, and the better one -- it prints exactly the
+brief: format you hand it, no newline unless you write `\n` yourself.
 ---
 q: {write @word@ into @word@.txt with echo, replacing what's there|write @word@ into @word@.txt with echo, overwriting what was before|save @word@ to @word@.txt with echo, wiping out old contents}
 a: echo @word@ > @word@.txt

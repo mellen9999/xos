@@ -5,9 +5,9 @@ brief: A pipe wires one command's stdout into the next one's stdin. That is
 brief: the whole idea, and it is why this system needs so few programs: you
 brief: are not given a tool for every job, you are given parts to build one.
 brief:
-brief: sort orders, uniq collapses neighbours, wc counts. uniq only sees the
+brief: `sort` orders, `uniq` collapses neighbours, `wc` counts. `uniq` only sees the
 brief: line before it, so it can only remove duplicates that are already
-brief: adjacent -- which is why sort comes first, every time.
+brief: adjacent -- which is why `sort` comes first, every time.
 ---
 q: {%count% the lines in @log@|how many lines does @log@ have?|how long is @log@ in lines?}, with wc
 a: wc -l < @log@

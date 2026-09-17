@@ -2,17 +2,17 @@ name: xargs and doing it to everything
 boss: Swarm
 flavor: A thousand commands. One directive.
 brief: Some commands read filenames as arguments; pipes carry text on stdin.
-brief: xargs is the adaptor between them: it turns lines of input into
+brief: `xargs` is the adaptor between them: it turns lines of input into
 brief: arguments of a command.
 brief:
-brief: The classic trap is filenames with spaces. find -print0 emits names
-brief: separated by a NUL byte, which cannot occur in a filename, and xargs -0
+brief: The classic trap is filenames with spaces. `find -print0` emits names
+brief: separated by a NUL byte, which cannot occur in a filename, and `xargs -0`
 brief: reads them back. Use that pair by default and the problem never arises.
 brief:
-brief: The path tools that feed it: basename strips the directory off a name,
-brief: dirname keeps only the directory, readlink follows a symlink one step,
-brief: realpath resolves the whole chain to where the file really is. type and
-brief: which answer what the shell would actually run for a name, and hash is
+brief: The path tools that feed it: `basename` strips the directory off a name,
+brief: `dirname` keeps only the directory, `readlink` follows a symlink one step,
+brief: `realpath` resolves the whole chain to where the file really is. `type` and
+brief: `which` answer what the shell would actually run for a name, and `hash` is
 brief: the table it caches those answers in -- clear it after you move a
 brief: binary and the shell stops looking in the old place.
 ---

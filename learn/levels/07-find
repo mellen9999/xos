@@ -2,18 +2,18 @@ name: finding files
 boss: Globber
 flavor: Name what you want. I will walk the whole tree.
 syntax: {}, \;, !
-brief: grep searches inside files. find searches FOR them. It walks a tree and
+brief: `grep` searches inside files. `find` searches FOR them. It walks a tree and
 brief: tests every entry against predicates you chain together.
 brief:
-brief: Predicates are joined with an implied AND. -o makes it OR, ! negates.
-brief: -exec runs a command per result; ending it with + batches many results
+brief: Predicates are joined with an implied AND. `-o` makes it OR, `!` negates.
+brief: `-exec` runs a command per result; ending it with `+` batches many results
 brief: into one invocation instead of forking per file.
 brief:
-brief: Quote your patterns. find . -name *.log lets the SHELL expand the glob
-brief: before find ever sees it, which does something else entirely.
+brief: Quote your patterns. `find . -name *.log` lets the SHELL expand the glob
+brief: before `find` ever sees it, which does something else entirely.
 brief:
-brief: the reverse reminder: -name '*.log' is a shell GLOB, not the regex you
-brief: just learned in grep -- * here means "any run of characters", not "any
+brief: the reverse reminder: `-name '*.log'` is a shell GLOB, not the regex you
+brief: just learned in `grep` -- `*` here means "any run of characters", not "any
 brief: number of the last thing".
 ---
 q: {list every file and directory under here|what's every file and directory under this tree|you need a full inventory of everything under here}, with find

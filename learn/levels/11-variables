@@ -2,24 +2,24 @@ name: variables
 boss: $VARIABLE
 flavor: I hold what you've forgotten.
 syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME#%}, ${NAME}, $(CMD), `CMD`, "..."
-brief: A variable is NAME=VALUE, with no spaces around the =. You read it back
-brief: with $NAME. Command substitution $(CMD) runs a command and becomes its
-brief: output, which is how you get a number out of wc and into a comparison.
+brief: A variable is `NAME=VALUE`, with no spaces around the `=`. You read it back
+brief: with `$NAME`. Command substitution `$(CMD)` runs a command and becomes its
+brief: output, which is how you get a number out of `wc` and into a comparison.
 brief:
-brief: Quote your expansions. "$x" is one word whatever spaces it holds; unquoted,
-brief: $x splits on them and any * left is matched against the directory. A
+brief: Quote your expansions. `"$x"` is one word whatever spaces it holds; unquoted,
+brief: `$x` splits on them and any `*` left is matched against the directory. A
 brief: backslash protects the next character. Most shell bugs are a missing quote.
 brief:
-brief: ${NAME} is the same expansion with braces, so you can glue text right
-brief: after a name. ${#NAME} is its length, ${NAME:-WORD} falls back to WORD
+brief: `${NAME}` is the same expansion with braces, so you can glue text right
+brief: after a name. `${#NAME}` is its length, `${NAME:-WORD}` falls back to WORD
 brief: when NAME is unset or empty.
 brief:
-brief: A variable lives in the shell that set it. export hands it down to the
-brief: programs that shell starts; env prints what is being handed over, and
-brief: sh -c 'echo $x' proves which of the two you made. unset removes a
-brief: variable, unalias an alias.
+brief: A variable lives in the shell that set it. `export` hands it down to the
+brief: programs that shell starts; `env` prints what is being handed over, and
+brief: `sh -c 'echo $x'` proves which of the two you made. `unset` removes a
+brief: variable, `unalias` an alias.
 brief:
-brief: ; runs the next command whatever the last one did. && only runs it if
+brief: `;` runs the next command whatever the last one did. `&&` only runs it if
 brief: the last one succeeded.
 ---
 q: {store the word @word@ in a variable called @var@|put @word@ into a variable named @var@|make a variable called @var@ hold the word @word@}

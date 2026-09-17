@@ -1,12 +1,12 @@
 name: reading files
 boss: CatMan
 flavor: Everything you wrote, I read back.
-brief: cat dumps a whole file. head and tail take the ends of it. tac reverses
-brief: it. less lets you move around inside one too big to dump. strings pulls
+brief: `cat` dumps a whole file. `head` and `tail` take the ends of it. `tac` reverses
+brief: it. `less` lets you move around inside one too big to dump. `strings` pulls
 brief: the readable text out of a file that is not text at all.
 brief:
-brief: The habit worth building: reach for head before cat. A file you did not
-brief: write can be a gigabyte, and cat will happily send all of it.
+brief: The habit worth building: reach for `head` before `cat`. A file you did not
+brief: write can be a gigabyte, and `cat` will happily send all of it.
 ---
 q: {print|show|dump} the contents of @txt@
 a: cat @txt@
