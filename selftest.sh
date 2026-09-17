@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 
-# these three are build.sh's to define. read them out of it rather than keeping
+# these are build.sh's to define. read them out of it rather than keeping
 # a second copy that drifts: a harness attacking the stick with the wrong ESP
 # size, or enrolling a dbx entry under a different GUID, fails for a reason
 # that has nothing to do with the thing under test.
@@ -16,8 +16,13 @@ bsh() { local v; v=$(grep -m1 "^$1=" build.sh | cut -d= -f2-)
         [ -n "$v" ] || { echo "cannot read $1 from build.sh" >&2; exit 1; }
         printf '%s' "$v"; }
 SBGUID_T=$(bsh SBGUID)
-OVMF_CODE=$(bsh OVMF_CODE)
 STICK_ESP_MIB=$(bsh STICK_ESP_MIB)
+# NOT bsh: OVMF_CODE stopped being a literal when build.sh started resolving a
+# matched CODE/VARS pair from a table. bsh greps `^OVMF_CODE=` and takes the
+# rest of the line, so it would hand back an unexpanded command substitution
+# and qemu would die on a nonsense path -- looking like a broken lab rather
+# than a parsing bug. ask build.sh for the resolved path instead.
+OVMF_CODE=$(./build.sh ovmf code) || exit 1
 pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that

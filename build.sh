@@ -240,8 +240,75 @@ luks_at() { # $1 device or image  $2 sector
 # a missing host tool used to surface as a mid-build failure -- the exact fail
 # mode this repo eliminates everywhere else. name every one up front instead.
 STUB=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
-OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd
-OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
+# OVMF ships as MATCHED PAIRS, and only the .secboot CODE build enforces
+# signatures at all. these two paths used to be independent literals pointing
+# into Arch's layout, which is two problems in one line. the portability half
+# is the obvious one -- the lab was Arch-only, though crepro/verify never were,
+# since they run in the container. the DANGEROUS half is the pairing: probing
+# each half separately on a distro that lays them out differently can select a
+# secboot CODE beside a plain VARS, or the reverse. that firmware boots, ignores
+# every signature, and lets selftest's A3/A4/A11 -- the sections whose whole
+# claim is "an unsigned or superseded image is REFUSED" -- pass an image that
+# should have been refused. a false pass on exactly the thing under test.
+#
+# so: a table of PAIRS, taken whole. the first pair whose BOTH halves exist
+# wins, and XOS_OVMF_CODE/XOS_OVMF_VARS override BOTH or NEITHER. every CODE
+# here is a secboot build; a plain OVMF_CODE is deliberately absent, because a
+# lab that runs without signature enforcement proves nothing this repo claims.
+OVMF_PAIRS="
+/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd|/usr/share/edk2/x64/OVMF_VARS.4m.fd
+/usr/share/edk2/x64/OVMF_CODE.secboot.fd|/usr/share/edk2/x64/OVMF_VARS.fd
+/usr/share/OVMF/OVMF_CODE_4M.secboot.fd|/usr/share/OVMF/OVMF_VARS_4M.fd
+/usr/share/OVMF/OVMF_CODE.secboot.fd|/usr/share/OVMF/OVMF_VARS.fd
+/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd|/usr/share/edk2/ovmf/OVMF_VARS.fd
+/usr/share/qemu/edk2-x86_64-secure-code.fd|/usr/share/qemu/edk2-i386-vars.fd
+"
+ovmf_pair() {
+  local pair c v
+  if [ -n "${XOS_OVMF_CODE:-}" ] || [ -n "${XOS_OVMF_VARS:-}" ]; then
+    # both or neither: half an override is how a mismatched pair gets built by
+    # hand, which is the failure this table exists to prevent.
+    [ -n "${XOS_OVMF_CODE:-}" ] && [ -n "${XOS_OVMF_VARS:-}" ] || {
+      echo "FAIL: set XOS_OVMF_CODE and XOS_OVMF_VARS together or not at all" >&2
+      echo "  OVMF is a matched pair -- half an override can pair a signature-" >&2
+      echo "  enforcing CODE with a variable store that does not enforce." >&2
+      return 1; }
+    # a typo'd override must not reach qemu as an empty -drive path.
+    [ -f "$XOS_OVMF_CODE" ] || { echo "FAIL: XOS_OVMF_CODE: no such file: $XOS_OVMF_CODE" >&2; return 1; }
+    [ -f "$XOS_OVMF_VARS" ] || { echo "FAIL: XOS_OVMF_VARS: no such file: $XOS_OVMF_VARS" >&2; return 1; }
+    printf '%s %s\n' "$XOS_OVMF_CODE" "$XOS_OVMF_VARS"; return 0
+  fi
+  while IFS= read -r pair; do
+    [ -n "$pair" ] || continue
+    c=${pair%%|*}; v=${pair##*|}
+    [ -f "$c" ] && [ -f "$v" ] || continue
+    printf '%s %s\n' "$c" "$v"; return 0
+  done <<< "$OVMF_PAIRS"
+  return 1
+}
+# resolved once, at load, so every consumer sees the same pair. empty when no
+# pair is installed -- deps() names it then, rather than qemu failing later on
+# an empty -drive path.
+# quiet here on purpose: a bad or half override leaves both empty, deps()
+# names the gap, and `./build.sh ovmf` prints the real reason once when asked.
+OVMF_CODE=$(ovmf_pair 2>/dev/null | awk '{print $1}') || true
+OVMF_VARS=$(ovmf_pair 2>/dev/null | awk '{print $2}') || true
+# selftest.sh needs the same pair and must NOT re-read it as a literal out of
+# this file (`grep ^OVMF_CODE=` would hand it the unexpanded command
+# substitution and qemu would fail on a nonsense path, looking like a lab
+# problem rather than a parsing one). it asks for it instead.
+ovmf() { # [code|vars]
+  local c v; read -r c v < <(ovmf_pair) || true
+  [ -n "${c:-}" ] && [ -n "${v:-}" ] || {
+    echo "FAIL: no matched OVMF secure-boot firmware pair found. install edk2-ovmf" >&2
+    echo "  (arch) / ovmf (debian,fedora), or set XOS_OVMF_CODE + XOS_OVMF_VARS." >&2
+    return 1; }
+  case "${1:-both}" in
+    code) printf '%s\n' "$c" ;;
+    vars) printf '%s\n' "$v" ;;
+    *)    printf 'code %s\nvars %s\n' "$c" "$v" ;;
+  esac
+}
 # ────────────────────────────────────────────────────────────────────────────
 # the host toolchain, and the pinned sources it is pointed at
 # ────────────────────────────────────────────────────────────────────────────
@@ -278,8 +345,9 @@ deps() {
     lsblk -nro MOUNTPOINTS >/dev/null 2>&1 \
       || miss+=("lsblk with MOUNTPOINTS column (util-linux >= 2.37)")
     [ -f "$STUB" ]      || miss+=("$STUB (systemd)")
-    [ -f "$OVMF_CODE" ] || miss+=("$OVMF_CODE (edk2-ovmf)")
-    [ -f "$OVMF_VARS" ] || miss+=("$OVMF_VARS (edk2-ovmf)")
+    # one entry, not two: the halves are only ever useful together.
+    [ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] \
+      || miss+=("a matched OVMF secure-boot pair (edk2-ovmf / ovmf) -- see ./build.sh ovmf")
   fi
   if [ "${#miss[@]}" -gt 0 ]; then
     echo "FAIL: missing host dependencies:" >&2
@@ -3529,7 +3597,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|ovmf|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac
