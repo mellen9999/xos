@@ -9,6 +9,11 @@ kernel cmdline, the cmdline rides inside a signed boot image, and the firmware
 won't run that image unless it's signed by a key you hold. change one byte and
 the kernel refuses the read -- it never reports the tamper after the fact.
 
+carry it and boot it on a machine you don't own or don't trust -- a client's, a
+borrowed one, one that may already be compromised -- and work from a base you can
+prove clean instead of trusting whatever OS is on the disk. the host is borrowed
+compute: its disks never enumerate, and pulling the stick leaves nothing behind.
+
 ## quickstart
 
     ./build.sh flash          # newbie one-word: build as you, sudo only the flash
@@ -98,8 +103,10 @@ a port on the network it's plugged into: a port scan from that LAN finds nothing
 you reach xos by sshing back down the tunnel.
 
 no wifi driver ships -- a wifi chip needs a firmware blob, and a blob in the image
-is a build failure. use usb: an android tether or a usb-ethernet dongle both
-enumerate as a wired NIC over xhci and need no firmware. `udhcpc` runs on either.
+is a build failure. the host's own wired port works if it is intel (`e1000e`) or
+realtek (`r8169`) -- the two onboard NICs that need no blob. anything else, use usb:
+an android tether or a usb-ethernet dongle both enumerate as a wired NIC over xhci
+and need no firmware. `udhcpc` runs on whatever link comes up.
 
 enable it with two files at the root of p3 (mounts at `/tmp/home`):
 
