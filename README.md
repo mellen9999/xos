@@ -178,6 +178,26 @@ so a runner or a pre-push hook can run it on every push (`XOS_NOVERIFY=1` overri
 for a WIP branch). the building gates and the qemu self-test stay a deliberate
 `./build.sh gates` / `./selftest.sh`.
 
+## checking it yourself
+
+none of this asks you to trust whoever built the stick. three tiers, cheapest
+first:
+
+    ./build.sh ci       reads the tree -- no key, no build, no network, no root
+    ./build.sh crepro   docker only -- rebuilds a clean clone, compares to the pin
+    ./selftest.sh       your own keyset, qemu -- every tamper must be refused
+
+`crepro` is the one that matters to a stranger: it reproduces the `image.sha256`
+bytes from source you can read, on your machine, with no signing key involved
+anywhere -- so the digest a signature attests to is the digest this source makes.
+`selftest.sh` generates its own keys and boots the real chain in a vm before
+attacking it, so it proves the chain without trusting the keys that ship. the
+signed-image gates in between are `./build.sh gates`.
+
+what all of it is *for* is written down in `docs/threat-model.md` -- what xos
+defends against, what it does not, and what the attacker is assumed to be able to
+do. a claim not measured against that file is not a claim this tree makes.
+
 ## what the build enforces
 
 the build fails, loudly, on any of these. `install` and `usb` run every one
