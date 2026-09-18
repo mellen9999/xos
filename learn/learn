@@ -2881,9 +2881,8 @@ new_game() {
 # continue was the one key that committed on press: a slipped c dropped you
 # into a level mid-card, and a mid-level place can only be left by finishing
 # or quitting it. it names the level and the place first now, and offers the
-# two things the menu had no way to do -- drop that place and take the level
-# from the top (r), without touching any other progress, or throw the whole
-# run away and start over at level 1 (n).
+# one thing the menu had no way to do -- throw the whole run away and start
+# over at level 1 (n).
 resume_confirm() {
 	local id k n nq fp lname held=0 fresh=0
 	id=$(resume_target) || { resume; return 0; }
@@ -2908,7 +2907,6 @@ resume_confirm() {
 	echo
 	case "$k" in
 		''|y|Y) resume ;;
-		r|R)    [ "$held" = 1 ] && inprog_clear "$id"; resume ;;
 		n|N)    [ "$fresh" = 1 ] || { new_game && resume; } ;;
 	esac
 	return 0
