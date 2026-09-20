@@ -335,7 +335,13 @@ ref_card() {
 			for (i = 2; i <= NR; i++) {
 				l = line[i]
 				if (l ~ /^Usage:/) { usage = substr(l, 8); continue }
-				if (l !~ /^\t/) continue
+				# a blank line ENDS the flag block. it did not, and a page
+				# whose examples are tab-indented under the flags -- mkfifo,
+				# mkdir, chmod -- folded all three of them into the last
+				# row it kept, so -m read "Mode (default a=rw) mkfifo
+				# /tmp/p tail -f /tmp/p & echo hello".
+				if (l ~ /^[ \t]*$/) { keep = 0; continue }
+				if (l !~ /^\t/) { keep = 0; continue }
 				sub(/^\t+/, "", l); f = l; d = ""
 				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
 				key = f; sub(/[ \t[].*/, "", key)

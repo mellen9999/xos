@@ -9,7 +9,7 @@ different times, can meet at it. What one writes goes straight to
 whoever is reading; nothing lands on disk. A write waits until a reader
 shows up, and a read waits until something is written.
 
-	-m MODE	Mode (default a=rw)
+	-m MODE	Permissions, octal (600) or symbolic (u=rw). Default a=rw
 
 	mkfifo /tmp/p
 	tail -f /tmp/p &
@@ -19,4 +19,8 @@ The irc client on this system is built out of these: ii gives each
 channel a directory with an `in` fifo, and you talk by echoing a line
 into a file.
 
-See also: ii, tail, tee
+A fifo anyone can write to is a fifo anyone can feed, so `-m 600` is the
+one you want unless you meant to be reachable; see `chmod` for what the
+digits add up to.
+
+See also: chmod, ii, tail, tee

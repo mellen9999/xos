@@ -14,6 +14,15 @@
 # them as one token and miss. only constructs busybox ash actually runs are
 # listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays.
 #
+# an octal mode is in the table too, and it is not an operator. the rule the
+# table actually keeps is the one in the paragraph above -- the pieces that are
+# not a command and so have no manpage of their own -- and `-m 600` is exactly
+# that: busybox's own help for mkfifo says "Mode (default a=rw)" and stops, so
+# until this row existed the only explanation of 600 anywhere in the tree was
+# a brief sixteen levels after the card that first demands it. the detector is
+# narrow on purpose: it wants a command that TAKES a mode, then flags, then
+# the digits, so `head -n 100` and `sort -k 123` are not modes.
+#
 # quoting IS in the table. it used to be three hardcoded cases in explain()
 # and nothing else, so the grammar ledger -- which fails the build over any
 # row neither declared by a level nor retired in skip-syntax -- never looked
@@ -64,6 +73,7 @@ $NAME	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value -- unquoted, the result a
 ( )	\(	runs the commands in a subshell -- changes inside do not survive
 { }	\{ 	groups commands in this shell -- keep the spaces, and the last ;
 &	&	run the command in the background and carry on
+0nnn	(chmod|umask|mkdir|mkfifo)( +-[^ ]+)* +[0-7]{3,4}( |$)	an octal mode, one digit per set: r=4 w=2 x=1 added up. 600 is rw for you and nothing for anyone else, 644 rw-r--r--, 755 rwxr-xr-x, 700 rwx------. a fourth digit in front is setuid/setgid/sticky
 [...]	\[[^] ]*\]	one character from the set, e.g. [0-9] -- glob and regex alike
 *	\*	a filename glob the shell expands before ls ever runs: 0+ characters, never a leading dot. in a grep/sed/awk pattern: 0+ of what precedes it
 ?	\?	also expanded by the shell: exactly one character of a filename. in a grep -E pattern: 0 or 1 of what precedes it
