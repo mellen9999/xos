@@ -1,7 +1,9 @@
 # edit -- a vi-mode line editor for learn's answer prompt, so answering a
-# question feels like a real shell: history with k/j, motions with h l w b 0 $,
-# edits with x dd i a A I, insert mode for typing. the same keys the curriculum
-# teaches for vi, at the prompt you use to answer questions about vi.
+# question feels like a real shell: history with k/j, motions with
+# h l space 0 ^ $ w W e E b B f F t T ; , edits with x X r ~ p P u and the
+# operators d c y over every one of those motions, counts in front of any of
+# it, and insert mode for typing. the same keys the curriculum teaches for vi,
+# at the prompt you use to answer questions about vi.
 #
 # ash has no ${var:off:len}, so the cursor is modelled as two strings -- L
 # (everything before the cursor) and R (the char under it and after). every
@@ -22,7 +24,10 @@
 # plain read, so nothing here can break a headless learn.
 
 E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
-E_TAB=$(printf '\011'); E_EOT=$(printf '\004')
+E_TAB=$(printf '\011'); E_EOT=$(printf '\004'); E_CR=$(printf '\r')
+# the control sequence introducer, whole: the redraw builds its frame as a
+# string and the introducer reads as an array index to every linter alive.
+E_CSI=$(printf '\033[')
 # history lives beside cards/passed -- persistent when $STATE is (p3 up),
 # tmpfs when it is not -- so the EXIT trap wiping $TMP never touches it.
 EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
@@ -30,6 +35,12 @@ EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
 # yank survives across questions. must exist before the first p/P: under
 # set -u an unset read crashes the lesson mid-question.
 YANK=
+# ED_DEADLINE -- an absolute epoch second, or empty. set once per QUESTION by
+# the caller under the clock, not once per read: a blank submit re-enters the
+# read, and a per-read limit handed the learner a fresh thirty seconds every
+# time they pressed enter on an empty line.
+ED_DEADLINE=
+_ED_BUD=0
 # the reference panel, when Tab has opened it: the rendered page, the number of
 # terminal rows it fills, and how many rows the answer line filled when it was
 # last painted -- while that number holds, the panel below has not moved and
@@ -45,32 +56,44 @@ ED_OPEN= ED_ROWS_USED=0
 # redraw: reprint the line after the prompt, clear to end, park the cursor. the
 # whole repaint is wrapped in one synchronised-output frame so a remote terminal
 # never shows a half-drawn line mid-keystroke.
+#
+# ONE WRITE. the frame is built as a string and printed once at the end, and
+# that is not tidiness: under the boss clock a child process is painting the
+# seconds into row 1 with \0337 / \0338 around its own single write. DECSC and
+# DECRC share ONE slot in the terminal, so a child that saves while this
+# function was parked mid-frame restores the cursor to that intermediate row,
+# and every relative move after it -- \033[nA, \r -- lands on the wrong line
+# for the rest of the question. the child's \033[?2026l would also close a
+# frame opened here, because 2026 is a flag and not a counter. two atomic
+# writes can only interleave BETWEEN frames, and between frames the cursor is
+# at the rest position the child's save/restore round trip assumes.
 _ED_ROW=0
 _ed_draw() {   # $1 prompt  $2 L  $3 R   (the prompt is 2 cells wide: "$ ")
-	local _w=${TERM_COLS:-80} _p _t _prow _erow _lr _col0=
+	local _w=${TERM_COLS:-80} _p _t _prow _erow _lr _col0= _f
 	[ "$_w" -gt 0 ] 2>/dev/null || _w=80
 	_p=$(( 2 + ${#2} ))            # cell index of the cursor (0-based)
 	_t=$(( 2 + ${#2} + ${#3} ))    # cells the whole line occupies
-	printf '%s' "$SYNC_BEG"
+	_f=$SYNC_BEG
 	# climb to the line's first row and reprint it all
-	[ "$_ED_ROW" -gt 0 ] && printf '\033[%dA' "$_ED_ROW"
-	printf '\r%s%s%s' "$1" "$2" "$3"
+	[ "$_ED_ROW" -gt 0 ] && _f="$_f$E_CSI${_ED_ROW}A"
+	_f="$_f$E_CR$1$2$3"
 	_erow=$(( (_t - 1) / _w ))
 	_lr=$(( _erow + 1 ))
 	if [ -z "$ED_PANEL" ]; then
-		printf '\033[J'
+		_f="$_f${E_CSI}J"
 	elif [ "$_lr" = "$ED_LROWS" ]; then
 		# the line still fills the same rows, so the panel under it has not
 		# moved: clear this row alone and leave the panel where it is. that
 		# is what makes a keystroke with the panel open cost what one
 		# without it costs -- nothing is redrawn but the line.
-		printf '\033[K'
+		_f="$_f${E_CSI}K"
 	else
 		# the line took a row, or gave one back: the panel moves with it.
 		# every move here is relative, so if the panel runs past the bottom
 		# and the terminal scrolls, the climb still lands on the line --
 		# only what was above it scrolls away.
-		printf '\033[J\n%s\033[%dA\r' "$ED_PANEL" "$ED_PANEL_ROWS"
+		_f="$_f${E_CSI}J
+$ED_PANEL$E_CSI${ED_PANEL_ROWS}A$E_CR"
 		ED_LROWS=$_lr
 		_col0=1                # cursor is at column 0 now, not after the line
 	fi
@@ -78,16 +101,16 @@ _ed_draw() {   # $1 prompt  $2 L  $3 R   (the prompt is 2 cells wide: "$ ")
 	# otherwise climb to the row of cell p and step right to its column.
 	if [ -n "$3" ]; then
 		_prow=$(( _p / _w ))
-		[ "$_erow" -gt "$_prow" ] && printf '\033[%dA' $(( _erow - _prow ))
-		printf '\r'
-		[ $(( _p % _w )) -gt 0 ] && printf '\033[%dC' $(( _p % _w ))
+		[ "$_erow" -gt "$_prow" ] && _f="$_f$E_CSI$(( _erow - _prow ))A"
+		_f="$_f$E_CR"
+		[ $(( _p % _w )) -gt 0 ] && _f="$_f$E_CSI$(( _p % _w ))C"
 		_ED_ROW=$_prow
 	else
 		[ -n "$_col0" ] && [ $(( _t - _erow * _w )) -gt 0 ] \
-			&& printf '\033[%dC' $(( _t - _erow * _w ))
+			&& _f="$_f$E_CSI$(( _t - _erow * _w ))C"
 		_ED_ROW=$_erow
 	fi
-	printf '%s' "$SYNC_END"
+	printf '%s' "$_f$SYNC_END"
 }
 
 # last char of a string, via expansion only
@@ -201,9 +224,61 @@ _ed_panel_load() {
 	return 0
 }
 
-read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
-	local L="" R="" mode=insert c c2 c3 _r _pc _quit= _pm _bk
+# _ed_budget DEADLINE -- whole seconds left, in _ED_BUD; 1 when the time is
+# up. busybox read -t 0 is not "do not wait", it is "is a byte ready right
+# now", so a budget under one second is out of time and not a poll.
+_ed_budget() {
+	local _now
+	_now=$(date +%s 2>/dev/null) || return 1
+	_ED_BUD=$(( $1 - _now ))
+	[ "$_ED_BUD" -ge 1 ] || return 1
+	return 0
+}
+
+# _ed_getc -- one byte into _r. 0 got one, 1 EOF, 2 out of time.
+#
+# -t is a CEILING, and the read returns the instant a byte arrives, so the
+# one-second cap costs nothing in latency -- it is not a poll. it cannot be
+# the whole remaining window, which is what it was first written as: busybox's
+# readcmd does `goto again` on EINTR and shell_builtin_read re-arms its own
+# end_ms on the way back in, so a read -t 29 interrupted by the clock child
+# exiting gets a FRESH 29 seconds. the boss then sat there for a minute on a
+# thirty-second limit. a one-second arm bounds that overrun to a second, and
+# the deadline itself is checked between arms, where no signal can move it.
+#
+# the cost is one date per idle second, which is what the clock child already
+# spends on its own sleep, and none at all while someone is typing.
+#
+# busybox reports a timeout as 128+SIGALRM = 142, never 2, so the two
+# failures are told apart by -gt 128 and a hangup is never read as a timeout.
+_ed_getc() {
+	local _rc _t
+	if [ -z "${_dl:-}" ]; then
+		IFS= read -rsn1 _r 2>/dev/null
+		return $?
+	fi
+	while :; do
+		_ed_budget "$_dl" || return 2
+		_t=$_ED_BUD; [ "$_t" -gt 1 ] && _t=1
+		IFS= read -rsn1 -t "$_t" _r 2>/dev/null; _rc=$?
+		[ "$_rc" = 0 ] && return 0
+		[ "$_rc" -gt 128 ] && continue    # -t expired: look at the clock again
+		return 1                          # a real EOF
+	done
+}
+
+read_line() {   # [DEADLINE] -- sets REPLY_LINE. 0 line, 1 EOF/quit, 2 time up
+	local L="" R="" mode=insert c c2 c3 _r _pc _quit= _pm _bk _grc
+	local _pend= _pcnt= _mcnt= _await= _fop= _fch= _uL= _uR= _umode=
+	local _dl="${1:-${ED_DEADLINE:-}}"
 	if [ ! -t 0 ]; then
+		if [ -n "$_dl" ]; then
+			_ed_budget "$_dl" || { REPLY_LINE=""; return 2; }
+			IFS= read -t "$_ED_BUD" -r REPLY_LINE; _grc=$?
+			[ "$_grc" -gt 128 ] && { REPLY_LINE=""; return 2; }
+			[ "$_grc" = 0 ] || return 1
+			return 0
+		fi
 		IFS= read -r REPLY_LINE || return 1
 		return 0
 	fi
@@ -217,6 +292,10 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 			&& mv "$EDIT_HIST.tmp.$$" "$EDIT_HIST" 2>/dev/null && hn=1000
 	fi
 	hi=$hn   # index one past the newest entry == the fresh line being typed
+	# no history under the clock. the boss splash says no hints and no
+	# reference; recalling the line you typed in learn mode is looking it up,
+	# which is the one thing a boss exists to exclude.
+	[ -z "$_dl" ] || hn=0
 	_ED_ROW=0
 	# a new question cleared the screen; within a question ED_OPEN carries which
 	# panel (if any) the learner has open across its meta round-trips, so a hint
@@ -251,19 +330,30 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 
 	_ed_pr; _ed_draw "$_pr" "$L" "$R"
 	while :; do
-		IFS= read -rsn1 c || { _ed_leave; REPLY_LINE="$L$R"; return 1; }
+		_ed_getc; _grc=$?
+		c=$_r
+		# out of time: the line is NOT submitted -- the boss's contract is
+		# that you type it inside the limit. REPLY_LINE is set anyway, and
+		# _ed_leave still runs, so what was typed stays on screen above the
+		# answer the miss is about to reveal.
+		[ "$_grc" = 2 ] && { _ed_leave; REPLY_LINE="$L$R"; return 2; }
+		[ "$_grc" = 0 ] || { _ed_leave; REPLY_LINE="$L$R"; return 1; }
 		[ -z "$c" ] && break   # Enter (read strips the newline -> empty)
 
 		case "$c" in
 		"$E_ESC")
-			# an arrow key sends ESC [ X; a bare Esc means normal mode. ash
-			# read -t is integer-seconds, too coarse to race the terminal, so
-			# the next byte is read BLOCKING -- which for a bare Esc is the next
+			# an arrow key sends ESC [ X; a bare Esc means normal mode. there
+			# is no timeout to tell them apart with -- under the clock the one
+			# in force is the question's, not a few milliseconds -- so the
+			# next byte is read BLOCKING, which for a bare Esc is the next
 			# keypress, and waiting until then to redden the prompt made normal
 			# mode look like it had not engaged. so switch and repaint NOW, then
 			# read: if the byte turns out to be [ (an arrow, its bytes arriving
 			# back to back) we were not really changing mode and undo it, fast
 			# enough that the prompt never visibly flickers.
+			# Esc with an operator or an argument half-typed cancels it and
+			# changes nothing else: d<Esc> must leave the line alone.
+			_pend=; _pcnt=; _mcnt=; _await=
 			_pm=$mode
 			if [ "$mode" = insert ]; then
 				mode=normal
@@ -271,14 +361,14 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 				_bk=""; [ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; _bk=1; }
 			fi
 			_ed_pr; _ed_draw "$_pr" "$L" "$R"
-			IFS= read -rsn1 c2 2>/dev/null
+			_ed_getc; c2=$_r
 			if [ "$c2" = "[" ]; then
 				# an arrow: it changes no mode. put back the optimistic switch.
 				if [ "$_pm" = insert ]; then
 					mode=insert
 					[ -n "$_bk" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; }
 				fi
-				IFS= read -rsn1 c3 2>/dev/null
+				_ed_getc; c3=$_r
 				case "$c3" in
 					A) _ed_hist_prev ;;
 					B) _ed_hist_next ;;
@@ -301,10 +391,15 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 			[ -n "$L" ] && L="${L%?}"
 			;;
 		"$E_TAB")
-			# learn mode only; the clock modes never reach the editor. toggle the
-			# reference, and if the hint was the one showing this replaces it.
-			if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
-			_ed_panel_load
+			# the clock modes DO reach the editor now. _ed_panel_load already
+			# refuses a panel when MODE is not learn, but setting ED_OPEN for
+			# it to immediately undo is a state change for nothing: swallow
+			# the key outright instead. toggle the reference otherwise, and if
+			# the hint was the one showing this replaces it.
+			if [ "${MODE:-learn}" = learn ]; then
+				if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
+				_ed_panel_load
+			fi
 			;;
 		*)
 			if [ "$mode" = insert ]; then
@@ -323,7 +418,7 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 	_ed_leave
 	REPLY_LINE="$L$R"
 	# history: skip blanks and immediate repeats
-	if [ -n "$REPLY_LINE" ]; then
+	if [ -n "$REPLY_LINE" ] && [ -z "$_dl" ]; then
 		[ "$(tail -1 "$EDIT_HIST" 2>/dev/null)" = "$REPLY_LINE" ] \
 			|| printf '%s\n' "$REPLY_LINE" >> "$EDIT_HIST" 2>/dev/null
 	fi
@@ -331,52 +426,289 @@ read_line() {   # sets REPLY_LINE, returns 1 on EOF/quit-signal
 }
 
 # vi normal-mode dispatch. L and R are the caller's locals (same function scope
-# via the shell's dynamic scoping when called from read_line).
-# YANK holds the last deleted/yanked text, for p / P.
+# via the shell's dynamic scoping when called from read_line), and so are the
+# pending-state locals this reads: _pend (the operator waiting for a motion),
+# _pcnt / _mcnt (the two counts), _await (the byte an f/r is waiting for),
+# _fop / _fch (the last f/F/t/T, for ; and ,), _uL / _uR / _umode (undo).
+# YANK holds the last deleted or yanked text, for p / P.
+#
+# ONE motion table. d and c each used to carry a second, shorter, hand-written
+# one, so `de` `dE` `d^` `ce` `cb` `c0` silently ate a byte and did nothing --
+# a missing arm in a POSIX case with no *) default is a no-op nobody sees. the
+# operator is composed with the motion instead: every motion works with every
+# operator, and a new motion is one arm, not three.
+#
+# it is also a state machine rather than a function that reads its own bytes,
+# and that is load-bearing, not tidy: under the boss clock the ONE place a byte
+# is read has to be the one that honours the deadline, or `dw` blocks past the
+# limit waiting for a second keystroke that never comes.
+
+# _ed_clamp -- normal mode rests the cursor ON a character, never past the end.
+_ed_clamp() {
+	[ -z "$R" ] && [ -n "$L" ] && { _ed_last "$L"; R="$_r"; L="${L%?}"; }
+	return 0
+}
+# _ed_first_nb LINE -> _r, the index of the first non-blank (^)
+_ed_first_nb() { local _lead=${1%%[! ]*}; _r=${#_lead}; }
+# _ed_goto IDX
+_ed_goto() { _ed_split "$L$R" "$1"; }
+# _ed_sub LINE A B -> the characters [A,B)
+_ed_sub() { printf '%s' "$1" | cut -c$(( $2 + 1 ))-"$3" 2>/dev/null; }
+# _ed_cut LINE A B -- the line with [A,B) gone, cursor where it was cut
+_ed_cut() {
+	L=""; [ "$2" -gt 0 ] && L=$(printf '%s' "$1" | cut -c1-"$2" 2>/dev/null)
+	R=$(printf '%s' "$1" | cut -c$(( $3 + 1 ))- 2>/dev/null)
+}
+# _ed_snap -- one level of undo, taken by whatever is about to change the line
+# and never by a motion, so `u` after `dw l l l` still undoes the dw. an
+# insert session is covered by the snapshot its i/a/c took, which makes the
+# whole session undo as one -- what vi does, for free.
+_ed_snap() { _uL="$L"; _uR="$R"; _umode="$mode"; }
+
+# _ed_find OP CH -- f/F/t/T, one step. returns 1 when the character is not
+# there, which leaves the cursor exactly where it was.
+_ed_find() {
+	local _op="$1" _ch="$2" _line="$L$R" _n _p _i
+	_n=$(( ${#L} + ${#R} )); _p=${#L}
+	case "$_op" in
+	f|t)
+		_i=$(( _p + 1 ))
+		while [ "$_i" -lt "$_n" ]; do
+			[ "$(_ed_at "$_line" "$_i")" = "$_ch" ] && break
+			_i=$(( _i + 1 ))
+		done
+		[ "$_i" -lt "$_n" ] || return 1
+		[ "$_op" = t ] && _i=$(( _i - 1 ))
+		[ "$_i" -gt "$_p" ] || return 1 ;;
+	F|T)
+		_i=$(( _p - 1 ))
+		while [ "$_i" -ge 0 ]; do
+			[ "$(_ed_at "$_line" "$_i")" = "$_ch" ] && break
+			_i=$(( _i - 1 ))
+		done
+		[ "$_i" -ge 0 ] || return 1
+		[ "$_op" = T ] && _i=$(( _i + 1 ))
+		[ "$_i" -lt "$_p" ] || return 1 ;;
+	*) return 1 ;;
+	esac
+	_ed_goto "$_i"
+	return 0
+}
+
+# _ed_step KEY CHAR -- ONE motion, by moving the cursor. returns 1 if KEY is
+# not a motion, or if this one could not go anywhere.
+#
+# l has no "stop before the last character" guard here. that guard is the
+# normal-mode REST rule, not a property of the motion, and keeping it made dl
+# on the last character a no-op. _ed_clamp applies it, on the bare-motion path
+# only, which is the only place it belongs.
+_ed_step() {
+	case "$1" in
+		h) [ -n "$L" ] || return 1
+		   _ed_last "$L"; R="$_r$R"; L="${L%?}" ;;
+		l|' ') [ -n "$R" ] || return 1
+		   _ed_first "$R"; L="$L$_r"; R="${R#?}" ;;
+		0) R="$L$R"; L="" ;;
+		'^') _ed_first_nb "$L$R"; _ed_goto "$_r" ;;
+		'$') L="$L$R"; R=""; _ed_clamp ;;
+		w|W) _ed_word_fwd ;;
+		e|E) _ed_word_end ;;
+		b|B) _ed_word_back ;;
+		f|F|t|T) _ed_find "$1" "$2" || return 1 ;;
+		*) return 1 ;;
+	esac
+	return 0
+}
+
+# _ed_tgt KEY CHAR COUNT -- where a motion WOULD leave the cursor, without
+# moving it: _ED_T is the index, _ED_INC is 1 when the span includes it.
+# the generalisation of the save / run / measure / restore the old
+# _ed_del_word_fwd did by hand for exactly one motion.
+#
+# inclusive or not is the whole difference between dw and de. on "one two"
+# with the cursor at 0, dw is [0,3) and leaves "two"; de is [0,2] and leaves
+# " two". $ e E f t are inclusive, l space w W are not, and a backward motion
+# is always [target, cursor) whatever the flag says.
+_ed_tgt() {
+	local _sL="$L" _sR="$R" _i=0
+	case "$1" in
+		'$'|e|E|f|t) _ED_INC=1 ;;
+		h|l|' '|0|'^'|w|W|b|B|F|T) _ED_INC=0 ;;
+		*) return 1 ;;
+	esac
+	while [ "$_i" -lt "$3" ]; do
+		_ed_step "$1" "$2" || { L="$_sL"; R="$_sR"; return 1; }
+		_i=$(( _i + 1 ))
+	done
+	_ED_T=${#L}
+	L="$_sL"; R="$_sR"
+	return 0
+}
+
+# _ed_op OPKEY -- apply d, c or y over the span _ed_tgt just measured.
+_ed_op() {
+	local _line="$L$R" _p=${#L} _n _a _b
+	_n=$(( ${#L} + ${#R} ))
+	if [ "$_ED_T" -ge "$_p" ]; then
+		_a=$_p; _b=$_ED_T
+		[ "$_ED_INC" = 1 ] && _b=$(( _b + 1 ))
+	else
+		_a=$_ED_T; _b=$_p
+	fi
+	[ "$_b" -gt "$_n" ] && _b=$_n
+	if [ "$_b" -le "$_a" ]; then
+		[ "$1" = c ] && { _ed_snap; mode=insert; }
+		return 0
+	fi
+	case "$1" in
+		y) YANK=$(_ed_sub "$_line" "$_a" "$_b"); _ed_goto "$_a" ;;
+		d) _ed_snap; YANK=$(_ed_sub "$_line" "$_a" "$_b")
+		   _ed_cut "$_line" "$_a" "$_b"; _ed_clamp ;;
+		c) _ed_snap; YANK=$(_ed_sub "$_line" "$_a" "$_b")
+		   _ed_cut "$_line" "$_a" "$_b"; mode=insert ;;
+	esac
+	return 0
+}
+
+# _ed_apply KEY CHAR -- run KEY as the pending operator's target if there is
+# one, or as a plain motion if there is not.
+_ed_apply() {
+	local _k="$1" _ch="$2" _n _i=0
+	_n=$(( ${_pcnt:-1} * ${_mcnt:-1} ))
+	[ "$_n" -ge 1 ] 2>/dev/null || _n=1
+	if [ -n "$_pend" ]; then
+		# cw on a non-blank is ce. real vi does this, and the reason is dw:
+		# dw takes the following space with it, and cw taking it would leave
+		# the word you are retyping glued to the next one.
+		if [ "$_pend" = c ] && [ -n "$R" ]; then
+			_ed_first "$R"
+			if [ "$_r" != " " ]; then
+				case "$_k" in w) _k=e ;; W) _k=E ;; esac
+			fi
+		fi
+		_ed_tgt "$_k" "$_ch" "$_n" && _ed_op "$_pend"
+	else
+		while [ "$_i" -lt "$_n" ]; do
+			_ed_step "$_k" "$_ch" || break
+			_i=$(( _i + 1 ))
+		done
+		_ed_clamp
+	fi
+	return 0
+}
+
 _ed_normal() {   # $1 = key
-	local _k="$1" _c
+	local _k="$1" _c _n _i=0
+
+	# (1) a byte something is waiting for: r's replacement, f/F/t/T's target.
+	if [ -n "$_await" ]; then
+		case "$_await" in
+			r) [ -n "$R" ] && [ -n "$_k" ] && { _ed_snap; R="$_k${R#?}"; } ;;
+			f|F|t|T) _fop=$_await; _fch=$_k; _ed_apply "$_fop" "$_fch" ;;
+		esac
+		_await=; _pend=; _pcnt=; _mcnt=
+		return 0
+	fi
+
+	# (2) a count. 0 is a digit only when one is already being typed --
+	# otherwise it is the motion to column zero, and 10l has to move ten.
+	case "$_k" in
+		[1-9]) if [ -n "$_pend" ]; then _mcnt="$_mcnt$_k"; else _pcnt="$_pcnt$_k"; fi
+		       return 0 ;;
+		0) if [ -n "$_pend" ] && [ -n "$_mcnt" ]; then _mcnt="${_mcnt}0"; return 0; fi
+		   if [ -z "$_pend" ] && [ -n "$_pcnt" ]; then _pcnt="${_pcnt}0"; return 0; fi ;;
+	esac
+
+	# (3) an operator is pending: this key is its motion, its double, or a
+	# cancel. anything _ed_tgt does not know is a cancel, which is what makes
+	# d-then-Esc leave the line alone.
+	if [ -n "$_pend" ]; then
+		case "$_k" in
+			"$_pend")
+				# dd / cc / yy -- the whole line
+				YANK="$L$R"
+				case "$_pend" in
+					d) _ed_snap; L=""; R="" ;;
+					c) _ed_snap; L=""; R=""; mode=insert ;;
+				esac ;;
+			f|F|t|T) _await=$_k; return 0 ;;
+			';'|',') _ed_repeat "$_k" ;;
+			*) _ed_apply "$_k" "" ;;
+		esac
+		_pend=; _pcnt=; _mcnt=
+		return 0
+	fi
+
+	_n=${_pcnt:-1}; [ "$_n" -ge 1 ] 2>/dev/null || _n=1
 	case "$_k" in
 		"$E_EOT") _quit=1 ;;     # Ctrl-D quits; read_line acts on it
-		h) [ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; } ;;
-		l|' ') [ "${R#?}" != "" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
-		0|^) R="$L$R"; L="" ;;
-		'$') L="$L$R"; R=""; [ -n "$L" ] && { _ed_last "$L"; R="$_r"; L="${L%?}"; } ;;
-		x) [ -n "$R" ] && { _ed_first "$R"; YANK="$_r"; R="${R#?}"; }
-		   [ -z "$R" ] && [ -n "$L" ] && { _ed_last "$L"; R="$_r"; L="${L%?}"; } ;;
-		X) [ -n "$L" ] && { _ed_last "$L"; YANK="$_r"; L="${L%?}"; } ;;
-		i) mode=insert ;;
-		a) mode=insert; [ -n "$R" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
-		A) mode=insert; L="$L$R"; R="" ;;
-		I) mode=insert; R="$L$R"; L="" ;;
-		s) [ -n "$R" ] && { _ed_first "$R"; YANK="$_r"; R="${R#?}"; }; mode=insert ;;
-		r) IFS= read -rsn1 _c 2>/dev/null; [ -n "$R" ] && [ -n "$_c" ] && R="$_c${R#?}" ;;
+		# q has been honoured by read_line since it was written and was never
+		# bound to anything, so it did nothing at all.
+		q) _quit=1 ;;
+		h|l|' '|0|'^'|'$'|w|W|e|E|b|B) _ed_apply "$_k" "" ;;
+		f|F|t|T) _await=$_k; return 0 ;;
+		';'|',') _ed_repeat "$_k" ;;
+		d|c|y) _pend=$_k; _mcnt=; return 0 ;;
+		x) _ed_snap
+		   while [ "$_i" -lt "$_n" ] && [ -n "$R" ]; do
+			_ed_first "$R"; YANK="$_r"; R="${R#?}"; _i=$(( _i + 1 ))
+		   done
+		   _ed_clamp ;;
+		X) _ed_snap
+		   while [ "$_i" -lt "$_n" ] && [ -n "$L" ]; do
+			_ed_last "$L"; YANK="$_r"; L="${L%?}"; _i=$(( _i + 1 ))
+		   done ;;
+		i) _ed_snap; mode=insert ;;
+		a) _ed_snap; mode=insert
+		   [ -n "$R" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
+		A) _ed_snap; mode=insert; L="$L$R"; R="" ;;
+		I) _ed_snap; mode=insert; R="$L$R"; L="" ;;
+		s) _ed_snap; [ -n "$R" ] && { _ed_first "$R"; YANK="$_r"; R="${R#?}"; }
+		   mode=insert ;;
+		r) _await=r; return 0 ;;
 		'~') if [ -n "$R" ]; then
+		        _ed_snap
 		        _ed_first "$R"
 		        _c=$(printf '%s' "$_r" | tr 'a-zA-Z' 'A-Za-z')
 		        L="$L$_c"; R="${R#?}"
 		     fi ;;
-		w|W) _ed_word_fwd ;;
-		e|E) _ed_word_end ;;
-		b|B) _ed_word_back ;;
-		p) [ -n "$YANK" ] && { L="$L$(printf '%s' "$R" | cut -c1)$YANK"; R="${R#?}"; } ;;
-		P) [ -n "$YANK" ] && L="$L$YANK" ;;
-		D) YANK="$R"; R="" ;;
-		C) YANK="$R"; R=""; mode=insert ;;
-		d) IFS= read -rsn1 c2 2>/dev/null
-		   case "$c2" in
-		     d) YANK="$L$R"; L=""; R="" ;;
-		     '$') YANK="$R"; R="" ;;
-		     0) YANK="$L"; L="" ;;
-		     w|W) _ed_del_word_fwd ;;
-		     b|B) _ed_del_word_back ;;
-		   esac ;;
-		c) IFS= read -rsn1 c2 2>/dev/null
-		   case "$c2" in
-		     c) YANK="$L$R"; L=""; R=""; mode=insert ;;
-		     '$') YANK="$R"; R=""; mode=insert ;;
-		     w|W) _ed_del_word_fwd; mode=insert ;;
-		   esac ;;
+		p) if [ -n "$YANK" ]; then
+			_ed_snap
+			[ -n "$R" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; }
+			while [ "$_i" -lt "$_n" ]; do L="$L$YANK"; _i=$(( _i + 1 )); done
+		   fi ;;
+		P) if [ -n "$YANK" ]; then
+			_ed_snap
+			while [ "$_i" -lt "$_n" ]; do L="$L$YANK"; _i=$(( _i + 1 )); done
+		   fi ;;
+		D) _ed_snap; YANK="$R"; R=""; _ed_clamp ;;
+		C) _ed_snap; YANK="$R"; R=""; mode=insert ;;
+		# Y is y$, to match the D and C beside it. classic vi makes it yy;
+		# neovim made it y$; and D/C/Y reading as three different spans of the
+		# same shape would be the worse surprise.
+		Y) YANK="$R" ;;
+		# one level, and it swaps rather than restores, so u u redoes -- which
+		# is exactly what vi's own single-level undo did.
+		u) _c="$L"; L="$_uL"; _uL="$_c"
+		   _c="$R"; R="$_uR"; _uR="$_c"
+		   _c="$mode"; mode="${_umode:-normal}"; _umode="$_c" ;;
+		# documented in this file's own header since it was written, and bound
+		# to nothing: history was reachable only by the arrow keys.
+		k) while [ "$_i" -lt "$_n" ]; do _ed_hist_prev; _i=$(( _i + 1 )); done ;;
+		j) while [ "$_i" -lt "$_n" ]; do _ed_hist_next; _i=$(( _i + 1 )); done ;;
 	esac
+	_pcnt=
+	return 0
+}
+
+# ; repeats the last f/F/t/T, , repeats it the other way.
+_ed_repeat() {
+	local _op=$_fop
+	[ -n "$_op" ] || return 0
+	if [ "$1" = ',' ]; then
+		case "$_op" in f) _op=F ;; F) _op=f ;; t) _op=T ;; T) _op=t ;; esac
+	fi
+	_ed_apply "$_op" "$_fch"
 }
 
 # move cursor to the end of the current/next word
@@ -386,26 +718,6 @@ _ed_word_end() {
 	while [ "$p" -lt "$n" ] && [ "$(_ed_at "$line" "$p")" = " " ]; do p=$((p+1)); done
 	while [ "$((p+1))" -lt "$n" ] && [ "$(_ed_at "$line" "$((p+1))")" != " " ]; do p=$((p+1)); done
 	_ed_split "$line" "$p"
-}
-# delete from cursor to start of next word (dw)
-_ed_del_word_fwd() {
-	local start="$L"
-	_ed_word_fwd            # advances L past the word+spaces
-	YANK=${L#"$start"}      # the text that was jumped over
-	L="$start"             # cursor back where it was; that text is now gone
-}
-_ed_del_word_back() {
-	local end="$L$R" endlen=${#R} oldl=${#L}
-	_ed_word_back
-	# oldl is where the cursor WAS; if word_back did not move it (cursor
-	# already at the start of the line), there is nothing behind it to yank --
-	# a no-op, not whatever an inverted cut -c range happens to do
-	if [ "${#L}" -lt "$oldl" ]; then
-		YANK=$(printf '%s' "$L$R" | cut -c$(( ${#L} + 1 ))-"$oldl" 2>/dev/null)
-	else
-		YANK=""
-	fi
-	R=$(printf '%s' "$end" | cut -c$(( ${#end} - endlen + 1 ))- 2>/dev/null)
 }
 
 # word motions: whole line is "$L$R", cursor position is ${#L}
@@ -433,14 +745,15 @@ _ed_split() {
 	R=$(printf '%s' "$line" | cut -c$(( p + 1 ))- 2>/dev/null)
 }
 
+# hi/hn are read_line's locals; ${x:-0} so a test can drive these without it
 _ed_hist_prev() {
-	[ "$hi" -gt 0 ] || return
+	[ "${hi:-0}" -gt 0 ] || return
 	hi=$((hi - 1))
 	local e; e=$(sed -n "$((hi + 1))p" "$EDIT_HIST" 2>/dev/null)
 	L="$e"; R=""
 }
 _ed_hist_next() {
-	[ "$hi" -lt "$hn" ] || return
+	[ "${hi:-0}" -lt "${hn:-0}" ] || return
 	hi=$((hi + 1))
 	if [ "$hi" -ge "$hn" ]; then L=""; R="";
 	else L=$(sed -n "$((hi + 1))p" "$EDIT_HIST" 2>/dev/null); R=""; fi

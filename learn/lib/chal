@@ -42,24 +42,31 @@ chal_lvl() { _n=$(sed -n 's/^lvl: \{0,1\}//p' "$TMP/blk" | head -1); echo "${_n#
 
 # one stage: prompt, thirty seconds, one shot. 0 cleared, 1 died, 2 quit.
 chal_ask() {
-	local input
+	local input _crc
 	blk_load "$CHAINS" "$1" || return 1
 	Q_CMP=ref
 	printf '  %s%s%s %s\n' "$D" "$1" "$N" "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
+	# one deadline for the stage, not one per read: a blank submit re-enters
+	# the loop, and a per-read limit was a fresh thirty seconds for free.
+	ED_DEADLINE=$(( $(date +%s) + CHAL_LIMIT ))
 	while :; do
-		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
-		if ! clock_read "$CHAL_LIMIT"; then
-			echo; no "out of time."
+		clock_read "$CHAL_LIMIT"; _crc=$?
+		[ "$_crc" = 3 ] && { ED_DEADLINE=; return 2; }
+		if [ "$_crc" != 0 ]; then
+			ED_DEADLINE=
+			[ -t 0 ] || echo
+			no "out of time."
 			reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 			return 1
 		fi
 		input=$CLOCK_LINE
 		case "$input" in
-			quit|:q) return 2 ;;
+			quit|:q) ED_DEADLINE=; return 2 ;;
 			'')      continue ;;
 		esac
 		break
 	done
+	ED_DEADLINE=
 	if correct "$input"; then
 		ok "clear"
 		return 0

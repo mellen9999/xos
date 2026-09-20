@@ -456,7 +456,7 @@ q_load() {
 # ---- the question loop ----------------------------------------------------
 
 ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
-	local key tier input tries=0 _said
+	local key tier input tries=0 _said _crc
 	q_load "$1" "$2" || return 1
 	ED_OPEN= Q_WHY=           # every question starts with no panel open, no miss
 	# a meta reply (?, blank, the man/tab words) re-asks the same line: wipe its
@@ -504,22 +504,33 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- in help, not here.
 	[ "$MODE" = learn ] && { note "? hint${SEP}tab ref"; Q_ROWS=$(( Q_ROWS + 1 )); }
 
+	case "$MODE" in
+		boss) ED_DEADLINE=$(( $(date +%s) + BOSS_LIMIT )) ;;
+		*)    ED_DEADLINE= ;;
+	esac
 	while :; do
 		if [ "$MODE" = boss ]; then
 			# tradition, and a real test: thirty seconds is long enough to type
-			# what you know and far too short to go and look it up. no editor
-			# under the clock -- just type.
-			printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
-			if ! clock_read "$BOSS_LIMIT"; then
-				echo
+			# what you know and far too short to go and look it up. the editor
+			# is here -- fixing a typo is not looking something up -- but the
+			# hint, the reference and the history are not.
+			clock_read "$BOSS_LIMIT"; _crc=$?
+			[ "$_crc" = 3 ] && { ED_DEADLINE=; return 2; }
+			if [ "$_crc" != 0 ]; then
+				ED_DEADLINE=
+				# the editor's own exit printed the newline; only the
+				# cooked fallback still owes one.
+				[ -t 0 ] || echo
 				no "out of time."
 				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
 				return 1
 			fi
-			# a bare read is cooked-mode, not the vi editor -- Tab is not
-			# intercepted, so it would land in the answer as a literal tab
+			# the tty path cannot produce a tab any more (the editor swallows
+			# it), but the cooked fallback still can, and a literal tab in an
+			# answer is graded against bytes no learner meant to type.
 			input=$(printf '%s' "$CLOCK_LINE" | tr -d '\t')
+			ED_DEADLINE=
 		else
 			# full vi-mode line editing with history (falls back to a plain read
 			# when stdin is not a terminal, e.g. the build's own checks).
@@ -2538,6 +2549,174 @@ c' 20)" = 3 ] || exit 1
 	  [ "$ED_PANEL_ROWS" -ge 8 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL setup budget: the row math and _ed_panel_load disagree" >&2; bad=$((bad+1)); }
+
+	# ---- the line editor -------------------------------------------------
+	#
+	# there were NO tests here, and that is exactly why `de` did nothing, `j`
+	# and `k` were documented and unbound, and `q` set a flag read_line has
+	# honoured since it was written. every one of them was a missing arm in a
+	# POSIX case with no *) default: a silent no-op no assertion looked at.
+	#
+	# _ed_normal takes one keystroke and edits two strings, so the whole
+	# keyboard drives headlessly. _ed sets the buffer, _ek types into it.
+	_ed() { L=$1; R=$2; mode=normal
+	        _pend=; _pcnt=; _mcnt=; _await=; _fop=; _fch=
+	        _uL=; _uR=; _umode=; _quit=; YANK=; }
+	_ek() { local _s=$1 _c
+	        while [ -n "$_s" ]; do
+			_c=${_s%"${_s#?}"}; _s=${_s#?}
+			_ed_normal "$_c"
+		done; }
+	_eis() { [ "$L|$R" = "$1" ] || { echo "  ed: got [$L|$R] want [$1]" >&2; return 1; }; }
+
+	# operator x motion, over every motion and all three operators. the whole
+	# point of one table: `de` used to eat the e and do nothing.
+	( _ed "" "one two"
+	  _ek de; _eis "| two" || exit 1
+	  _ed "" "one two"; _ek dw; _eis "|two" || exit 1
+	  _ed "" "one two"; _ek 'd$'; _eis "|" || exit 1
+	  _ed "one " "two"; _ek d0; _eis "|two" || exit 1
+	  _ed "  one " "two"; _ek 'd^'; _eis "  |two" || exit 1
+	  _ed "one " "two"; _ek db; _eis "|two" || exit 1
+	  _ed "" "one two"; _ek dE; _eis "| two" || exit 1
+	  _ed "" "one two"; _ek dl; _eis "|ne two" || exit 1
+	  _ed "one " "two"; _ek cb; [ "$mode" = insert ] || exit 1
+	  _eis "|two" || exit 1
+	  _ed "" "one two"; _ek ce; [ "$mode" = insert ] || exit 1
+	  _eis "| two" || exit 1
+	  _ed "" "one two"; _ek c0; [ "$mode" = insert ] || exit 1
+	  # y changes nothing and takes the span
+	  _ed "" "one two"; _ek yw; _eis "|one two" || exit 1
+	  [ "$YANK" = "one " ] || exit 1
+	  _ed "" "one two"; _ek ye; [ "$YANK" = "one" ] || exit 1
+	  # the doubled forms, and the $-flavoured triple beside them
+	  _ed "on" "e two"; _ek dd; _eis "|" || exit 1
+	  _ed "on" "e two"; _ek yy; [ "$YANK" = "one two" ] || exit 1
+	  _ed "on" "e two"; _ek cc; [ "$mode" = insert ] || exit 1
+	  _ed "one" " two"; _ek D; _eis "on|e" || exit 1
+	  _ed "one" " two"; _ek C; _eis "one|" || exit 1
+	  _ed "one" " two"; _ek Y; [ "$YANK" = " two" ] || exit 1
+	  # and p puts back exactly what d took
+	  _ed "" "one two"; _ek dw; _ek P; _eis "one |two" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: operator x motion -- d, c and y over every motion" >&2; bad=$((bad+1)); }
+
+	# the inclusive/exclusive pin. this ONE difference is the reason the two
+	# motion tables could not just be merged by hand.
+	( _ed "" "one two"
+	  _ek dw; [ "$L$R" = "two" ] || exit 1          # [0,3): the space goes
+	  _ed "" "one two"
+	  _ek de; [ "$L$R" = " two" ] || exit 1         # [0,2]: it stays
+	  # cw on a non-blank is ce -- vi does this, and the old code did not
+	  _ed "" "one two"
+	  _ek cw; [ "$L$R" = " two" ] || exit 1
+	  # dw on the last word still runs to the end
+	  _ed "one " "two"
+	  _ek dw; [ "$L$R" = "one " ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: dw and de must not be the same delete" >&2; bad=$((bad+1)); }
+
+	# f F t T and the ; , repeat
+	( _ed "" "one two"
+	  _ek dft; _eis "|wo" || exit 1
+	  _ed "" "one two"; _ek dtt; _eis "|two" || exit 1
+	  _ed "one tw" "o"; _ek dFt; _eis "one |o" || exit 1
+	  _ed "one tw" "o"; _ek dTt; _eis "one t|o" || exit 1
+	  # ; walks to the next hit, , comes back
+	  _ed "" "a.b.c"
+	  _ek 'f.'; [ "${#L}" = 1 ] || exit 1
+	  _ek ';';  [ "${#L}" = 3 ] || exit 1
+	  _ek ',';  [ "${#L}" = 1 ] || exit 1
+	  # a character that is not there moves nothing and deletes nothing
+	  _ed "" "one two"; _ek dfz; _eis "|one two" || exit 1
+	  _ed "" "one two"; _ek fz; _eis "|one two" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: f F t T and the ; , repeat" >&2; bad=$((bad+1)); }
+
+	# the count prefix, including the rule that makes 10l move ten
+	( _ed "" "abcdefgh"
+	  _ek 3l; [ "${#L}" = 3 ] || exit 1
+	  _ed "" "one two three four five"
+	  _ek 3w; [ "$R" = "four five" ] || exit 1
+	  _ed "" "abcdef"; _ek 2x; _eis "|cdef" || exit 1
+	  _ed "" "one two three"; _ek d2w; _eis "|three" || exit 1
+	  _ed "" "one two three four five"; _ek 2d2w; _eis "|five" || exit 1
+	  _ed "" "abcdefghijkl"; _ek 10l; [ "${#L}" = 10 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: the count prefix" >&2; bad=$((bad+1)); }
+
+	# u undoes one change, and undoes itself. a motion is not a change.
+	( _ed "" "one two"
+	  _ek dd; _eis "|" || exit 1
+	  _ek u;  [ "$L$R" = "one two" ] || exit 1
+	  _ek u;  [ "$L$R" = "" ] || exit 1
+	  _ed "" "one two"
+	  _ek dw; _ek l; _ek l; _ek u
+	  [ "$L$R" = "one two" ] || exit 1
+	  # an insert session takes its snapshot when it opens, so it undoes whole
+	  _ed "" "one two"; _ek i; [ -n "${_uR:-}" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: u undoes one change, and undoes itself" >&2; bad=$((bad+1)); }
+
+	# j k history, q quit, and every unbound key leaving the line alone
+	( EDIT_HIST="$TMP/edhist"; printf 'first\nsecond\n' > "$EDIT_HIST"
+	  hn=2; hi=2
+	  _ed "" ""
+	  _ek k; [ "$L$R" = "second" ] || exit 1
+	  _ek k; [ "$L$R" = "first" ] || exit 1
+	  _ek j; [ "$L$R" = "second" ] || exit 1
+	  _ek j; [ "$L$R" = "" ] || exit 1
+	  _ed "" "x"; _ek q; [ -n "$_quit" ] || exit 1
+	  _ed "" "x"; _ek "$E_EOT"; [ -n "$_quit" ] || exit 1
+	  # an unknown key changes nothing at all
+	  _ed "ab" "cd"; _ek Z; _eis "ab|cd" || exit 1
+	  [ "$mode" = normal ] || exit 1
+	  # and a pending operator cancelled by anything that is not a motion
+	  # leaves the line exactly as it was
+	  _ed "ab" "cd"; _ek d; _ek "$E_ESC"; _eis "ab|cd" || exit 1
+	  [ -z "$_pend" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: j k history, q quit, or an unbound key edits the line" >&2; bad=$((bad+1)); }
+
+	# the deadline arithmetic the clock modes read a byte through. the rc-2
+	# path itself cannot be driven headlessly -- read_line takes the ! -t 0
+	# fallback on any pipe and </dev/null is EOF, not a timeout -- so what is
+	# asserted is the budget, and boss_round's own </dev/null walk above is
+	# the integration guard.
+	( _now=$(date +%s)
+	  _ed_budget $((_now + 10)) || exit 1
+	  [ "$_ED_BUD" -ge 9 ] && [ "$_ED_BUD" -le 10 ] || exit 1
+	  _ed_budget "$_now"      && exit 1   # this second is not a second of budget
+	  _ed_budget $((_now - 5)) && exit 1  # already late
+	  exit 0 ) \
+		|| { echo "FAIL _ed_budget: the deadline arithmetic" >&2; bad=$((bad+1)); }
+
+	# and the redraw itself RUNS. it builds its frame as one string out of
+	# half a dozen escape variables, and a typo in one of them is an unset
+	# parameter under set -u -- a lesson that dies on the first keystroke, on
+	# a terminal, which is the one place the rest of this suite never looks.
+	( _ED_ROW=0; ED_PANEL=; ED_PANEL_ROWS=0; ED_LROWS=0; TERM_COLS=40
+	  _ed_draw '$ ' 'ls -l' '' >/dev/null || exit 1
+	  _ed_draw '$ ' 'ls' ' -l' >/dev/null || exit 1
+	  # a line wider than the terminal, so the climb and the column maths run
+	  _ed_draw '$ ' "$(_i=1; while [ "$_i" -le 60 ]; do printf x; _i=$((_i+1)); done)" 'yz' >/dev/null || exit 1
+	  # and again with a panel open, which is the branch that moves it
+	  ED_PANEL='one
+two'; ED_PANEL_ROWS=2
+	  _ed_draw '$ ' 'ls -l' '' >/dev/null || exit 1
+	  _ed_draw '$ ' 'ls -l x' '' >/dev/null || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_draw: the redraw does not run" >&2; bad=$((bad+1)); }
+
+	# and the headless fallback honours a deadline that has already passed
+	# the checks live INSIDE the braces: the right-hand side of a pipe is a
+	# subshell, so REPLY_LINE set in there never reaches out here.
+	( printf 'ls -l\n' | { read_line "$(( $(date +%s) + 30 ))" || exit 1
+	    [ "$REPLY_LINE" = "ls -l" ] || exit 1; } || exit 1
+	  printf 'ls -l\n' | { read_line "$(( $(date +%s) - 1 ))"; _rc=$?
+	    [ "$_rc" = 2 ] || exit 1; } || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL read_line: a deadline is ignored without a terminal" >&2; bad=$((bad+1)); }
 
 	# no prompt may wrap an 80-column terminal at its widest rendering: it
 	# would cost the reference panel a row and read as prose, not an order.

@@ -440,19 +440,49 @@ _clock_cell() {  # LEFT -- the seconds, dim, and loud for the last five
 }
 
 # clock_read SECS -- read one line under a visible clock. the line lands in
-# CLOCK_LINE; a non-zero return means the time ran out.
+# CLOCK_LINE. 0 a line, 1 out of time, 3 the learner left.
+#
+# it used to be a cooked-mode read -t: kernel erase and nothing else, no Esc,
+# no h l w b, no dw, and a prompt that looked exactly like the editor's. the
+# editor runs here now, with the question's deadline; what a boss withholds is
+# the hint and the reference, not the ability to fix a typo. the panels stay
+# refused (_ed_panel_load, and the Tab key itself) and so does history.
 clock_read() {
-	local secs=$1 left=$1 rc
+	local secs=$1 rc dl
 	CLOCK_PID=
-	if [ -t 0 ] && [ -t 1 ] && [ "$SB_CLOCK_COL" -gt 0 ]; then
-		( while [ "$left" -gt 0 ]; do
-			_clock_cell "$left"; sleep 1; left=$((left - 1))
-		done ) &
-		CLOCK_PID=$!
+	dl=${ED_DEADLINE:-}
+	[ -n "$dl" ] || dl=$(( $(date +%s) + secs ))
+	_clock_child "$secs"
+	if [ -t 0 ]; then
+		read_line "$dl"; rc=$?
+		CLOCK_LINE="$REPLY_LINE"
+		case "$rc" in
+			0) rc=0 ;;
+			2) rc=1 ;;      # the deadline
+			*) rc=3 ;;      # q, Ctrl-D, EOF
+		esac
+	else
+		# the build's own probes, and any pipe: the editor is not there to
+		# draw its prompt, so this branch keeps the one it always had.
+		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
+		IFS= read -t "$secs" -r CLOCK_LINE; rc=$?
+		[ "$rc" = 0 ] || rc=1
 	fi
-	IFS= read -t "$secs" -r CLOCK_LINE; rc=$?
 	clock_stop
 	return $rc
+}
+
+# the ticker, in its own function so clock_read reads as one thing. it never
+# starts where there is no terminal to draw on: selftest runs a boss round,
+# and nothing automated may gain a child or a second of wall clock from this.
+_clock_child() {
+	local left=$1
+	[ -t 0 ] && [ -t 1 ] && [ "$SB_CLOCK_COL" -gt 0 ] || return 0
+	( while [ "$left" -gt 0 ]; do
+		_clock_cell "$left"; sleep 1; left=$((left - 1))
+	  done ) &
+	CLOCK_PID=$!
+	return 0
 }
 
 # stop the ticker and take the cell back. safe to call with no clock running,
@@ -462,6 +492,10 @@ clock_stop() {
 	kill "$CLOCK_PID" 2>/dev/null
 	wait "$CLOCK_PID" 2>/dev/null
 	CLOCK_PID=
+	# a child killed between its ?2026h and its ?2026l leaves the terminal in
+	# synchronised-output mode, which looks exactly like a frozen screen. one
+	# idempotent sequence of insurance, on the path the interrupt takes too.
+	printf '%s' "$SYNC_END"
 	[ "$SB_CLOCK_COL" -gt 0 ] && printf '\0337\033[%d;%dH   \0338' "$CLOCK_ROW" "$SB_CLOCK_COL"
 	return 0
 }
