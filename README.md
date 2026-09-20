@@ -609,7 +609,8 @@ re-run to update.
 
 ## limits
 
-- not a general distro -- no package manager, no compiler
+- not a general distro -- no package manager, and no compiler in the signed
+  image: `tcc` rides p3 with the arsenal, like every other capability
 - pre-xHCI machines (roughly pre-2012) are out of scope
 - no wifi: wired, usb-ethernet or tether, plus wireguard
 - iphone tethering needs usbmuxd, which xos does not ship; android works
