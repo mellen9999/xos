@@ -16,35 +16,35 @@ brief: `awk | sort | uniq -c` is the shape behind most "how many of each"
 brief: questions: pull the field, group it, count the runs.
 ---
 setup: @log@ lines run "date time SEV message"
-q: %show% just the severity field of each @log@ line, with awk
+q: %show% just the severity field of each @log@ line, with `awk`
 a: awk '{print $3}' @log@
 out: ^INFO$
 ref: awk
 teach: awk
 hint: $3 is the third field; fields split on whitespace by default
 ---
-q: @log@ lines may end in an ip -- %show% the last field, with awk
+q: @log@ lines may end in an ip -- %show% the last field, with `awk`
 a: awk '{print $NF}' @log@
 cmp: ref
 ref: awk
 teach: awk
 hint: NF is the number of fields, so $NF is the last one
 ---
-q: %show% the date and severity from @log@, side by side, with awk
+q: %show% the date and severity from @log@, side by side, with `awk`
 a: awk '{print $1, $3}' @log@
 out: 2024-03-01 INFO
 ref: awk
 teach: awk
 hint: a comma between print arguments inserts a space in the output
 ---
-q: %show% every line of @log@ with its line number, with awk
+q: %show% every line of @log@ with its line number, with `awk`
 a: awk '{print NR, $0}' @log@
 out: ^1 2024
 ref: awk
 teach: awk
 hint: $0 is the whole line, unsplit
 ---
-q: %count% the lines in @log@ using awk
+q: %count% the lines in @log@ using `awk`
 a: awk 'END {print NR}' @log@
 out: ^[0-9]+$
 cmp: ref
@@ -52,14 +52,14 @@ ref: awk
 teach: awk
 hint: END runs once, after the last line, and NR is still set
 ---
-q: %show% only the lines of @log@ that mention @sev@, with awk
+q: %show% only the lines of @log@ that mention @sev@, with `awk`
 a: awk '/@sev@/' @log@
 out: @sev@
 ref: awk
 teach: awk
 hint: a pattern with no action means "print the line"
 ---
-q: %show% just the time of each @sev@ line in @log@, with awk
+q: %show% just the time of each @sev@ line in @log@, with `awk`
 a: awk '/@sev@/ {print $2}' @log@
 cmp: ref
 ref: awk
@@ -67,7 +67,7 @@ teach: awk
 hint: the pattern filters which lines run the action
 ---
 setup: @csv@ is name,id,status,count
-q: %show% just the name column of @csv@, splitting fields with awk
+q: %show% just the name column of @csv@, splitting fields with `awk`
 a: awk -F, '{print $1}' @csv@
 out: ^gateway$
 ref: awk
@@ -75,7 +75,7 @@ teach: awk -F
 hint: -F sets the field separator, same idea as cut -d
 ---
 setup: @csv@ is name,id,status,count
-q: %show% the name column of @csv@, skipping the header, with awk
+q: %show% the name column of @csv@, skipping the header, with `awk`
 a: awk -F, 'NR > 1 {print $1}' @csv@
 out: ^gateway$
 ref: awk
@@ -83,7 +83,7 @@ teach: awk -F
 hint: NR is the line number, so NR>1 means "not the first line"
 ---
 setup: @csv@ is name,id,status,count
-q: {add up the count column of @csv@, skipping the header row|sum the count column of @csv@, ignoring the header|total the count column of @csv@ without the header}, with awk
+q: {add up the count column of @csv@, skipping the header row|sum the count column of @csv@, ignoring the header|total the count column of @csv@ without the header}, with `awk`
 a: awk -F, 'NR > 1 {s += $4} END {print s}' @csv@
 out: ^[0-9]+$
 cmp: ref
@@ -91,63 +91,63 @@ ref: awk
 teach: awk -F
 hint: s starts at zero (uninitialized) and accumulates with +=
 ---
-q: %show% the largest value in @csv@'s count column, with awk
+q: %show% the largest value in @csv@'s count column, with `awk`
 a: awk -F, 'NR > 1 && $4 > m {m = $4} END {print m}' @csv@
 cmp: ref
 ref: awk
 teach: awk
 hint: m starts at zero (uninitialized) and gets replaced whenever a bigger value shows up
 ---
-q: %count% how often each severity appears in @log@, with awk
+q: %count% how often each severity appears in @log@, with `awk`
 a: awk '{c[$3]++} END {for (k in c) print k, c[k]}' @log@
 cmp: ref
 ref: awk
 teach: awk
 hint: awk arrays are maps -- c[$3]++ counts per distinct value
 ---
-q: @log@ mixes severities -- %show% the first of each, with awk
+q: @log@ mixes severities -- %show% the first of each, with `awk`
 a: awk '!seen[$3]++' @log@
 out: INFO
 ref: awk
 teach: awk
 hint: the counter is zero the first time, which is false, which prints
 ---
-q: %show% rows of @csv@ where the status field is up, with awk
+q: %show% rows of @csv@ where the status field is `up`, with `awk`
 a: awk -F, '$3 == "up"' @csv@
 out: gateway
 ref: awk
 teach: awk
 hint: a bare condition with no action still means print
 ---
-q: %show% rows of @csv@ whose count field is above 10, with awk
+q: %show% rows of @csv@ whose count field is above `10`, with `awk`
 a: awk -F, 'NR > 1 && $4 > 10' @csv@
 cmp: ref
 ref: awk
 teach: awk
 hint: && combines two conditions -- both must be true
 ---
-q: %show% @csv@'s name column, header "host" printed first, with awk
+q: %show% @csv@'s name column, header "host" printed first, with `awk`
 a: awk -F, 'BEGIN {print "host"} {print $1}' @csv@
 out: ^host$
 ref: awk
 teach: awk
 hint: BEGIN runs before the first line is read
 ---
-q: {pass the literal string @word@ into awk as a variable called w and print it|hand awk the literal @word@ as a variable named w, then print it|give awk a variable w set to the literal string @word@ and print it back}
+q: {pass the literal string @word@ into `awk` as a variable called w and print it|hand `awk` the literal @word@ as a variable named w, then print it|give `awk` a variable w set to the literal string @word@ and print it back}
 a: awk -v w=@word@ 'BEGIN {print w}'
 out: @word@
 ref: awk
 teach: awk -v
 hint: -v sets an awk variable before the program runs
 ---
-q: %show% name and status from @csv@, joined by a colon, with awk
+q: %show% name and status from @csv@, joined by a colon, with `awk`
 a: awk -F, -v OFS=: '{print $1, $3}' @csv@
 out: gateway:up
 ref: awk
 teach: awk -v
 hint: OFS is the output field separator
 ---
-q: %show% how many fields each @csv@ line has, with awk
+q: %show% how many fields each @csv@ line has, with `awk`
 a: awk -F, '{print NF}' @csv@
 cmp: ref
 ref: awk
@@ -155,7 +155,7 @@ teach: awk
 hint: NF is the field count for the current line
 ---
 setup: awk's next argument could be misread as a filename instead of the program
-q: {print @log@'s first field, giving awk its program via -e|pass awk its program with -e to print @log@'s first field|use -e, not positional, to have awk print @log@'s first field}
+q: {print @log@'s first field, giving `awk` its program via `-e`|pass `awk` its program with `-e` to print @log@'s first field|use `-e`, not positional, to have `awk` print @log@'s first field}
 a: awk -e '{print $1}' @log@
 out: 2024-03-01
 cmp: ref
@@ -164,7 +164,7 @@ teach: awk -e
 hint: -e names the program explicitly, the role the positional argument usually plays
 ---
 setup: the word might show up in the message text too, not just the severity field
-q: @log@ may mention @sev@ -- match only the severity field, with awk
+q: @log@ may mention @sev@ -- match only the severity field, with `awk`
 a: awk '$3 ~ /@sev@/' @log@
 out: @sev@
 ref: awk
@@ -172,7 +172,7 @@ teach: awk
 hint: ~ tests a field against a regex; !~ is its negation
 
 ---
-q: %list% severities in @log@ by frequency, counted with uniq
+q: %list% severities in @log@ by frequency, counted with `uniq`
 a: awk '{print $3}' @log@ | sort | uniq -c | sort -rn
 cmp: ref
 ref: uniq

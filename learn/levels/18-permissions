@@ -20,21 +20,21 @@ brief: these matter for what you write to tmpfs and to disks you mount -- not
 brief: for defending this machine from you.
 ---
 setup: you just wrote @script@ and ./@script@ says permission denied
-q: make @script@ executable with chmod
+q: make @script@ executable with `chmod`
 a: chmod +x @script@
 state: mode:@script@:755
 ref: chmod
 teach: chmod
 hint: +x adds execute for everyone at once, owner group and other
 ---
-q: {anyone can run @script@, but only you can edit it|make @script@ runnable by all, writable only by you|open @script@ to run and read for all, write stays yours}, with chmod
+q: {anyone can run @script@, but only you can edit it|make @script@ runnable by all, writable only by you|open @script@ to run and read for all, write stays yours}, with `chmod`
 a: chmod 755 @script@
 state: mode:@script@:755
 ref: chmod
 teach: chmod
 hint: 7=rwx, 5=r-x -- add read(4)+write(2)+execute(1) per set
 ---
-q: {you can edit @txt@, everyone else can only read it|give yourself read+write on @txt@, read-only to others|put @txt@ back to default: you write, others read}, with chmod
+q: {you can edit @txt@, everyone else can only read it|give yourself read+write on @txt@, read-only to others|put @txt@ back to default: you write, others read}, with `chmod`
 a: chmod 644 @txt@
 state: mode:@txt@:644
 ref: chmod
@@ -42,35 +42,35 @@ teach: chmod
 hint: 6=rw-, 4=r-- -- you get read+write, everyone else read-only
 ---
 setup: @txt@ holds something you don't want anyone else touching
-q: {lock @txt@ so only you can read or write it, no one else|shut everyone but you out of @txt@ entirely|@txt@ is yours alone -- no access for group or other}, with chmod
+q: {lock @txt@ so only you can read or write it, no one else|shut everyone but you out of @txt@ entirely|@txt@ is yours alone -- no access for group or other}, with `chmod`
 a: chmod 600 @txt@
 state: mode:@txt@:600
 ref: chmod
 teach: chmod
 hint: 6=rw-, 0=--- -- nothing at all for group or other
 ---
-q: {@script@ shouldn't run anymore -- strip execute entirely|@script@ isn't ready to run -- take execute off for everyone|stop anyone, yourself included, from running @script@ as-is}, with chmod
+q: {@script@ shouldn't run anymore -- strip execute entirely|@script@ isn't ready to run -- take execute off for everyone|stop anyone, yourself included, from running @script@ as-is}, with `chmod`
 a: chmod -x @script@
 state: mode:@script@:644
 ref: chmod
 teach: chmod
 hint: a bare -x with no letter in front strips execute from all three sets
 ---
-q: {your group needs to edit @txt@, leave owner/other alone|let the group write to @txt@, nothing else touched|give the group write access on @txt@, nothing else changed}, with chmod
+q: {your group needs to edit @txt@, leave owner/other alone|let the group write to @txt@, nothing else touched|give the group write access on @txt@, nothing else changed}, with `chmod`
 a: chmod g+w @txt@
 state: mode:@txt@:664
 ref: chmod
 teach: chmod
 hint: g targets the group set specifically, leaving owner and other untouched
 ---
-q: {owner and group keep @txt@ access, lock everyone else out|strip @txt@'s permissions for everyone outside owner/group|zero out what everyone else can do to @txt@}, with chmod
+q: {owner and group keep @txt@ access, lock everyone else out|strip @txt@'s permissions for everyone outside owner/group|zero out what everyone else can do to @txt@}, with `chmod`
 a: chmod o= @txt@
 state: mode:@txt@:640
 ref: chmod
 teach: chmod
 hint: = sets the listed permissions exactly, and an empty list means none
 ---
-q: make everything under @dir@ readable with chmod, subdirs included
+q: make everything under @dir@ readable with `chmod`, subdirs included
 a: chmod -R a+r @dir@
 why: primitive-cost
 ref: chmod
@@ -92,14 +92,14 @@ ref: id
 teach: id
 hint: id with no flags prints uid, gid and every group at once
 ---
-q: a command wants your numeric uid, nothing else -- %show% it with id
+q: a command wants your numeric uid, nothing else -- %show% it with `id`
 a: id -u
 why: primitive-cost
 ref: id
 teach: id -u
 hint: -u limits output to just the numeric uid
 ---
-q: %show% your username with id, instead of the raw uid number
+q: %show% your username with `id`, instead of the raw uid number
 a: id -un
 out: ^[a-z_][a-z0-9_-]*$
 ref: id
@@ -107,7 +107,7 @@ teach: id -n
 hint: -n added to -u prints the name instead of the number
 ---
 setup: a command wants your numeric gid, nothing else
-q: %show% just your numeric group id, nothing else
+q: %show% just your numeric group `id`, nothing else
 a: id -g
 why: primitive-cost
 ref: id
@@ -121,7 +121,7 @@ ref: umask
 teach: umask
 hint: umask alone prints the current mask without changing it
 ---
-q: {make every new file private to you by default from now on|new files keep coming out readable by others -- fix the default|stop new files defaulting to readable by anyone but you}, with umask
+q: {make every new file private to you by default from now on|new files keep coming out readable by others -- fix the default|stop new files defaulting to readable by anyone but you}, with `umask`
 a: umask 077
 why: primitive-cost
 ref: umask
@@ -136,7 +136,7 @@ teach: stat
 hint: stat alone prints every field it knows about a file
 ---
 setup: a script needs @txt@'s size as a plain number, nothing else
-q: %show% just the size of @txt@ in bytes with stat, nothing else
+q: %show% just the size of @txt@ in bytes with `stat`, nothing else
 a: stat -c %s @txt@
 out: ^[0-9]+$
 cmp: ref
@@ -145,7 +145,7 @@ teach: stat -c
 hint: -c takes a format; %s is size, %n name, %a permission bits
 ---
 setup: a script compares this against a number, not against a string like rwxr-xr-x
-q: you want @script@'s mode as a plain octal number, with stat not ls
+q: you want @script@'s mode as a plain octal number, with `stat` not ls
 a: stat -c %a @script@
 cmp: ref
 ref: stat
@@ -153,14 +153,14 @@ teach: stat -c
 hint: %a in the format string is permission bits
 ---
 setup: you're about to write something large and need to know what filesystem actually holds it
-q: forget @txt@ itself -- with stat, %show% the filesystem it lives on
+q: forget @txt@ itself -- with `stat`, %show% the filesystem it lives on
 a: stat -f @txt@
 out: ID|Block
 ref: stat
 teach: stat -f
 hint: -f switches from the file's info to the filesystem it lives on
 ---
-q: {@txt@ is a symlink -- stat what it points to, not the link|@txt@ is a symlink -- follow it and stat the real file underneath|don't stat the symlink @txt@ itself, stat what it points at}
+q: {@txt@ is a symlink -- `stat` what it points to, not the link|@txt@ is a symlink -- follow it and `stat` the real file underneath|don't `stat` the symlink @txt@ itself, `stat` what it points at}
 a: stat -L @txt@
 out: Size
 ref: stat
@@ -168,14 +168,14 @@ teach: stat -L
 hint: -L follows the link and reports on its target instead of the link itself
 ---
 setup: a backup tool only touches files older than a cutoff date, and @txt@ needs to look like it predates it
-q: {back-date @txt@'s timestamp to 2024-03-01, not right now|@txt@ needs to look last touched on 2024-03-01|stamp @txt@ with 2024-03-01, not the current time}, with touch
+q: {back-date @txt@'s timestamp to `2024-03-01`, not right now|@txt@ needs to look last touched on `2024-03-01`|stamp @txt@ with `2024-03-01`, not the current time}, with `touch`
 a: touch -d 2024-03-01 @txt@
 state: stamp:@txt@:2024-03-01
 ref: touch
 teach: touch -d
 hint: -d takes an explicit date/time instead of using now
 ---
-q: {@txt2@ should carry the timestamp @txt@ already has|copy @txt@'s timestamp onto @txt2@, skip the date|make @txt2@'s timestamp match @txt@'s}, with touch
+q: {@txt2@ should carry the timestamp @txt@ already has|copy @txt@'s timestamp onto @txt2@, skip the date|make @txt2@'s timestamp match @txt@'s}, with `touch`
 a: touch -r @txt@ @txt2@
 state: sametime:@txt@:@txt2@
 ref: touch
@@ -183,7 +183,7 @@ teach: touch -r
 hint: -r copies another file's timestamp instead of specifying one yourself
 ---
 setup: you want to check what an unprivileged account would see, not root
-q: {run id as the user nobody instead of as root|check what id looks like as nobody, not root|see your identity as nobody would see it, not as root}
+q: {run `id` as the user `nobody` instead of as root|check what `id` looks like as `nobody`, not root|see your identity as `nobody` would see it, not as root}
 a: setuidgid nobody id
 why: root
 ref: setuidgid
@@ -191,7 +191,7 @@ teach: setuidgid
 hint: setuidgid USER PROG switches to USER's uid and gid, then runs PROG -- learn runs your answers this way
 ---
 setup: a script running as root keeps clobbering @txt@ by accident and you want that impossible, not just discouraged
-q: make @txt@ immutable with chattr
+q: make @txt@ immutable with `chattr`
 a: chattr +i @txt@
 why: root
 ref: chattr
@@ -199,14 +199,14 @@ teach: chattr
 hint: +i makes it unchangeable even by root; chattr -i clears it again
 ---
 setup: you want a log that can grow but never be edited or truncated, even by you
-q: set @txt@ append-only with chattr
+q: set @txt@ append-only with `chattr`
 a: chattr +a @txt@
 why: root
 ref: chattr
 teach: chattr
 hint: +a is the append-only attribute
 ---
-q: %list% @txt@'s ext2 file attributes with lsattr
+q: %list% @txt@'s ext2 file attributes with `lsattr`
 a: lsattr @txt@
 why: root
 ref: lsattr

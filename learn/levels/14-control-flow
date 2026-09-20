@@ -20,7 +20,7 @@ brief: `$((expr))` does arithmetic -- `i=$((i + 1))` is the closest thing sh has
 brief: to `i++`. `IFS=, read` splits a line on commas instead of whitespace, just
 brief: for that one read.
 ---
-q: %show% exists only if @txt@ is actually there
+q: %show% exists only `if` @txt@ is actually there
 a: if [ -f @txt@ ]; then echo exists; fi
 out: ^exists$
 ref: sh
@@ -28,28 +28,28 @@ teach: sh
 hint: if runs the command after it and branches on that command's exit status
 ---
 setup: a script needs to know something is there without any output leaking through
-q: %show% yes if @log@ mentions @needle@ per grep, otherwise no
+q: %show% yes `if` @log@ mentions @needle@ per `grep`, otherwise no
 a: if grep -q @needle@ @log@; then echo yes; else echo no; fi
 cmp: ref
 ref: grep
 teach: grep -q
 hint: else covers exactly the case the if branch didn't take
 ---
-q: {loop over the words a b c printing each on its own line|use for to print a, b and c each on their own line|iterate over a b c, echoing one per line}
+q: {loop over the words a b c printing each on its own line|use `for` to print a, b and c each on their own line|iterate over a b c, echoing one per line}
 a: for x in a b c; do echo $x; done
 cmp: ref
 ref: sh
 teach: sh
 hint: for walks a literal list of words, one iteration per word
 ---
-q: {loop over every .log file here and print its name|use for with a *.log glob to print each matching filename|iterate over the .log files here, echoing each name}
+q: {loop over every .log file here and print its name|use `for` with a *.log glob to print each matching filename|iterate over the .log files here, echoing each name}
 a: for f in *.log; do echo $f; done
 cmp: ref
 ref: sh
 teach: sh
 hint: *.log expands to the matching filenames before the loop ever runs
 ---
-q: {loop over every .log file here printing its line count alone|use for over *.log, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}, with wc
+q: {loop over every .log file here printing its line count alone|use `for` over *.log, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}, with `wc`
 a: for f in *.log; do wc -l < $f; done
 out: ^[0-9]+$
 cmp: ref
@@ -57,21 +57,21 @@ ref: wc
 teach: wc -l
 hint: $f holds one filename per iteration, ready to feed to wc
 ---
-q: count from 1 to 5, one number per line, with seq and for
+q: count from 1 to 5, one number per line, with seq and `for`
 a: for i in $(seq 1 5); do echo $i; done
 cmp: ref
 ref: seq
 teach: seq
 hint: seq 1 5 generates the words a for loop then iterates over
 ---
-q: %show% the numbers 1 to 5 with seq alone
+q: %show% the numbers 1 to 5 with `seq` alone
 a: seq 1 5
 cmp: ref
 ref: seq
 teach: seq
 hint: seq alone needs no loop -- it prints the whole range itself
 ---
-q: count up from 1 to 10, by 3
+q: count up from 1 to `10`, by 3
 a: seq 1 3 10
 cmp: ref
 ref: seq
@@ -79,7 +79,7 @@ teach: seq
 hint: a middle argument to seq is the step, not just start and end
 ---
 setup: you're building a one-line list to paste into a config value
-q: %show% 1 to 5 with seq, separated by commas rather than newlines
+q: %show% 1 to 5 with `seq`, separated by commas rather than newlines
 a: seq -s, 1 5
 cmp: ref
 ref: seq
@@ -87,7 +87,7 @@ teach: seq -s
 hint: -s sets the separator seq prints between numbers
 ---
 setup: you need each line whole, with whatever spacing and punctuation it came with
-q: {read @txt@ line by line, printing each line as you go|use a while read loop to print every line of @txt@|iterate over @txt@ one line at a time with read, echoing each}
+q: {`read` @txt@ line by line, printing each line as you go|use a `while` `read` loop to print every line of @txt@|iterate over @txt@ one line at a time with `read`, echoing each}
 a: while read -r line; do echo "$line"; done < @txt@
 cmp: ref
 ref: read
@@ -95,28 +95,28 @@ teach: read -r
 hint: the redirect goes on the done, feeding the whole loop
 ---
 setup: you're already looping line by line and don't want to spawn cut for every single one
-q: {read @csv@'s lines on commas, printing the first field|split @csv@ on commas with read, printing the first field|iterate over @csv@ with read, splitting commas, first field}
+q: {`read` @csv@'s lines on commas, printing the first field|split @csv@ on commas with `read`, printing the first field|iterate over @csv@ with `read`, splitting commas, first field}
 a: while IFS=, read -r a b c d; do echo "$a"; done < @csv@
 out: ^gateway$
 ref: read
 teach: read -r
 hint: IFS set just for the read splits the line into the named fields
 ---
-q: {count your retries from 0 up to 2, printing each one|track attempt number 0 through 2 with a while loop, printing each|print 0, 1, 2 -- like counting attempts before giving up}
+q: {count your retries from 0 up to 2, printing each one|track attempt number 0 through 2 with a `while` loop, printing each|print 0, 1, 2 -- like counting attempts before giving up}
 a: i=0; while [ $i -lt 3 ]; do echo $i; i=$((i + 1)); done
 cmp: ref
 ref: sh
 teach: sh
 hint: $((...)) does the arithmetic; there's no ++ in POSIX sh
 ---
-q: {check @var@ against @word@ with case, printing hit on a match|route on the value of @var@ using case, printing hit when it's @word@|match @var@ against @word@, printing hit only when it hits}
+q: {check @var@ against @word@ with `case`, printing `hit` on a match|route on the value of @var@ using `case`, printing `hit` when it's @word@|match @var@ against @word@, printing `hit` only when it hits}
 a: @var@=@word@; case $@var@ in @word@) echo hit ;; *) echo miss ;; esac
 cmp: ref
 ref: sh
 teach: sh
 hint: each pattern ends with ) and each branch ends with ;;
 ---
-q: {f is app.log -- print log when the name ends in .log|match f=app.log against *.log, printing log|set f=app.log, print log if it ends in .log}
+q: {f is app.log -- print `log` when the name ends in .log|match f=app.log against *.log, printing `log`|set f=app.log, print `log` if it ends in .log}
 a: f=app.log; case $f in *.log) echo log ;; *) echo other ;; esac
 cmp: ref
 ref: sh
@@ -137,7 +137,7 @@ ref: continue
 teach: continue
 hint: continue skips the rest of this iteration and moves to the next
 ---
-q: {repeat until a condition holds -- count up to 3 with until|use until instead of while to count from 0 to 2|loop with until, counting up until the counter reaches 3}
+q: {repeat `until` a condition holds -- count up to 3 with `until`|use `until` instead of while to count from 0 to 2|loop with `until`, counting up `until` the counter reaches 3}
 a: i=0; until [ $i -ge 3 ]; do echo $i; i=$((i + 1)); done
 cmp: ref
 ref: sh

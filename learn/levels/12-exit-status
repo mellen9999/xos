@@ -23,14 +23,14 @@ brief: literal argument even if it starts with `-`. `( )` run their commands in
 brief: a fresh subshell -- a copy that can't change the parent; `{ }` run them
 brief: in the current shell, just grouped as one.
 ---
-q: {run false, then %show% the exit status it left behind in $?|run false and check what $? comes back as|execute false, then %show% its exit code from $?}
+q: {run false, then %show% the exit status it left behind in `$?`|run false and check what `$?` comes back as|execute false, then %show% its exit code from `$?`}
 a: false; echo $?
 cmp: ref
 ref: false
 teach: false
 hint: false always exits 1; it has no other job
 ---
-q: {run true, then %show% the exit status it left behind in $?|run true and verify $? comes back as 0|execute true, then %show% its exit code from $?}
+q: {run true, then %show% the exit status it left behind in `$?`|run true and verify `$?` comes back as 0|execute true, then %show% its exit code from `$?`}
 a: true; echo $?
 cmp: ref
 ref: true
@@ -38,7 +38,7 @@ teach: true
 hint: true always exits 0, no matter what
 ---
 setup: a script needs to know something is there without any output leaking through
-q: %show% the word @word@ only if @log@ contains @sev@, using grep
+q: %show% the word @word@ only if @log@ contains @sev@, using `grep`
 a: grep -q @sev@ @log@ && echo @word@
 out: @word@
 cmp: ref
@@ -47,7 +47,7 @@ teach: grep -q
 hint: -q silences grep's output, leaving only its exit status for &&
 ---
 setup: the absence is the thing worth reporting here, not the presence
-q: %show% "missing" if @log@ has no match for nonexistent, with grep
+q: %show% "`missing`" if @log@ has no match for `nonexistent`, with `grep`
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 cmp: ref
@@ -56,7 +56,7 @@ teach: grep -q
 hint: || runs its right side only when the left side fails
 ---
 setup: the script has to say something either way, and it gets one line to do it
-q: %show% found if @needle@ is in @log@, else missing, with grep
+q: %show% `found` if @needle@ is in @log@, else `missing`, with `grep`
 a: grep -q @needle@ @log@ && echo found || echo missing
 cmp: ref
 ref: grep
@@ -71,21 +71,21 @@ ref: sh
 teach: sh
 hint: $$ is this shell's own pid, fixed for its whole lifetime
 ---
-q: {start sleep 1 in the background and print the pid it was given|background sleep 1, then print its pid|run sleep 1 as a background job and show what pid it got}
+q: {start `sleep` 1 in the background and print the pid it was given|background `sleep` 1, then print its pid|run `sleep` 1 as a background job and show what pid it got}
 a: sleep 1 & echo $!
 out: ^[1-9][0-9]*$
 ref: sleep
 teach: sleep
 hint: an ampersand backgrounds; $! holds the pid it was just given
 ---
-q: {exit 0 so a caller checking $? sees success|end the shell with a clean, successful exit status|leave the shell reporting success via exit status 0}
+q: {`exit` 0 so a caller checking $? sees success|end the shell with a clean, successful `exit` status|leave the shell reporting success via `exit` status 0}
 a: exit 0
 status: 0
 ref: exit
 teach: exit
 hint: exit takes the status as its argument; with none it reuses $?
 ---
-q: {exit with status 3 so a caller checking $? knows the failure|end the shell with exit status 3, a custom failure code|leave the shell with exit status 3, a signal to the caller}
+q: {`exit` with status 3 so a caller checking $? knows the failure|end the shell with `exit` status 3, a custom failure code|leave the shell with `exit` status 3, a signal to the caller}
 a: exit 3
 status: 3
 ref: exit
@@ -93,42 +93,42 @@ teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
 setup: this step should pass only when the thing is NOT there -- a guard, not a search
-q: {grep @log@ for nonexistent, succeed only if there's no match|flip grep's status so no match for nonexistent in @log@ succeeds|with grep, make a missing nonexistent match in @log@ succeed}
+q: {`grep` @log@ for `nonexistent`, succeed only if there's no match|flip `grep`'s status so no match for `nonexistent` in @log@ succeeds|with `grep`, make a missing `nonexistent` match in @log@ succeed}
 a: ! grep -q nonexistent @log@
 status: 0
 ref: grep
 teach: grep -q
 hint: a leading ! flips the status
 ---
-q: make a broken step stop the script instead of continuing, with set
+q: make a broken step stop the script instead of continuing, with `set`
 a: set -e
 why: conceptual
 ref: set
 teach: set -e
 hint: -e makes any failing command end the script immediately
 ---
-q: catch a typo'd variable expanding to empty -- fail loudly, with set
+q: catch a typo'd variable expanding to empty -- fail loudly, with `set`
 a: set -u
 why: conceptual
 ref: set
 teach: set -u
 hint: -u turns a reference to an unset variable into a hard error
 ---
-q: {cd into @word@-place, or create it if that fails|enter @word@-place, falling back to creating it if cd fails|cd into @word@-place or, failing that, make it}
+q: {`cd` into @word@-place, or create it if that fails|enter @word@-place, falling back to creating it if `cd` fails|`cd` into @word@-place or, failing that, make it}
 a: cd @word@-place || mkdir @word@-place
 state: exists:@word@-place
 ref: cd
 teach: cd
 hint: || only runs its right side when the left side's exit status is nonzero -- cd fails cleanly when the target is missing
 ---
-q: make the shell show each command as it runs, for debugging, with set
+q: make the shell show each command as it runs, for debugging, with `set`
 a: set -x
 why: conceptual
 ref: set
 teach: set -x
 hint: this is the shell debugger, and it is usually enough
 ---
-q: {turn command tracing back off|stop tracing each command}, with set
+q: {turn command tracing back off|stop tracing each command}, with `set`
 a: set +x
 why: conceptual
 ref: set
@@ -136,42 +136,42 @@ teach: set
 hint: + turns an option off, the mirror of - turning it on
 ---
 setup: you don't know which options this shell already has switched on
-q: %show% the shell's current option settings, with set
+q: %show% the shell's current option settings, with `set`
 a: set -o
 out: errexit
 ref: set
 teach: set -o
 hint: -o with no name lists every option and whether it's on or off
 ---
-q: set -- a b c, then %show% how many positional parameters there are
+q: `set` `--` a b c, then %show% how many positional parameters there are
 a: set -- a b c; echo $#
 cmp: ref
 ref: sh
 teach: sh
 hint: $# counts whatever set -- just loaded -- three words in, 3 comes back
 ---
-q: set -- a b c, then %show% just the second parameter
+q: `set` `--` a b c, then %show% just the second parameter
 a: set -- a b c; echo $2
 cmp: ref
 ref: sh
 teach: sh
 hint: $1 is the first positional parameter, $2 the second, on through $9
 ---
-q: set -- "a b" c, then %show% each with printf, one per line
+q: `set` `--` "a b" c, then %show% each with `printf`, one per line
 a: set -- "a b" c; printf '%s\n' "$@"
 cmp: ref
 ref: sh
 teach: sh
 hint: "$@" keeps each positional parameter as its own word, spaces and all
 ---
-q: set -- "a b" c, then %show% them as one word with printf, using $*
+q: `set` `--` "a b" c, then %show% them as one word with `printf`, using `$*`
 a: set -- "a b" c; printf '%s\n' "$*"
 cmp: ref
 ref: sh
 teach: sh
 hint: "$*" joins every positional parameter into a single word -- $@ keeps them apart
 ---
-q: run sh -c to echo $0, invoked under the name myscript
+q: run `sh` `-c` to `echo` $0, invoked under the name `myscript`
 a: sh -c "echo \$0" myscript
 cmp: ref
 ref: sh
@@ -193,7 +193,7 @@ teach: sh
 hint: { } runs in the current shell -- x=2 here really overwrites the outer x
 ---
 setup: an argument you need to pass looks exactly like a flag
-q: load -n as a plain argument with set, then print it back with printf
+q: load -n as a plain argument with `set`, then print it back with `printf`
 a: set -- -n; printf '%s\n' "$1"
 cmp: ref
 ref: printf

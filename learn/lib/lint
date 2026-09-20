@@ -415,6 +415,10 @@ qwidth_over() {
 				s = substr(s, 1, RSTART - 1) pad substr(s, RSTART + RLENGTH)
 			}
 			s = widest(s)
+			# a backtick is markup: lit_fence turns the pair into two bytes
+			# wrap() counts as zero, so the columns it spends on screen are
+			# none. counting them here would fail a card the terminal fits.
+			gsub(/`/, "", s)
 			if (length(s) > max)
 				printf "  %s:%d  %d cols\n", FILENAME, FNR, length(s)
 		}
@@ -843,6 +847,86 @@ unnamed_cmd() {
 		inblk && /^a: /     && a == "" { a = substr($0, 4) }
 		inblk && /^setup: /            { s = s " " substr($0, 8) }
 		inblk && /^ref: /              { rc = substr($0, 6); sub(/ .*/, "", rc) }
+		END { flush() }
+	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
+}
+
+# unmarked_literal -- prints every prompt that says, in plain prose, a word the
+# learner has to type back letter for letter.
+#
+# a rolled name is fenced by sub() and comes out reversed. a name the card
+# hardcodes -- empty-dir, missing.txt, src/[mu]*.c, and the command itself --
+# had no mark at all: "remove the already-empty directory empty-dir" printed
+# flat, and the one word on that line that is not English looked exactly like
+# the eleven that are. the author marks it with a backtick, the same markup
+# briefs and ref pages have always used; this is what finds the ones missed.
+#
+# the test is mechanical, and deliberately so: mask what is already marked --
+# a backticked span, an @token@, a %macro% -- and then anything still visible
+# that the block's own answer types is a literal wearing prose clothing.
+unmarked_literal() {
+	awk '
+		function has(s, w,   p, c) {
+			s = " " s " "
+			p = index(s, w)
+			while (p > 0) {
+				c = substr(s, p - 1, 1) substr(s, p + length(w), 1)
+				if (c !~ /[A-Za-z0-9_.+-]/) return 1
+				s = substr(s, p + length(w)); p = index(s, w)
+			}
+			return 0
+		}
+		# blank out every span that already carries a mark, leaving its width
+		# so nothing on either side fuses into a word it is not part of.
+		function mask(t,   out, p, e) {
+			out = ""
+			while ((p = index(t, "`")) > 0) {
+				e = index(substr(t, p + 1), "`")
+				if (e == 0) break
+				out = out substr(t, 1, p - 1) sprintf("%*s", e + 1, "")
+				t = substr(t, p + e + 1)
+			}
+			t = out t
+			gsub(/@[A-Za-z0-9_]*@/, "  ", t)
+			gsub(/%[a-z]+%/, " ", t)
+			return t
+		}
+		# the words that are a shell or awk keyword in the answer and an
+		# ordinary connective in the prompt. "how often each severity appears
+		# in @log@" is english; the `in` the answer types belongs to awk. marking
+		# the prose word would be a lie, and there is no way to tell the two
+		# apart by shape -- so they are named, once, here.
+		BEGIN {
+			split("in do done then else fi esac to is as of the a or and not no", k, " ")
+			for (i in k) kw[k[i]] = 1
+		}
+		function flush(   m, n, i, t, parts, seen) {
+			if (inblk && q != "" && a != "") {
+				m = mask(q)
+				n = split(a, parts, /[ \t]+/)
+				for (i = 1; i <= n; i++) {
+					t = parts[i]
+					gsub(/^[\x27"]+|[\x27"]+$/, "", t)
+					# one character is punctuation or a stray; a token the
+					# roll supplies is already marked; a token seen twice is
+					# reported once.
+					if (length(t) < 2 && t != "~") continue
+					if (t in kw) continue
+					# a token carrying the grammar of the prompt itself -- an @token@,
+					# a %macro%, an {a|b} brace -- is not a word to mark.
+					if (t ~ /[@{}|%`]/) continue
+					if (t in seen) continue
+					seen[t] = 1
+					if (has(m, t))
+						printf "  %s:%d: the prompt says %s in prose, and the answer types it\n    %s\n", bf, ql, t, q
+				}
+			}
+			inblk = 0; q = ""; a = ""
+		}
+		FNR == 1 { flush() }
+		/^---$/  { flush(); inblk = 1; bf = FILENAME; next }
+		inblk && /^q: / && q == "" { q = substr($0, 4); ql = FNR }
+		inblk && /^a: / && a == "" { a = substr($0, 4) }
 		END { flush() }
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
 }

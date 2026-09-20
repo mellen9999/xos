@@ -170,21 +170,37 @@ _render() {
 			}
 			close(pf)
 		}
+		# fuse -- two rolled values with a slash between them are one path.
+		# "@dir@/@word@/deep" rolls backup and running, and marking them
+		# separately drew `backup` and `running` lit and `deep` flat: three
+		# pieces of one argument, which is not what the learner has to type.
+		# a closing fence, a slash and an opening fence collapse to the slash,
+		# so the pair becomes one span before widen ever looks at it. only a
+		# slash does this -- any other character between two values is english
+		# between two names ("@old@-to-@new@") and stays two marks.
+		function fuse(line,   out, p, q) {
+			out = ""
+			while ((p = index(line, hi2 "/" hi1)) > 0) {
+				out = out substr(line, 1, p - 1) "/"
+				line = substr(line, p + 3)
+			}
+			return out line
+		}
 		# widen -- a mark covers the whole name, not the rolled half of it.
 		# "@word@.fifo" rolls ping, and the card has to read ping.fifo as one
 		# word: a learner who types back the marked part alone runs
 		# `mkfifo ping` and makes the wrong file. so the closing fence slides
 		# right over whatever is glued to the value with no separator -- .txt,
-		# .gz, -missing -- and stops at a space, comma, quote or slash, which
-		# begin a new word rather than continue this one. it never slides into
-		# a second value: "@old@-to-@new@" is english between two names, not
-		# one filename, and stays the two marks it is.
+		# .gz, -missing, and the rest of a path -- and stops at a space, comma
+		# or quote, which begin a new word rather than continue this one. it
+		# never slides into a second value: "@old@-to-@new@" is english
+		# between two names, not one filename, and stays the two marks it is.
 		function widen(line,   out, p, rest, run) {
 			out = ""
 			while ((p = index(line, hi2)) > 0) {
 				out = out substr(line, 1, p - 1)
 				rest = substr(line, p + 1)
-				if (match(rest, /^[A-Za-z0-9_.-]+/) && substr(rest, RLENGTH + 1, 1) != hi1) {
+				if (match(rest, /^[A-Za-z0-9_.\/-]+/) && substr(rest, RLENGTH + 1, 1) != hi1) {
 					# the whole glued run decides whether to widen; trailing
 					# punctuation ("ping.fifo." at the end of a clause) is
 					# then handed back outside the mark.
@@ -225,7 +241,7 @@ _render() {
 			# an empty macro member can leave a double space; tidy it
 			line = out line
 			gsub(/  +/, " ", line); sub(/^ +/, "", line)
-			if (hi1 != "") line = widen(line)
+			if (hi1 != "") line = widen(fuse(line))
 			print line
 		}'
 }

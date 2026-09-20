@@ -396,8 +396,15 @@ blk_load() {
 	# taken from it by stripping -- not rendered a second time. two renders
 	# would be two rolls of the same alternations and the prompt on screen
 	# could name one file while everything measured against it named another.
-	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | render_named "$seed")
-	Q_PROMPT=$(printf '%s\n' "$Q_PROMPT_HI" | hi_strip)
+	#
+	# both marks, because a prompt has both kinds of thing in it. a rolled
+	# name is fenced by sub() and comes out reversed; a literal the card
+	# hardcodes -- empty-dir, missing.txt, src/[mu]*.c, the command itself --
+	# is backticked by the author and comes out underlined, the same mark the
+	# brief pages use for the same reason. backticks are fenced BEFORE the
+	# roll, so a pool value can never be read as markup.
+	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | lit_fence | render_named "$seed")
+	Q_PROMPT=$(printf '%s\n' "$Q_PROMPT_HI" | hi_strip | lit_strip)
 	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
@@ -477,7 +484,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	fi
 	# the prose keeps the terminal's own foreground: the mark is a reversal of
 	# whatever is under it, so it says the most when what is under it is plain.
-	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
+	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand | lit_expand)"
 	Q_ROWS=$(( Q_ROWS + (2 + ${#Q_PROMPT}) / ${COLS:-80} + 1 ))
 	# a predict card shows the line rather than asking for it. it is set off
 	# from the prose because it is the thing being read, not the question.
@@ -1530,7 +1537,7 @@ st_block() {
 	esac
 	# and the two copies of the question must be the same sentence: one roll,
 	# one set of {a|b|c} branches, marks the only difference between them.
-	[ "$Q_PROMPT" = "$(printf '%s' "$Q_PROMPT_HI" | hi_strip)" ] \
+	[ "$Q_PROMPT" = "$(printf '%s' "$Q_PROMPT_HI" | hi_strip | lit_strip)" ] \
 		|| { echo "FAIL $lbl: marked and plain prompt disagree" >&2; bad=$((bad+1)); }
 	# a question that names a rolled value must show the learner which word it
 	# is -- the whole point of the fence, asserted where it can go quiet.
@@ -2113,7 +2120,7 @@ selftest() {
 	  while [ "$_i" -le "$_hn" ]; do
 		awk -v n="$_i" 'BEGIN{c=0} /^---$/ {c++; next} c==n' "$(level_path "$_hid")" \
 			| sed -n 's/^q: \{0,1\}//p' | head -1 \
-			| while IFS= read -r _q; do printf '%s/%s#%s\t2\t9999999999\n' "$_hid" "$_i" "$_q"; done \
+			| while IFS= read -r _q; do printf '%s\t2\t9999999999\n' "$(card_key "$_hid" "$_i" "$_q")"; done \
 			>> "$CARDS"
 		_i=$((_i + 1))
 	  done
@@ -2463,6 +2470,42 @@ c' 20)" = 3 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL setup markup: an unpaired backtick, a raw fence, or a byte outside ascii" >&2; bad=$((bad+1)); }
 
+	# the mark covers the whole argument, not the rolled half of it. a path
+	# built out of two pool values and a fixed tail -- "@dir@/@word@/deep" --
+	# used to come out as two marked words and one flat one, which is three
+	# pieces of the single thing the learner has to type. drive the real
+	# renderer, not the arithmetic under it.
+	( SUBST="$TMP/wsub"; SUBST_HI="$TMP/wsub.hi"
+	  : > "$SUBST"; : > "$SUBST_HI"
+	  sub dir backup; sub word running; sub txt notes; sub old a; sub new b
+	  _m() { printf '%s\n' "$1" | render_named 1 \
+		| sed -e "s/$HI1/[/g" -e "s/$HI2/]/g"; }
+	  [ "$(_m 'spin up @dir@/@word@/deep')" = "spin up [backup/running/deep]" ] || exit 1
+	  [ "$(_m 'read @dir@/@txt@')"          = "read [backup/notes]" ]           || exit 1
+	  # the suffix rule it was built on still holds
+	  [ "$(_m 'make @word@.fifo')"          = "make [running.fifo]" ]           || exit 1
+	  # and english between two names is still english
+	  [ "$(_m 'rename @old@-to-@new@')"     = "rename [a]-to-[b]" ]             || exit 1
+	  [ "$(_m 'copy @dir@ and @word@')"     = "copy [backup] and [running]" ]   || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL widen: a path spanning two rolled values is not one mark" >&2; bad=$((bad+1)); }
+
+	# a q: goes through the same backtick markup a brief does, and the same two
+	# typos have to be caught in it. a literal must not wrap a rolled value
+	# either -- two marks nested is one mark reset halfway, and the corpus has
+	# no reason to write it.
+	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"; do
+		[ -f "$_f" ] || continue
+		awk '/^q:/ { n = gsub(/`/, "`"); if (n % 2) exit 1 } END { }' "$_f" || exit 1
+		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q '``' && exit 1
+		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
+		sed -n 's/^q: \{0,1\}//p' "$_f" \
+			| awk '{ n = split($0, p, "`"); for (i = 2; i <= n; i += 2) if (index(p[i], "@") > 0) exit 1 }' \
+			|| exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL q markup: an unpaired backtick, a raw fence, or a rolled name inside one" >&2; bad=$((bad+1)); }
+
 	# and no setup may squeeze the hint/ref panel under eight rows on an 80x24
 	# screen. this is not typography: ask() adds the setup's height to Q_ROWS
 	# and the panel takes what is left, so past twelve rows the clamp in
@@ -2564,6 +2607,16 @@ c' 20)" = 3 ] || exit 1
 	_uncmd=$(unnamed_cmd)
 	[ -z "$_uncmd" ] || { printf '%s\n' "$_uncmd" >&2
 		echo "FAIL: $(printf '%s\n' "$_uncmd" | grep -c 'grader demands') prompt(s) never name the command they demand" >&2
+		bad=$((bad+1)); }
+
+	# and having named it, the card has to MARK it. a literal the prompt
+	# hardcodes -- empty-dir, missing.txt, src/[mu]*.c, the command itself --
+	# is the one word on the line that is not english, and unmarked it reads
+	# as the eleven that are. a rolled name has been fenced since sub() was
+	# written; this is the same claim for the ones an author types.
+	_unlit=$(unmarked_literal)
+	[ -z "$_unlit" ] || { printf '%s\n' "$_unlit" >&2
+		echo "FAIL: $(printf '%s\n' "$_unlit" | grep -c 'in prose') literal(s) a prompt names but does not mark" >&2
 		bad=$((bad+1)); }
 
 	# learn/vs -- every line names a shipped ref page, carries exactly one tab,

@@ -150,6 +150,11 @@ lit_fence() { sed 's/`\([^`]*\)`/'"$LIT1"'\1'"$LIT2"'/g'; }
 # lit_strip -- the text with the fences gone: what gets measured or written down.
 lit_strip() { tr -d "$LIT1$LIT2"; }
 
+# lit_expand BASE -- fences to marks, on stdin, the mirror of hi_expand. BASE is
+# the styling of the text the literal sits in, which the closing mark hands back
+# for the same reason a name's does.
+lit_expand() { sed -e "s/$LIT1/$LIT_ON/g" -e "s/$LIT2/$LIT_OFF$N${1:-}/g"; }
+
 # synchronised output: the editor reprints the whole answer line on every
 # keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
 # redraw in these markers tells the terminal to paint it in one frame. unknown
@@ -339,7 +344,7 @@ wrap() {
 # escape sequences to count is what tears a paragraph.
 say() {
 	lit_fence | wrap $(( COLS < 78 ? COLS - 2 : 76 )) \
-		| sed -e '/./s/^/  /' -e "s/$LIT1/$LIT_ON/g" -e "s/$LIT2/$LIT_OFF$N/g"
+		| sed -e '/./s/^/  /' | lit_expand
 }
 
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }

@@ -13,21 +13,21 @@ brief:
 brief: `&&` runs the next command only if the last one worked -- copy first,
 brief: edit only if the copy landed.
 ---
-q: {replace first @old@ per line of @cfg@ with @new@|swap the first @old@ per line of @cfg@ for @new@|change the first @old@ per line to @new@ in @cfg@}, with sed
+q: {replace first @old@ per line of @cfg@ with @new@|swap the first @old@ per line of @cfg@ for @new@|change the first @old@ per line to @new@ in @cfg@}, with `sed`
 a: sed 's/@old@/@new@/' @cfg@
 cmp: ref
 ref: sed
 teach: sed
 hint: s/pattern/replacement/ -- no trailing g means only the first match per line
 ---
-q: {replace EVERY @old@ throughout @cfg@ with @new@|replace every @old@ with @new@ throughout @cfg@|swap every @old@ for @new@ throughout @cfg@}, with sed
+q: {replace EVERY @old@ throughout @cfg@ with @new@|replace every @old@ with @new@ throughout @cfg@|swap every @old@ for @new@ throughout @cfg@}, with `sed`
 a: sed 's/@old@/@new@/g' @cfg@
 cmp: ref
 ref: sed
 teach: sed
 hint: the g goes after the final slash
 ---
-q: {replace @old@ with @new@ in @cfg@, ignoring case|replace @old@ with @new@ in @cfg@, case-insensitive|swap @old@ for @new@ in @cfg@, case-blind}, with sed
+q: {replace @old@ with @new@ in @cfg@, ignoring case|replace @old@ with @new@ in @cfg@, case-insensitive|swap @old@ for @new@ in @cfg@, case-blind}, with `sed`
 a: sed 's/@old@/@new@/gi' @cfg@
 a: sed 's/@old@/@new@/Ig' @cfg@
 cmp: ref
@@ -36,7 +36,7 @@ teach: sed
 hint: i (or I) after the slashes makes the match case-insensitive
 ---
 setup: you're chasing one failure in a log too long to read start to finish
-q: %show% only line 3 of @log@ with sed, nothing else
+q: %show% only line 3 of @log@ with `sed`, nothing else
 a: sed -n '3p' @log@
 out: WARN
 cmp: ref
@@ -45,7 +45,7 @@ teach: sed -n
 hint: -n suppresses the automatic print, so only what you p yourself appears
 ---
 setup: you're chasing one failure in a log too long to read start to finish
-q: %show% lines 2 through 4 of @log@ with sed
+q: %show% lines 2 through 4 of @log@ with `sed`
 a: sed -n '2,4p' @log@
 cmp: ref
 ref: sed
@@ -53,7 +53,7 @@ teach: sed -n
 hint: same p as line 3, but a range with a comma before it
 ---
 setup: you're chasing one failure in a log too long to read start to finish
-q: %show% every @log@ line mentioning @sev@, using sed not grep
+q: %show% every @log@ line mentioning @sev@, using `sed` not grep
 a: sed -n '/@sev@/p' @log@
 out: @sev@
 cmp: ref
@@ -61,42 +61,42 @@ ref: sed
 teach: sed -n
 hint: a pattern in slashes acts as the address, selecting lines that match
 ---
-q: {delete every line of @log@ mentioning @sev@|remove any line of @log@ that mentions @sev@|drop every @sev@ line from @log@}, with sed
+q: {delete every line of @log@ mentioning @sev@|remove any line of @log@ that mentions @sev@|drop every @sev@ line from @log@}, with `sed`
 a: sed '/@sev@/d' @log@
 cmp: ref
 ref: sed
 teach: sed
 hint: d deletes the whole line the pattern matched, not just the text
 ---
-q: {delete the # comment lines from @cfg@|remove every line of @cfg@ that starts with #|drop the # comment lines out of @cfg@}, with sed
+q: {delete the # comment lines from @cfg@|remove every line of @cfg@ that starts with #|drop the # comment lines out of @cfg@}, with `sed`
 a: sed '/^#/d' @cfg@
 out: listen
 ref: sed
 teach: sed
 hint: ^# anchors the match to the start of the line
 ---
-q: {delete the blank lines from @cfg@|remove every empty line from @cfg@|drop the blank lines out of @cfg@}, with sed
+q: {delete the blank lines from @cfg@|remove every empty line from @cfg@|drop the blank lines out of @cfg@}, with `sed`
 a: sed '/^$/d' @cfg@
 out: timeout
 ref: sed
 teach: sed
 hint: ^$ matches a line with nothing between start and end
 ---
-q: {delete the first line of @csv@, the header row|drop the header row from @csv@|remove line 1 -- the header -- from @csv@}, with sed
+q: {delete the first line of @csv@, the header row|drop the header row from @csv@|remove line 1 -- the header -- from @csv@}, with `sed`
 a: sed '1d' @csv@
 out: ^gateway
 ref: sed
 teach: sed
 hint: a bare line number with d deletes just that line
 ---
-q: {strip every leading space from the lines of @log@|remove the leading spaces from each line of @log@|delete whatever spaces open each line of @log@}, with sed
+q: {strip every leading space from the lines of @log@|remove the leading spaces from each line of @log@|delete whatever spaces open each line of @log@}, with `sed`
 a: sed 's/^ *//' @log@
 out: 2024
 ref: sed
 teach: sed
 hint: ^ *  matches leading spaces, replaced with nothing
 ---
-q: {drop comments, then blanks, from @cfg@ in one sed pass|drop comments and blanks from @cfg@ in one sed invocation|in one sed pass, remove comments and blanks from @cfg@}
+q: {drop comments, then blanks, from @cfg@ in one `sed` pass|drop comments and blanks from @cfg@ in one `sed` invocation|in one `sed` pass, remove comments and blanks from @cfg@}
 a: sed -e '/^#/d' -e '/^$/d' @cfg@
 out: listen
 ref: sed
@@ -104,7 +104,7 @@ teach: sed -e
 hint: -e lets you give more than one script
 ---
 setup: you want capture groups without backslash-escaping every paren
-q: {pull the port number out of @cfg@ using extended regex|extract the port number from @cfg@ with extended regex|using extended regex, pull the port number from @cfg@}, with sed
+q: {pull the port number out of @cfg@ using extended regex|extract the port number from @cfg@ with extended regex|using extended regex, pull the port number from @cfg@}, with `sed`
 a: sed -E 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 cmp: ref
@@ -113,7 +113,7 @@ teach: sed -E
 hint: \1 refers to whatever the first (group) matched
 ---
 setup: you're not sure this sed has the newer regex flag
-q: {pull the port from @cfg@ again with sed, using the older regex flag|repeat the port pull from @cfg@ with sed's older flag|redo the port pull from @cfg@ with sed's legacy flag}
+q: {pull the port from @cfg@ again with `sed`, using the older regex flag|repeat the port pull from @cfg@ with `sed`'s older flag|redo the port pull from @cfg@ with `sed`'s legacy flag}
 a: sed -r 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 cmp: ref
@@ -122,14 +122,14 @@ teach: sed -r
 hint: -r and -E are the same flag; -E is the portable spelling
 ---
 setup: you want capture groups without backslash-escaping every paren
-q: {@csv@ is name,id,status,count -- with sed, swap name and id|@csv@ is name,id,status,count -- with sed, put id ahead of name|@csv@ is name,id,status,count -- with sed, reverse name and id}
+q: {@csv@ is name,id,status,count -- with `sed`, swap name and id|@csv@ is name,id,status,count -- with `sed`, put id ahead of name|@csv@ is name,id,status,count -- with `sed`, reverse name and id}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@
 cmp: ref
 ref: sed
 teach: sed -E
 hint: capture each field in a group, then reorder them with \1 and \2
 ---
-q: {copy @cfg@ to edit.ini, then change @old@ to @new@|copy @cfg@ to edit.ini, then swap @old@ for @new@|copy @cfg@ to edit.ini, swap @old@ for @new@ in it}, with sed
+q: {copy @cfg@ to `edit.ini`, then change @old@ to @new@|copy @cfg@ to `edit.ini`, then swap @old@ for @new@|copy @cfg@ to `edit.ini`, swap @old@ for @new@ in it}, with `sed`
 a: cp @cfg@ edit.ini && sed -i 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini
 ref: sed
@@ -137,7 +137,7 @@ teach: sed -i
 hint: -i writes the file back rather than printing it
 ---
 setup: you're chasing one failure in a log too long to read start to finish
-q: @log@ ends with why it died -- %show% that line, sed not tail
+q: @log@ ends with why it died -- %show% that line, `sed` not tail
 a: sed -n '$p' @log@
 out: out of memory
 cmp: ref
@@ -146,21 +146,21 @@ teach: sed -n
 hint: $ means "the last line"
 ---
 setup: you're chasing one failure in a log too long to read start to finish
-q: %show% @log@ from the first @sev@ to the end, with sed
+q: %show% @log@ from the first @sev@ to the end, with `sed`
 a: sed -n '/@sev@/,$p' @log@
 cmp: ref
 ref: sed
 teach: sed -n
 hint: a pattern address and $ together mean from the first match to the end
 ---
-q: {save @old@-to-@new@ in s.sed, apply to @cfg@|write s.sed with @old@-to-@new@, run on @cfg@|put @old@-to-@new@ in s.sed, apply to @cfg@}, with sed
+q: {save @old@-to-@new@ in `s.sed`, apply to @cfg@|write `s.sed` with @old@-to-@new@, run on @cfg@|put @old@-to-@new@ in `s.sed`, apply to @cfg@}, with `sed`
 a: printf 's/@old@/@new@/g\n' > s.sed && sed -f s.sed @cfg@
 cmp: ref
 ref: sed
 teach: sed -f
 hint: -f takes a filename holding the script, like -e takes it inline
 ---
-q: {copy @cfg@ to edit.ini, swap @old@/@new@, backed up|swap @old@ for @new@ in a @cfg@ copy, backup kept|edit @cfg@'s copy @old@-to-@new@, backup kept}, with sed
+q: {copy @cfg@ to `edit.ini`, swap @old@/@new@, backed up|swap @old@ for @new@ in a @cfg@ copy, backup kept|edit @cfg@'s copy @old@-to-@new@, backup kept}, with `sed`
 a: cp @cfg@ edit.ini && sed -i.bak 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini.bak
 ref: sed

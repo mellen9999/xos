@@ -17,28 +17,28 @@ brief: the table it caches those answers in -- clear it after you move a
 brief: binary and the shell stops looking in the old place.
 ---
 setup: a pile of .log files has built up and you want line counts for all of them
-q: %find% every .log file and count its lines, with xargs
+q: %find% every .log file and count its lines, with `xargs`
 a: find . -name '*.log' | xargs wc -l
 cmp: ref
 ref: xargs
 teach: xargs
 hint: xargs turns lines of stdin into arguments appended to the command
 ---
-q: {count every .log file's lines, safe for names with spaces|count each .log file's lines in a way that survives spaces|line-count every .log file, spaces in the names and all}, with xargs
+q: {count every .log file's lines, safe for names with spaces|count each .log file's lines in a way that survives spaces|line-count every .log file, spaces in the names and all}, with `xargs`
 a: find . -name '*.log' -print0 | xargs -0 wc -l
 cmp: ref
 ref: xargs
 teach: xargs -0
 hint: NUL is the one byte a filename cannot contain
 ---
-q: {feed ls's names to echo one per run, not all in one go|run echo once per name ls prints, one argument each time|echo the names ls prints one at a time, one run per name}, with xargs
+q: {feed `ls`'s names to `echo` one per run, not all in one go|run `echo` once per name `ls` prints, one argument each time|`echo` the names `ls` prints one at a time, one run per name}, with `xargs`
 a: ls | xargs -n 1 echo
 cmp: ref
 ref: xargs
 teach: xargs -n
 hint: -n caps how many arguments go into each invocation
 ---
-q: {"found NAME" per .log name ls prints, NAME mid-command|for every .log name ls prints, echo found NAME, not trailing|"found NAME" per .log name from ls, name in the middle}, with xargs
+q: {"`found` NAME" per .log name `ls` prints, NAME mid-command|for every .log name `ls` prints, `echo` `found` NAME, not trailing|"`found` NAME" per .log name from `ls`, name in the middle}, with `xargs`
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
 cmp: ref
@@ -46,14 +46,14 @@ ref: xargs
 teach: xargs -I
 hint: -I defines a placeholder that gets replaced with each input item
 ---
-q: {echo the names ls prints, showing each command before it runs|print every echo command before it runs over ls's names|feed ls's names to echo, printing each command line first}, with xargs
+q: {`echo` the names `ls` prints, showing each command before it runs|print every `echo` command before it runs over `ls`'s names|feed `ls`'s names to `echo`, printing each command line first}, with `xargs`
 a: ls | xargs -t echo
 cmp: ref
 ref: xargs
 teach: xargs -t
 hint: -t prints the command line to stderr before running it
 ---
-q: {printf '' sends no input -- don't let echo nothing run at all|with printf '' as the input, skip running echo nothing entirely|empty input from printf '' must not still run echo nothing once}, with xargs
+q: {`printf` '' sends no input -- don't let `echo` `nothing` run at all|with `printf` '' as the input, skip running `echo` `nothing` entirely|empty input from `printf` '' must not still run `echo` `nothing` once}, with `xargs`
 a: printf '' | xargs -r echo nothing
 why: primitive-cost
 ref: xargs
@@ -61,14 +61,14 @@ teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
 setup: each of these is slow and independent, and doing them strictly one at a time wastes time
-q: {echo ls's names one per run, 2 runs going at a time|run echo over ls's names one name each, 2 in parallel|echo each name ls prints, one per run, capped at 2 parallel}, with xargs
+q: {`echo` `ls`'s names one per run, 2 runs going at a time|run `echo` over `ls`'s names one name each, 2 in parallel|`echo` each name `ls` prints, one per run, capped at 2 parallel}, with `xargs`
 a: ls | xargs -P 2 -n 1 echo
 why: primitive-cost
 ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
 ---
-q: {@txt@ already holds the argument list -- echo it, no pipe|echo the arguments in @txt@, read straight out of the file|feed @txt@'s lines to echo without piping them in}, with xargs
+q: {@txt@ already holds the argument list -- `echo` it, no pipe|`echo` the arguments in @txt@, read straight out of the file|feed @txt@'s lines to `echo` without piping them in}, with `xargs`
 a: xargs -a @txt@ echo
 out: rotate
 ref: xargs
@@ -82,21 +82,21 @@ ref: basename
 teach: basename
 hint: basename strips everything up through the last slash
 ---
-q: {strip @txt@ down to its name, dropping the .txt suffix too|get @txt@'s bare name with the .txt extension gone as well|reduce @txt@ to just its name, no directory and no .txt suffix}
+q: {strip @txt@ down to its name, dropping the `.txt` suffix too|get @txt@'s bare name with the `.txt` extension gone as well|reduce @txt@ to just its name, no directory and no `.txt` suffix}
 a: basename @txt@ .txt
 cmp: ref
 ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {strip .txt off @txt@ with basename, the suffix named as a flag|basename @txt@, naming the .txt suffix explicitly|drop .txt from @txt@ with basename, the way that scales to more files}
+q: {strip `.txt` off @txt@ with `basename`, the suffix named as a flag|`basename` @txt@, naming the `.txt` suffix explicitly|drop `.txt` from @txt@ with `basename`, the way that scales to more files}
 a: basename -s .txt @txt@
 cmp: ref
 ref: basename
 teach: basename -s
 hint: -s is the explicit-flag form of the same suffix stripping
 ---
-q: {@txt@ and @log@ -- just the filenames, in one basename call|basename @txt@ and @log@ in one call, not two|@txt@ and @log@ to bare filenames, one basename call}
+q: {@txt@ and @log@ -- just the filenames, in one `basename` call|`basename` @txt@ and @log@ in one call, not two|@txt@ and @log@ to bare filenames, one `basename` call}
 a: basename -a @txt@ @log@
 cmp: ref
 ref: basename
@@ -110,35 +110,35 @@ ref: dirname
 teach: dirname
 hint: dirname is basename's mirror -- it keeps the directory and drops the name
 ---
-q: {resolve @txt@ to its full absolute path|use realpath to turn @txt@ into an absolute path|find the absolute path realpath resolves @txt@ to}
+q: {resolve @txt@ to its full absolute path|use `realpath` to turn @txt@ into an absolute path|find the absolute path `realpath` resolves @txt@ to}
 a: realpath @txt@
 cmp: ref
 ref: realpath
 teach: realpath
 hint: realpath resolves any relative pieces and symlinks along the way
 ---
-q: {follow @txt@ through symlinks to whatever it finally points at|use readlink -f to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
+q: {follow @txt@ through symlinks to whatever it finally points at|use `readlink` `-f` to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
 a: readlink -f @txt@
 cmp: ref
 ref: readlink
 teach: readlink -f
 hint: -f follows every link in the chain, not just the first one
 ---
-q: {piping @txt@'s link target onward, no stray newline, with readlink|@txt@'s readlink target with no trailing newline|feed @txt@'s readlink target on without an extra newline}
+q: {piping @txt@'s link target onward, no stray newline, with `readlink`|@txt@'s `readlink` target with no trailing newline|feed @txt@'s `readlink` target on without an extra newline}
 a: readlink -n @txt@
 why: primitive-cost
 ref: readlink
 teach: readlink -n
 hint: -n suppresses the trailing newline readlink would otherwise print
 ---
-q: {where does the command sed live|use which to find the path sed resolves to|ask which where sed lives on disk}
+q: {where does the command `sed` live|use `which` to find the path `sed` resolves to|ask `which` where `sed` lives on disk}
 a: which sed
 cmp: ref
 ref: which
 teach: which
 hint: which searches $PATH and reports the file it would run
 ---
-q: {is sed a builtin, a file, or a function|ask type to classify what sed actually is|use type to find out what kind of command sed is}
+q: {is `sed` a builtin, a file, or a function|ask `type` to classify what `sed` actually is|use `type` to find out what kind of command `sed` is}
 a: type sed
 cmp: ref
 ref: type
@@ -146,14 +146,14 @@ teach: type
 hint: type reports whether a name is a builtin, a file, a function or an alias
 ---
 setup: you're about to call sed hundreds of times in a loop
-q: {stop the shell from searching $PATH for sed every single time|cache sed's location so future calls skip the $PATH search|make the shell remember where sed is instead of looking it up again}
+q: {stop the shell from searching $PATH for `sed` every single time|cache `sed`'s location so future calls skip the $PATH search|make the shell remember where `sed` is instead of looking it up again}
 a: hash sed
 why: primitive-cost
 ref: hash
 teach: hash
 hint: hash remembers a command's location so future lookups skip the $PATH search
 ---
-q: {check whether sed is available, the portable way|use command -v to check for sed portably, across shells|test whether sed exists using the POSIX-portable command -v}
+q: {check whether `sed` is available, the portable way|use `command` `-v` to check for `sed` portably, across shells|test whether `sed` exists using the POSIX-portable `command` `-v`}
 a: command -v sed
 cmp: ref
 ref: command

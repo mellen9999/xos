@@ -14,49 +14,49 @@ brief: `arping` asks one address directly whether anybody holds it -- an answer
 brief: that arrives before any routing is involved. `ipcalc` does the subnet
 brief: arithmetic: what a `/24` covers, where it starts, where it ends.
 ---
-q: you just booted this stick -- %show% every interface's addresses, with ip
+q: you just booted this stick -- %show% every interface's addresses, with `ip`
 a: ip addr
 out: inet [0-9]
 ref: ip
 teach: ip
 hint: ip addr with no filter lists every interface and its addresses
 ---
-q: piping this on -- %show% every interface's addresses one per line, with ip
+q: piping this on -- %show% every interface's addresses one per line, with `ip`
 a: ip -o addr
 out: ^[0-9]+:.*inet
 ref: ip
 teach: ip
 hint: -o (oneline) puts each address on its own line for easy parsing
 ---
-q: too many ipv6 lines -- %show% every interface's ipv4 addresses, with ip
+q: too many ipv6 lines -- %show% every interface's ipv4 addresses, with `ip`
 a: ip -4 addr
 why: live-hw
 ref: ip
 teach: ip
 hint: -4 filters ip's output down to ipv4 only
 ---
-q: just plugged in the cable -- %show% every interface and its state, with ip
+q: just plugged in the cable -- %show% every interface and its state, with `ip`
 a: ip link
 why: live-hw
 ref: ip
 teach: ip
 hint: ip link shows interfaces themselves, not the addresses on them
 ---
-q: {bring the interface @iface@ up with ip|bring @iface@ up with ip|set @iface@ up with ip}
+q: {bring the interface @iface@ `up` with `ip`|bring @iface@ `up` with `ip`|`set` @iface@ `up` with `ip`}
 a: ip link set @iface@ up
 why: live-hw
 ref: ip
 teach: ip
 hint: ip link set IFACE up/down toggles an interface's state
 ---
-q: {bring @iface@ back down with ip|bring @iface@ down with ip|set @iface@ down with ip}
+q: {bring @iface@ back `down` with `ip`|bring @iface@ `down` with `ip`|`set` @iface@ `down` with `ip`}
 a: ip link set @iface@ down
 why: live-hw
 ref: ip
 teach: ip
 hint: ip link set IFACE down is the mirror of ip link set IFACE up
 ---
-q: {no dhcp -- give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a /24 netmask|add the address @ip@/24 to @iface@}
+q: {no dhcp -- give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a /24 netmask|`add` the address @ip@/24 to @iface@}
 a: ip addr add @ip@/24 dev @iface@
 why: live-hw
 ref: ip
@@ -70,42 +70,42 @@ ref: ip
 teach: ip
 hint: ip addr del ADDR/PREFIX dev IFACE mirrors addr add
 ---
-q: %show% the routing table, with ip
+q: %show% the routing table, with `ip`
 a: ip route
 why: live-hw
 ref: ip
 teach: ip
 hint: ip route with no filter lists the whole table
 ---
-q: is a gateway even configured -- %show% only the default route
+q: is a gateway even configured -- %show% only the `default` `route`
 a: ip route show default
 why: live-hw
 ref: ip
 teach: ip
 hint: show default filters the route table to just the default route
 ---
-q: {add a default route via @ip@|set @ip@ as the default route|make @ip@ the gateway for the default route}
+q: {`add` a `default` `route` `via` @ip@|set @ip@ as the `default` `route`|make @ip@ the gateway for the `default` `route`}
 a: ip route add default via @ip@
 why: live-hw
 ref: ip
 teach: ip
 hint: route add default via sets where traffic with no other match goes
 ---
-q: {delete the default route with ip|remove the default route with ip|take the default route out with ip}
+q: {delete the `default` `route` with `ip`|remove the `default` `route` with `ip`|take the `default` `route` out with `ip`}
 a: ip route del default
 why: live-hw
 ref: ip
 teach: ip
 hint: route del default is the mirror of add
 ---
-q: who's been talking here -- %show% the arp neighbour table with ip
+q: who's been talking here -- %show% the arp neighbour table with `ip`
 a: ip neigh
 why: live-hw
 ref: ip
 teach: ip
 hint: ip neigh is ip's own view of the arp table
 ---
-q: scripting -- %show% just the interface names, one per line, with ip
+q: scripting -- %show% just the interface names, one per line, with `ip`
 a: ip -o link | cut -d: -f2
 out: ^ *lo *$
 ref: ip
@@ -126,7 +126,7 @@ ref: ifconfig
 teach: ifconfig
 hint: name one interface and ifconfig shows only it
 ---
-q: {set @iface@ up with @ip@, the old way|bring @iface@ up with @ip@, the old way|old-way command to give @iface@ the address @ip@ and bring it up}
+q: {set @iface@ `up` with @ip@, the old way|bring @iface@ `up` with @ip@, the old way|old-way command to give @iface@ the address @ip@ and bring it `up`}
 a: ifconfig @iface@ @ip@ up
 why: live-hw
 ref: ifconfig
@@ -140,7 +140,7 @@ ref: route
 teach: route
 hint: route with no arguments is ifconfig's routing counterpart
 ---
-q: dns might not even work yet -- %show% routes without names, using route
+q: dns might not even work yet -- %show% routes without names, using `route`
 a: route -n
 why: live-hw
 ref: route
@@ -148,42 +148,42 @@ teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
 setup: the plain route table doesn't say enough to diagnose what's wrong
-q: %show% route table entries with extended fields
+q: %show% `route` table entries with extended fields
 a: route -e
 why: live-hw
 ref: route
 teach: route -e
 hint: -e adds the extra fields netstat-style output shows
 ---
-q: see which macs this machine already knows about -- %show% the arp cache
+q: see which macs this machine already knows about -- %show% the `arp` cache
 a: arp
 out: \) at .*\[
 ref: arp
 teach: arp
 hint: arp with no arguments lists the whole cache
 ---
-q: %show% the arp cache numerically, without resolving names
+q: %show% the `arp` cache numerically, without resolving names
 a: arp -n
 why: live-net
 ref: arp
 teach: arp -n
 hint: -n skips resolving hostnames for each entry
 ---
-q: {mac changed, cache is stale -- delete the arp entry for @ip@|remove the arp entry for @ip@|drop @ip@ from the arp cache}
+q: {mac changed, cache is stale -- delete the `arp` entry for @ip@|remove the `arp` entry for @ip@|drop @ip@ from the `arp` cache}
 a: arp -d @ip@
 why: live-hw
 ref: arp
 teach: arp -d
 hint: -d removes one entry from the cache
 ---
-q: {pin @ip@ to the mac 00:11:22:33:44:55 permanently, with arp|permanently map @ip@ to 00:11:22:33:44:55 with arp|add a static arp entry for @ip@ at 00:11:22:33:44:55}
+q: {pin @ip@ to the mac `00:11:22:33:44:55` permanently, with `arp`|permanently map @ip@ to `00:11:22:33:44:55` with `arp`|add a static `arp` entry for @ip@ at `00:11:22:33:44:55`}
 a: arp -s @ip@ 00:11:22:33:44:55
 why: live-hw
 ref: arp
 teach: arp -s
 hint: -s pins an ip to a mac address by hand
 ---
-q: %show% arp entries for @iface@ only
+q: %show% `arp` entries for @iface@ only
 a: arp -i @iface@
 why: live-hw
 ref: arp
@@ -191,7 +191,7 @@ teach: arp -i
 hint: -i filters the cache down to one interface
 ---
 setup: a host lives on a different segment, and its neighbours need to think it's local
-q: {publish an arp entry for @ip@ on @iface@, on another's behalf|answer arp requests for @ip@ on @iface@, on another's behalf|publish a proxy arp entry for @ip@ out of @iface@}
+q: {publish an `arp` entry for @ip@ on @iface@, on another's behalf|answer `arp` requests for @ip@ on @iface@, on another's behalf|publish a proxy `arp` entry for @ip@ out of @iface@}
 a: arp -D @iface@ -s @ip@
 why: live-hw
 ref: arp
@@ -199,7 +199,7 @@ teach: arp -D
 hint: -D answers arp requests for an address on another host's behalf
 ---
 setup: three probes, then stop
-q: {is anyone using @ip@ -- ask at the link layer, with arping|check at the link layer whether @ip@ is in use, with arping|find out, below ip, whether @ip@ has an owner, with arping}
+q: {is anyone using @ip@ -- ask at the link layer, with `arping`|check at the link layer whether @ip@ is in use, with `arping`|find out, below ip, whether @ip@ has an owner, with `arping`}
 a: arping -c 3 @ip@
 why: live-hw
 ref: arping
@@ -223,7 +223,7 @@ teach: arping -D
 hint: -D checks whether an address is already claimed before you use it
 ---
 setup: every arping here sends one probe, then stops
-q: {arping @ip@ using @ip2@ as the chosen source address|arping @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when arping @ip@}
+q: {`arping` @ip@ using @ip2@ as the chosen source address|`arping` @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when `arping` @ip@}
 a: arping -s @ip2@ -c 1 @ip@
 why: live-hw
 ref: arping
@@ -231,7 +231,7 @@ teach: arping -s
 hint: -s sets the source address the probe claims to be from
 ---
 setup: arping can run forever waiting for an answer that never comes, and a script needs it to give up
-q: {stop arping @ip@ after 5 seconds whatever happens|cap arping @ip@ at 5 seconds no matter what|make arping @ip@ give up after 5 seconds}
+q: {stop `arping` @ip@ after 5 seconds whatever happens|cap `arping` @ip@ at 5 seconds no matter what|make `arping` @ip@ give up after 5 seconds}
 a: arping -w 5 @ip@
 why: live-hw
 ref: arping
@@ -245,28 +245,28 @@ ref: ipcalc
 teach: ipcalc
 hint: ipcalc with no flags prints the whole network breakdown
 ---
-q: %show% just the broadcast address for @ip@/24, with ipcalc
+q: %show% just the broadcast address for @ip@/24, with `ipcalc`
 a: ipcalc -b @ip@/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -b
 hint: -b isolates just the broadcast address
 ---
-q: %show% just the network address for @ip@/24, with ipcalc
+q: %show% just the network address for @ip@/24, with `ipcalc`
 a: ipcalc -n @ip@/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -n
 hint: -n isolates just the network address
 ---
-q: %show% just the netmask for @ip@/24, with ipcalc
+q: %show% just the netmask for @ip@/24, with `ipcalc`
 a: ipcalc -m @ip@/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -m
 hint: -m isolates just the netmask
 ---
-q: %show% @ip@'s prefix length for netmask 255.255.255.0, with ipcalc
+q: %show% @ip@'s prefix length for netmask `255.255.255.0`, with `ipcalc`
 a: ipcalc -p @ip@ 255.255.255.0
 cmp: ref
 ref: ipcalc

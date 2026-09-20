@@ -13,7 +13,7 @@ ref: ps
 hint: drop line 1 before you count what is left
 ---
 setup: ps's own first column is the pid, with no other tool needed to get it.
-q: print only the pid column of every process ps lists
+q: print only the pid column of every process `ps` lists
 a: ps | awk '{print $1}'
 a: ps -o pid
 out: ^[[:space:]]*[0-9]+[[:space:]]*$

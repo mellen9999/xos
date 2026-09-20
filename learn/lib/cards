@@ -66,7 +66,11 @@ _cards_unlock() { flock -u 8 2>/dev/null; { exec 8>&-; } 2>/dev/null; :; }
 # a card is keyed by the TEMPLATE, not the rendered prompt. the roll changes
 # the filenames every time; what you are learning is the shape of the question,
 # so `list %dir% in long format` is one card however it renders.
-card_key() { printf '%s/%s#%s' "$1" "$2" "$3" | tr -d '\t'; }
+# the backtick is struck off with the tab: it is markup, not wording. a card
+# whose prompt gains a `mktemp` is the same card it was the day before, and
+# keying on the raw line would have orphaned every SRS row in the ledger the
+# moment the corpus was marked up.
+card_key() { printf '%s/%s#%s' "$1" "$2" "$3" | tr -d '\t`'; }
 
 card_tier() {
 	[ -f "$CARDS" ] || { echo 0; return; }
@@ -257,7 +261,7 @@ KEYS="$TMP/keys"
 held_keys() {
 	[ -s "$KEYS" ] || awk -v OFS='\t' '
 		function flush() {
-			if (blk > 0) { k = id "/" blk "#" q; gsub(/\t/, "", k); print id, k }
+			if (blk > 0) { k = id "/" blk "#" q; gsub(/[\t`]/, "", k); print id, k }
 			q = ""
 		}
 		FNR == 1 { flush(); n = split(FILENAME, p, "/"); id = p[n]; blk = 0 }

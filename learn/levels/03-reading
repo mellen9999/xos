@@ -15,14 +15,14 @@ ref: cat
 teach: cat
 hint: no flags -- cat just dumps the whole file to the screen
 ---
-q: %show% @txt@ with cat and line numbers, to quote one back
+q: %show% @txt@ with `cat` and line numbers, to quote one back
 a: cat -n @txt@
 cmp: ref
 ref: cat
 teach: cat -n
 hint: n numbers every line, including blanks
 ---
-q: %show% @cfg@ with cat, to spot trailing whitespace on each line
+q: %show% @cfg@ with `cat`, to spot trailing whitespace on each line
 a: cat -e @cfg@
 cmp: ref
 ref: cat
@@ -36,7 +36,7 @@ ref: head
 teach: head
 hint: ten is what head does with no arguments
 ---
-q: %show% the first @n@ lines of @log@ with head
+q: %show% the first @n@ lines of @log@ with `head`
 a: head -n @n@ @log@
 a: head -@n@ @log@
 out: service started
@@ -45,7 +45,7 @@ ref: head
 teach: head -n
 hint: -n takes a count, or glue the number straight onto the dash
 ---
-q: %show% @log@'s date header with head -- the first 20 bytes
+q: %show% @log@'s date header with `head` -- the first `20` bytes
 a: head -c 20 @log@
 out: 2024-03-01
 cmp: ref
@@ -60,7 +60,7 @@ ref: tail
 teach: tail
 hint: ten is what tail does with no arguments, same as head
 ---
-q: %show% the last @n3@ lines of @log@ with tail
+q: %show% the last @n3@ lines of @log@ with `tail`
 a: tail -n @n3@ @log@
 a: tail -@n3@ @log@
 cmp: ref
@@ -68,7 +68,7 @@ ref: tail
 teach: tail -n
 hint: -n takes a count, same syntax as head -n
 ---
-q: %show% @log@ with tail, starting at line 5 -- not the last 5
+q: %show% @log@ with `tail`, starting at line 5 -- not the last 5
 a: tail -n +5 @log@
 out: connection refused
 cmp: ref
@@ -77,7 +77,7 @@ teach: tail -n
 hint: a plus sign in front of the number changes it from "last N" to "from N"
 ---
 setup: something keeps appending to @log@ and you want to watch it happen, not re-read the whole file each time
-q: {watch @log@, printing new lines as they are appended|follow @log@, printing each new line as it's appended|keep @log@ open, printing new lines as they arrive}, with tail
+q: {watch @log@, printing new lines as they are appended|follow @log@, printing each new line as it's appended|keep @log@ open, printing new lines as they arrive}, with `tail`
 a: tail -f @log@
 why: interactive
 ref: tail
@@ -91,14 +91,14 @@ ref: tac
 teach: tac
 hint: it is cat backwards, which is also what it does
 ---
-q: {pull the readable text out of @bin@, which is not a text file|extract the printable text from @bin@, a non-text file|pull the human-readable strings out of the binary @bin@}
+q: {pull the readable text out of @bin@, which is not a text file|extract the printable text from @bin@, a non-text file|pull the human-readable `strings` out of the binary @bin@}
 a: strings @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings
 hint: pulls sequences of printable characters out of any file, text or not
 ---
-q: %show% strings in @bin@, skipping noise under 5 characters
+q: %show% `strings` in @bin@, skipping noise under 5 characters
 a: strings -n 5 @bin@
 out: unlocked-by-strings
 cmp: ref
@@ -106,7 +106,7 @@ ref: strings
 teach: strings -n
 hint: -n sets the minimum run length to count as a string
 ---
-q: %show% the strings in @bin@ with each one's byte offset
+q: %show% the `strings` in @bin@ with each one's byte offset
 a: strings -t d @bin@
 a: strings -t x @bin@
 out: unlocked-by-strings
@@ -122,35 +122,35 @@ ref: less
 teach: less
 hint: q leaves, /pattern searches, g and G jump to the ends
 ---
-q: {page @log@ in less with line numbers, so you can point one out|open @log@ in less with line numbers, to reference one|view @log@ in less with line numbers, to call one out}
+q: {page @log@ in `less` with line numbers, so you can point one out|open @log@ in `less` with line numbers, to reference one|view @log@ in `less` with line numbers, to call one out}
 a: less -N @log@
 why: interactive
 ref: less
 teach: less -N
 hint: N turns on line numbers in the margin
 ---
-q: {view @log@ in less without wrapping, columns stay aligned|page @log@ in less, unwrapped -- keep columns aligned|open @log@ in less without wrapping long lines}
+q: {view @log@ in `less` without wrapping, columns stay aligned|page @log@ in `less`, unwrapped -- keep columns aligned|open @log@ in `less` without wrapping long lines}
 a: less -S @log@
 why: interactive
 ref: less
 teach: less -S
 hint: S stops wrapping -- long lines scroll sideways instead
 ---
-q: {open @log@ in less, searching case-insensitively|page @log@ in less, with case-insensitive search|view @log@ in less, so searches ignore case}
+q: {open @log@ in `less`, searching case-insensitively|page @log@ in `less`, with case-insensitive search|view @log@ in `less`, so searches ignore case}
 a: less -I @log@
 why: interactive
 ref: less
 teach: less -I
 hint: capital I makes searches ignore case
 ---
-q: %show% @log@'s last 20 bytes with tail -- just how it ended
+q: %show% @log@'s last `20` bytes with `tail` -- just how it ended
 a: tail -c 20 @log@
 cmp: ref
 ref: tail
 teach: tail -c
 hint: c for characters/bytes, same idea as head -c
 ---
-q: {follow @log@ by name with tail, so it survives rotation|follow @log@ by name not handle, with tail -- survives rotation|watch @log@ with tail, in a way that survives rotation}
+q: {follow @log@ by name with `tail`, so it survives rotation|follow @log@ by name not handle, with `tail` -- survives rotation|watch @log@ with `tail`, in a way that survives rotation}
 a: tail -F @log@
 why: interactive
 ref: tail

@@ -16,14 +16,14 @@ brief: `:set` inside `vi` turns an option on for the session -- `:set number` pu
 brief: line numbers down the left. `less` reads a file the same way `vi` does,
 brief: with the same keys to move, and no way to change what it shows.
 ---
-q: {open @txt@ in the editor|pull up @txt@ in vi|start editing @txt@ in vi}
+q: {open @txt@ in the editor|pull up @txt@ in `vi`|start editing @txt@ in `vi`}
 a: vi @txt@
 why: interactive
 ref: vi
 teach: vi
 hint: vi with just a filename opens it for editing, ready in normal mode
 ---
-q: {open @txt@ read-only in vi, so it cannot be damaged|open @txt@ in vi read-only, so a stray edit cannot land|view @txt@ in vi without being able to save changes}
+q: {open @txt@ read-only in `vi`, so it cannot be damaged|open @txt@ in `vi` read-only, so a stray edit cannot land|view @txt@ in `vi` without being able to save changes}
 a: vi -R @txt@
 why: interactive
 ref: vi
@@ -89,7 +89,7 @@ ref: vi
 teach: vi
 hint: u undoes one change at a time, like most editors
 ---
-q: {read through @log@ a page at a time, no risk of editing it|page through @log@ safely -- less can't change what it shows|view @log@ a page at a time, no chance of touching it}
+q: {read through @log@ a page at a time, no risk of editing it|page through @log@ safely -- `less` can't change what it shows|view @log@ a page at a time, no chance of touching it}
 a: less @log@
 why: interactive
 ref: less
@@ -120,7 +120,7 @@ hint: F switches less into a live-follow mode, same idea as tail -f
 setup: The shell itself has a vi mode. Turn it on and the command line you type
 setup: at the prompt uses the same keys you just learned in the editor: Escape
 setup: for normal mode, then h j k l, w, dd, and / to search your history.
-q: {turn on|enable} vi keybindings at the shell prompt, with set
+q: {turn on|enable} `vi` keybindings at the shell prompt, with `set`
 a: set -o vi
 why: conceptual
 ref: set

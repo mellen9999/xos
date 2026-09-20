@@ -29,7 +29,7 @@ ref: sh
 teach: sh
 hint: no spaces around the equals sign
 ---
-q: {set @var@ to @word@, then show its value|assign @word@ to @var@, then print it back|store @word@ in @var@, then show what @var@ holds}, with echo
+q: {set @var@ to @word@, then show its value|assign @word@ to @var@, then print it back|store @word@ in @var@, then show what @var@ holds}, with `echo`
 a: @var@=@word@; echo $@var@
 out: @word@
 ref: echo
@@ -64,14 +64,14 @@ ref: sh
 teach: sh
 hint: :- substitutes default only when the variable is unset or empty
 ---
-q: %show% @log@'s line count as "lines: N", with echo
+q: %show% @log@'s line count as "`lines:` N", with `echo`
 a: echo "lines: $(wc -l < @log@)"
 out: ^lines: [0-9]+$
 ref: echo
 teach: echo
 hint: $( ) expands fine inside double quotes, right beside literal text
 ---
-q: {export @mvar@ with the value @word@ so child processes inherit it|set @mvar@ to @word@ and export it so children see it|make @mvar@=@word@ part of the environment, not just this shell}
+q: {`export` @mvar@ with the value @word@ so child processes inherit it|set @mvar@ to @word@ and `export` it so children see it|make @mvar@=@word@ part of the environment, not just this shell}
 a: export @mvar@=@word@
 why: primitive-cost
 ref: export
@@ -85,21 +85,21 @@ ref: env
 teach: env
 hint: env with no arguments dumps the whole environment
 ---
-q: {run one command with @mvar@ set to @word@, shell unchanged|run a single command that sees @mvar@=@word@, shell untouched|give just one command @mvar@=@word@ without exporting it}, with env
+q: {run one command with @mvar@ set to @word@, shell unchanged|run a single command that sees @mvar@=@word@, shell untouched|give just one command @mvar@=@word@ without exporting it}, with `env`
 a: env @mvar@=@word@ sh -c 'echo $@mvar@'
 out: @word@
 ref: env
 teach: env
 hint: env VAR=value cmd sets it for that command alone, not your shell
 ---
-q: {empty the environment first, then print empty to prove it|run with no inherited environment, printing empty to prove it|strip the environment to nothing, then echo empty to prove it}, with env
+q: {`empty` the environment first, then print `empty` to prove it|run with no inherited environment, printing `empty` to prove it|strip the environment to nothing, then `echo` `empty` to prove it}, with `env`
 a: env -i sh -c 'echo empty'
 out: empty
 ref: env
 teach: env
 hint: -i drops the entire inherited environment before running the command
 ---
-q: {remove @mvar@ from the environment, printing gone to prove it|run a command that cannot see @mvar@, printing gone to prove it|hide @mvar@ from one command, printing gone to prove it}, with env
+q: {remove @mvar@ from the environment, printing `gone` to prove it|run a command that cannot see @mvar@, printing `gone` to prove it|hide @mvar@ from one command, printing `gone` to prove it}, with `env`
 a: env -u @mvar@ sh -c 'echo gone'
 out: gone
 cmp: ref
@@ -107,21 +107,21 @@ ref: env
 teach: env -u
 hint: -u strips one variable out of the environment for that command only
 ---
-q: %show% the environment NUL-separated so xargs -0 can parse it safely
+q: %show% the environment NUL-separated so xargs `-0` can parse it safely
 a: env -0
 cmp: ref
 ref: env
 teach: env -0
 hint: -0 separates entries with NUL instead of a newline
 ---
-q: {remove the variable @var@ from your shell entirely|delete @var@ so it is no longer set at all|make @var@ fully unset, not just empty}
+q: {remove the variable @var@ from your shell entirely|delete @var@ so it is no longer set at all|make @var@ fully `unset`, not just empty}
 a: unset @var@
 why: primitive-cost
 ref: unset
 teach: unset
 hint: unset removes the variable entirely, unlike setting it to an empty string
 ---
-q: {read a line from standard input into a variable called @var@|take one line of input and store it in @var@|capture the next line typed into a variable named @var@}
+q: {`read` a line from standard input into a variable called @var@|take one line of input and store it in @var@|capture the next line typed into a variable named @var@}
 a: read @var@
 why: interactive
 ref: read
@@ -129,14 +129,14 @@ teach: read
 hint: read takes one line from stdin and stores it in the named variable
 ---
 setup: the line you are reading is a windows path, and a shell that eats backslashes would mangle it
-q: {read a raw path into @var@ so backslashes survive intact|read user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}, with read
+q: {`read` a raw path into @var@ so backslashes survive intact|`read` user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}, with `read`
 a: read -r @var@
 why: interactive
 ref: read
 teach: read -r
 hint: -r is what you want essentially always; without it a backslash vanishes
 ---
-q: {prompt with "name: " and read the reply into @var@|show "name: " then read what comes back into @var@|ask "name: " and store the answer in @var@}, with read
+q: {prompt with "`name:` " and `read` the reply into @var@|show "`name:` " then `read` what comes back into @var@|ask "`name:` " and store the answer in @var@}, with `read`
 a: read -p "name: " @var@
 why: interactive
 ref: read
@@ -144,28 +144,28 @@ teach: read -p
 hint: -p prints its argument as a prompt before reading
 ---
 setup: the delimiter you need is sitting in a variable, not written as a literal
-q: set d to a comma, then %show% @csv@'s first column with cut
+q: set d to a comma, then %show% @csv@'s first column with `cut`
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
 ref: cut
 teach: cut -d
 hint: the variable holding the separator still needs quoting when it's used
 ---
-q: {spawn a one-off shell that just echoes the word @word@|run a throwaway shell whose only job is to echo the word @word@|fire off a fresh shell to print the word @word@, nothing else}
+q: {spawn a one-off shell that just echoes the word @word@|run a throwaway shell whose only job is to `echo` the word @word@|fire off a fresh shell to print the word @word@, nothing else}
 a: sh -c 'echo @word@'
 out: ^@word@$
 ref: sh
 teach: sh -c
 hint: -c takes the command to run as its next argument
 ---
-q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}, with unalias
+q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}, with `unalias`
 a: unalias -a
 why: conceptual
 ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot
 ---
-q: {check what ls actually is before you trust it in a script|find out in plain english what running ls would do|make sure ls isn't secretly an alias or function}, with command
+q: {check what `ls` actually is before you trust it in a script|find out in plain english what running `ls` would do|make sure `ls` isn't secretly an alias or function}, with `command`
 a: command -V ls
 cmp: ref
 ref: command
@@ -173,7 +173,7 @@ teach: command -V
 hint: -V gives a full descriptive sentence rather than just a path
 ---
 setup: your `$PATH` might be hijacked or broken
-q: %list% @txt@ with ls run through command, standard $PATH not yours
+q: %list% @txt@ with `ls` run through `command`, standard $PATH not yours
 a: command -p ls @txt@
 out: @txt@
 cmp: ref
@@ -182,14 +182,14 @@ teach: command -p
 hint: -p ignores your $PATH and uses the system's standard one instead
 ---
 setup: your `$PATH` might be hijacked or broken
-q: %show% every place in your $PATH with a command called sh, with which
+q: %show% every place in your $PATH with a command called `sh`, with `which`
 a: which -a sh
 cmp: ref
 ref: which
 teach: which -a
 hint: -a lists every match in $PATH, not just the first one found
 ---
-q: set @var@ to @word@, then echo it with s glued on the end
+q: set @var@ to @word@, then `echo` it with s glued on the end
 a: @var@=@word@; echo ${@var@}s
 cmp: ref
 ref: echo
@@ -232,7 +232,7 @@ ref: sh
 teach: sh
 hint: backticks are the older command-substitution syntax -- $( ) reads better but scripts you'll read still use `cmd`
 ---
-q: {give ls a shortcut called @word@, then list your aliases|make @word@ short for ls, then show your aliases|set @word@ as a nickname for ls, then list all aliases}, with alias
+q: {give ls a shortcut called @word@, then list your aliases|make @word@ short for ls, then show your aliases|set @word@ as a nickname for ls, then list all aliases}, with `alias`
 a: alias @word@=ls; alias
 cmp: ref
 ref: alias

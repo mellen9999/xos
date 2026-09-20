@@ -18,21 +18,21 @@ brief: `shred` overwrites a file before unlinking it. That is honest on a spinni
 brief: disk and a half-truth on flash, where the controller decides which cells
 brief: a write actually lands in and the old ones may still hold your data.
 ---
-q: %show% @bin@ as hex with hexdump, printable text beside it
+q: %show% @bin@ as hex with `hexdump`, printable text beside it
 a: hexdump -C @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -C
 hint: C is the canonical format, and the only one worth memorising
 ---
-q: {@bin@'s header -- 32 bytes, hex and text|dump @bin@'s 32 bytes as hex and text|cap @bin@ at 32 bytes, hex and text}, with hexdump
+q: {@bin@'s header -- `32` bytes, hex and text|dump @bin@'s `32` bytes as hex and text|cap @bin@ at `32` bytes, hex and text}, with `hexdump`
 a: hexdump -C -n 32 @bin@
 cmp: ref
 ref: hexdump
 teach: hexdump -n
 hint: -n caps how many bytes hexdump reads, from the start
 ---
-q: {dump @bin@ from byte 8 on, hex and text|skip @bin@'s first 8 bytes, dump hex and text|show @bin@ from byte 8 onward as hex and text}, with hexdump
+q: {dump @bin@ from byte 8 on, hex and text|skip @bin@'s first 8 bytes, dump hex and text|show @bin@ from byte 8 onward as hex and text}, with `hexdump`
 a: hexdump -C -s 8 @bin@
 cmp: ref
 ref: hexdump
@@ -40,7 +40,7 @@ teach: hexdump -s
 hint: -s skips that many bytes before the dump begins
 ---
 setup: you're piping this into something that counts lines, and folded repeats would throw the count off
-q: {@bin@ hex and text, repeats not folded to *|show every line of @bin@, repeats included|@bin@ hex and text, no asterisk for repeats}, with hexdump
+q: {@bin@ hex and text, repeats not folded to *|show every line of @bin@, repeats included|@bin@ hex and text, no asterisk for repeats}, with `hexdump`
 a: hexdump -C -v @bin@
 cmp: ref
 ref: hexdump
@@ -48,7 +48,7 @@ teach: hexdump -v
 hint: hexdump normally folds repeated lines into a *; -v turns that off
 ---
 setup: another script needs to parse this dump and the usual hex-plus-text layout doesn't line up cleanly for it
-q: {dump @bin@ with your own format string|dump @bin@ with a format string you supply|write your own format, dump @bin@ with it}, with hexdump
+q: {dump @bin@ with your own format string|dump @bin@ with a format string you supply|write your own format, dump @bin@ with it}, with `hexdump`
 a: hexdump -e '16/1 "%02x " "\n"' @bin@
 out: [0-9a-f]
 cmp: ref
@@ -56,7 +56,7 @@ ref: hexdump
 teach: hexdump -e
 hint: -e takes a format string, the same kind -f reads from a file
 ---
-q: {dump @txt@ in octal with od, the older tool that does the same job|use od, hexdump's older cousin, to dump @txt@ in octal|show @txt@ in octal using od rather than hexdump}
+q: {dump @txt@ in octal with `od`, the older tool that does the same job|use `od`, hexdump's older cousin, to dump @txt@ in octal|show @txt@ in octal using `od` rather than hexdump}
 a: od @txt@
 cmp: ref
 ref: od
@@ -64,7 +64,7 @@ teach: od
 hint: od's default is octal words -- no flags needed here
 ---
 setup: another tool already gave you the offset in decimal -- octal here would only confuse the match
-q: %show% @bin@'s address column with od, decimal not octal
+q: %show% @bin@'s address column with `od`, decimal not octal
 a: od -A d @bin@
 out: ^0000016
 ref: od
@@ -72,28 +72,28 @@ teach: od -A
 hint: -A picks the radix for the address column -- d decimal, x hex, n none at all
 ---
 setup: you need to check bytes one at a time, not grouped into the default word-sized chunks
-q: @bin@ is an elf binary -- %show% single hex bytes with od
+q: @bin@ is an elf binary -- %show% single hex bytes with `od`
 a: od -t x1 @bin@
 out: 7f 45 4c 46
 ref: od
 teach: od -t
 hint: -t picks the display type -- x1 is hex, one byte at a time
 ---
-q: @bin@'s signature -- %show% its first 8 bytes with od
+q: @bin@'s signature -- %show% its first 8 bytes with `od`
 a: od -N 8 @bin@
 out: ^0000010$
 ref: od
 teach: od -N
 hint: -N caps how many bytes od reads, from the start
 ---
-q: {copy @txt@ to copy.txt using dd|use dd to copy @txt@ into copy.txt|make a copy of @txt@ named copy.txt with dd}
+q: {copy @txt@ to copy.txt using `dd`|use `dd` to copy @txt@ into copy.txt|make a copy of @txt@ named copy.txt with `dd`}
 a: dd if=@txt@ of=copy.txt
 state: exists:copy.txt
 ref: dd
 teach: dd
 hint: if= is the source, of= is the destination -- no other flags needed
 ---
-q: {only need @log@'s start -- copy 512 bytes to head.bin|grab the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ into head.bin}, with dd
+q: {only need @log@'s start -- copy 512 bytes to head.bin|grab the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ into head.bin}, with `dd`
 a: dd if=@log@ of=head.bin bs=512 count=1
 state: exists:head.bin
 ref: dd
@@ -101,49 +101,49 @@ teach: dd
 hint: bs= sets the block size, count= how many blocks to copy
 ---
 setup: a binary format's spec puts a field 32 bytes in, 16 bytes long, and you need just that slice
-q: {embedded 32 bytes into @log@ -- read 16 there|starting 32 bytes into @log@, read 16 more|skip 32 bytes into @log@, read 16 from there}, with dd
+q: {embedded 32 bytes into @log@ -- read 16 there|starting 32 bytes into @log@, read 16 more|skip 32 bytes into @log@, read 16 from there}, with `dd`
 a: dd if=@log@ bs=1 skip=32 count=16
 out: 16 bytes
 ref: dd
 teach: dd
 hint: skip= moves the read start point; bs=1 makes skip/count mean bytes
 ---
-q: %make% zero.bin with dd, a 1 kilobyte file of zero bytes
+q: %make% zero.bin with `dd`, a 1 kilobyte file of zero bytes
 a: dd if=/dev/zero of=zero.bin bs=1k count=1
 state: exists:zero.bin
 ref: dd
 teach: dd
 hint: /dev/zero is an endless stream of zero bytes; bs=/count= cap it
 ---
-q: %make% rand.bin with dd, 32 random bytes for a key
+q: %make% rand.bin with `dd`, 32 random bytes for a key
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd
 teach: dd
 hint: /dev/urandom is the random byte source; bs= sets how many bytes total
 ---
-q: {copy @txt@ to copy.txt with dd for a script -- no progress, no summary|copy @txt@ to copy.txt with dd, no progress or summary output|copy @txt@ to copy.txt with dd as quietly as possible}
+q: {copy @txt@ to copy.txt with `dd` for a script -- no progress, no summary|copy @txt@ to copy.txt with `dd`, no progress or summary output|copy @txt@ to copy.txt with `dd` as quietly as possible}
 a: dd if=@txt@ of=copy.txt status=none
 state: exists:copy.txt
 ref: dd
 teach: dd
 hint: status= controls dd's progress/summary output -- none silences it
 ---
-q: {@log@ is too long to page through -- split it into 2-line pieces|break @log@ into 2-line pieces with split|cut @log@ into 2-line chunks with split}
+q: {@log@ is too long to page through -- `split` it into 2-line pieces|break @log@ into 2-line pieces with `split`|cut @log@ into 2-line chunks with `split`}
 a: split -l 2 @log@
 state: exists:xab
 ref: split
 teach: split -l
 hint: -l counts lines per output piece, split's default unit
 ---
-q: {you need to move @log@ in chunks under 100 bytes -- split it up|break @log@ into 100-byte pieces with split|cut @log@ into 100-byte chunks with split}
+q: {you need to move @log@ in chunks under `100` bytes -- `split` it up|break @log@ into 100-byte pieces with `split`|cut @log@ into 100-byte chunks with `split`}
 a: split -b 100 @log@
 state: exists:xaa
 ref: split
 teach: split -b
 hint: -b counts bytes per piece instead of lines
 ---
-q: {@log@ split into so many pieces -- widen suffixes to 3|split @log@ with 3-character suffixes, not the default 2|widen @log@'s split suffixes from 2 to 3 characters}
+q: {@log@ `split` into so many pieces -- widen suffixes to 3|`split` @log@ with 3-character suffixes, not the default 2|widen @log@'s `split` suffixes from 2 to 3 characters}
 a: split -a 3 -l 2 @log@
 state: exists:xaaa
 ref: split
@@ -157,7 +157,7 @@ ref: hexedit
 teach: hexedit
 hint: hexdump shows you bytes; this is how you change them
 ---
-q: securely erase @txt@ with shred, then remove it
+q: securely erase @txt@ with `shred`, then remove it
 a: shred -u @txt@
 state: gone:@txt@
 ref: shred
@@ -165,7 +165,7 @@ teach: shred -u
 hint: shred overwrites the bytes first; -u then unlinks the file
 ---
 setup: someone insists three passes isn't enough and wants the old-school seven
-q: overwrite @txt@ seven times with shred before removing it
+q: overwrite @txt@ seven times with `shred` before removing it
 a: shred -n 7 -u @txt@
 state: gone:@txt@
 ref: shred
@@ -173,7 +173,7 @@ teach: shred -n
 hint: -n sets how many overwrite passes; the default is three
 ---
 setup: you don't want it obvious afterward that this file was ever wiped
-q: shred @txt@ with a final zero pass, then remove it
+q: `shred` @txt@ with a final zero pass, then remove it
 a: shred -z -u @txt@
 state: gone:@txt@
 ref: shred
@@ -181,7 +181,7 @@ teach: shred -z
 hint: -z adds a last zero pass
 ---
 setup: you need a megabyte-sized file to test with and no megabyte to spend on it
-q: %make% a 1-megabyte file sparse.img with truncate
+q: %make% a 1-megabyte file `sparse.img` with `truncate`
 a: truncate -s 1M sparse.img
 state: exists:sparse.img
 ref: truncate
@@ -189,7 +189,7 @@ teach: truncate -s
 hint: -s sets the size; the file reads as that many bytes without using the space
 ---
 setup: you need the space guaranteed now, not created as a hole that might fail to fill later
-q: preallocate 64 kilobytes of real space for blob.bin with fallocate
+q: preallocate 64 kilobytes of real space for `blob.bin` with `fallocate`
 a: fallocate -l 64k blob.bin
 state: exists:blob.bin
 ref: fallocate

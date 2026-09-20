@@ -20,7 +20,7 @@ setup: signed file, the UKI, on the EFI partition. Edit the hash and you break
 setup: the signature over the whole image. That is why a checksum stored beside
 setup: the data it describes proves nothing, but this one proves everything. The
 setup: running kernel exposes the line it was booted with at /proc/cmdline.
-q: print the command line the firmware handed the kernel, from /proc/cmdline
+q: print the command line the firmware handed the kernel, from `/proc/cmdline`
 a: cat /proc/cmdline
 ref: cat
 teach: cat
@@ -58,7 +58,7 @@ setup: So a plain sha256sum of the signed UKI will not equal the digest the
 setup: firmware verified -- they hash different byte ranges. This is the single
 setup: sharpest trap in the whole chain: the obvious tool gives the wrong number
 setup: and it is not lying to you, it is answering a different question.
-q: name the digest the firmware actually checks -- authenticode, or sha256sum
+q: name the digest the firmware actually checks -- `authenticode`, or sha256sum
 a: authenticode
 a: Authenticode
 a: AUTHENTICODE
@@ -143,7 +143,7 @@ hint: the code that runs before any operating system does
 setup: Close the loop. You have followed the chain from the firmware down; now
 setup: read the bottom link one more time -- the anchored number every link above
 setup: exists to protect, still sitting in /proc/cmdline.
-q: pull the verity root hash out of /proc/cmdline with sed, alone
+q: pull the verity root hash out of `/proc/cmdline` with `sed`, alone
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 ref: sed
 teach: sed -n

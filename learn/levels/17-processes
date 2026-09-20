@@ -26,28 +26,28 @@ ref: ps
 teach: ps
 hint: ps alone shows just this terminal's processes, not the whole system
 ---
-q: %list% processes trimmed to just pid and name, with ps
+q: %list% processes trimmed to just pid and name, with `ps`
 a: ps -o pid,comm
 out: ^PID +COMMAND$
 ref: ps
 teach: ps -o
 hint: -o picks exactly which columns to show
 ---
-q: a process looks hung -- %list% its threads too, with ps
+q: a process looks hung -- %list% its threads too, with `ps`
 a: ps -T
 out: \{[A-Za-z_]+\}
 ref: ps
 teach: ps -T
 hint: -T adds a row for every thread, not just every process
 ---
-q: {watch processes live, updating as they change|open top to watch processes update in real time|run top so you can watch processes live}
+q: {watch processes live, updating as they change|open `top` to watch processes update in real time|run `top` so you can watch processes live}
 a: top
 why: interactive
 ref: top
 teach: top
 hint: q leaves it
 ---
-q: {grab one cpu/mem reading to paste into a note, no live screen|capture current usage as plain text you can save|log a single snapshot of top's output, not a live watch}, with top
+q: {grab one cpu/mem reading to paste into a note, no live screen|capture current usage as plain text you can save|log a single snapshot of `top`'s output, not a live watch}, with `top`
 a: top -b -n 1
 out: PID|Mem
 ref: top
@@ -55,7 +55,7 @@ teach: top -b
 teach: top -n
 hint: b for batch mode -- plain text, no cursor tricks
 ---
-q: {top refreshes too fast to read -- slow it to every 5 seconds|slow top's refresh to every 5 seconds so the numbers hold still|watch top updating only once every 5 seconds instead}
+q: {`top` refreshes too fast to read -- slow it to every 5 seconds|slow `top`'s refresh to every 5 seconds so the numbers hold still|watch `top` updating only once every 5 seconds instead}
 a: top -d 5
 why: interactive
 ref: top
@@ -70,28 +70,28 @@ ref: pgrep
 teach: pgrep
 hint: pgrep prints matching pids and nothing else
 ---
-q: {too generic a name -- match @proc@'s full command line|match @proc@ by whole command line, not just the name|you need @proc@ found via full command line, not the name}, with pgrep
+q: {too generic a name -- match @proc@'s full command line|match @proc@ by whole command line, not just the name|you need @proc@ found via full command line, not the name}, with `pgrep`
 a: pgrep -f @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -f
 hint: -f matches against the full command line, not just the process name
 ---
-q: %list% every @proc@ pid together with its name, with pgrep
+q: %list% every @proc@ pid together with its name, with `pgrep`
 a: pgrep -l @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -l
 hint: -l adds the process name next to each pid
 ---
-q: you started @proc@ more than once -- %find% the newest, with pgrep
+q: you started @proc@ more than once -- %find% the newest, with `pgrep`
 a: pgrep -n @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -n
 hint: -n keeps only the most recently started match
 ---
-q: several @proc@ run -- %find% the oldest one, with pgrep
+q: several @proc@ run -- %find% the oldest one, with `pgrep`
 a: pgrep -o @proc@
 why: live-hw
 ref: pgrep
@@ -99,14 +99,14 @@ teach: pgrep -o
 hint: -o keeps only the oldest match
 ---
 setup: another process has a name that merely contains "@proc@"
-q: %find% processes named exactly @proc@, not that other one, with pgrep
+q: %find% processes named exactly @proc@, not that other one, with `pgrep`
 a: pgrep -x @proc@
 why: live-hw
 ref: pgrep
 teach: pgrep -x
 hint: -x requires an exact name match, not a substring
 ---
-q: %find% every process except @proc@, with pgrep
+q: %find% every process except @proc@, with `pgrep`
 a: pgrep -v @proc@
 why: live-hw
 ref: pgrep
@@ -114,7 +114,7 @@ teach: pgrep -v
 hint: -v inverts the match, like grep -v
 ---
 setup: something keeps reparenting to pid 1 and you want to know what's running under it
-q: %find% the children of process 1, with pgrep
+q: %find% the children of process 1, with `pgrep`
 a: pgrep -P 1
 why: live-hw
 ref: pgrep
@@ -122,28 +122,28 @@ teach: pgrep -P
 hint: -P filters by parent pid
 ---
 setup: you've tracked the runaway process down to pid 12345
-q: {politely ask process 12345 to exit|send process 12345 the default signal, asking it to exit|ask process 12345 to terminate, with no explicit signal}
+q: {politely ask process `12345` to exit|send process `12345` the default signal, asking it to exit|ask process `12345` to terminate, with no explicit signal}
 a: kill 12345
 why: live-hw
 ref: kill
 teach: kill
 hint: no flag means TERM, which the program may catch
 ---
-q: {TERM didn't work -- force 12345 to die immediately, uncatchably|12345 ignored TERM -- give it no chance to clean up|12345 won't die politely -- send the signal it can't ignore}, with kill
+q: {TERM didn't work -- force `12345` to die immediately, uncatchably|`12345` ignored TERM -- give it no chance to clean up|`12345` won't die politely -- send the signal it can't ignore}, with `kill`
 a: kill -9 12345
 why: live-hw
 ref: kill
 teach: kill -9
 hint: 9 is KILL, the one signal a process cannot catch or ignore
 ---
-q: {a doc gives a signal number, not a name -- send 12345 signal 15|send 12345 signal 15, the number for default TERM|told to send signal 15, not just the bare command, to 12345}, with kill
+q: {a doc gives a signal number, not a name -- send `12345` signal 15|send `12345` signal 15, the number for default TERM|told to send signal 15, not just the bare command, to `12345`}, with `kill`
 a: kill -15 12345
 why: live-hw
 ref: kill
 teach: kill -15
 hint: 15 is TERM by number, same as the default
 ---
-q: %list% the signal names kill can send
+q: %list% the signal names `kill` can send
 a: kill -l
 out: KILL
 ref: kill
@@ -158,35 +158,35 @@ teach: pkill
 hint: pkill matches by name and sends the signal itself, no pgrep needed first
 ---
 setup: it won't die to a plain kill, and its name is too generic to match alone
-q: {force-kill everything whose command line mentions @proc@|nothing else works -- kill by command line for @proc@|kill -9 anything whose command line, not name, has @proc@}, with pkill
+q: {force-kill everything whose command line mentions @proc@|nothing else works -- kill by command line for @proc@|kill `-9` anything whose command line, not name, has @proc@}, with `pkill`
 a: pkill -9 -f @proc@
 why: live-hw
 ref: pkill
 teach: pkill -f
 hint: -f matches the whole command line, and -9 makes it unignorable
 ---
-q: %show% how much memory this machine has, human readable, with free
+q: %show% how much memory this machine has, human readable, with `free`
 a: free -h
 out: Mem: *[0-9]+\.[0-9]+[MGKT]
 ref: free
 teach: free -h
 hint: -h scales the numbers to whichever unit reads best
 ---
-q: {how many processors does this machine have|ask nproc how many processors are available|find out how many CPUs you have to work with}
+q: {how many processors does this machine have|ask `nproc` how many processors are available|find out how many CPUs you have to work with}
 a: nproc
 cmp: ref
 ref: nproc
 teach: nproc
 hint: nproc reports how many CPUs are available to you, not the machine total
 ---
-q: {how many processors exist, including ones not available to you|ask nproc for the machine's total CPU count, not just your share|find the full processor count, ignoring any restriction on you}, with nproc
+q: {how many processors exist, including ones not available to you|ask `nproc` for the machine's total CPU count, not just your share|find the full processor count, ignoring any restriction on you}, with `nproc`
 a: nproc --all
 cmp: ref
 ref: nproc
 teach: nproc --all
 hint: --all counts every CPU, even ones your process can't use
 ---
-q: multiple @proc@ run with different args -- %list% each, with pgrep
+q: multiple @proc@ run with different args -- %list% each, with `pgrep`
 a: pgrep -a @proc@
 why: live-hw
 ref: pgrep
@@ -200,7 +200,7 @@ ref: pidof
 teach: pidof
 hint: pidof looks up pids by name in one step, like pgrep without the flags
 ---
-q: {@proc@ might have several pids -- get just the one|you need a single @proc@ pid, never a list of them|a script wants one @proc@ pid only, not several}, with pidof
+q: {@proc@ might have several pids -- get just the one|you need a single @proc@ pid, never a list of them|a script wants one @proc@ pid only, not several}, with `pidof`
 a: pidof -s @proc@
 why: live-hw
 ref: pidof
@@ -214,7 +214,7 @@ ref: pstree
 teach: pstree
 hint: pstree draws the parent-child relationships as a tree
 ---
-q: %show% the process tree with each process's pid, with pstree
+q: %show% the process tree with each process's pid, with `pstree`
 a: pstree -p
 why: live-hw
 ref: pstree
@@ -236,14 +236,14 @@ ref: fuser
 teach: fuser
 hint: fuser reports the pids of anything with that file open
 ---
-q: you can't unmount @dir@ -- %find% what's using it, with fuser
+q: you can't unmount @dir@ -- %find% what's using it, with `fuser`
 a: fuser -m @dir@
 why: live-hw
 ref: fuser
 teach: fuser -m
 hint: -m targets a whole mounted filesystem instead of one file
 ---
-q: %find% and kill whatever has @log@ open, with fuser
+q: %find% and kill whatever has @log@ open, with `fuser`
 a: fuser -k @log@
 why: live-hw
 ref: fuser
@@ -259,7 +259,7 @@ teach: pmap
 hint: pmap lists the memory regions mapped into a process
 ---
 setup: a process is using more memory than expected and you want to see what's mapped into it
-q: %show% process 1's memory map, full per-mapping detail, with pmap
+q: %show% process 1's memory map, full per-mapping detail, with `pmap`
 a: pmap -x 1
 why: live-hw
 ref: pmap
@@ -281,7 +281,7 @@ ref: killall
 teach: killall
 hint: killall matches by exact process name, unlike pkill's substring matching
 ---
-q: %list% the signal names killall knows
+q: %list% the signal names `killall` knows
 a: killall -l
 out: KILL
 ref: killall
@@ -289,7 +289,7 @@ teach: killall -l
 hint: -l lists the signal names killall recognizes
 ---
 setup: you want to poke around as root without any of it reaching the real filesystem or network
-q: run a shell in new mount, net and pid namespaces with unshare
+q: run a shell in new mount, net and pid namespaces with `unshare`
 a: unshare -r -m -n -p sh
 why: root
 ref: unshare
@@ -300,7 +300,7 @@ teach: unshare -p
 hint: -r maps you to root; -m -n -p give the new shell its own mounts, network and pids
 ---
 setup: something behaves differently when it's the first process in a pid namespace and you need to reproduce that here
-q: unshare a new pid namespace and fork so the shell becomes pid 1 inside it
+q: `unshare` a new pid namespace and fork so the shell becomes pid 1 inside it
 a: unshare -f -p sh
 why: root
 ref: unshare
@@ -308,7 +308,7 @@ teach: unshare -f
 hint: a pid namespace only takes effect for children, so -f forks before exec
 ---
 setup: you need a shell inside another process's world to see what it sees, not a new one of your own
-q: enter pid 1's mount, net and pid namespaces with nsenter
+q: enter pid 1's mount, net and pid namespaces with `nsenter`
 a: nsenter -t 1 -m -n -p sh
 why: root
 ref: nsenter

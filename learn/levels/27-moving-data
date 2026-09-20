@@ -16,42 +16,42 @@ brief: compiled out on purpose. xos opens no doors it was not asked to.
 ---
 setup: file.txt is served over plain http below -- only the host and the
 setup: flag change from here on.
-q: {keep file.txt's own name pulling it from @host@|don't rename it -- grab file.txt from @host@|leave the name alone, fetching file.txt from @host@}, with wget
+q: {keep file.txt's own name pulling it from @host@|don't rename it -- grab file.txt from @host@|leave the name alone, fetching file.txt from @host@}, with `wget`
 a: wget http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget
 hint: wget with no -O saves the file under the url's own basename
 ---
-q: {pick out.txt as your own name for file.txt from @host@|choose out.txt as the name, saving file.txt from @host@|rename it out.txt, pulling file.txt from @host@}, with wget
+q: {pick `out.txt` as your own name for file.txt from @host@|choose `out.txt` as the name, saving file.txt from @host@|rename it `out.txt`, pulling file.txt from @host@}, with `wget`
 a: wget -O out.txt http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -O
 hint: -O picks the output filename yourself, instead of using the url's
 ---
-q: {stay quiet fetching file.txt from @host@|silence the output grabbing file.txt from @host@|no progress noise pulling file.txt from @host@}, with wget
+q: {stay quiet fetching file.txt from @host@|silence the output grabbing file.txt from @host@|no progress noise pulling file.txt from @host@}, with `wget`
 a: wget -q http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -q
 hint: -q silences wget's normal progress output
 ---
-q: {pick up file.txt's stalled download from @host@|don't restart -- resume file.txt from @host@|continue file.txt's interrupted pull from @host@}, with wget
+q: {pick up file.txt's stalled download from @host@|don't restart -- resume file.txt from @host@|continue file.txt's interrupted pull from @host@}, with `wget`
 a: wget -c http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -c
 hint: -c picks up a partial download where it left off
 ---
-q: {confirm file.txt is really there on @host@|check file.txt exists, no download, on @host@|make sure file.txt is there without pulling it from @host@}, with wget
+q: {confirm file.txt is really there on @host@|check file.txt exists, no download, on @host@|make sure file.txt is there without pulling it from @host@}, with `wget`
 a: wget --spider http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget --spider
 hint: --spider checks the url without saving anything
 ---
-q: {watch the headers fetching file.txt from @host@|see what headers come back pulling file.txt from @host@|check the response headers on file.txt from @host@}, with wget
+q: {watch the headers fetching file.txt from @host@|see what headers come back pulling file.txt from @host@|check the response headers on file.txt from @host@}, with `wget`
 a: wget -S http://@host@/file.txt
 why: live-net
 ref: wget
@@ -59,35 +59,35 @@ teach: wget -S
 hint: -S prints the server's response headers as they arrive
 ---
 setup: the server won't serve this without a token in the request, and wget doesn't send custom headers by default
-q: {fetch file.txt from @host@ using header 'X-Token: abc'|send header 'X-Token: abc' fetching file.txt from @host@|get file.txt from @host@ with header 'X-Token: abc'}, with wget
+q: {fetch file.txt from @host@ using header '`X-Token:` `abc`'|send header '`X-Token:` `abc`' fetching file.txt from @host@|get file.txt from @host@ with header '`X-Token:` `abc`'}, with `wget`
 a: wget --header 'X-Token: abc' http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget --header
 hint: --header adds one arbitrary header line to the request
 ---
-q: {POST a=1 to @host@/submit instead of fetching|send a=1 to @host@/submit with a post, not a get|push a=1 to @host@/submit rather than downloading}, with wget
+q: {POST `a=1` to @host@/submit instead of fetching|send `a=1` to @host@/submit with a post, not a get|push `a=1` to @host@/submit rather than downloading}, with `wget`
 a: wget --post-data 'a=1' http://@host@/submit
 why: live-net
 ref: wget
 teach: wget --post-data
 hint: --post-data sends the string as the request body over POST
 ---
-q: {land file.txt in @dir@, pulling it from @host@|drop file.txt into @dir@ fetching from @host@|save file.txt into @dir@ instead, from @host@}, with wget
+q: {land file.txt in @dir@, pulling it from @host@|drop file.txt into @dir@ fetching from @host@|save file.txt into @dir@ instead, from @host@}, with `wget`
 a: wget -P @dir@ http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -P
 hint: -P sets the directory the download is saved into
 ---
-q: {give up on file.txt after 10 silent seconds from @host@|cap the wait on file.txt at 10s from @host@|abandon file.txt if @host@ stays quiet 10s}, with wget
+q: {give up on file.txt after `10` silent seconds from @host@|cap the wait on file.txt at 10s from @host@|abandon file.txt if @host@ stays quiet 10s}, with `wget`
 a: wget -T 10 http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -T
 hint: -T caps how long wget waits for the server before giving up
 ---
-q: {with wget, log file.txt's fetch to wget.log, from @host@|save file.txt's log to wget.log with wget, from @host@|track file.txt's pull in wget.log with wget, from @host@}
+q: {with `wget`, log file.txt's fetch to `wget.log`, from @host@|save file.txt's log to `wget.log` with `wget`, from @host@|track file.txt's pull in `wget.log` with `wget`, from @host@}
 a: wget -o wget.log http://@host@/file.txt
 why: live-net
 ref: wget
@@ -95,7 +95,7 @@ teach: wget -o
 hint: -o redirects wget's log messages into a file
 ---
 setup: the cert can't be validated here -- no ca, maybe self-signed -- but you already know this is the right host
-q: {fetch https://@host@/file.txt uncertified with wget -- know why|skip cert checks with wget fetching https://@host@/file.txt|pull https://@host@/file.txt via wget, cert check off, risky}
+q: {fetch https://@host@/file.txt uncertified with `wget` -- know why|skip cert checks with `wget` fetching https://@host@/file.txt|pull https://@host@/file.txt via `wget`, cert check off, risky}
 a: wget --no-check-certificate https://@host@/file.txt
 why: live-net
 ref: wget
@@ -109,7 +109,7 @@ ref: nc
 teach: nc
 hint: nc with just a host and port opens a raw tcp connection
 ---
-q: {send a HEAD request to @host@ on port 80 via nc, by hand|hand-craft a HEAD request to @host@ port 80, send it through nc|pipe a HEAD request into nc, talking http to @host@ port 80}
+q: {send a `HEAD` request to @host@ on port `80` via `nc`, by hand|hand-craft a `HEAD` request to @host@ port `80`, send it through `nc`|pipe a `HEAD` request into `nc`, talking http to @host@ port `80`}
 a: printf 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
 why: live-net
 ref: nc
@@ -118,14 +118,14 @@ hint: pipe a raw request into nc and read the raw response back
 ---
 setup: Telnet still opens gear too old for ssh -- no encryption, but
 setup: sometimes the only door in.
-q: {reach a telnet-only box at @host@ on port @port@|open a session to old gear at @host@:@port@ that only speaks telnet|connect to a device at @host@:@port@ that has no ssh, only telnet}
+q: {reach a telnet-only box at @host@ on port @port@|open a session to old gear at @host@:@port@ that only speaks `telnet`|connect to a device at @host@:@port@ that has no ssh, only `telnet`}
 a: telnet @host@ @port@
 why: live-net
 ref: telnet
 teach: telnet
 hint: telnet HOST PORT opens a plain tcp session to that port
 ---
-q: {log into @host@ over telnet as @user@, skip the prompt|telnet into @host@, logging straight in as @user@|reach @host@ over telnet already logged in as @user@}
+q: {log into @host@ over `telnet` as @user@, skip the prompt|`telnet` into @host@, logging straight in as @user@|reach @host@ over `telnet` already logged in as @user@}
 a: telnet -l @user@ @host@
 why: live-net
 ref: telnet
@@ -134,7 +134,7 @@ hint: -l sends a login name as soon as the connection opens
 ---
 setup: tftp has no login and no encryption -- exactly what firmware on
 setup: embedded gear still expects. The remote file is file.txt throughout.
-q: {fetch a file over tftp from @host@|download a file using tftp from @host@|use tftp to fetch a file from @host@}
+q: {fetch a file over `tftp` from @host@|download a file using `tftp` from @host@|use `tftp` to fetch a file from @host@}
 a: tftp -g -r file.txt @host@
 why: live-net
 ref: tftp
@@ -142,7 +142,7 @@ teach: tftp -g
 teach: tftp -r
 hint: -g gets a file, -r names which one
 ---
-q: {upload @txt@ over tftp to @host@|send @txt@ up over tftp to @host@|use tftp to upload @txt@ to @host@}
+q: {upload @txt@ over `tftp` to @host@|send @txt@ up over `tftp` to @host@|use `tftp` to upload @txt@ to @host@}
 a: tftp -p -l @txt@ @host@
 why: live-net
 ref: tftp
@@ -152,7 +152,7 @@ hint: -p puts a file, -l names the local file to send
 ---
 setup: ftpget and ftpput both name the local file local.txt and the remote
 setup: one remote.txt, and the password is secret. Only the flag changes.
-q: {fetch a file from the ftp server @host@|download a file from the ftp server @host@|use ftpget to pull a file from @host@}
+q: {fetch a file from the ftp server @host@|download a file from the ftp server @host@|use `ftpget` to pull a file from @host@}
 a: ftpget @host@ local.txt remote.txt
 why: live-net
 ref: ftpget
@@ -160,7 +160,7 @@ teach: ftpget
 hint: ftpget takes the local name then the remote name, in that order
 ---
 setup: local.txt and remote.txt are the names throughout, and secret is the password.
-q: {fetch from @host@ via ftpget as @user@, with a password|download from @host@ via ftpget, authenticating as @user@|use ftpget with the username @user@ to fetch from @host@}
+q: {fetch from @host@ via `ftpget` as @user@, with a password|download from @host@ via `ftpget`, authenticating as @user@|use `ftpget` with the username @user@ to fetch from @host@}
 a: ftpget -u @user@ -p secret @host@ local.txt remote.txt
 why: live-net
 ref: ftpget
@@ -169,7 +169,7 @@ teach: ftpget -p
 hint: -u sets the username, -p the password
 ---
 setup: local.txt and remote.txt are the names throughout.
-q: {fetch from @host@ on the non-standard ftpget port @port@|download via ftpget from @host@ listening on port @port@|use ftpget against @host@ on the non-default port @port@}
+q: {fetch from @host@ on the non-standard `ftpget` port @port@|download via `ftpget` from @host@ listening on port @port@|use `ftpget` against @host@ on the non-default port @port@}
 a: ftpget -P @port@ @host@ local.txt remote.txt
 why: live-net
 ref: ftpget
@@ -177,7 +177,7 @@ teach: ftpget -P
 hint: -P picks the port instead of ftp's default 21
 ---
 setup: local.txt and remote.txt are the names throughout.
-q: {continue an interrupted ftpget download from @host@|resume an ftpget download from @host@ that got interrupted|pick an interrupted ftpget download from @host@ back up}
+q: {continue an interrupted `ftpget` download from @host@|resume an `ftpget` download from @host@ that got interrupted|pick an interrupted `ftpget` download from @host@ back up}
 a: ftpget -c @host@ local.txt remote.txt
 why: live-net
 ref: ftpget
@@ -185,7 +185,7 @@ teach: ftpget -c
 hint: -c continues a download from where it stopped
 ---
 setup: remote.txt is the name @txt@ takes on the server.
-q: {put @txt@ up on the ftp server @host@|send @txt@ up to the ftp server @host@|use ftpput to upload @txt@ to @host@}
+q: {put @txt@ up on the ftp server @host@|send @txt@ up to the ftp server @host@|use `ftpput` to upload @txt@ to @host@}
 a: ftpput @host@ remote.txt @txt@
 why: live-net
 ref: ftpput
@@ -193,7 +193,7 @@ teach: ftpput
 hint: ftpput takes the remote name then the local name, in that order
 ---
 setup: remote.txt is the name @txt@ takes on the server, and secret is the password.
-q: {upload @txt@ to @host@'s ftpput, authenticating as @user@|send @txt@ to @host@ via ftpput, logged in as @user@|use ftpput as @user@ to upload @txt@ to @host@}
+q: {upload @txt@ to @host@'s `ftpput`, authenticating as @user@|send @txt@ to @host@ via `ftpput`, logged in as @user@|use `ftpput` as @user@ to upload @txt@ to @host@}
 a: ftpput -u @user@ -p secret @host@ remote.txt @txt@
 why: live-net
 ref: ftpput
@@ -202,7 +202,7 @@ teach: ftpput -p
 hint: -u sets the username, -p the password, same as ftpget
 ---
 setup: remote.txt is the name @txt@ takes on the server.
-q: {upload @txt@ to @host@ on ftpput port @port@|send @txt@ to @host@'s ftpput on port @port@|use ftpput against @host@:@port@ to send @txt@}
+q: {upload @txt@ to @host@ on `ftpput` port @port@|send @txt@ to @host@'s `ftpput` on port @port@|use `ftpput` against @host@:@port@ to send @txt@}
 a: ftpput -P @port@ @host@ remote.txt @txt@
 why: live-net
 ref: ftpput
@@ -211,28 +211,28 @@ hint: -P picks the port instead of ftp's default 21
 ---
 setup: Nothing routes anywhere until an interface has an address -- ask
 setup: the network for one.
-q: {ask for a dhcp lease on @iface@ with udhcpc|request a dhcp lease on @iface@ with udhcpc|use udhcpc to get a lease on @iface@}
+q: {ask for a dhcp lease on @iface@ with `udhcpc`|request a dhcp lease on @iface@ with `udhcpc`|use `udhcpc` to get a lease on @iface@}
 a: udhcpc -i @iface@
 why: live-net
 ref: udhcpc
 teach: udhcpc -i
 hint: -i names which interface to request a lease on
 ---
-q: {get a udhcpc lease on @iface@ and exit rather than staying resident|grab a udhcpc lease on @iface@ then quit, instead of staying resident|request a udhcpc lease on @iface@ and exit immediately, no daemon}
+q: {get a `udhcpc` lease on @iface@ and exit rather than staying resident|grab a `udhcpc` lease on @iface@ then quit, instead of staying resident|request a `udhcpc` lease on @iface@ and exit immediately, no daemon}
 a: udhcpc -i @iface@ -q
 why: live-net
 ref: udhcpc
 teach: udhcpc -q
 hint: -q exits once a lease is obtained instead of staying resident
 ---
-q: {watch udhcpc negotiate a lease on @iface@ instead of it backgrounding|keep udhcpc on @iface@ in front of you instead of letting it daemonize|run udhcpc on @iface@ so you can watch it work, not backgrounded}
+q: {watch `udhcpc` negotiate a lease on @iface@ instead of it backgrounding|keep `udhcpc` on @iface@ in front of you instead of letting it daemonize|run `udhcpc` on @iface@ so you can watch it work, not backgrounded}
 a: udhcpc -i @iface@ -f
 why: live-net
 ref: udhcpc
 teach: udhcpc -f
 hint: -f keeps udhcpc in the foreground instead of daemonizing
 ---
-q: {exit rather than keep retrying udhcpc on @iface@ if no lease arrives|give up and exit if udhcpc gets no lease ever on @iface@|stop instead of retrying udhcpc on @iface@ forever, no lease showing}
+q: {exit rather than keep retrying `udhcpc` on @iface@ if no lease arrives|give up and exit if `udhcpc` gets no lease ever on @iface@|stop instead of retrying `udhcpc` on @iface@ forever, no lease showing}
 a: udhcpc -i @iface@ -n
 why: live-net
 ref: udhcpc
@@ -240,7 +240,7 @@ teach: udhcpc -n
 hint: -n exits immediately if no lease shows up, rather than retrying forever
 ---
 setup: udhcpc only negotiates the lease -- something else has to apply the address and routes it hands back
-q: {run /usr/share/udhcpc/default.script on @iface@ once the lease arrives|name /usr/share/udhcpc/default.script to run when @iface@ gets a lease|have @iface@'s lease run /usr/share/udhcpc/default.script}
+q: {run `/usr/share/udhcpc/default.script` on @iface@ once the lease arrives|name `/usr/share/udhcpc/default.script` to run when @iface@ gets a lease|have @iface@'s lease run `/usr/share/udhcpc/default.script`}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
 why: live-net
 ref: udhcpc

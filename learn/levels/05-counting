@@ -9,28 +9,28 @@ brief: `sort` orders, `uniq` collapses neighbours, `wc` counts. `uniq` only sees
 brief: line before it, so it can only remove duplicates that are already
 brief: adjacent -- which is why `sort` comes first, every time.
 ---
-q: {%count% the lines in @log@|how many lines does @log@ have?|how long is @log@ in lines?}, with wc
+q: {%count% the lines in @log@|how many lines does @log@ have?|how long is @log@ in lines?}, with `wc`
 a: wc -l < @log@
 cmp: ref
 ref: wc
 teach: wc -l
 hint: l for lines, same flag whether you pipe it in or pass a filename
 ---
-q: {%count% the words in @txt@|how many words are in @txt@?|word count of @txt@}, with wc
+q: {%count% the words in @txt@|how many words are in @txt@?|word count of @txt@}, with `wc`
 a: wc -w < @txt@
 cmp: ref
 ref: wc
 teach: wc -w
 hint: words are whitespace-separated, not lines
 ---
-q: {%count% the bytes in @txt@|how many bytes is @txt@?|the size of @txt@ in bytes}, with wc
+q: {%count% the bytes in @txt@|how many bytes is @txt@?|the size of @txt@ in bytes}, with `wc`
 a: wc -c < @txt@
 cmp: ref
 ref: wc
 teach: wc -c
 hint: c counts bytes -- pair with -m for characters on multibyte text
 ---
-q: {%count% how many entries are in the current directory|how many things are in this directory?|number of files and folders here}, with wc
+q: {%count% how many entries are in the current directory|how many things are in this directory?|number of files and folders here}, with `wc`
 a: ls | wc -l
 out: [0-9]
 cmp: ref
@@ -38,14 +38,14 @@ ref: wc
 teach: wc -l
 hint: pipe a listing into wc -l to turn it into a count
 ---
-q: {sort the lines of @txt@ alphabetically|put @txt@ in alphabetical order|order @txt@ a to z}
+q: {`sort` the lines of @txt@ alphabetically|put @txt@ in alphabetical order|order @txt@ a to z}
 a: sort @txt@
 out: ^ask why the fan
 ref: sort
 teach: sort
 hint: no flags -- sort defaults to alphabetical, ascending
 ---
-q: {sort @txt@ in reverse alphabetical order|order @txt@ z to a with sort|sort @txt@ backwards}
+q: {`sort` @txt@ in reverse alphabetical order|order @txt@ z to a with `sort`|`sort` @txt@ backwards}
 a: sort -r @txt@
 out: ^verify the root hash
 cmp: ref
@@ -53,7 +53,7 @@ ref: sort
 teach: sort -r
 hint: r flips the order
 ---
-q: %show% @txt@ deduped, using sort alone
+q: %show% @txt@ deduped, using `sort` alone
 a: sort -u @txt@
 out: ask why the fan
 cmp: ref
@@ -61,21 +61,21 @@ ref: sort
 teach: sort -u
 hint: u does the sort and the dedup in a single pass
 ---
-q: %show% @txt@ deduped, using sort piped into uniq
+q: %show% @txt@ deduped, using `sort` piped into `uniq`
 a: sort @txt@ | uniq
 out: ask why the fan
 ref: uniq
 teach: uniq
 hint: uniq only collapses ADJACENT duplicates, so sort has to go first
 ---
-q: {%show% each line of @txt@ with its count|how often does each line of @txt@ occur?|tally the repeats in @txt@}, with uniq
+q: {%show% each line of @txt@ with its count|how often does each line of @txt@ occur?|tally the repeats in @txt@}, with `uniq`
 a: sort @txt@ | uniq -c
 out: 2 rotate the logs
 ref: uniq
 teach: uniq -c
 hint: c prefixes each line with how many times it appeared
 ---
-q: %show% only the lines of @txt@ that appear more than once, with uniq
+q: %show% only the lines of @txt@ that appear more than once, with `uniq`
 a: sort @txt@ | uniq -d
 out: rotate the logs
 cmp: ref
@@ -83,7 +83,7 @@ ref: uniq
 teach: uniq -d
 hint: d shows only lines that had a duplicate
 ---
-q: %show% only the lines of @txt@ that appear exactly once, with uniq
+q: %show% only the lines of @txt@ that appear exactly once, with `uniq`
 a: sort @txt@ | uniq -u
 out: ask why the fan
 cmp: ref
@@ -91,7 +91,7 @@ ref: uniq
 teach: uniq -u
 hint: u here shows only lines that had no duplicate
 ---
-q: {@csv@ is name,id,status,count -- sort it by status|@csv@ has columns name,id,status,count -- sort by status|@csv@'s columns are name,id,status,count -- sort by status}
+q: {@csv@ is name,id,status,count -- `sort` it by status|@csv@ has columns name,id,status,count -- `sort` by status|@csv@'s columns are name,id,status,count -- `sort` by status}
 a: sort -t, -k3 @csv@
 out: down
 cmp: ref
@@ -99,7 +99,7 @@ ref: sort
 teach: sort -t
 hint: -t sets the separator, -k picks the field
 ---
-q: {@csv@ is name,id,status,count -- sort it, highest count first|@csv@ has columns name,id,status,count -- sort, highest first|@csv@'s columns: name,id,status,count -- sort, highest count first}
+q: {@csv@ is name,id,status,count -- `sort` it, highest count first|@csv@ has columns name,id,status,count -- `sort`, highest first|@csv@'s columns: name,id,status,count -- `sort`, highest count first}
 a: sort -t, -k4 -rn @csv@
 a: sort -t, -k4rn @csv@
 out: ^gateway,
@@ -107,7 +107,7 @@ ref: sort
 teach: sort -k
 hint: n makes the comparison numeric instead of text; r reverses it
 ---
-q: {sort @txt@ ignoring the difference between upper and lower case|sort @txt@ treating uppercase and lowercase as the same|sort @txt@ case-insensitively}
+q: {`sort` @txt@ ignoring the difference between upper and lower case|`sort` @txt@ treating uppercase and lowercase as the same|`sort` @txt@ case-insensitively}
 a: sort -f @txt@
 out: ask why the fan
 cmp: ref
@@ -115,7 +115,7 @@ ref: sort
 teach: sort -f
 hint: f folds case, treating upper and lower as equal
 ---
-q: {check with sort whether versions.txt is sorted, without printing|verify with sort that versions.txt is in order, printing nothing|confirm with sort that versions.txt is sorted, silently}
+q: {check with `sort` whether `versions.txt` is sorted, without printing|verify with `sort` that `versions.txt` is in order, printing nothing|confirm with `sort` that `versions.txt` is sorted, silently}
 a: sort -c versions.txt
 status: 1
 cmp: ref
@@ -123,14 +123,14 @@ ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
 ---
-q: {sort sizes.txt's sizes like 2K and 1M, print only the smallest|sort sizes.txt so 2K and 1M compare right, print just the smallest|sort sizes.txt by sizes like 2K and 1M, print only the first}
+q: {`sort` `sizes.txt`'s sizes like 2K and 1M, print only the smallest|`sort` `sizes.txt` so 2K and 1M compare right, print just the smallest|`sort` `sizes.txt` by sizes like 2K and 1M, print only the first}
 a: sort -h sizes.txt | head -1
 cmp: ref
 ref: sort
 teach: sort -h
 hint: h understands suffixes like K and M when comparing, so 512 sorts before 64k
 ---
-q: {sort @txt@ ignoring any stray control characters|sort @txt@ as if the stray control characters weren't there|sort @txt@ so odd control characters don't throw off the order}
+q: {`sort` @txt@ ignoring any stray control characters|`sort` @txt@ as if the stray control characters weren't there|`sort` @txt@ so odd control characters don't throw off the order}
 a: sort -i @txt@
 cmp: ref
 ref: sort
@@ -138,21 +138,21 @@ teach: sort -i
 hint: -i drops the bytes with no glyph before comparing -- case-blind sorting is -f's job
 ---
 setup: redirecting a command's output back onto the file it's reading from empties the file before anything gets read
-q: {sort @txt@ writing the result into sorted.txt|sort @txt@ and write the sorted result into sorted.txt|sort @txt@, saving the output into sorted.txt rather than printing it}
+q: {`sort` @txt@ writing the result into `sorted.txt`|`sort` @txt@ and write the sorted result into `sorted.txt`|`sort` @txt@, saving the output into `sorted.txt` rather than printing it}
 a: sort -o sorted.txt @txt@
 state: exists:sorted.txt
 ref: sort
 teach: sort -o
 hint: -o names the output file -- sort reads it all into memory before writing
 ---
-q: {sort versions.txt so 1.10 follows 1.9, print only the last|sort versions.txt's version numbers, print just the highest|order versions.txt so 1.10 follows 1.9, print only the last}, with sort
+q: {`sort` `versions.txt` so 1.10 follows 1.9, print only the last|`sort` `versions.txt`'s version numbers, print just the highest|order `versions.txt` so 1.10 follows 1.9, print only the last}, with `sort`
 a: sort -V versions.txt | tail -1
 cmp: ref
 ref: sort
 teach: sort -V
 hint: V understands version numbers, so 1.9 sorts before 1.10, and 2.0 sorts last of all
 ---
-q: {collapse duplicate lines of @txt@ ignoring case|collapse duplicates in @txt@, treating case as irrelevant|remove case-insensitive duplicate lines from @txt@}, with uniq
+q: {collapse duplicate lines of @txt@ ignoring case|collapse duplicates in @txt@, treating case as irrelevant|remove case-insensitive duplicate lines from @txt@}, with `uniq`
 a: sort -f @txt@ | uniq -i
 cmp: ref
 ref: uniq

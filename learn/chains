@@ -1,97 +1,97 @@
 name: the gauntlet
 brief: multi-command chains, composed from everything the levels taught -- text triage, then the tradecraft you carry a stick like this to do: name a blob by its magic, carve the secret out of it, count who was refused, find the line where a machine died. thirty seconds each, one life, no hints, no reference. every chain is graded on what your pipe really prints, so any correct pipeline passes. how far can you get?
 ---
-q: %count% the distinct lines of @txt@, with sort
+q: %count% the distinct lines of @txt@, with `sort`
 a: sort -u @txt@ | wc -l
 lvl: 05
 ref: sort
 ---
-q: %show% only the lines of @txt@ that appear more than once, with uniq
+q: %show% only the lines of @txt@ that appear more than once, with `uniq`
 a: sort @txt@ | uniq -d
 lvl: 05
 ref: uniq
 ---
-q: %count% the @sev@ lines of @log@ with grep, a pipe not a flag
+q: %count% the @sev@ lines of @log@ with `grep`, a pipe not a flag
 a: grep @sev@ @log@ | wc -l
 lvl: 06
 ref: grep
 ---
-q: %count% the refused connections in @log@, with grep and a pipe
+q: %count% the `refused` connections in @log@, with `grep` and a pipe
 a: grep refused @log@ | wc -l
 lvl: 06
 ref: grep
 ---
-q: %show% the last FATAL line in @log@, with grep
+q: %show% the last `FATAL` line in @log@, with `grep`
 a: grep FATAL @log@ | tail -1
 lvl: 06
 ref: grep
 ---
-q: %count% the .txt files with find, any depth under here
+q: %count% the .txt files with `find`, any depth under here
 a: find . -name '*.txt' | wc -l
 lvl: 07
 ref: find
 ---
-q: %show% the status column of @csv@ with cut, no header, sorted
+q: %show% the status column of @csv@ with `cut`, no header, sorted
 a: tail -n +2 @csv@ | cut -d, -f3 | sort
 lvl: 08
 ref: cut
 ---
-q: %show% @cfg@'s settings with sed, key=value, no comments or blanks
+q: %show% @cfg@'s settings with `sed`, key=value, no comments or blanks
 a: grep -v '^#' @cfg@ | sed -n 's/ = /=/p'
 lvl: 09
 ref: sed
 ---
-q: add up the count column of @csv@ with awk, skip the header
+q: add up the count column of @csv@ with `awk`, skip the header
 a: tail -n +2 @csv@ | awk -F, '{s += $4} END {print s}'
 lvl: 10
 ref: awk
 ---
-q: %list% every severity in @log@ with awk, once each
+q: %list% every severity in @log@ with `awk`, once each
 a: awk '{print $3}' @log@ | sort -u
 lvl: 10
 ref: awk
 ---
-q: %show% the times of the @sev@ lines in @log@ with awk, sorted
+q: %show% the times of the @sev@ lines in @log@ with `awk`, sorted
 a: grep @sev@ @log@ | awk '{print $2}' | sort
 lvl: 10
 ref: awk
 ---
-q: %get% the refused address in @log@ with awk, listed once
+q: %get% the `refused` address in @log@ with `awk`, listed once
 a: grep refused @log@ | awk '{print $NF}' | sort -u
 lvl: 10
 ref: awk
 ---
-q: %count% the lines across every .log file with xargs, one total
+q: %count% the lines across every .log file with `xargs`, one total
 a: find . -name '*.log' | xargs wc -l | tail -1
 lvl: 19
 ref: xargs
 ---
-q: %show% @txt@'s hash with sha256sum, nothing after it
+q: %show% @txt@'s hash with `sha256sum`, nothing after it
 a: sha256sum @txt@ | cut -d' ' -f1
 lvl: 21
 ref: sha256sum
 ---
-q: {name @bin@ by its first eight bytes in hex, one line|read @bin@'s first eight bytes as hex, one line|dump @bin@'s first eight bytes as hex, one line}, with od
+q: {name @bin@ by its first eight bytes in hex, one line|read @bin@'s first eight bytes as hex, one line|dump @bin@'s first eight bytes as hex, one line}, with `od`
 a: od -A n -t x1 -N 8 @bin@ | head -1
 lvl: 22
 ref: od
 ---
-q: {pull the readable unlock string buried in @bin@|carve the unlock string out of @bin@|dig out @bin@'s string that mentions unlocking}, with strings
+q: {pull the readable `unlock` string buried in @bin@|carve the `unlock` string out of @bin@|dig out @bin@'s string that mentions unlocking}, with `strings`
 a: strings @bin@ | grep unlock
 lvl: 22
 ref: strings
 ---
-q: %count% the processor lines in /proc/cpuinfo with grep, a pipe not a flag
+q: %count% the `processor` lines in `/proc/cpuinfo` with `grep`, a pipe not a flag
 a: grep processor /proc/cpuinfo | wc -l
 lvl: 24
 ref: grep
 ---
-q: %count% the inet addresses on this machine, with ip
+q: %count% the `inet` addresses on this machine, with `ip`
 a: ip addr | grep -c inet
 lvl: 25
 ref: ip
 ---
-q: %show% just the roothash value from /proc/cmdline, with tr
+q: %show% just the `roothash` value from `/proc/cmdline`, with `tr`
 a: tr ' ' '\n' < /proc/cmdline | grep roothash | cut -d= -f2
 lvl: 30
 ref: tr

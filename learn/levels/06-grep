@@ -20,7 +20,7 @@ ref: grep
 teach: grep
 hint: just grep, the pattern, then the file
 ---
-q: {not sure if @sev@ is upper or lower in @log@ -- grep it either way|@sev@ might be typed either case in @log@ -- grep regardless|grep @log@ for @sev@ without caring about case}
+q: {not sure if @sev@ is upper or lower in @log@ -- `grep` it either way|@sev@ might be typed either case in @log@ -- `grep` regardless|`grep` @log@ for @sev@ without caring about case}
 a: grep -i @sev@ @log@
 out: @sev@
 cmp: ref
@@ -28,7 +28,7 @@ ref: grep
 teach: grep -i
 hint: i for case-insensitive
 ---
-q: {%show% every line of @log@ that does NOT contain @sev@|which lines of @log@ are missing @sev@?|drop the @sev@ lines from @log@ and show the rest}, with grep
+q: {%show% every line of @log@ that does NOT contain @sev@|which lines of @log@ are missing @sev@?|drop the @sev@ lines from @log@ and show the rest}, with `grep`
 a: grep -v @sev@ @log@
 cmp: ref
 ref: grep
@@ -36,7 +36,7 @@ teach: grep -v
 hint: v for invert
 ---
 setup: a script needs the count of @sev@ lines, not the lines themselves
-q: {%count% how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report the number of @sev@ lines in @log@}, with grep
+q: {%count% how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report the number of @sev@ lines in @log@}, with `grep`
 a: grep -c @sev@ @log@
 out: ^[0-9]+$
 cmp: ref
@@ -44,7 +44,7 @@ ref: grep
 teach: grep -c
 hint: this counts LINES, not occurrences -- two matches on one line count once
 ---
-q: {%show% the @sev@ lines of @log@ with line numbers|number the @sev@ matches in @log@|which line numbers in @log@ have @sev@?}, with grep
+q: {%show% the @sev@ lines of @log@ with line numbers|number the @sev@ matches in @log@|which line numbers in @log@ have @sev@?}, with `grep`
 a: grep -n @sev@ @log@
 out: ^[0-9]+:
 cmp: ref
@@ -53,21 +53,21 @@ teach: grep -n
 hint: n prefixes each match with its line number
 ---
 setup: @term@ could be anywhere in this tree and checking every file by hand isn't realistic
-q: {not sure which file has @term@ -- grep it anywhere below|@term@ could be in any file here -- grep the whole tree|grep every file below for @term@}
+q: {not sure which file has @term@ -- `grep` it anywhere below|@term@ could be in any file here -- `grep` the whole tree|`grep` every file below for @term@}
 a: grep -r @term@ .
 cmp: ref
 ref: grep
 teach: grep -r
 hint: r walks into subdirectories; the dot is where it starts
 ---
-q: %list% just the filenames under here that contain @term@, with grep
+q: %list% just the filenames under here that contain @term@, with `grep`
 a: grep -rl @term@ .
 cmp: ref
 ref: grep
 teach: grep -l
 hint: l switches grep from printing lines to printing filenames
 ---
-q: %list% the files under here that do NOT contain @term@, with grep
+q: %list% the files under here that do NOT contain @term@, with `grep`
 a: grep -rL @term@ .
 cmp: ref
 ref: grep
@@ -75,7 +75,7 @@ teach: grep -L
 hint: capital L is the opposite of -l -- files with NO match
 ---
 setup: you want to pull @sev@ out to use it elsewhere, not the whole line around it
-q: %show% the matched @sev@ text in @log@, not the line, with grep
+q: %show% the matched @sev@ text in @log@, not the line, with `grep`
 a: grep -o @sev@ @log@
 out: ^@sev@$
 cmp: ref
@@ -83,7 +83,7 @@ ref: grep
 teach: grep -o
 hint: o prints just the matched substring, one per line
 ---
-q: %show% @log@ lines with @sev@ as a whole word only, with grep
+q: %show% @log@ lines with @sev@ as a whole word only, with `grep`
 a: grep -w @sev@ @log@
 out: @sev@
 cmp: ref
@@ -92,7 +92,7 @@ teach: grep -w
 hint: w anchors the match to word boundaries
 ---
 setup: another line in @log@ merely contains @sev@
-q: %show% @log@ lines that match @sev@ exactly, with grep
+q: %show% @log@ lines that match @sev@ exactly, with `grep`
 a: grep -x @sev@ @log@
 out: ^@sev@$
 cmp: ref
@@ -100,7 +100,7 @@ ref: grep
 teach: grep -x
 hint: x requires the whole line to match, not just part of it
 ---
-q: %find% @sev@ in @log@, plus the 2 lines after, with grep
+q: %find% @sev@ in @log@, plus the 2 lines after, with `grep`
 a: grep -A 2 @sev@ @log@
 out: @sev@
 cmp: ref
@@ -108,7 +108,7 @@ ref: grep
 teach: grep -A
 hint: A for after, followed by the count
 ---
-q: %find% @sev@ in @log@, plus the 2 lines before, with grep
+q: %find% @sev@ in @log@, plus the 2 lines before, with `grep`
 a: grep -B 2 @sev@ @log@
 out: @sev@
 cmp: ref
@@ -116,7 +116,7 @@ ref: grep
 teach: grep -B
 hint: B for before, followed by the count
 ---
-q: %show% @sev@ in @log@ plus 2 lines of context, with grep
+q: %show% @sev@ in @log@ plus 2 lines of context, with `grep`
 a: grep -C 2 @sev@ @log@
 out: @sev@
 cmp: ref
@@ -124,7 +124,7 @@ ref: grep
 teach: grep -C
 hint: C for context -- both before and after
 ---
-q: %show% the first 2 @sev@ lines of @log@, then stop, with grep
+q: %show% the first 2 @sev@ lines of @log@, then stop, with `grep`
 a: grep -m 2 @sev@ @log@
 out: @sev@
 cmp: ref
@@ -132,7 +132,7 @@ ref: grep
 teach: grep -m
 hint: m caps the number of matches before grep stops reading
 ---
-q: {grep @log@ for the literal 0.0.0.0 -- the dots aren't wildcards|grep @log@ for 0.0.0.0, dots not wildcards|grep @log@ for 0.0.0.0 as plain text, no regex}
+q: {`grep` @log@ for the literal `0.0.0.0` -- the dots aren't wildcards|`grep` @log@ for `0.0.0.0`, dots not wildcards|`grep` @log@ for `0.0.0.0` as plain text, no regex}
 a: grep -F 0.0.0.0 @log@
 out: 0\.0\.0\.0
 cmp: ref
@@ -141,7 +141,7 @@ teach: grep -F
 hint: F for fixed string
 ---
 setup: writing this pattern in basic regex means backslash before every +
-q: %find% ip-shaped numbers in @log@ with grep's extended regex
+q: %find% ip-shaped numbers in @log@ with `grep`'s extended regex
 a: grep -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' @log@
 out: [0-9]
 cmp: ref
@@ -150,7 +150,7 @@ teach: grep -E
 hint: E turns on extended regex, so + doesn't need a backslash
 ---
 setup: you want a hit on @needle@ or @term@ without searching twice
-q: {match @needle@ or @term@ in @log@ in one regex pass|find @needle@ or @term@ in @log@, one pass|search @log@ for @needle@ or @term@ at once}, with grep
+q: {match @needle@ or @term@ in @log@ in one regex pass|find @needle@ or @term@ in @log@, one pass|search @log@ for @needle@ or @term@ at once}, with `grep`
 a: grep -E '@needle@|@term@' @log@
 cmp: ref
 ref: grep
@@ -158,7 +158,7 @@ teach: grep -E
 hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped
 ---
 setup: a script needs to know if @sev@ is there without printing anything
-q: {grep @log@ for @sev@ quietly -- just an exit status|grep @sev@ in @log@ silently, via exit status|grep @log@ for @sev@ without printing anything}
+q: {`grep` @log@ for @sev@ quietly -- just an exit status|`grep` @sev@ in @log@ silently, via exit status|`grep` @log@ for @sev@ without printing anything}
 a: grep -q @sev@ @log@
 status: 0
 cmp: ref
@@ -166,7 +166,7 @@ ref: grep
 teach: grep -q
 hint: grep's exit status is 0 for a match, 1 for none
 ---
-q: {grep @log@ for @sev@ without a missing-file error|grep @log@ for @sev@, no script-halting error|grep @log@ for @sev@ without a can't-read-file complaint}
+q: {`grep` @log@ for @sev@ without a missing-file error|`grep` @log@ for @sev@, no script-halting error|`grep` @log@ for @sev@ without a can't-read-file complaint}
 a: grep -s @sev@ @log@
 out: @sev@
 cmp: ref
@@ -174,7 +174,7 @@ ref: grep
 teach: grep -s
 hint: s silences the "no such file" complaints, built into grep itself
 ---
-q: grep @txt@ using its own lines as the list of patterns to look for
+q: `grep` @txt@ using its own lines as the list of patterns to look for
 a: grep -f @txt@ @txt@
 cmp: ref
 ref: grep
@@ -182,14 +182,14 @@ teach: grep -f
 hint: f reads patterns from a file instead of the command line, one per line
 ---
 setup: your pattern starts with a dash and would otherwise get read as a flag
-q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using -e to name the pattern}
+q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using `-e` to name the pattern}
 a: grep -e @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -e
 hint: -e marks what follows as the pattern, not another flag
 ---
-q: {@log@ may use tabs, not spaces -- grep either with a POSIX class|grep @log@ for space or tab with a POSIX class|grep for whitespace in @log@ with a POSIX class}
+q: {@log@ may use tabs, not spaces -- `grep` either with a POSIX class|`grep` @log@ for space or tab with a POSIX class|`grep` for whitespace in @log@ with a POSIX class}
 a: grep '[[:space:]]' @log@
 why: fixture-cost
 ref: grep
