@@ -409,7 +409,12 @@ blk_load() {
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATUS=$(sed -n 's/^status: \{0,1\}//p' "$blk" | head -1)
+	# Q_REF is the ONE command the grader demands (tier 2 checks the typed
+	# line names it) and stays the first. Q_REFS is every page the card
+	# wants open: a chain that answers `sort -u f | wc -l` used to show
+	# sort's flags and nothing at all for wc, which is half the line.
 	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
+	Q_REFS=$(sed -n 's/^ref: \{0,1\}//p' "$blk")
 	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
 	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render_named "$seed" | head -1)
 	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render_named "$seed")
@@ -613,13 +618,18 @@ boss_round() {
 	BOSS_LIMIT=$(boss_limit "$id")
 
 	# the splash gets its own screen -- the boss is an event, not another card.
+	# red, because red is what red is everywhere else on this screen: the
+	# thing that can go against you. it cannot be confused with a wrong
+	# answer -- a miss is one dim character at the left margin, this is two
+	# full-width bars -- and it frees magenta to mean contrast and nothing
+	# else. on the mono tier both still reverse, as they always did.
 	cls
 	echo
-	printf '%s%s%s\n' "$M$B" "$BANNER" "$N"
-	printf '  %sBOSS%s  %s%s%s%s\n' "$M$B" "$N" "$B" "$bname" "$N" \
+	printf '%s%s%s\n' "$R$B" "$BANNER" "$N"
+	printf '  %sBOSS%s  %s%s%s%s\n' "$R$B" "$N" "$B" "$bname" "$N" \
 		"$(printf '%*s' $(( COLS > 40 ? COLS - 32 - ${#bname} : 1 )) '')${D}${BOSS_LIMIT}s  pass: 4 of 5${N}"
 	level_field "$id" flavor | say
-	printf '%s%s%s\n' "$M" "$BANNER" "$N"
+	printf '%s%s%s\n' "$R" "$BANNER" "$N"
 	note "no hints. no reference. the clock does not stop."
 	pause_card || { MODE=learn; return 2; }
 
@@ -738,9 +748,9 @@ run_level() {
 # heard of this one.
 victory() {
 	echo
-	printf '%s%s%s\n' "$M$B" "$BANNER" "$N"
+	printf '%s%s%s\n' "$G$B" "$BANNER" "$N"
 	printf '  %sROOT answers to you.%s\n' "$B" "$N"
-	printf '%s%s%s\n' "$M" "$BANNER" "$N"
+	printf '%s%s%s\n' "$G" "$BANNER" "$N"
 	# hand-wrapped, and printed rather than folded: say() would re-wrap prose
 	# that is already the right width and break it in the wrong places.
 	cat <<-'EOF'
@@ -2619,6 +2629,37 @@ c' 20)" = 3 ] || exit 1
 		echo "FAIL: $(printf '%s\n' "$_unlit" | grep -c 'in prose') literal(s) a prompt names but does not mark" >&2
 		bad=$((bad+1)); }
 
+	# learn/syn -- the rows a command's page carries whatever you typed. a
+	# label that is not in learn/syntax prints nothing at all, silently: the
+	# merge is by exact string, so a typo is a row that never appears and a
+	# page that is quietly less than it claims. and a command with no ref
+	# page is a line nothing will ever read.
+	( [ -f "$SYNALWAYS" ] || exit 0
+	  while IFS= read -r _l; do
+		case "$_l" in ''|'#'*) continue ;; esac
+		_c=${_l%%	*}
+		[ -f "$REF/$(refname "$_c")" ] || exit 1
+		_rest=${_l#*	}
+		_k=0
+		while [ -n "$_rest" ]; do
+			case "$_rest" in *"	"*) _lab=${_rest%%	*}; _rest=${_rest#*	} ;;
+			                 *) _lab=$_rest; _rest= ;; esac
+			[ -n "$_lab" ] || continue
+			_k=$((_k + 1))
+			awk -F'\t' -v l="$_lab" 'substr($1,1,1)!="#" && NF>1 && $1==l { f=1 } END { exit f?0:1 }' \
+				"$SYNTAX" || exit 1
+		done
+		[ "$_k" -ge 1 ] && [ "$_k" -le 3 ] || exit 1
+	  done < "$SYNALWAYS"
+	  # and the rows really do reach the panel without the answer earning them
+	  ( Q_REF=ls; COLS=80; TERM_COLS=80
+	    explain_syntax 'ls -a' ls | grep -q '\[\.\.\.\]' ) || exit 1
+	  # while an answer that names no command still gets only what it uses
+	  ( Q_REF=ls; COLS=80; TERM_COLS=80
+	    explain_syntax 'ls -a' | grep -q '\[\.\.\.\]' ) && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL syn: a page row names a label or a command that does not exist" >&2; bad=$((bad+1)); }
+
 	# learn/vs -- every line names a shipped ref page, carries exactly one tab,
 	# names it once, and fits a card row. a malformed line would print as an
 	# empty or truncated distinction and teach nothing.
@@ -2675,8 +2716,12 @@ c' 20)" = 3 ] || exit 1
 	( COLS=80; Q_REF=grep; Q_ANSWERS="grep -r xos $HOME/irc"
 	  card=$(ref_card grep flags 6)
 	  [ "$(printf '%s\n' "$card" | grep -c .)" -le 6 ] || exit 1
-	  # nothing but flags: no footer row counting what the page holds back
-	  case "$card" in *"more flag"*) exit 1 ;; esac
+	  # a list that did not fit says so, inside the same budget: the last row
+	  # goes to the count, not to one more flag. silently stopping is the one
+	  # failure a reference cannot have.
+	  printf '%s\n' "$card" | grep -q 'more -- learn ref grep' || exit 1
+	  # and a card with room for everything spends no row on saying so
+	  case "$(ref_card grep flags 40)" in *"more -- learn ref"*) exit 1 ;; esac
 	  # only drilled flags reach the card; -H is documented but never taught
 	  printf '%s\n' "$card" | grep -q -- "-H " && exit 1
 	  ex=$(ref_examples grep "$Q_ANSWERS") || exit 1
@@ -2702,6 +2747,20 @@ c' 20)" = 3 ] || exit 1
 	  [ -z "$(examples_cached | cut -f2 | sort | uniq -d)" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL ref_card/ref_examples: budget, taught-only or example pick" >&2; bad=$((bad+1)); }
+
+	# an example line is painted the way a flag row is: the command name is a
+	# name, a flag or a redirection is what you type, an argument is neither.
+	# the colours are empty under NO_COLOR, so the test names them itself --
+	# what is asserted is which token got which, which is the whole claim.
+	( _p() { printf '%s\n' "$1" | awk -v C='<c>' -v N='<n>' -v W='<w>' "$_PAINT_AWK"'{ print paint($0) }'; }
+	  [ "$(_p 'ls -a')" = "<w>ls<n> <c>-a<n>" ] || exit 1
+	  # after a pipe the next word is a command again; after > it is a file
+	  [ "$(_p 'ls | wc -l')" = "<w>ls<n> <c>|<n> <w>wc<n> <c>-l<n>" ] || exit 1
+	  [ "$(_p 'ls src > all.txt 2>&1')" = "<w>ls<n> src <c>><n> all.txt <c>2>&1<n>" ] || exit 1
+	  # an assignment is not a command name, and a quoted program is not painted
+	  [ "$(_p "f=x awk NR f")" = "f=x <w>awk<n> NR f" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL paint: an example line names the wrong token as the command" >&2; bad=$((bad+1)); }
 
 	# ? and Tab share one region: opening the hint fills ED_PANEL from Q_HINT,
 	# toggling closes it, and a clock mode gets no panel at all (and ED_OPEN is

@@ -6,6 +6,17 @@
 # shows the whole breakdown on its own.
 
 SYNTAX="$ROOT/syntax"
+SYNALWAYS="$ROOT/syn"
+
+# syn_of CMD -- the syntax labels that belong to this command's page whatever
+# the answer used, one per line. see learn/syn for why a glob is one of them
+# and a pipe is not.
+syn_of() {
+	awk -F'\t' -v c="$1" '
+		substr($1, 1, 1) == "#" { next }
+		$1 == c { for (i = 2; i <= NF; i++) if ($i != "") print $i; exit }
+	' "$SYNALWAYS" 2>/dev/null
+}
 
 # the panel's left column -- command names above, syntax labels below, one
 # column through both. as wide as the widest label the table actually holds:
@@ -39,6 +50,14 @@ _syn_scan() {
 	work=$(printf '%s' "$1" | sed "s/'[^']*'/ '' /g")
 	while IFS="$tab" read -r label ere gloss; do
 		case "$label" in ''|'#'*) continue ;; esac
+		# a row the command's page always carries counts as matched, and
+		# counts here rather than in a second loop so the output stays in
+		# table order -- the order the whole panel is read in.
+		case "
+${SYN_ALWAYS:-}
+" in *"
+$label
+"*) printf '%s\t%s\n' "$label" "$gloss"; continue ;; esac
 		if printf '%s' "$work" | grep -qE -- "$ere"; then
 			printf '%s\t%s\n' "$label" "$gloss"
 			# TAB delimits the s command: the table is tab-separated, so a
@@ -60,6 +79,25 @@ _exp_row() {
 	local w=${TERM_COLS:-${COLS:-80}} gw
 	gw=$(( w - EXP_W - 3 ))
 	[ "$gw" -ge 24 ] || gw=24
+	# one row per construct in the panel, cut with the same ".." the flag
+	# rows use. the glosses that mean two things -- * is a glob and a
+	# quantifier -- run to three rows each, and three of those is half the
+	# reference gone to prose the learner has already read once. the whole
+	# sentence is still on `learn explain` and on the page itself, which is
+	# where you go when the one line was not enough.
+	if [ "${SYN_ONEROW:-0}" = 1 ]; then
+		EXP_LAB="$1" awk -v c="$C" -v n="$N" -v pad="$EXP_W" -v gw="$gw" -v g="$2" '
+			BEGIN {
+				lab = ENVIRON["EXP_LAB"]
+				if (length(g) > gw) {
+					g = substr(g, 1, gw - 2)
+					sub(/[ ,][^ ,]*$/, "", g); sub(/[ .,|]+$/, "", g)
+					g = g ".."
+				}
+				printf "  %s%-" pad "s%s %s\n", c, lab, n, g
+			}'
+		return 0
+	fi
 	# the label rides in the environment, not in -v: awk processes escape
 	# sequences in a -v assignment, so the row whose label IS a backslash
 	# arrived as nothing and printed a nameless gloss.
@@ -70,9 +108,12 @@ _exp_row() {
 		{ printf "  %" pad "s %s\n", "", $0 }'
 }
 
+# explain_syntax LINE [CMD] -- the gloss rows for this line, plus the ones CMD
+# carries whatever you typed.
 explain_syntax() {
-	local found=0 label gloss tab
+	local found=0 label gloss tab SYN_ALWAYS= SYN_ONEROW=${3:-0}
 	tab=$(printf '\t')
+	[ -n "${2:-}" ] && SYN_ALWAYS=$(syn_of "$2")
 
 	while IFS="$tab" read -r label gloss; do
 		[ -n "$label" ] || continue
@@ -167,13 +208,41 @@ examples_cached() {
 	cat "$TMP/examples.all"
 }
 
+# paint -- an example line read the way the card reads a flag row. it was one
+# dim colour end to end, which hid the one thing an example is for: seeing
+# where the command stops and the arguments start. the same three the rest of
+# the panel uses -- a command name is a name (W), a flag or a redirection is
+# what you type (C), an argument is neither and stays plain. a quoted span is
+# left alone on purpose: an awk program is not a list of tokens, and painting
+# inside one would be a lie about its structure.
+_PAINT_AWK='
+	function paint(l,   n, t, i, w, out, head) {
+		n = split(l, t, " ")
+		head = 1
+		for (i = 1; i <= n; i++) {
+			w = t[i]
+			# a pipe or a separator starts a new command; a redirection does
+			# not -- what follows > is a filename, and reading it as a
+			# command name is the one thing an example must not get wrong.
+			if (w ~ /^(\||;|&&|\|\|)$/) {
+				out = out C w N " "; head = 1; continue
+			}
+			if (w ~ /^([0-9]?>>?&?[0-9]?|<)$/) { out = out C w N " "; continue }
+			if (head && w !~ /^-/ && w !~ /=/) { out = out W w N " "; head = 0; continue }
+			if (w ~ /^-/) { out = out C w N " "; continue }
+			out = out w " "
+		}
+		sub(/ $/, "", out)
+		return out
+	}'
+
 # ref_examples CMD [SKIP] -- up to two example lines for CMD, never the answer
 # to the question on screen. shortest first, and no two examples leading with
 # the same flag, so two rows show two different things.
 ref_examples() {
 	local out src=${3:-${Q_SRC:-}}
 	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v w="${COLS:-80}" \
-	                            -v D="$D" -v N="$N" '
+	                            -v D="$D" -v N="$N" -v C="$C" -v W="$W" "$_PAINT_AWK"'
 		$1 == c && $3 != src && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
 		END {
 			# the fullest line that still fits a row, not the shortest: a real
@@ -191,7 +260,7 @@ ref_examples() {
 					if (same >= 2) continue
 				}
 				k++; for (f = 1; f <= 3; f++) prev[f] = t2[f]
-				printf "  %s%s%s\n", D, L[i], N
+				print "  " paint(L[i])
 			}
 		}')
 	[ -n "$out" ] || return 1
@@ -211,8 +280,14 @@ ref_card() {
 	_ref_rows "$REF/$r" |
 	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
 	    -v vs="$(vs_of "$1")" -v summary="$(summary_of "$1")" \
-	    -v W="$W" -v N="$N" -v D="$D" -v C="$C" '
+	    -v W="$W" -v N="$N" -v D="$D" -v C="$C" -v M="$M" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
+		# a panel that ran out of room says so. it used to just stop: flags
+		# past the budget vanished with nothing on screen to say a page had
+		# been cut, which is the one failure a reference cannot have.
+		function more(k) {
+			if (k > 0) printf "  %s+%d more -- learn ref %s%s\n", D, k, c, N
+		}
 		function fcol(s, w) { return pad(s, w - 1) " " }
 		function clip(s, w) {
 			if (w < 4 || length(s) <= w) return substr(s, 1, w < 1 ? 0 : w)
@@ -286,24 +361,37 @@ ref_card() {
 				if (usage == "") printf "  %s%s%s\n", W, c, N
 				else printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
 				if (summary != "") print "  " clip(summary, cols - 4)
-				if (vs != "") printf "  %s%s%s\n", D, clip(vs, cols - 4), N
+				# magenta: the row exists to hold this command against the
+				# one you might have reached for instead, and dim said the
+				# opposite -- that it was frame, not content.
+				if (vs != "") printf "  %s%s%s\n", M, clip(vs, cols - 4), N
 				exit
 			}
 			if (fw > 16) fw = 16
 			col = fw + 2
-			# one column while it fits, two when it does not, and if two
-			# still overflow the budget the tail is dropped -- the card is
-			# never taller than the room it was handed
-			if (max == 0 || n <= max) {
-				for (i = 1; i <= n; i++)
+			# TWO COLUMNS, always, once there are enough flags to be worth
+			# the halved description. it used to depend on the row budget --
+			# terminal height minus however tall this particular question
+			# happened to be -- so the same ls page was one column on one
+			# card and two on the next, and the layout read as a property of
+			# the level rather than of the command. a reference you have to
+			# re-learn the shape of is not a reference. one column below the
+			# threshold, where two would be narrow cells for no gain, and one
+			# column whenever the terminal is too narrow to split.
+			twocol = (n > 8 && cols >= 60)
+			# the budget, and the row the footer costs. a card still never
+			# spends a row it was not given: when the list does not fit, the
+			# LAST row goes to saying so rather than to one more flag.
+			budget = (max > 0 ? max : n)
+			if (!twocol) {
+				shown = (n <= budget ? n : (budget > 1 ? budget - 1 : budget))
+				for (i = 1; i <= shown; i++)
 					if (Dd[i] == "") printf "  %s%s%s\n", C, F[i], N
 					else printf "  %s%s%s%s\n", C, fcol(F[i], col), N, clip(Dd[i], cols - col - 4)
+				if (budget > 1) more(n - shown)
 				exit
 			}
-			avail = max
-			if (avail < 1) avail = 1
-			shown = n
-			if (shown > avail * 2) shown = avail * 2
+			shown = (n <= budget * 2 ? n : (budget > 1 ? (budget - 1) * 2 : budget * 2))
 			half = int((shown + 1) / 2)
 			# two cells and the gap between them, measured on the plain text --
 			# the colour codes go on afterwards, or every row lands ragged
@@ -314,6 +402,7 @@ ref_card() {
 				if (j <= shown) printf "  %s%s%s%s", C, fcol(F[j], col), N, clip(Dd[j], dw)
 				printf "\n"
 			}
+			if (budget > 1) more(n - shown)
 		}'
 }
 
@@ -325,12 +414,26 @@ ref_card() {
 # and the flag list is shaped to whatever is left.
 ref_panel_text() {
 	local head syn ex used left budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
+	local refs r n each
 	if [ -z "${Q_REF:-}" ]; then
 		note "no reference for this one"
 		return 0
 	fi
-	head=$(ref_card "$Q_REF" head) || { note "no entry for $Q_REF"; return 0; }
-	syn=$(explain_syntax "$1") || syn="  ${D}(none -- a single command, no operators)${N}"
+	# every page this card wants open, the declared one first. a card may
+	# list more than one ref:; a chain lists one and means every command its
+	# answer runs, so the rest are read off the answer itself.
+	refs=$(_panel_refs "$1")
+	# the declared ref always survives the filter (st_block proves it is a
+	# shipped page), but the panel divides by this and a zero here would take
+	# the card down rather than show it short.
+	n=$(printf '%s\n' "$refs" | grep -c .)
+	[ "${n:-0}" -ge 1 ] 2>/dev/null || { refs=$Q_REF; n=1; }
+	head=""
+	for r in $refs; do
+		head="${head:+$head
+}$(ref_card "$r" head)" || { note "no entry for $r"; return 0; }
+	done
+	syn=$(explain_syntax "$1" "$Q_REF" 1) || syn="  ${D}(none -- a single command, no operators)${N}"
 	ex=$(ref_examples "$Q_REF" "${Q_ANSWERS:-}") || ex=
 	if [ "$budget" -gt 0 ]; then
 		used=$(printf '%s\n  shell syntax\n%s\n' "$head" "$syn" | _prows "$w")
@@ -345,8 +448,27 @@ ref_panel_text() {
 		[ "$budget" -ge 2 ] || budget=2
 	fi
 	printf '%s\n  %sshell syntax%s\n%s\n' "$head" "$U" "$N" "$syn"
-	ref_card "$Q_REF" flags "$budget"
+	# the flag rows split between the pages, evenly: two commands on one line
+	# are two things you have to know, and a panel that shows all of one and
+	# none of the other has picked for you. each card says what it held back.
+	each=$(( budget / n ))
+	[ "$each" -ge 2 ] || each=2
+	for r in $refs; do
+		ref_card "$r" flags "$each"
+	done
 	[ -n "$ex" ] && printf '%s\n' "$ex"
+}
+
+# _panel_refs ANSWER -- the pages the panel opens, declared first, then the
+# commands the answer actually runs. deduplicated, and only ones we ship.
+_panel_refs() {
+	{ printf '%s\n' "${Q_REFS:-$Q_REF}"
+	  printf '%s\n' "$1" | answer_cmds
+	} | awk -v r="$REF" '
+		NF && !seen[$1]++ {
+			f = ($1 == "." ? "dot" : $1)
+			if ((getline junk < (r "/" f)) >= 0) { close(r "/" f); print $1 }
+		}'
 }
 
 # explain LINE... -- the one-line summary of every command in the line, then the

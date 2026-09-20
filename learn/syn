@@ -1,0 +1,31 @@
+# syn -- the shell grammar that belongs to a command's PAGE, not to your answer.
+#
+# the panel's `shell syntax` section is built from the line you typed: it
+# explains the operators that answer uses. that is right for an operator, and
+# wrong for a pattern. `ls` is the command whose arguments the shell expands
+# before ls is ever started, and which half of level 2 is about -- so the page
+# for ls showed [...] and * on the one card whose answer happened to use them
+# and nothing on the twenty before it. a reference you have to re-open on a
+# different card to see the rest of is not a reference.
+#
+# so: the rows listed here are shown on that command's page ALWAYS, merged
+# with the ones the answer earns and de-duplicated, in table order either way.
+#
+# what earns a line: the corpus drills this command WITH a pattern, so the
+# pattern is part of how the command is used rather than a thing that happened
+# to be in one answer. that is the five below -- the three whose arguments the
+# shell globs, and the two whose arguments are regexes (the table rows say
+# both meanings, which is the whole reason they are one row and not two).
+# a pipe earns no line anywhere: it sits between two commands, and the answer
+# that uses one says so on its own.
+#
+# format: NAME<TAB>label<TAB>label... -- the labels are learn/syntax's own,
+# spelled exactly, and selftest fails on one that is not in that table or on a
+# NAME with no ref page. three is the ceiling: every row here is a row the
+# panel spends on every card that names the command, out of the same budget
+# the flags come from.
+ls	*	?	[...]
+find	*	?	[...]
+grep	*	?	[...]
+sed	*	[...]
+awk	*	[...]
