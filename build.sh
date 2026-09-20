@@ -2281,6 +2281,7 @@ TODO: write this entry by hand.
 #   G58 the signed image still checks its host blobs before wrapping them
 #   G59 the container toolchain is pinned by bytes, not by an archive day
 #   G60 the trust manifest accounts for everything in the tree
+#   G61 every carried book is pinned by sha256 and carries a licence
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -3492,6 +3493,56 @@ G51
   local g60=ok
   trustver || g60=FAIL
   g "G60 trust manifest accounts for the tree" "$g60"
+
+  # G61 -- the books payload is the only thing this tree carries that comes
+  # with TERMS. a wordlist and a man page have integrity and nothing else to
+  # get wrong; a book can be redistributable, non-commercial, no-derivatives,
+  # or not redistributable at all, and the difference is invisible in the
+  # bytes. so the licence is a field -- and this is what keeps it a field
+  # instead of a memory. every title build-books.sh fetches must carry a
+  # 64-hex sha256 and a licence from the closed set below; no fetch may bypass
+  # the pinned helper (the same rule G47 keeps for tools); and books.lock may
+  # not name a sha the script does not pin, which is what a hand-edited
+  # attestation looks like. the set is closed on purpose: a licence nobody
+  # read is exactly what puts one of these on a stick it may not be on.
+  local g61=ok bks=arsenal/build-books.sh blk=arsenal/books.lock b_raw b_body b_bad
+  if [ -f "$bks" ]; then
+    b_body=$(awk '/^BOOKS="$/{s=1;next} s&&/^"$/{s=0} s' "$bks" | grep -v '^$' || true)
+    b_raw=$(awk '/^fetch\(\) \{/{s=1} s&&/^}/{s=0;next} !s' "$bks" \
+            | grep -vE '^[[:space:]]*#' \
+            | grep -nE '(^[[:space:]]*|[;&|(][[:space:]]*)(wget|curl)[[:space:]]|git[[:space:]]+clone' || true)
+    [ -z "$b_raw" ] || { g61=FAIL; printf '    book fetched outside the pinned helper:\n%s\n' "$b_raw" >&2; }
+    b_bad=$(printf '%s\n' "$b_body" | awk -F'\t' '
+      BEGIN {
+        n = split("CC-BY-4.0 CC-BY-SA-3.0 CC-BY-SA-4.0 CC-BY-NC-3.0 CC-BY-NC-4.0 \
+                   CC-BY-NC-SA-3.0 CC-BY-NC-SA-4.0 CC-BY-NC-ND-3.0 CC-BY-NC-ND-4.0 \
+                   CC0-1.0 MIT Apache-2.0 PSF-2.0 GFDL-1.3", a, /[ \t]+/)
+        for (i = 1; i <= n; i++) ok[a[i]] = 1
+        rows = 0
+      }
+      { rows++ }
+      NF != 6 { printf "    %s: %d tab-separated fields, want 6\n", $1, NF; next }
+      $4 !~ /^[0-9a-f][0-9a-f]*$/ || length($4) != 64 {
+        printf "    %s: sha256 is not 64 hex digits\n", $1 }
+      !($5 in ok) {
+        printf "    %s: licence %s is not in the reviewed set\n", $1, ($5 == "" ? "<empty>" : $5) }
+      END { if (rows < 1) print "    build-books.sh lists no books" }')
+    [ -z "$b_bad" ] || { g61=FAIL; printf '%s\n' "$b_bad" >&2; }
+    # the lock is an attestation of a staging run, so it may be OLDER than the
+    # script and shorter than it. it may never be newer in content.
+    if [ -f "$blk" ]; then
+      b_bad=$(awk -v bks="$bks" '
+        BEGIN { while ((getline l < bks) > 0) if (match(l, /\t[0-9a-f]{64}\t/))
+                  pinned[substr(l, RSTART + 1, 64)] = 1 }
+        /^#/ || /^$/ { next }
+        !($3 in pinned) { printf "    books.lock claims %s at a sha build-books.sh does not pin\n", $1 }
+      ' "$blk")
+      [ -z "$b_bad" ] || { g61=FAIL; printf '%s\n' "$b_bad" >&2; }
+    fi
+  else
+    g61=FAIL; printf '    %s is missing\n' "$bks" >&2
+  fi
+  g "G61 carried books pinned and licensed" "$g61"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are

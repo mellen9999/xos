@@ -572,12 +572,29 @@ the zims are reference payload you populate yourself.
 | ifixit | hardware repair guides for the field | you supply |
 | maps | offline map zims | you supply |
 | `games/if` | the interactive fiction frotz plays | staged + pinned |
+| `books` | the reference shelf -- c, python, the shell, sockets, git, sicp | staged + pinned |
 
-the one payload xos stages is the game library: morale is a supply, and interactive
+xos stages two of these. the game library, because morale is a supply and interactive
 fiction is the one genre a text-only box runs natively. `arsenal/build-games.sh`
 fetches the freeware stories from the IF Archive, verifies each against a sha256 pin
 and writes `arsenal/games.lock` -- infocom's zork is still copyright, so you drop
 your own copy into `games/if/` by hand.
+
+and the reference shelf, because the stick teaches the shell (`learn`) and carries a
+compiler (tcc) and neither of those teaches you C. `arsenal/build-books.sh` stages
+seven titles into `books/` -- Modern C, Think Python, SICP, The Linux Command Line,
+Beej's network programming, Pro Git, and the python stdlib reference as text -- each
+pinned by sha256 and each recorded in `arsenal/books.lock` with its LICENCE, which
+is the column the other payloads do not need. **most of them are Creative Commons
+NonCommercial: the shelf may be given away, a stick carrying it may not be sold**,
+and the two NoDerivatives titles travel verbatim. `books/LICENCES` lands beside the
+files so the terms ride the payload rather than the person who built it. gate G61
+fails the build on a title with no pin, a licence outside the reviewed set, or a
+lock claiming a hash the build script does not. titles that are free to READ and
+not free to CARRY -- k&r, ostep, crafting interpreters -- are yours to add by hand,
+the same rule as zork. 36 MB fetched, ~50 MB on the stick once the python text tree
+is expanded. the console has no pdf renderer, so read them with the arsenal's
+mutool: `mutool draw -F txt books/modern-c.pdf | less`.
 
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount flipped
@@ -602,7 +619,8 @@ host's internal disk), a usb-a<->usb-c adapter, a second cloned stick stored apa
 
 provisioning: `build.sh usb /dev/sdX`, `build.sh addstate /dev/sdX`, then optionally
 `arsenal/build-wordlists.sh` / `arsenal/build-docs.sh` to stage wordlists/docs (and
-`arsenal/build-games.sh` for the if library onto the XOS-KNOW stick), then
+`arsenal/build-games.sh` + `arsenal/build-books.sh` for the if library and the
+reference shelf onto the XOS-KNOW stick), then
 `arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the arsenal --
 write-protect off (work mode) first, since p3 has to be writable. idempotent --
 re-run to update.

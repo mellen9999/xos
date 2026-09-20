@@ -1,0 +1,12 @@
+# books.lock -- reference shelf staged 2026-09-20T22:11Z
+# redistributable only; NC titles may be given away, never sold
+# titles that are free to read but not to carry (k&r, ostep, crafting
+# interpreters) are operator-supplied by hand, like infocom zork
+# name  licence  sha256  size  source
+modern-c  CC-BY-NC-ND-4.0  170dcbcaf98644f99703c4eb8529392739aa34bff4d1a4a131e719870251dfe9  3.8M  inria.hal.science/hal-02383654v2/file/modernC.pdf
+think-python  CC-BY-NC-3.0  9d923cacf1b07e88a6314395a5afafae1aa01cd1aa0ce16b1851d38b18542487  900K  greenteapress.com/thinkpython2/thinkpython2.pdf
+sicp  CC-BY-SA-4.0  08709a87567d8311d6fd29c4f4a5386801153e71450e628c4a5a5d7e85feda8b  7.1M  github.com/sarabander/sicp-pdf/raw/5b3a5b2165c414a689873fd316a7293bc587b1c7/sicp.pdf
+tlcl  CC-BY-NC-ND-3.0  deb86645911b629619134dac6e2c9cbdec6ae28a8faa56bd99381f1ee7112113  2.1M  sourceforge.net/projects/linuxcommand/files/TLCL/19.01/TLCL-19.01.pdf/download
+beej-net  CC-BY-NC-ND-3.0  c1c6fb4652b933eb919d5220b4b37bcb7e11f5a226991de2ccf315262e28b3e7  640K  beej.us/guide/bgnet/pdf/bgnet_usl_c_1.pdf
+pro-git  CC-BY-NC-SA-3.0  403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef  18M  github.com/progit/progit2/releases/download/2.1.450/progit.pdf
+python-docs  PSF-2.0  58a54e3ecb4067180d78fdeb87bc4859c60c0f21383423bc92b63fecfc8d6b77  3.1M  docs.python.org/3.13/archives/python-3.13-docs-text.tar.bz2
