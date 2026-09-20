@@ -176,16 +176,32 @@ coach_right() {
 	_short=$(printf '%s\n' "${Q_ANSWERS:-}" | awk 'NF { if (!l || length($0) < l) { l = length($0); s = $0 } } END { print s }')
 	_gn=$(printf '%s\n' "$1" | norm)
 
+	# every spelling already on screen, one per line, normalised. the typed
+	# line is on it from the start; `shorter:` joins it if it prints. the
+	# `also:` scan used not to look -- so the shortest answer, which is
+	# usually the first one listed, printed twice in a row under two labels.
+	_seen="$_gn"
 	if [ -n "$_short" ] && [ "$_gn" != "$_short" ] \
 	   && [ $(( ${#_gn} - ${#_short} )) -gt 3 ] 2>/dev/null; then
 		note "shorter: $_short"
+		_seen="$_seen
+$(printf '%s\n' "$_short" | norm)"
 	fi
 
 	_also=""; _an=0
 	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/coach.also"
 	while IFS= read -r _a; do
 		[ -n "$_a" ] || continue
-		[ "$(printf '%s\n' "$_a" | norm)" = "$_gn" ] && continue
+		_anorm=$(printf '%s\n' "$_a" | norm)
+		# and two `a:` lines that differ only in whitespace or a cat are the
+		# same line to the grader, so they are the same line here too.
+		case "
+$_seen
+" in *"
+$_anorm
+"*) continue ;; esac
+		_seen="$_seen
+$_anorm"
 		_also="${_also:+$_also$SEP}$_a"
 		_an=$((_an + 1))
 		[ "$_an" -ge 2 ] && break

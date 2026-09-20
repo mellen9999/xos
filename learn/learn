@@ -328,7 +328,10 @@ inprog_load() { # ID FP NQ
 	[ -f "$f" ] || return 1
 	IFS= read -r line < "$f" 2>/dev/null || line=""
 	set -f; set -- $line; set +f
-	[ $# -ge 4 ] && [ "$1" = "$fp" ] || { inprog_clear "$id"; return 1; }
+	# three fields is a whole record: fingerprint, right, answered, and
+	# nothing owed. that is the place a learner standing at the boss is in,
+	# and it has to load or walking away from a boss costs the level.
+	[ $# -ge 3 ] && [ "$1" = "$fp" ] || { inprog_clear "$id"; return 1; }
 	case "$2$3" in *[!0-9]*) inprog_clear "$id"; return 1 ;; esac
 	INPROG_RIGHT=$2; INPROG_DONE=$3
 	shift 3
@@ -534,7 +537,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 					if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
 					_meta_clear
 				else
-					ref_panel "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+					ref_panel_text "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				fi
 				continue ;;
 		esac
@@ -687,9 +690,14 @@ run_level() {
 		inprog_save "$id" "$fp" "$right" "$total" $order
 		pause_card || return 2
 	done
-	# the questions are done; the boss is a fresh event. a boss you walk away
-	# from means the level gets practised again, which is the point of it.
-	inprog_clear "$id"
+	# the questions are done and the boss is a fresh event -- but the place is
+	# not. clearing it here meant a boss you walked away from cost you every
+	# card in the level: the next run found no record and reshuffled all of
+	# them to get back to the one fight that was left. keep the record in its
+	# terminal shape -- everything answered, nothing owed -- so the next run
+	# resumes AT the boss. an unbeaten boss still leaves the level unpassed;
+	# that is level_passed's call, below, and it is the only one that clears.
+	inprog_save "$id" "$fp" "$right" "$total"
 
 	cls
 	statusbar "$lname" "$lsub" "$total" "$total" "$right"
@@ -1950,6 +1958,52 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
 
+	# the terminal place: every card answered, nothing owed. that is where a
+	# learner standing at the boss is, and it has to survive on disk or a boss
+	# walked away from costs the whole level. the rejections still hold
+	# around it -- three fields is a record, two is not.
+	( STATE="$TMP/st2"; INPROG="$STATE/inprogress"; mkdir -p "$STATE"
+	  inprog_save L fp1 4 6
+	  inprog_load L fp1 6 || exit 1                     # a terminal record loads
+	  [ -z "$INPROG_LEFT" ] || exit 1                   # and owes nothing
+	  [ "$INPROG_DONE" = 6 ] && [ "$INPROG_RIGHT" = 4 ] || exit 1
+	  inprog_save L fp1 4 5; inprog_load L fp1 6 && exit 1   # answered is not the level
+	  inprog_save L fp1 7 6; inprog_load L fp1 6 && exit 1   # more right than asked
+	  inprog_save L fp1 4;   inprog_load L fp1 6 && exit 1   # two fields is not a place
+	  inprog_save L fp1;     inprog_load L fp1 6 && exit 1   # nor is one
+	  inprog_save L fp2 4 6; inprog_load L fp1 6 && exit 1   # the level was edited
+	  exit 0 ) \
+		|| { echo "FAIL inprog: the place at the boss does not survive" >&2; bad=$((bad+1)); }
+
+	# and the transition that loses it. the boss decides whether the level is
+	# passed; it does not decide whether the order is kept. stub the boss --
+	# what is under test is what run_level writes, not a fight.
+	( STATE="$TMP/rl"; INPROG="$STATE/inprogress"; PASSED="$STATE/passed"
+	  PLACED="$STATE/placed"; BRIEFED="$STATE/briefed"; mkdir -p "$STATE"
+	  cls() { :; }; statusbar() { :; }; hdr() { :; }; note() { :; }; say() { cat >/dev/null; }
+	  pause_card() { return 0; }; scn_announce() { return 1; }; prj_announce() { return 1; }
+	  ask() { return 0; }
+	  _id=$(level_ids | head -1); _nq=$(level_nq "$_id"); _fp=$(level_fp "$_id")
+
+	  boss_round() { return 2; }                        # walked away from
+	  run_level "$_id" >/dev/null 2>&1 </dev/null
+	  inprog_load "$_id" "$_fp" "$_nq" || exit 1        # the place survived
+	  [ -z "$INPROG_LEFT" ] || exit 1                   # and it resumes AT the boss
+	  [ "$INPROG_DONE" = "$_nq" ] || exit 1
+	  level_is_passed "$_id" && exit 1                  # an unbeaten boss is no pass
+
+	  boss_round() { return 1; }                        # fought and lost
+	  run_level "$_id" >/dev/null 2>&1 </dev/null
+	  inprog_load "$_id" "$_fp" "$_nq" || exit 1        # still kept
+	  level_is_passed "$_id" && exit 1
+
+	  boss_round() { return 0; }                        # beaten
+	  run_level "$_id" >/dev/null 2>&1 </dev/null
+	  inprog_load "$_id" "$_fp" "$_nq" && exit 1        # beaten clears the place
+	  level_is_passed "$_id" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL run_level: the boss decides the pass, not the place" >&2; bad=$((bad+1)); }
+
 	# continue's confirm names a level before opening it, and a name that is
 	# not the level resume walks to is worse than no name at all. both must
 	# skip a beaten level and a placed one, and agree on the first survivor.
@@ -2650,6 +2704,22 @@ c' 20)" = 3 ] || exit 1
 			|| { echo "FAIL coach: crashed on: $a" >&2; bad=$((bad+1)); }
 	done
 
+	# and it must never say the same thing twice. `shorter:` and `also:` used
+	# to be picked independently, so the shortest answer -- usually the first
+	# one listed -- printed under both labels, one line after the other.
+	( Q_ANSWERS="sort -u f | wc -l
+sort f | uniq | wc -l
+sort  -u  f  |  wc  -l
+awk NR==1 f | wc -l"
+	  _o=$(coach_right 'sort f | uniq | wc -l' 2>&1)
+	  printf '%s\n' "$_o" | grep -q 'shorter: sort -u f | wc -l' || exit 1
+	  # the line just shown as shorter: is not offered again as also:, and
+	  # two spellings that normalise the same are one spelling
+	  printf '%s\n' "$_o" | grep 'also:' | grep -q 'sort' && exit 1
+	  printf '%s\n' "$_o" | grep -q 'also: awk NR==1 f | wc -l' || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL coach: shorter: and also: say the same line twice" >&2; bad=$((bad+1)); }
+
 	# projects are not cards and st_block cannot read them -- they have no
 	# listed answer to grade and no flag to claim. their own checker asks the
 	# two questions that matter instead: does the reference reproduce itself
@@ -2891,7 +2961,12 @@ resume_confirm() {
 	nq=$(level_nq "$id"); fp=$(level_fp "$id")
 	lname=$(level_field "$id" name)
 	inprog_load "$id" "$fp" "$nq" && held=1
-	if [ "$held" = 1 ]; then
+	if [ "$held" = 1 ] && [ -z "$INPROG_LEFT" ]; then
+		# nothing owed means the cards are done and the boss is what is left.
+		# "37 of 37 answered" is true and says none of that.
+		printf '  %slevel %s  %s%s %s-- at the boss, %s of %s correct%s\n' \
+			"$W" "$n" "$lname" "$N" "$D" "$INPROG_RIGHT" "$nq" "$N"
+	elif [ "$held" = 1 ]; then
 		printf '  %slevel %s  %s%s %s-- %s of %s answered, %s correct%s\n' \
 			"$W" "$n" "$lname" "$N" "$D" "$INPROG_DONE" "$nq" "$INPROG_RIGHT" "$N"
 	else
