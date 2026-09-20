@@ -549,7 +549,20 @@ code is stored, ever, and nothing about it is on by default.
 
 `learn/install.sh` puts it on this host as a standalone command -- the corpus and
 the tree's own busybox, no stick needed. progress lives under `~/.local/state` and
-re-installing never costs you it.
+re-installing never costs you it. from a fresh clone that is two commands, and
+neither builds a kernel, a key or an image:
+
+    ./build.sh fetch busybox    # the one binary learn grades against
+    ./learn/install.sh          # -> ~/.local/bin/learn
+
+it is not a repo of its own, and that is the point. every claim learn makes is
+checked against the busybox THIS tree builds -- G24 holds the corpus to the
+applet and builtin list that binary reports, G26 to the flags its own `--help`
+documents, G25 runs the whole curriculum under it, G62 probes it for the bash
+constructs it does not have. split the two apart and each of those gates becomes
+a comparison against whatever busybox happened to be lying around, which is
+exactly how `learn/builtins` went stale the last time something here was
+maintained by hand.
 
 everything shipped is documented and nothing documented is unshipped -- both
 directions are build gates, not intentions.

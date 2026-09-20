@@ -10,7 +10,8 @@
 set -eu
 
 src=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)   # the repo's learn/ parent
-[ -f "$src/busybox" ] || { echo "install: no busybox at $src -- run ./build.sh first" >&2; exit 1; }
+[ -f "$src/busybox" ] || { echo "install: no busybox at $src -- run ./build.sh fetch busybox" >&2
+	echo "install: that is the only part of the image learn needs; the kernel, the keys and the signing are not built by it" >&2; exit 1; }
 [ -x "$src/learn/learn" ] || { echo "install: no learn at $src/learn" >&2; exit 1; }
 
 share="${XDG_DATA_HOME:-$HOME/.local/share}/xos-learn"
