@@ -22,6 +22,30 @@
 #
 # not a tty (the build's automated runs, any pipe) falls straight back to a
 # plain read, so nothing here can break a headless learn.
+#
+# BYTES, NOT CHARACTERS -- measured 2026-09-20, and deliberately left alone.
+# learn runs with no LC_ALL and no LANG, so ash's `?` in ${R#?} matches one
+# BYTE, and every operation here is consistently byte-based. That consistency
+# is why the word motions are right on non-ascii text: `dw` on "café bar"
+# leaves " bar", `de` leaves " bar", and the yank holds "café" whole, because
+# both ends of the span are counted the same way.
+#
+# The one place it shows is a single-byte edit landing INSIDE a multi-byte
+# character. `lll` then `x` on "café" leaves the bytes 63 61 66 a9 -- the é's
+# lead byte deleted and its continuation byte orphaned, which draws as a
+# replacement glyph until the line is cleared. h and l can likewise park the
+# cursor mid-character, where the redraw's column arithmetic then counts one
+# column per byte and puts the cursor one cell late.
+#
+# Not fixed, on purpose. Making x, X, r, ~, h and l character-aware means
+# reading each byte's value to find the character boundary, in the path that
+# runs on EVERY keystroke, in a file whose header promises no forks per key --
+# to correct a case this curriculum never produces. Every answer in the corpus
+# is an ascii shell command; a multi-byte character in one is a typo or a
+# paste, the answer was already going to be wrong, and nothing is graded or
+# written from the mangled bytes except one line of answer history. The cost
+# of the fix is far above the cost of the defect. It is written down here
+# rather than left to be rediscovered.
 
 E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
 E_TAB=$(printf '\011'); E_EOT=$(printf '\004'); E_CR=$(printf '\r')
