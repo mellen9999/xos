@@ -212,3 +212,28 @@ why: root
 ref: lsattr
 teach: lsattr
 hint: lsattr prints the attribute letters chattr would set, in one fixed column
+---
+setup: you're about to trust this tree and want its permissions audited first
+q: {%show% the distinct modes present under here|what permission modes exist under this tree?|the distinct modes anything here carries}, with `find` and `stat`
+a: find . -type f -exec stat -c %a {} \; | sort -u
+cmp: ref
+ref: find
+teach: find
+hint: stat -c %a prints one file's mode as a number; find -exec runs it across every file, then sort -u drops the repeats
+---
+setup: you're about to trust this tree and want its permissions audited first
+q: {%count% the files under here with the setuid bit set|how many files here carry setuid?|the number of setuid files under this tree}, with `find`
+a: find . -perm -4000 | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: find
+teach: find
+hint: find -perm -4000 lists the setuid files one per line; wc -l turns that into a count
+---
+setup: you're about to trust this tree and want its permissions audited first
+q: {%find% the most common mode under here, and its count|which mode repeats most under this tree, and how often?|the single most frequent mode here, with its count}, with `find`
+a: find . -type f -exec stat -c %a {} \; | sort | uniq -c | sort -rn | head -1
+cmp: ref
+ref: find
+teach: find
+hint: stat -c %a gives each file's mode; sort then uniq -c counts how many share each one, and sort -rn puts the biggest on top

@@ -195,3 +195,37 @@ state: exists:blob.bin
 ref: fallocate
 teach: fallocate -l
 hint: -l is the length to reserve; unlike truncate this claims the blocks now
+---
+setup: you're checking a binary someone handed you, byte by byte, not by eye
+q: {pull `strings` out of @bin@ and count how many are distinct|run `strings` on @bin@ and report how many are distinct|extract @bin@'s `strings` and count the distinct ones}
+a: strings @bin@ | sort -u | wc -l
+out: ^1$
+cmp: ref
+ref: strings
+teach: strings
+hint: sort -u collapses duplicate lines before wc -l counts what's left
+---
+setup: you're checking a binary someone handed you, byte by byte, not by eye
+q: {count how many null bytes @bin@ has, with `hexdump`|`hexdump` @bin@ one byte per line and count the zero bytes|how many `00` bytes does @bin@ contain, via `hexdump`}
+a: hexdump -v -e '1/1 "%02x\n"' @bin@ | grep -c '^00$'
+cmp: ref
+ref: hexdump
+teach: hexdump
+hint: -e '1/1 "%02x\n"' prints one byte per line as two hex digits; -v stops repeats folding into *, so every line counts
+---
+setup: you're checking a binary someone handed you, byte by byte, not by eye
+q: {`split` @log@ into `100`-byte pieces and report how many resulted|break @log@ into 100-byte chunks with `split` and count the pieces|`split` @log@ into 100-byte pieces, then count how many came out}
+a: split -b 100 @log@ && ls x?? | wc -l
+cmp: ref
+ref: split
+teach: split
+hint: split with no -a writes two-letter suffixes (xaa, xab, ...); ls plus wc -l counts how many pieces it made
+---
+setup: you're checking a binary someone handed you, byte by byte, not by eye
+q: {`dd` @bin@ to `copy.bin`, stats to `dd.err`, then `cmp` the two|`dd`-copy @bin@ to `copy.bin`, stats aside in `dd.err`, `cmp` it|copy @bin@ to `copy.bin` with `dd`, stats to `dd.err`, `cmp` it}
+a: dd if=@bin@ of=copy.bin 2>dd.err && cmp @bin@ copy.bin
+status: 0
+cmp: ref
+ref: dd
+teach: dd
+hint: dd reports its record counts on stderr, so send those aside; with no bs=/count= it copies the whole file, and cmp exits 0 only on an exact match

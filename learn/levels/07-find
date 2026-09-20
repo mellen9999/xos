@@ -209,3 +209,29 @@ cmp: ref
 ref: find
 teach: find -print0
 hint: this is what you pipe into xargs -0 when filenames may contain spaces
+---
+setup: find only lists what matched -- turning that into a number or an order takes another command
+q: %count% how many `.log` files are under here, with `find`
+a: find . -name '*.log' | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: find
+teach: find
+hint: find lists the matches one per line; wc -l turns that list into a number
+---
+setup: find only lists what matched -- turning that into a number or an order takes another command
+q: {alphabetically, which `.log` file's name sorts last, with `find`|`find` the `.log` files here and keep the alphabetically last one|of the `.log` files here, which name sorts last, alphabetically}
+a: find . -name '*.log' | sort | tail -1
+cmp: ref
+ref: find
+teach: find
+hint: find's order isn't alphabetical -- sort the list first, then take its last line
+---
+setup: find only lists what matched -- turning that into a number or an order takes another command
+q: %count% how many files under here are `.log` or `.txt`, with `find`
+a: find . -name '*.log' -o -name '*.txt' | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: find
+teach: find
+hint: -o already ORs the two patterns together; wc -l still has to do the counting

@@ -143,3 +143,29 @@ cmp: ref
 ref: sort
 teach: sort -n
 hint: without -n, 7 sorts after 42 because it compares text
+---
+setup: cut and tr only pull pieces out, one line at a time -- turning that into a count or a distinct list takes one more command
+q: %list% every distinct status value in @csv@, with `cut`
+a: cut -d, -f3 @csv@ | sort -u
+cmp: ref
+ref: cut
+teach: cut
+hint: status is the 3rd comma-separated field; sort -u drops the repeats cut can't
+---
+setup: cut and tr only pull pieces out, one line at a time -- turning that into a count or a distinct list takes one more command
+q: %count% how many distinct status values @csv@ has, with `cut`
+a: cut -d, -f3 @csv@ | sort -u | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: cut
+teach: cut
+hint: same field as before; wc -l counts what sort -u already deduped
+---
+setup: cut and tr only pull pieces out, one line at a time -- turning that into a count or a distinct list takes one more command
+q: %count% how many distinct words @txt@ uses, with `tr`
+a: tr ' ' '\n' < @txt@ | sort -u | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: tr
+teach: tr
+hint: turn every space into a newline first, then dedup and count what's left

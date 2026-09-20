@@ -178,3 +178,27 @@ cmp: ref
 ref: uniq
 teach: uniq -c
 hint: extract the column, sort it, count it, then sort the counts numerically
+---
+setup: awk can filter, count, and compute per line, but it has no sort of its own -- ordering the output takes another command
+q: {@csv@'s name and count, highest count first|@csv@'s name and count, ranked by count descending|rank @csv@ by count, name and count columns only}, with `awk`
+a: awk -F, 'NR>1 {print $1, $4}' @csv@ | sort -k2 -rn
+cmp: ref
+ref: awk
+teach: awk -F
+hint: awk pulls the two columns; sort -k2 -rn ranks by the second one, biggest first
+---
+setup: awk can filter, count, and compute per line, but it has no sort of its own -- ordering the output takes another command
+q: {@csv@'s `up` rows, name column only, alphabetically|@csv@'s names with status `up`, alphabetically|which @csv@ names are `up`? list alphabetically}, with `awk`
+a: awk -F, '$3 == "up" {print $1}' @csv@ | sort
+cmp: ref
+ref: awk
+teach: awk -F
+hint: awk filters the up rows; sort alphabetizes what's left
+---
+setup: awk can filter, count, and compute per line, but it has no sort of its own -- ordering the output takes another command
+q: {@log@ severities that repeat, alphabetically|@log@'s repeated severities, listed alphabetically|which @log@ severities repeat? list alphabetically}, with `awk`
+a: awk 'NF > 3 {c[$3]++} END {for (k in c) if (c[k] > 1) print k}' @log@ | sort
+cmp: ref
+ref: awk
+teach: awk
+hint: NF > 3 skips the bare marker lines, whose third field is nothing at all; for (k in c) has no guaranteed order, so sort makes the listing reliable

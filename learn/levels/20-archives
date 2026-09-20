@@ -333,3 +333,38 @@ ref: cpio
 teach: cpio -i
 teach: cpio -d
 hint: -i extracts from stdin; -d makes the leading directories as it goes
+---
+setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
+q: {%count% @archive@'s entries, dirs included|how many entries does @archive@ have in all?|@archive@'s total entry count, dirs and all}, with `tar`
+a: tar -tf @archive@ | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: tar
+teach: tar
+hint: tar -tf lists one entry per line, directories included; wc -l counts them
+---
+setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
+q: {%count% just @archive@'s regular files|how many actual files does @archive@ hold?|@archive@'s file count, directories aside}, with `tar`
+a: tar -tvf @archive@ | grep -c '^-'
+out: ^[0-9]+$
+cmp: ref
+ref: tar
+teach: tar
+hint: tar -tvf's first column is d for a directory and - for a file; grep -c counts just the dash lines
+---
+setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
+q: {%find% @archive@'s smallest real file|which file in @archive@ takes least space?|@archive@'s tiniest member, dirs aside}, with `tar`
+a: tar -tvf @archive@ | grep '^-' | sort -k3n | head -1
+cmp: ref
+ref: tar
+teach: tar
+hint: grep '^-' drops the directory rows, sort -k3n orders what's left by the size column, and head -1 keeps the smallest
+---
+setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
+q: {%count% the bytes @archive@'s files add up to|@archive@'s files, summed byte for byte|add up every real file's size in @archive@}, with `tar`
+a: tar -tvf @archive@ | grep '^-' | awk '{s+=$3} END{print s}'
+out: ^[0-9]+$
+cmp: ref
+ref: tar
+teach: tar
+hint: grep '^-' keeps just the files, then awk adds up the size column and prints the total at the end

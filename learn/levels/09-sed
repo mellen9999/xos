@@ -166,3 +166,29 @@ state: exists:edit.ini.bak
 ref: sed
 teach: sed -i[SFX]
 hint: a suffix stuck to -i means "back the original up under this name"
+---
+setup: sed edits one line at a time and can't sort, count, or dedupe across lines -- getting some answers takes more than one command
+q: {count how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report how many @sev@ lines are in @log@}, with `sed`
+a: sed -n '/@sev@/p' @log@ | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: sed
+teach: sed
+hint: sed has no flag to count matches -- print them with -n '/pat/p', then let wc -l count
+---
+setup: sed edits one line at a time and can't sort, count, or dedupe across lines -- getting some answers takes more than one command
+q: {@csv@ is name,id,status,count -- with `sed`, sort it by id|@csv@ is name,id,status,count -- sort by id with `sed`|@csv@ is name,id,status,count -- put it in id order with `sed`}
+a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@ | sort -n
+cmp: ref
+ref: sed
+teach: sed -E
+hint: swap id in front with a capture group -- sort -n reads each line's leading number to order it
+---
+setup: sed edits one line at a time and can't sort, count, or dedupe across lines -- getting some answers takes more than one command
+q: {how many severities does @log@ have, pulled out with `sed`?|count the distinct severities in @log@, via `sed`|@log@'s severities, deduped and counted with `sed`}
+a: sed -n -E 's/^[^ ]+ [^ ]+ ([A-Z]+) .*/\1/p' @log@ | sort -u | wc -l
+out: ^[0-9]+$
+cmp: ref
+ref: sed
+teach: sed -E
+hint: the pattern captures just the severity word -- sort -u drops repeats, wc -l counts what's left

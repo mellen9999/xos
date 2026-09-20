@@ -2283,6 +2283,7 @@ TODO: write this entry by hand.
 #   G60 the trust manifest accounts for everything in the tree
 #   G61 every carried book is pinned by sha256 and carries a licence
 #   G62 every row of learn/bashisms is a construct this shell really lacks
+#   G63 the levels ask you to put two commands together, and keep asking
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -3261,6 +3262,21 @@ G37
   [ "$bz_n" -gt 0 ] || { printf '    learn/bashisms has no rows\n' >&2; bz_bad=$((bz_bad + 1)); }
   g "G62 learn/bashisms rows this shell really lacks ($bz_n checked)" \
     "$([ "$bz_bad" -eq 0 ] && echo ok || echo FAIL)"
+
+  # G63 -- composition, enforced. every command here was taught one at a time
+  # and then, almost nowhere, asked for together: nineteen of thirty levels had
+  # no answer with a pipe in it, and the one place composition WAS required --
+  # the gauntlet -- is locked until every level is held. so the skill the whole
+  # thing exists to build was the skill the levels never asked for. learn/compose
+  # is the ledger: a floor per level, or an exemption with one of three reasons.
+  # the floor is a ratchet, so lowering one is a diff someone has to write.
+  local cp_out cp_ok=1
+  cp_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+           XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
+           ./busybox ash learn/learn compose 2>&1) || cp_ok=0
+  printf '%s\n' "$cp_out" | grep -v '^learn: ' >&2 || true
+  g "G63 $(printf '%s' "$cp_out" | sed -n 's/^learn: //p' | tail -1)" \
+    "$([ "$cp_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # G50 -- every level's brief fits the screen it is printed on. the brief is
   # the level's teaching page and it is shown once, full-screen, before the

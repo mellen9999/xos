@@ -195,3 +195,27 @@ why: fixture-cost
 ref: grep
 teach: grep
 hint: POSIX classes like [[:space:]], [[:digit:]] and [[:alpha:]] work inside brackets, portable across regex flavors
+---
+setup: no grep flag answers this one -- the search is one step of three
+q: {the @sev@ messages in @log@, each one once, in order|`grep` @sev@ in @log@ and list each distinct line once|every distinct @sev@ line in @log@, sorted}
+a: grep @sev@ @log@ | sort -u
+cmp: ref
+ref: grep
+teach: grep
+hint: sort -u sorts and drops duplicates in one pass, so the repeats collapse
+---
+setup: no grep flag answers this one -- the search is one step of three
+q: {which `ERROR` line in @log@ repeats most, and how often|the most frequent `ERROR` line in @log@, with its count|`grep` `ERROR` in @log@ and name the line that repeats most}
+a: grep ERROR @log@ | sort | uniq -c | sort -rn | head -1
+cmp: ref
+ref: grep
+teach: grep
+hint: uniq -c counts adjacent runs, so sort first; then sort -rn puts the biggest count on top
+---
+setup: no grep flag answers this one -- the search is one step of three
+q: {how many DISTINCT addresses @log@ mentions, with `grep`|count the distinct ip addresses in @log@, via `grep`|`grep` the addresses out of @log@ and count the distinct ones}
+a: grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' @log@ | sort -u | wc -l
+cmp: ref
+ref: grep
+teach: grep
+hint: -o prints the matched text instead of the line, which is what makes it countable

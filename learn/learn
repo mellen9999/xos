@@ -1069,6 +1069,68 @@ order_syntax() {
 	' "$SYNTAX" "$@"
 }
 
+# compose -- the levels ask you to put two commands together, and keep asking.
+#
+# every command in this curriculum was taught one at a time, and then almost
+# no level asked anyone to compose them: nineteen of thirty had no pipe in any
+# answer. the gauntlet was the only place composition was required and the
+# gauntlet is locked behind holding every level. learn/compose is the ledger
+# that fixes the floor per level -- see its header for the reason set -- and
+# this is what reads it. a level in neither column is a build failure, so a
+# new level has to answer the question once, on the commit that adds it.
+compose() {
+	local ledger="$ROOT/compose" id n want rest bad=0 checked=0 v=${1:-}
+	[ -f "$ledger" ] || die "no compose ledger at $ledger"
+	# every level the ledger names must exist, and every level must be named
+	for id in $(level_ids); do
+		grep -qE "^${id}[[:space:]]" "$ledger" \
+			|| { echo "  $id: in no column of learn/compose" >&2; bad=$((bad + 1)); }
+	done
+	while read -r id want rest; do
+		case "$id" in ''|'#'*) continue ;; esac
+		[ -f "$(level_path "$id")" ] \
+			|| { echo "  $id: named in learn/compose, but there is no such level" >&2
+			     bad=$((bad + 1)); continue; }
+		checked=$((checked + 1))
+		if [ "$want" = - ]; then
+			[ "$v" = -v ] && printf '  %-20s  -  %s\n' "$id" "$rest"
+			case "$rest" in
+				grammar|single-tool|foundation) : ;;
+				*) echo "  $id: exempt for '$rest', which is not a reason this ledger knows" >&2
+				   bad=$((bad + 1)) ;;
+			esac
+			continue
+		fi
+		n=$(compose_n "$id")
+		# -v prints the measured count beside the floor: the ledger is a
+		# ratchet, and raising one honestly means reading the number first.
+		[ "$v" = -v ] && printf '  %-20s %2d  (floor %s)\n' "$id" "$n" "$want"
+		[ "$n" -ge "$want" ] 2>/dev/null || {
+			echo "  $id: $n answer(s) run 2+ commands, the ledger says $want" >&2
+			bad=$((bad + 1))
+		}
+	done < "$ledger"
+	echo "learn: $checked level(s) checked for composition, $bad below the floor"
+	[ "$bad" = 0 ]
+}
+
+# compose_n ID -- how many of this level's blocks have a FIRST answer that
+# runs two or more distinct commands. answer_cmds does the reading, so a
+# command name inside a quoted awk or sed program is not one of them and a
+# pipe, a &&, a ; and a $(...) all are.
+compose_n() {
+	local f n=0 a
+	f=$(level_path "$1")
+	awk '/^---$/ { want = 1; next } want && /^a: / { print substr($0, 4); want = 0 }' "$f" \
+		> "$TMP/compose.$$"
+	while IFS= read -r a; do
+		[ -n "$a" ] || continue
+		[ "$(printf '%s\n' "$a" | answer_cmds | grep -c .)" -ge 2 ] && n=$((n + 1))
+	done < "$TMP/compose.$$"
+	rm -f "$TMP/compose.$$"
+	printf '%s\n' "$n"
+}
+
 # order -- optimal order, enforced.
 #
 # a level may only use commands that it, or an earlier level, introduces. the
@@ -3512,6 +3574,7 @@ case "${1:-}" in
 	coverage) shift; coverage "${1:--q}" ;;
 	refcheck) refcheck ;;
 	order)    order ;;
+	compose)  shift; compose "${1:-}" ;;
 	review)   shift; review "${1:-20}"; session_summary ;;
 	scenario) shift
 	          if [ -z "${1:-}" ]; then

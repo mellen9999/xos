@@ -238,3 +238,39 @@ cmp: ref
 ref: base64
 teach: base64 -w
 hint: -w wraps output at that many columns instead of one long line
+---
+setup: someone handed you files to verify and a bare hash on screen proves nothing by itself
+q: {`sha256sum` both of `samples/`'s binaries and count the distinct digests|hash `samples/`'s binaries with `sha256sum`, report how many hashes differ|run `sha256sum` on both files in `samples/` and count the distinct results}
+a: sha256sum samples/firmware.bin samples/target.bin | awk '{print $1}' | sort -u | wc -l
+out: ^1$
+cmp: ref
+ref: sha256sum
+teach: sha256sum
+hint: sha256sum samples/firmware.bin and samples/target.bin print one hash each; awk keeps just the digest column, sort -u collapses a match, wc -l counts what's left
+---
+setup: someone handed you files to verify and a bare hash on screen proves nothing by itself
+q: {hash every file under `src/` and count the distinct digests, with `sha256sum`|walk `src/`, hash each file, and count the distinct hashes with `sha256sum`|`sha256sum` every file under `src/` and report how many hashes differ}
+a: find src -type f | sort | xargs sha256sum | awk '{print $1}' | sort -u | wc -l
+out: ^1$
+cmp: ref
+ref: sha256sum
+teach: sha256sum
+hint: find lists the files, sort fixes their order, xargs feeds them to sha256sum, then the same digest-column/dedupe/count as before
+---
+setup: someone handed you files to verify and a bare hash on screen proves nothing by itself
+q: {`sha256sum` `*.log` to `sums.txt`, break `error.log`, list the failure|`sha256sum` `*.log` to `sums.txt`, break `error.log`, show what fails|hash `*.log` to `sums.txt` with `sha256sum`, break `error.log`, failures}
+a: sha256sum *.log > sums.txt; printf x >> error.log; sha256sum -c sums.txt 2>&1 | grep FAILED
+out: FAILED
+cmp: ref
+ref: sha256sum
+teach: sha256sum
+hint: appending a byte after hashing breaks just error.log's checksum; -c reports each line OK or FAILED, and grep keeps only the bad one
+---
+setup: someone handed you files to verify and a bare hash on screen proves nothing by itself
+q: {`base64` @txt@ and back into `round.txt`, then `cmp` the two|encode @txt@ with `base64`, decode into `round.txt`, `cmp` it|round-trip @txt@ through `base64` into `round.txt` and `cmp` it}
+a: base64 @txt@ | base64 -d > round.txt && cmp round.txt @txt@
+status: 0
+cmp: ref
+ref: base64
+teach: base64
+hint: land the decoded bytes in a file, then cmp exits 0 only if it matches @txt@ byte for byte

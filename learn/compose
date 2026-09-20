@@ -1,0 +1,68 @@
+# compose -- how many answers in each level have to run MORE THAN ONE command.
+#
+# the curriculum taught every command one at a time and then, almost nowhere,
+# asked anyone to put two of them together. measured 2026-09-20, before this
+# file existed: of thirty levels, nineteen had ZERO answers with a pipe in
+# them, and five more had exactly one. the gauntlet was all composition and
+# the gauntlet is locked until every level is held -- so the skill the whole
+# system exists to build was the one thing the levels never asked for.
+#
+# that is the kind of gap that comes back. a level gets rewritten, a card gets
+# cut for length, and nothing notices, because no number was watching. this is
+# the number.
+#
+# FORMAT: one line per level.
+#   <level-id>  <floor>    at least <floor> answers must invoke 2+ commands
+#   <level-id>  -  reason  the level is exempt, and why
+#
+# the floor is a RATCHET: it is what the level has now, so the count can only
+# be raised deliberately. lowering a floor is a decision someone has to make
+# in this file, in a diff, with the reason next to it -- never something that
+# happens because a card was edited. `learn compose -v` prints the measured
+# count beside each floor, which is how you raise one honestly.
+#
+# "2+ commands" is answer_cmds' reading of the first listed answer: a pipe, a
+# && , a ; or a $(...) all count, and a command name inside a quoted awk or
+# sed program does not. one command with many flags is one command.
+#
+# the closed reason set for an exemption:
+#   grammar      -- the level teaches shell syntax, not a tool. a pipe there
+#                   would be scenery: the lesson is the construct itself.
+#   single-tool  -- the level is one interactive program end to end, and
+#                   composing it with anything is a different lesson.
+#   foundation   -- below the level that introduces the pipe. nothing here
+#                   CAN compose yet; 04-redirection is where | is declared.
+#
+# a level in neither column fails the build. a new level has to say which it
+# is, which is the whole point: the question gets asked once, on the commit
+# that adds it, instead of never.
+01-first-steps       -  foundation
+02-files             -  foundation
+03-reading           -  foundation
+04-redirection       3
+05-counting          8
+06-grep              3
+07-find              5
+08-cutting           4
+09-sed               6
+10-awk               7
+11-variables         -  grammar
+12-exit-status       13
+13-test              11
+14-control-flow      -  grammar
+15-scripts           -  grammar
+16-job-control       -  single-tool
+17-processes         -  single-tool
+18-permissions       3
+19-xargs             8
+20-archives          11
+21-integrity         15
+22-bytes             4
+23-disks             5
+24-the-machine       3
+25-interfaces        1
+26-reachability      -  single-tool
+27-moving-data       1
+28-tls-and-irc       2
+29-the-editor        -  single-tool
+30-root              14
