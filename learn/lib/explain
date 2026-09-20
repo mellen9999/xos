@@ -7,6 +7,7 @@
 
 SYNTAX="$ROOT/syntax"
 SYNALWAYS="$ROOT/syn"
+BASHISMS="$ROOT/bashisms"
 
 # syn_of CMD -- the syntax labels that belong to this command's page whatever
 # the answer used, one per line. see learn/syn for why a glob is one of them
@@ -67,6 +68,32 @@ $label
 			work=$(printf '%s' "$work" | sed -E "s$tab$ere$tab $tab""g")
 		fi
 	done < "$SYNTAX"
+}
+
+# bashism_scan LINE -- label<TAB>gloss for every bash-only construct the line
+# uses, consumed order, from learn/bashisms. the wrong-answer path calls it;
+# nothing in the curriculum does, because none of this is taught here.
+#
+# the quote strip is _syn_scan's with one change: a span opened by $' survives,
+# because that span IS one of the constructs. _syn_scan must not make the same
+# exception -- there is no $'...' row in learn/syntax to find, and keeping the
+# span would hand an awk body back to the rows below it.
+bashism_scan() {
+	local work label ere probe gloss tab
+	tab=$(printf '\t')
+	work=$(printf '%s' "$1" | sed -E "s/(^|[^\$])'[^']*'/\\1 '' /g")
+	# probe is read and not used here: it is field 3 and the gloss is
+	# field 4. selftest and G62 are what run it.
+	# shellcheck disable=SC2034
+	while IFS="$tab" read -r label ere probe gloss; do
+		case "$label" in ''|'#'*) continue ;; esac
+		if printf '%s' "$work" | grep -qE -- "$ere"; then
+			printf '%s\t%s\n' "$label" "$gloss"
+			# TAB delimits the s command, for the reason _syn_scan gives:
+			# it is the one character a row's ERE cannot contain.
+			work=$(printf '%s' "$work" | sed -E "s$tab$ere$tab $tab""g")
+		fi
+	done < "$BASHISMS"
 }
 
 # _exp_row LABEL GLOSS -- one panel row: the label in its own column, the gloss

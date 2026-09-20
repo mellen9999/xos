@@ -1040,14 +1040,14 @@ rootfs() {
   for part in ref lib pools levels scenarios projects; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  for _f in skip skip-syntax builtins phrases syntax vs chains migrations; do
+  for _f in skip skip-syntax builtins phrases syntax vs bashisms chains migrations; do
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
   cp learn/skip learn/skip-syntax learn/builtins learn/phrases learn/chains \
-     learn/syntax learn/vs learn/migrations root/usr/share/learn/
+     learn/syntax learn/vs learn/bashisms learn/migrations root/usr/share/learn/
 
   # overlay carries the udhcpc script, without which dhcp silently configures
   # nothing, and the wordlist init turns the roothash into four spoken words. it was optional; under `set -e` a
@@ -2282,6 +2282,7 @@ TODO: write this entry by hand.
 #   G59 the container toolchain is pinned by bytes, not by an archive day
 #   G60 the trust manifest accounts for everything in the tree
 #   G61 every carried book is pinned by sha256 and carries a licence
+#   G62 every row of learn/bashisms is a construct this shell really lacks
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -3232,6 +3233,34 @@ G37
   printf '%s\n' "$or_out" | grep -v '^learn: ' >&2 || true
   g "G27 $(printf '%s' "$or_out" | sed -n 's/^learn: //p' | tail -1)" \
     "$([ "$or_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G62 -- learn/bashisms claims, row by row, that a construct works in bash
+  # and does not work here. every other table in the corpus is checkable by
+  # running the lesson; this one is not, because the shell it is about is the
+  # one thing xos refuses to ship. so the gate runs each row's probe twice --
+  # once under the busybox this build just produced, once under the host's
+  # bash -- and demands they disagree, in exit status or in output.
+  #
+  # it is not pedantry. `<<<` was in the first draft of that table on the
+  # strength of a comment in learn/syntax saying ash has no here-strings. this
+  # ash runs `cat <<< hi` and prints hi. a row asserting otherwise would have
+  # told a learner to stop writing a line that works -- which is worse than
+  # teaching nothing, and is exactly the class of error no amount of reading
+  # catches.
+  local bz_bad=0 bz_n=0 bz_l bz_e bz_p bz_g bz_ao bz_ar bz_bo bz_br
+  while IFS=$'\t' read -r bz_l bz_e bz_p bz_g; do
+    case "$bz_l" in ''|'#'*) continue ;; esac
+    bz_n=$((bz_n + 1))
+    bz_ao=$(PATH="$PWD/root/bin" timeout 5 ./busybox ash -c "$bz_p" </dev/null 2>&1); bz_ar=$?
+    bz_bo=$(timeout 5 bash -c "$bz_p" </dev/null 2>&1); bz_br=$?
+    if [ "$bz_ar" = "$bz_br" ] && [ "$bz_ao" = "$bz_bo" ]; then
+      printf '    %s: this shell runs it exactly as bash does -- not a bashism\n' "$bz_l" >&2
+      bz_bad=$((bz_bad + 1))
+    fi
+  done < learn/bashisms
+  [ "$bz_n" -gt 0 ] || { printf '    learn/bashisms has no rows\n' >&2; bz_bad=$((bz_bad + 1)); }
+  g "G62 learn/bashisms rows this shell really lacks ($bz_n checked)" \
+    "$([ "$bz_bad" -eq 0 ] && echo ok || echo FAIL)"
 
   # G50 -- every level's brief fits the screen it is printed on. the brief is
   # the level's teaching page and it is shown once, full-screen, before the

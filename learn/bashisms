@@ -1,0 +1,46 @@
+# bashisms -- the constructs a bash habit reaches for that this shell does not
+# have, and what to write instead.
+#
+# this is NOT curriculum. no card drills a bashism and no level declares one:
+# learn teaches the system that ships, and bash does not ship (see
+# busybox.config.features -- "BASH_COMPAT is deliberately absent"). these rows
+# exist for the wrong-answer path only. you type what worked on your desktop,
+# ash refuses it, and the error it gives you -- "[[: not found",
+# "bad substitution", or, worse, nothing at all -- does not say the word bash.
+# coach_miss says it.
+#
+# half of these do not fail loudly, and those are the ones worth a row. $'...',
+# {1..3}, &> and printf -v all exit 0 under ash and quietly do something else.
+# a learner can run those for a year without learning they never worked.
+#
+# four tab-separated fields: label, an ERE that detects it, a PROBE that uses
+# it, a one-line gloss naming the portable form. ROW ORDER IS CONSUMED ORDER,
+# as in learn/syntax -- each match is replaced with a space before the rows
+# below are tested.
+#
+# the probe is what makes a row falsifiable, and selftest holds every row to
+# three facts it can check:
+#
+#   1. the ERE matches its own probe -- the row detects what it claims to
+#   2. the probe, run under the shell that SHIPS, either exits nonzero or
+#      prints something other than what bash prints. a construct ash handles
+#      fine is not a bashism, whatever anyone remembered. (this is how <<< was
+#      kept out: ash runs it, so it does not belong here.)
+#   3. the ERE matches none of the ~1020 answers in the corpus. every one of
+#      those is known-good ash, so a hit is a false positive by construction --
+#      and a false positive here teaches a lie about a line that works.
+#
+# single-quoted spans are stripped before matching, as in explain -- but a
+# span opened by $' is kept, because that span IS the construct.
+for (( ))	for[[:space:]]*\(\(	for ((i=0;i<2;i++)); do echo $i; done	use the POSIX form: while [ "$i" -lt 3 ]; do i=$((i+1)); done
+<(cmd)	<\(	cat <(echo hi)	no process substitution -- use a pipe, or a temp file
+|&	\|&	echo hi |& cat	write 2>&1 | instead
+&>	&>	ls /nope &> /dev/null	ash reads it as background-then-redirect, silently -- use > f 2>&1
+${v//x/y}	\$\{[A-Za-z_][A-Za-z0-9_]*[/^,]	v=abc; echo ${v//b/X}	ash keeps #, % and :- but not //, ^^ or ,, -- pipe through sed or tr
+${v[i]}	\$\{[A-Za-z_][A-Za-z0-9_]*\[	a=1; echo ${a[0]}	no arrays, so ${arr[0]} and ${PIPESTATUS[0]} both die
+a=( )	(^|[[:space:];])[A-Za-z_][A-Za-z0-9_]*=\(	a=(x y); echo "$a"	ash has no arrays -- use "$@", or a string you split on IFS
+[[ ]]	\[\[	[[ -f /etc/passwd ]]	ash has no [[ ]] -- use [ ], and quote your variables
+$'...'	\$'	echo $'a\tb'	ash prints it literally, no error -- use printf '%b'
+{a..b}	\{[^{} ]*\.\.[^{} ]*\}	echo {1..3}	ash prints {1..3} verbatim, no error -- use seq
+declare	(^|[[:space:];|&])(declare|typeset)[[:space:]]	declare -i n=1	ash has export, readonly and local, and nothing else
+printf -v	printf[[:space:]]+-v	printf -v v hi	ash printf has no -v and prints it -- use v=$(printf ...)

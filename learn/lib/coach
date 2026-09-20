@@ -2,13 +2,16 @@
 #
 # 'wrong -- <answer>' tells you the answer; it does not tell you where YOUR
 # command died. on the final miss of a question (learn mode only -- the boss
-# stays terse) this shows up to six rows, one label column wide:
+# stays terse) this shows up to seven rows, one label column wide:
 #
 #   yours/wanted   what your command actually printed vs what was wanted --
 #                  stderr included, so `grep: invalid option` is the first
 #                  thing you see
 #   not run        the answer was never executed at all -- it tried to write
 #                  outside the sandbox, so it is graded on text alone
+#   bashism        you reached for something bash has and this shell does not,
+#                  named with the portable form -- including the four that
+#                  fail silently rather than erroring
 #   stages         for a pipeline, the line count after every stage, so the
 #                  point where it died is visible
 #   wants          the answer never invoked the command the question is
@@ -104,6 +107,19 @@ coach_miss() {
 			_c_row wanted "matching /$Q_OUT/"
 		fi
 	fi
+
+	# a bash habit this shell does not have. it sits directly under `yours`
+	# because that is the row it explains -- ash answers a bashism with
+	# "[[: not found" or "bad substitution", and neither says the word bash.
+	# it sits above `wants` for the same reason: that row would report you
+	# never ran grep, when what happened is ash died on the [[ in front of it.
+	# four of the rows in learn/bashisms do not error at all; see that file.
+	while IFS="$(printf '\t')" read -r _bl _bg; do
+		[ -n "$_bl" ] || continue
+		_c_row bashism "$_bl -- $_bg"
+	done <<-EOF
+	$(bashism_scan "$_ci")
+	EOF
 
 	# the answer never invoked the command the question is actually testing
 	# (grade's tier 2 requires it) -- a real diagnosis, not a guess.

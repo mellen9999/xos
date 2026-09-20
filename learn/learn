@@ -3092,6 +3092,51 @@ awk NR==1 f | wc -l"
 	  exit 0 ) \
 		|| { echo "FAIL coach: shorter: and also: say the same line twice" >&2; bad=$((bad+1)); }
 
+	# ---- bashisms -------------------------------------------------------
+	#
+	# learn/bashisms is the one table whose rows make a claim about a shell
+	# that is NOT here, so it is the one table nobody can check by running the
+	# lesson. two of its three facts are checkable from inside the image; the
+	# third (the probe really does behave differently under bash) needs a bash
+	# to compare against and is build.sh's G62.
+	local _bl _bere _bprobe _bgloss _btab _bn=0
+	_btab=$(printf '\t')
+	sed -n 's/^a: *//p' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
+		| sed -E "s/(^|[^\$])'[^']*'/\1 '' /g" > "$TMP/bs.ans"
+	while IFS="$_btab" read -r _bl _bere _bprobe _bgloss; do
+		case "$_bl" in ''|'#'*) continue ;; esac
+		_bn=$((_bn + 1))
+		[ -n "$_bere" ] && [ -n "$_bprobe" ] && [ -n "$_bgloss" ] \
+			|| { echo "FAIL bashisms: $_bl: a row needs all four fields" >&2; bad=$((bad+1)); continue; }
+
+		# the row detects what it claims to. an ERE that has drifted off its
+		# own construct reports nothing and looks exactly like a clean answer.
+		printf '%s' "$_bprobe" | grep -qE -- "$_bere" \
+			|| { echo "FAIL bashisms: $_bl: the ERE does not match its own probe" >&2; bad=$((bad+1)); }
+
+		# and it matches nothing in the corpus. every listed answer is
+		# known-good ash -- most of them graded by running -- so a hit here is
+		# a false positive by construction, and a false positive tells the
+		# learner a line that works is a bash habit.
+		if grep -nE -- "$_bere" "$TMP/bs.ans" | head -1 | grep -q .; then
+			echo "FAIL bashisms: $_bl: matches a corpus answer: $(grep -nE -- "$_bere" "$TMP/bs.ans" | head -1)" >&2
+			bad=$((bad+1))
+		fi
+	done < "$BASHISMS"
+	rm -f "$TMP/bs.ans"
+	[ "$_bn" -gt 0 ] || { echo "FAIL bashisms: the table is empty" >&2; bad=$((bad+1)); }
+
+	# the scanner itself: it fires on a bashism, and it stays quiet on an
+	# answer the corpus is full of. the second half is the one that matters --
+	# a scanner that cried bash at every awk script would be worse than none.
+	[ -n "$(bashism_scan '[[ -f f ]]')" ] \
+		|| { echo "FAIL bashism_scan: silent on [[ ]]" >&2; bad=$((bad+1)); }
+	[ -z "$(bashism_scan "awk '{ print \$1 }' f | sort -u")" ] \
+		|| { echo "FAIL bashism_scan: an awk body read as a bashism" >&2; bad=$((bad+1)); }
+	# the $'...' span survives the quote strip that every other row needs
+	[ -n "$(bashism_scan "echo \$'a\tb'")" ] \
+		|| { echo "FAIL bashism_scan: the quote strip ate \$'...'" >&2; bad=$((bad+1)); }
+
 	# projects are not cards and st_block cannot read them -- they have no
 	# listed answer to grade and no flag to claim. their own checker asks the
 	# two questions that matter instead: does the reference reproduce itself

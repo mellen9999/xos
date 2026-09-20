@@ -12,7 +12,9 @@
 # space, not deleted outright -- deleting would fuse the tokens on either side
 # of it, and a later boundary-sensitive row (--, a lone -) would then read
 # them as one token and miss. only constructs busybox ash actually runs are
-# listed -- no <(cmd), no <<<, no ${v//x/y}, no arrays.
+# listed -- no <(cmd), no ${v//x/y}, no arrays. (<<< is not in that list: this
+# ash runs a here-string. it has no row yet, and that is a gap, not a rule --
+# learn/bashisms G62 is what caught the claim that it had none.)
 #
 # an octal mode is in the table too, and it is not an operator. the rule the
 # table actually keeps is the one in the paragraph above -- the pieces that are
