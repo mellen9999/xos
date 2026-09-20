@@ -269,7 +269,7 @@ _ed_getc() {
 
 read_line() {   # [DEADLINE] -- sets REPLY_LINE. 0 line, 1 EOF/quit, 2 time up
 	local L="" R="" mode=insert c c2 c3 _r _pc _quit= _pm _bk _grc
-	local _pend= _pcnt= _mcnt= _await= _fop= _fch= _uL= _uR= _umode=
+	local _pend= _pcnt= _mcnt= _await= _fop= _fch= _uL= _uR= _umode= _usnap=
 	local _dl="${1:-${ED_DEADLINE:-}}"
 	if [ ! -t 0 ]; then
 		if [ -n "$_dl" ]; then
@@ -463,7 +463,10 @@ _ed_cut() {
 # and never by a motion, so `u` after `dw l l l` still undoes the dw. an
 # insert session is covered by the snapshot its i/a/c took, which makes the
 # whole session undo as one -- what vi does, for free.
-_ed_snap() { _uL="$L"; _uR="$R"; _umode="$mode"; }
+# _usnap is the flag, not the emptiness of _uL/_uR: a snapshot OF an empty
+# line is a real snapshot, and testing the strings instead made `u` on a fresh
+# question swap the typed answer against nothing and wipe it.
+_ed_snap() { _uL="$L"; _uR="$R"; _umode="$mode"; _usnap=1; }
 
 # _ed_find OP CH -- f/F/t/T, one step. returns 1 when the character is not
 # there, which leaves the cursor exactly where it was.
@@ -512,7 +515,10 @@ _ed_step() {
 		'^') _ed_first_nb "$L$R"; _ed_goto "$_r" ;;
 		'$') L="$L$R"; R=""; _ed_clamp ;;
 		w|W) _ed_word_fwd ;;
-		e|E) _ed_word_end ;;
+		# the only word motion that can refuse, and its refusal has to reach
+		# the caller: `case` does not set this function's status, the
+		# `return 0` at the bottom does.
+		e|E) _ed_word_end || return 1 ;;
 		b|B) _ed_word_back ;;
 		f|F|t|T) _ed_find "$1" "$2" || return 1 ;;
 		*) return 1 ;;
@@ -573,9 +579,15 @@ _ed_op() {
 # _ed_apply KEY CHAR -- run KEY as the pending operator's target if there is
 # one, or as a plain motion if there is not.
 _ed_apply() {
-	local _k="$1" _ch="$2" _n _i=0
+	local _k="$1" _ch="$2" _n _i=0 _cap
 	_n=$(( ${_pcnt:-1} * ${_mcnt:-1} ))
 	[ "$_n" -ge 1 ] 2>/dev/null || _n=1
+	# no motion on a line can usefully repeat more times than the line has
+	# characters, and the ones that walk words fork per character -- so the
+	# line's own length is the ceiling. 3000w on a 40-column answer is 40
+	# steps and a cursor at the end, not three thousand forks.
+	_cap=$(( ${#L} + ${#R} + 1 ))
+	[ "$_n" -le "$_cap" ] || _n=$_cap
 	if [ -n "$_pend" ]; then
 		# cw on a non-blank is ce. real vi does this, and the reason is dw:
 		# dw takes the following space with it, and cw taking it would leave
@@ -612,11 +624,21 @@ _ed_normal() {   # $1 = key
 
 	# (2) a count. 0 is a digit only when one is already being typed --
 	# otherwise it is the motion to column zero, and 10l has to move ten.
+	# four digits is 9999 of anything, on a line that must fit 76 columns. a
+	# fifth is a mis-key, and the digits are a string until they are not: a
+	# twenty-digit count overflows the arithmetic it lands in, and w/e/b fork
+	# per character, so it is also a lesson that stops responding.
 	case "$_k" in
-		[1-9]) if [ -n "$_pend" ]; then _mcnt="$_mcnt$_k"; else _pcnt="$_pcnt$_k"; fi
+		[1-9]) if [ -n "$_pend" ]; then
+			[ ${#_mcnt} -lt 4 ] && _mcnt="$_mcnt$_k"
+		       else
+			[ ${#_pcnt} -lt 4 ] && _pcnt="$_pcnt$_k"
+		       fi
 		       return 0 ;;
-		0) if [ -n "$_pend" ] && [ -n "$_mcnt" ]; then _mcnt="${_mcnt}0"; return 0; fi
-		   if [ -z "$_pend" ] && [ -n "$_pcnt" ]; then _pcnt="${_pcnt}0"; return 0; fi ;;
+		0) if [ -n "$_pend" ] && [ -n "$_mcnt" ]; then
+			[ ${#_mcnt} -lt 4 ] && _mcnt="${_mcnt}0"; return 0; fi
+		   if [ -z "$_pend" ] && [ -n "$_pcnt" ]; then
+			[ ${#_pcnt} -lt 4 ] && _pcnt="${_pcnt}0"; return 0; fi ;;
 	esac
 
 	# (3) an operator is pending: this key is its motion, its double, or a
@@ -689,9 +711,11 @@ _ed_normal() {   # $1 = key
 		Y) YANK="$R" ;;
 		# one level, and it swaps rather than restores, so u u redoes -- which
 		# is exactly what vi's own single-level undo did.
-		u) _c="$L"; L="$_uL"; _uL="$_c"
-		   _c="$R"; R="$_uR"; _uR="$_c"
-		   _c="$mode"; mode="${_umode:-normal}"; _umode="$_c" ;;
+		u) if [ -n "$_usnap" ]; then
+			_c="$L"; L="$_uL"; _uL="$_c"
+			_c="$R"; R="$_uR"; _uR="$_c"
+			_c="$mode"; mode="${_umode:-normal}"; _umode="$_c"
+		   fi ;;
 		# documented in this file's own header since it was written, and bound
 		# to nothing: history was reachable only by the arrow keys.
 		k) while [ "$_i" -lt "$_n" ]; do _ed_hist_prev; _i=$(( _i + 1 )); done ;;
@@ -711,12 +735,21 @@ _ed_repeat() {
 	_ed_apply "$_op" "$_fch"
 }
 
-# move cursor to the end of the current/next word
+# move cursor to the end of the current/next word. returns 1 when there is no
+# further word end, which every other motion has always done and this one did
+# not: it walked to index n -- one PAST the last character -- and _ed_op's
+# "clamp b to n" then turned the overshoot into "delete through the end of the
+# line". `de` with the cursor on the last word's second-to-last character ate
+# the final character; on a one-character line it ate the line. h l f F t T
+# all refuse at their boundary; so does this now.
 _ed_word_end() {
-	local line="$L$R" p=${#L} n; n=${#line}
+	local line="$L$R" p=${#L} was=${#L} n; n=${#line}
+	[ "$n" -gt 0 ] || return 1
 	p=$((p+1))
 	while [ "$p" -lt "$n" ] && [ "$(_ed_at "$line" "$p")" = " " ]; do p=$((p+1)); done
 	while [ "$((p+1))" -lt "$n" ] && [ "$(_ed_at "$line" "$((p+1))")" != " " ]; do p=$((p+1)); done
+	[ "$p" -lt "$n" ] || p=$((n - 1))
+	[ "$p" -gt "$was" ] || return 1
 	_ed_split "$line" "$p"
 }
 

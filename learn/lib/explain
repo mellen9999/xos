@@ -389,15 +389,21 @@ ref_card() {
 			# spends a row it was not given: when the list does not fit, the
 			# LAST row goes to saying so rather than to one more flag.
 			budget = (max > 0 ? max : n)
+			# ONE row, with more flags than that, spends it on the count: both
+			# arms subtract the row the footer costs, unconditionally. they used to
+			# skip that subtraction at budget 1 and then skip the footer too,
+			# so a one-row panel showed one arbitrary flag and dropped fifteen
+			# in silence -- the failure that footer exists to prevent. it was
+			# unreachable only because ref_panel_text floors its share at two.
 			if (!twocol) {
-				shown = (n <= budget ? n : (budget > 1 ? budget - 1 : budget))
+				shown = (n <= budget ? n : budget - 1)
 				for (i = 1; i <= shown; i++)
 					if (Dd[i] == "") printf "  %s%s%s\n", C, F[i], N
 					else printf "  %s%s%s%s\n", C, fcol(F[i], col), N, clip(Dd[i], cols - col - 4)
-				if (budget > 1) more(n - shown)
+				more(n - shown)
 				exit
 			}
-			shown = (n <= budget * 2 ? n : (budget > 1 ? (budget - 1) * 2 : budget * 2))
+			shown = (n <= budget * 2 ? n : (budget - 1) * 2)
 			half = int((shown + 1) / 2)
 			# two cells and the gap between them, measured on the plain text --
 			# the colour codes go on afterwards, or every row lands ragged
@@ -408,7 +414,7 @@ ref_card() {
 				if (j <= shown) printf "  %s%s%s%s", C, fcol(F[j], col), N, clip(Dd[j], dw)
 				printf "\n"
 			}
-			if (budget > 1) more(n - shown)
+			more(n - shown)
 		}'
 }
 

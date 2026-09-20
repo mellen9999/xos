@@ -418,6 +418,17 @@ qwidth_over() {
 			# a backtick is markup: lit_fence turns the pair into two bytes
 			# wrap() counts as zero, so the columns it spends on screen are
 			# none. counting them here would fail a card the terminal fits.
+			#
+			# ON THE TIER WITH NO ATTRIBUTES AT ALL this is not true, and is
+			# knowingly not measured. NO_COLOR, TERM=dumb and any pipe
+			# degrade both marks to real characters -- 'name' and `word` --
+			# and each one then costs two columns nothing here counts. Making
+			# the gate measure that tier fails 190 of 934 prompts (measured,
+			# 2026-09-20), which is a rewording job and not a fix. The cost
+			# of leaving it is that on an 80-column NO_COLOR terminal some
+			# prompts wrap and the reference panel is a row shorter; the
+			# budget logic already handles a taller question. It is named
+			# here so the blind spot is on the page rather than in the dark.
 			gsub(/`/, "", s)
 			if (length(s) > max)
 				printf "  %s:%d  %d cols\n", FILENAME, FNR, length(s)

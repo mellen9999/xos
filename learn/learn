@@ -515,9 +515,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			# is here -- fixing a typo is not looking something up -- but the
 			# hint, the reference and the history are not.
 			clock_read "$BOSS_LIMIT"; _crc=$?
-			[ "$_crc" = 3 ] && { ED_DEADLINE=; return 2; }
+			[ "$_crc" = 3 ] && return 2
 			if [ "$_crc" != 0 ]; then
-				ED_DEADLINE=
 				# the editor's own exit printed the newline; only the
 				# cooked fallback still owes one.
 				[ -t 0 ] || echo
@@ -526,11 +525,17 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 				card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
 				return 1
 			fi
+			# ED_DEADLINE IS NOT CLEARED HERE. it was, and that put the hole
+			# it exists to close straight back: a blank line, ? or tab all
+			# `continue` this loop a few lines down, and with the deadline
+			# gone clock_read minted a whole fresh BOSS_LIMIT on the way back
+			# in. pressing enter every twenty seconds held a boss question
+			# open forever. the deadline belongs to the QUESTION -- ask() sets
+			# it at the top of every call, so nothing can leak forward either.
 			# the tty path cannot produce a tab any more (the editor swallows
 			# it), but the cooked fallback still can, and a literal tab in an
 			# answer is graded against bytes no learner meant to type.
 			input=$(printf '%s' "$CLOCK_LINE" | tr -d '\t')
-			ED_DEADLINE=
 		else
 			# full vi-mode line editing with history (falls back to a plain read
 			# when stdin is not a terminal, e.g. the build's own checks).
@@ -2517,7 +2522,20 @@ c' 20)" = 3 ] || exit 1
 	# no reason to write it.
 	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"; do
 		[ -f "$_f" ] || continue
-		awk '/^q:/ { n = gsub(/`/, "`"); if (n % 2) exit 1 } END { }' "$_f" || exit 1
+		# per BRANCH, not per line. lit_fence runs before {a|b|c} is split and
+		# pairs backticks positionally, so one in the first branch can pair
+		# with one in the third and swallow the | between them -- and the
+		# line's total was even, so a whole-line parity check passed it.
+		awk '/^q:/ {
+			t = $0
+			while (match(t, /\{[^{}]*\}/)) {
+				b = substr(t, RSTART + 1, RLENGTH - 2)
+				nb = split(b, br, "|")
+				for (i = 1; i <= nb; i++) if (gsub(/`/, "`", br[i]) % 2) exit 1
+				t = substr(t, 1, RSTART - 1) " " substr(t, RSTART + RLENGTH)
+			}
+			if (gsub(/`/, "`", t) % 2) exit 1
+		}' "$_f" || exit 1
 		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q '``' && exit 1
 		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
 		sed -n 's/^q: \{0,1\}//p' "$_f" \
@@ -2525,7 +2543,7 @@ c' 20)" = 3 ] || exit 1
 			|| exit 1
 	  done
 	  exit 0 ) \
-		|| { echo "FAIL q markup: an unpaired backtick, a raw fence, or a rolled name inside one" >&2; bad=$((bad+1)); }
+		|| { echo "FAIL q markup: a backtick unpaired within its branch, a raw fence, or a rolled name inside one" >&2; bad=$((bad+1)); }
 
 	# and no setup may squeeze the hint/ref panel under eight rows on an 80x24
 	# screen. this is not typography: ask() adds the setup's height to Q_ROWS
@@ -2561,7 +2579,7 @@ c' 20)" = 3 ] || exit 1
 	# keyboard drives headlessly. _ed sets the buffer, _ek types into it.
 	_ed() { L=$1; R=$2; mode=normal
 	        _pend=; _pcnt=; _mcnt=; _await=; _fop=; _fch=
-	        _uL=; _uR=; _umode=; _quit=; YANK=; }
+	        _uL=; _uR=; _umode=; _usnap=; _quit=; YANK=; }
 	_ek() { local _s=$1 _c
 	        while [ -n "$_s" ]; do
 			_c=${_s%"${_s#?}"}; _s=${_s#?}
@@ -2615,6 +2633,62 @@ c' 20)" = 3 ] || exit 1
 	  _ek dw; [ "$L$R" = "one " ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL _ed_normal: dw and de must not be the same delete" >&2; bad=$((bad+1)); }
+
+	# a motion refuses at its boundary -- ALL of them. e and E did not: they
+	# walked to index n, one past the last character, and _ed_op's clamp then
+	# read the overshoot as "delete through the end of the line". `de` with
+	# the cursor on the second-to-last character ate the last one, and on a
+	# one-character line it ate the line.
+	( _ed "one tw" "o"; _ek de; _eis "one tw|o" || exit 1   # a no-op, not a bite
+	  _ed "" "x";       _ek de; _eis "|x" || exit 1        # the whole line, once
+	  _ed "" "x";       _ek dE; _eis "|x" || exit 1
+	  _ed "" "x";       _ek e;  _eis "|x" || exit 1        # and the bare motion
+	  # while a real word end still moves and still deletes inclusively
+	  _ed "one t" "wo"; _ek de; _eis "one |t" || exit 1
+	  _ed "" "ab cd";   _ek de; _eis "| cd" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: e overshoots the end of the line" >&2; bad=$((bad+1)); }
+
+	# u with nothing to undo does NOTHING. it used to swap the line against an
+	# empty snapshot, so `u` on a question you had typed an answer to and not
+	# yet edited threw the answer away -- the one keystroke whose whole promise
+	# is that it cannot lose anything.
+	( _ed "" ""; L="hello"; R=""
+	  _ek u; [ "$L$R" = "hello" ] || exit 1
+	  [ -z "$_usnap" ] || exit 1
+	  # after a real change it swaps, and swaps back
+	  _ek x; [ -n "$_usnap" ] || exit 1
+	  _ek u; [ "$L$R" = "hello" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: u with nothing to undo eats the line" >&2; bad=$((bad+1)); }
+
+	# a count is four digits at most, and no motion repeats past the end of
+	# the line it is on. twenty digits overflowed the arithmetic they landed
+	# in, and w/e/b fork per character, so an uncapped one was also a lesson
+	# that stopped answering.
+	( _ed "" "one two three"
+	  _ek 12345; [ "$_pcnt" = 1234 ] || exit 1          # the fifth digit is dropped
+	  _ed "" "one two three"; _ek d12345; [ "$_mcnt" = 1234 ] || exit 1
+	  # the four-digit cap is the load-bearing half: it is what keeps the
+	  # count out of arithmetic it would overflow and off a motion that forks
+	  # per character. _ed_apply also floors the repeat at the line's own
+	  # length, which no assertion here can see -- 9999 iterations of an
+	  # already-clamped w finish too fast to time apart from 13 -- so that one
+	  # is defence in depth behind this, and is documented as such.
+	  _ed "" "abc"; _ek 9999l; _eis "ab|c" || exit 1    # and it still stops
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: a count is not bounded by the line" >&2; bad=$((bad+1)); }
+
+	# the boss clock is the QUESTION's, and pressing enter is not a new
+	# question. ask() clears ED_DEADLINE nowhere inside its own loop, because
+	# a blank line / ? / tab all continue that loop and clock_read mints a
+	# fresh limit when it finds the deadline gone -- which held a boss
+	# question open for as long as someone kept pressing enter.
+	( _a=$(awk '/^\t\tif \[ "\$MODE" = boss \]; then$/{s=1} s{print} s&&/^\t\telse$/{exit}' \
+		"$0" 2>/dev/null | grep -c 'ED_DEADLINE=')
+	  [ "${_a:-1}" = 0 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ask: the boss branch clears ED_DEADLINE inside its own loop" >&2; bad=$((bad+1)); }
 
 	# f F t T and the ; , repeat
 	( _ed "" "one two"
@@ -2901,6 +2975,13 @@ two'; ED_PANEL_ROWS=2
 	  printf '%s\n' "$card" | grep -q 'more -- learn ref grep' || exit 1
 	  # and a card with room for everything spends no row on saying so
 	  case "$(ref_card grep flags 40)" in *"more -- learn ref"*) exit 1 ;; esac
+	  # one row, with more than one flag to show, spends it on the count.
+	  # showing one arbitrary flag and dropping fifteen in silence is the
+	  # failure the footer exists to prevent, and it was the one budget that
+	  # still did it.
+	  _one=$(ref_card grep flags 1)
+	  [ "$(printf '%s\n' "$_one" | grep -c .)" = 1 ] || exit 1
+	  printf '%s\n' "$_one" | grep -q 'more -- learn ref grep' || exit 1
 	  # only drilled flags reach the card; -H is documented but never taught
 	  printf '%s\n' "$card" | grep -q -- "-H " && exit 1
 	  ex=$(ref_examples grep "$Q_ANSWERS") || exit 1

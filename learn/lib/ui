@@ -448,11 +448,18 @@ _clock_cell() {  # LEFT -- the seconds, dim, and loud for the last five
 # the hint and the reference, not the ability to fix a typo. the panels stay
 # refused (_ed_panel_load, and the Tab key itself) and so does history.
 clock_read() {
-	local secs=$1 rc dl
+	local secs=$1 rc dl left
 	CLOCK_PID=
 	dl=${ED_DEADLINE:-}
 	[ -n "$dl" ] || dl=$(( $(date +%s) + secs ))
-	_clock_child "$secs"
+	# the ticker counts down what is LEFT of the question, not the limit it
+	# started with. handing it $secs on a re-entry drew :30 again over a
+	# deadline that had ten seconds on it -- a clock that lies the one way a
+	# clock must not.
+	left=$(( dl - $(date +%s) ))
+	[ "$left" -gt 0 ] 2>/dev/null || left=0
+	[ "$left" -le "$secs" ] || left=$secs
+	_clock_child "$left"
 	if [ -t 0 ]; then
 		read_line "$dl"; rc=$?
 		CLOCK_LINE="$REPLY_LINE"
