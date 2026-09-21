@@ -99,7 +99,7 @@ ref: sort
 teach: sort -t
 hint: -t sets the separator, -k picks the field
 ---
-q: {@csv@ is name,id,status,count -- `sort` it, highest count first|@csv@ has columns name,id,status,count -- `sort`, highest first|@csv@'s columns: name,id,status,count -- `sort`, highest count first}
+q: {@csv@ is name,id,status,count -- `sort` it, highest count first|@csv@ has columns name,id,status,count -- `sort`, highest first|@csv@ is name,id,status,count -- biggest count at the top, with `sort`}
 a: sort -t, -k4 -rn @csv@
 a: sort -t, -k4rn @csv@
 out: ^gateway,
@@ -145,7 +145,7 @@ ref: sort
 teach: sort -o
 hint: -o names the output file -- sort reads it all into memory before writing
 ---
-q: {`sort` `versions.txt` so 1.10 follows 1.9, print only the last|`sort` `versions.txt`'s version numbers, print just the highest|order `versions.txt` so 1.10 follows 1.9, print only the last}, with `sort`
+q: {`sort` `versions.txt` so 1.10 follows 1.9, print only the last|`sort` `versions.txt`'s version numbers, print just the highest|put `versions.txt` in version order and show the newest}, with `sort`
 a: sort -V versions.txt | tail -1
 cmp: ref
 ref: sort

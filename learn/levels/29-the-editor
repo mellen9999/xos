@@ -30,7 +30,7 @@ ref: vi
 teach: vi -R
 hint: -R opens the file but blocks writes until you override it
 ---
-q: {leave vi without saving, from normal mode|quit vi from normal mode, discarding any changes|exit vi without saving, from normal mode}
+q: {leave vi without saving, from normal mode|quit vi from normal mode, discarding any changes|drop out of vi from normal mode and keep none of your edits}
 a: :q!
 why: interactive
 ref: vi

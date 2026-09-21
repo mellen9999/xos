@@ -87,7 +87,7 @@ ref: wget
 teach: wget -T
 hint: -T caps how long wget waits for the server before giving up
 ---
-q: {with `wget`, log file.txt's fetch to `wget.log`, from @host@|save file.txt's log to `wget.log` with `wget`, from @host@|track file.txt's pull in `wget.log` with `wget`, from @host@}
+q: {with `wget`, log file.txt's fetch to `wget.log`, from @host@|`wget` file.txt from @host@, its own messages into `wget.log`|pull file.txt off @host@, keeping `wget`'s progress in `wget.log`}
 a: wget -o wget.log http://@host@/file.txt
 why: live-net
 ref: wget
@@ -152,7 +152,7 @@ hint: -p puts a file, -l names the local file to send
 ---
 setup: ftpget and ftpput both name the local file local.txt and the remote
 setup: one remote.txt, and the password is secret. Only the flag changes.
-q: {fetch a file from the ftp server @host@|download a file from the ftp server @host@|use `ftpget` to pull a file from @host@}
+q: {fetch a file from the ftp server @host@|@host@ has the file -- get it with `ftpget`|use `ftpget` to pull a file from @host@}
 a: ftpget @host@ local.txt remote.txt
 why: live-net
 ref: ftpget

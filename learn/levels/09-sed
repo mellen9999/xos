@@ -20,7 +20,7 @@ ref: sed
 teach: sed
 hint: s/pattern/replacement/ -- no trailing g means only the first match per line
 ---
-q: {replace EVERY @old@ throughout @cfg@ with @new@|replace every @old@ with @new@ throughout @cfg@|swap every @old@ for @new@ throughout @cfg@}, with `sed`
+q: {replace EVERY @old@ throughout @cfg@ with @new@|every @old@ in @cfg@ becomes @new@, start to finish|swap every @old@ for @new@ throughout @cfg@}, with `sed`
 a: sed 's/@old@/@new@/g' @cfg@
 cmp: ref
 ref: sed
@@ -122,7 +122,7 @@ teach: sed -r
 hint: -r and -E are the same flag; -E is the portable spelling
 ---
 setup: you want capture groups without backslash-escaping every paren
-q: {@csv@ is name,id,status,count -- with `sed`, swap name and id|@csv@ is name,id,status,count -- with `sed`, put id ahead of name|@csv@ is name,id,status,count -- with `sed`, reverse name and id}
+q: {@csv@ is name,id,status,count -- with `sed`, swap name and id|@csv@ is name,id,status,count -- with `sed`, put id ahead of name|@csv@ has name,id,status,count -- use `sed` to lead with id}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@
 cmp: ref
 ref: sed
@@ -177,7 +177,7 @@ teach: sed
 hint: sed has no flag to count matches -- print them with -n '/pat/p', then let wc -l count
 ---
 setup: sed edits one line at a time and can't sort, count, or dedupe across lines -- getting some answers takes more than one command
-q: {@csv@ is name,id,status,count -- with `sed`, sort it by id|@csv@ is name,id,status,count -- sort by id with `sed`|@csv@ is name,id,status,count -- put it in id order with `sed`}
+q: {@csv@ is name,id,status,count -- with `sed`, sort it by id|@csv@ has name,id,status,count -- order the rows by id, using `sed`|@csv@ is name,id,status,count -- put it in id order with `sed`}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@ | sort -n
 cmp: ref
 ref: sed

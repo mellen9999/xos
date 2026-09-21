@@ -117,7 +117,7 @@ teach: [ -e
 hint: -e tests for existence, same idea as the modules check above
 ---
 setup: Three doors, one line. Close them and check they stayed closed.
-q: {label 3 lines -- `modules`, devmem `present` or absent, lockdown|print `modules`, devmem `present` or absent, lockdown's value|3 lines: `modules`, devmem `present` or absent, lockdown}, with `printf`
+q: {label 3 lines -- `modules`, devmem `present` or absent, lockdown|print `modules`, devmem `present` or absent, lockdown's value|one line each: `modules`, devmem `present` or absent, then lockdown}, with `printf`
 a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
 cmp: ref
 ref: printf

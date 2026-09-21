@@ -3199,6 +3199,32 @@ awk NR==1 f | wc -l"
 	[ -n "$(bashism_scan "echo \$'a\tb'")" ] \
 		|| { echo "FAIL bashism_scan: the quote strip ate \$'...'" >&2; bad=$((bad+1)); }
 
+	# lint reports, it never gates -- so a counter that quietly stops counting
+	# reads as a clean corpus, and the corpus is the only thing anyone checks.
+	# drive the two phrasing numbers over a corpus built for it: one card with
+	# a single phrasing, one whose branches are the same words in a new order,
+	# one varied honestly. anything but 1 and 1 means the awk broke rather
+	# than the authoring improving.
+	( LEVELS="$TMP/lint/levels"; SCENARIOS="$TMP/lint/scn"; CHAINS="$TMP/lint/chains"
+	  mkdir -p "$LEVELS" "$SCENARIOS" || exit 1
+	  : > "$CHAINS"; : > "$SCENARIOS/00-none"
+	  {
+		echo '---'
+		echo 'q: list @dir@ with `ls`'
+		echo 'a: ls @dir@'
+		echo '---'
+		echo 'q: {move @txt@ into @dir@ now|into @dir@ move @txt@ now}, with `mv`'
+		echo 'a: mv @txt@ @dir@'
+		echo '---'
+		echo 'q: {read @txt@ with `cat`|spill what @txt@ holds, using `cat`}'
+		echo 'a: cat @txt@'
+	  } > "$LEVELS/00-probe"
+	  _o=$(lint)
+	  _v=$(printf '%s\n' "$_o" | sed -n 's/.*, \([0-9]*\) with a single phrasing,.*/\1/p')
+	  _s=$(printf '%s\n' "$_o" | sed -n 's/.*, \([0-9]*\) whose phrasings share their words,.*/\1/p')
+	  [ "$_v" = 1 ] && [ "$_s" = 1 ] ) \
+		|| { echo "FAIL lint: the phrasing counters do not count" >&2; bad=$((bad+1)); }
+
 	# projects are not cards and st_block cannot read them -- they have no
 	# listed answer to grade and no flag to claim. their own checker asks the
 	# two questions that matter instead: does the reference reproduce itself

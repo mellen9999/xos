@@ -187,7 +187,7 @@ ref: losetup
 teach: losetup -f
 hint: -f finds the next free loop device and attaches to it in one step
 ---
-q: {attach `disk.img` read-only to a loop device, with `losetup`|loop-attach `disk.img` with `losetup`, without allowing writes|attach `disk.img` to a loop device, read-only, with `losetup`}
+q: {attach `disk.img` read-only to a loop device, with `losetup`|loop-attach `disk.img` with `losetup`, without allowing writes|`losetup` `disk.img` onto a free loop device, writes refused}
 a: losetup -r -f disk.img
 why: root
 ref: losetup
@@ -340,7 +340,7 @@ teach: cryptsetup --cipher
 hint: --cipher names the cipher instead of taking cryptsetup's default
 ---
 setup: xts splits the key across two sub-ciphers, so a 256 bit cipher takes a 512 bit key
-q: {format `/dev/sda3` with a `512` bit key, with `cryptsetup`|with `cryptsetup`, format `/dev/sda3` using a `512` bit key|choose a `512` bit key formatting `/dev/sda3`, with `cryptsetup`}
+q: {format `/dev/sda3` with a `512` bit key, with `cryptsetup`|a `512` bit key on a newly formatted `/dev/sda3`, via `cryptsetup`|choose a `512` bit key formatting `/dev/sda3`, with `cryptsetup`}
 a: cryptsetup luksFormat --key-size 512 /dev/sda3
 why: root
 ref: cryptsetup
@@ -381,7 +381,7 @@ hint: same nosuid,nodev,noexec trio, now applied to the decrypted volume
 setup: A disk someone hands you is untrusted input, and a filesystem driver is
 setup: a parser that runs it in your kernel. The safest read of a disk you do
 setup: not trust is dd at the block level, where no parser runs at all.
-q: {image @txt@ (standing in for /dev/sda) to disk.img, byte for byte|make an image of @txt@ (stands in for /dev/sda) as disk.img|copy @txt@, standing in for /dev/sda, to disk.img byte for byte}
+q: {image @txt@ (standing in for /dev/sda) to disk.img, byte for byte|make an image of @txt@ (stands in for /dev/sda) as disk.img|read @txt@ (it stands in for /dev/sda) block by block into disk.img}
 a: dd if=@txt@ of=disk.img
 state: exists:disk.img
 ref: dd
@@ -389,7 +389,7 @@ teach: dd
 hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {`mount` fat32 stick `/dev/sda1` at `/mnt` read-only, nosuid, nodev, noexec|`mount` `/dev/sda1` at `/mnt` as fat32, read-only, nosuid, nodev, noexec|`mount` fat32 `/dev/sda1` at `/mnt` read-only, nosuid, nodev, noexec}
+q: {`mount` fat32 stick `/dev/sda1` at `/mnt` read-only, nosuid, nodev, noexec|`mount` `/dev/sda1` on `/mnt` as untrusted fat32 media: ro, nosuid, nodev, noexec|`mount` the fat32 volume `/dev/sda1` under `/mnt`: ro,nosuid,nodev,noexec}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -398,7 +398,7 @@ teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {`mount` `exfat` card `/dev/sda1` at `/mnt` read-only, nosuid, nodev, noexec|`mount` `/dev/sda1` at `/mnt` as `exfat`, read-only, nosuid, nodev, noexec|`mount` `exfat` `/dev/sda1` at `/mnt` read-only, nosuid, nodev, noexec}
+q: {`mount` `exfat` card `/dev/sda1` at `/mnt` read-only, nosuid, nodev, noexec|`mount` `/dev/sda1` on `/mnt` as untrusted `exfat` media: ro, nosuid, nodev, noexec|`mount` the `exfat` volume `/dev/sda1` under `/mnt`: ro,nosuid,nodev,noexec}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
@@ -407,7 +407,7 @@ teach: mount -t
 hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
 setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
-q: {`mount` `ntfs3` disk `/dev/sda2` at `/mnt` read-only, nosuid, nodev, noexec|`mount` `/dev/sda2` at `/mnt` as `ntfs3`, read-only, nosuid, nodev, noexec|`mount` `ntfs3` `/dev/sda2` at `/mnt` read-only, nosuid, nodev, noexec}
+q: {`mount` `ntfs3` disk `/dev/sda2` at `/mnt` read-only, nosuid, nodev, noexec|`mount` `/dev/sda2` on `/mnt` as untrusted `ntfs3` media: ro, nosuid, nodev, noexec|`mount` the `ntfs3` volume `/dev/sda2` under `/mnt`: ro,nosuid,nodev,noexec}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt
 why: root

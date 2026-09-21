@@ -308,7 +308,7 @@ teach: unshare -f
 hint: a pid namespace only takes effect for children, so -f forks before exec
 ---
 setup: you need a shell inside another process's world to see what it sees, not a new one of your own
-q: {enter pid 1's mount, net and pid namespaces|join pid 1's mounts, network and pids|borrow pid 1's mount, net and pid namespaces}, with `nsenter`
+q: {enter pid 1's mount, net and pid namespaces|join pid 1's mounts, network and pids|a shell that shares the mount, net and pid namespaces of pid 1}, with `nsenter`
 a: nsenter -t 1 -m -n -p sh
 why: root
 ref: nsenter

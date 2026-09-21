@@ -11,6 +11,16 @@
 #                   design (no hints under the clock).
 #   single-phrasing levels only. missions and chains are fixed narrative,
 #                   one voice on purpose.
+#   same-words      levels only, and only cards that HAVE a {a|b|c}: two of
+#                   its branches share three quarters of their prose words.
+#                   backticked spans, @tokens@ and %macros% are dropped
+#                   first, because every branch has to repeat those -- count
+#                   them and a card looks more alike the more correctly it is
+#                   written. a reordered sentence, or one verb swapped for
+#                   its synonym, is not a second phrasing: the learner still
+#                   answers from the shape instead of reading it. like
+#                   motiveless this is a floor, not a worklist -- sometimes
+#                   the one word that differs is the whole lesson.
 #   ungraded        levels and missions: a block with no out:/state:/cmp:/
 #                   status: falls back to string-matching its listed answers -- the
 #                   listed-answer-quiz failure grade's notes warn about.
@@ -181,12 +191,64 @@ lint() {
 			for (i = 1; i <= n; i++) if (!index(br[i], t)) return 0
 			return 1
 		}
+		# the prose of one {a|b|c} branch: the words a learner actually reads
+		# as a sentence. backticked spans, @tokens@ and %macros% come out
+		# first -- every branch has to repeat those, so counting them would
+		# make each card look more alike the more correctly it is written.
+		function prose(b,   out, n, i, w, parts) {
+			gsub(/`[^`]*`/, " ", b)
+			gsub(/@[a-z0-9]+@/, " ", b)
+			gsub(/%[a-z]+%/, " ", b)
+			b = tolower(b)
+			gsub(/[^a-z0-9$?*.\/-]+/, " ", b)
+			n = split(b, parts, " ")
+			out = " "
+			for (i = 1; i <= n; i++) {
+				w = parts[i]
+				gsub(/^[.\/-]+/, "", w); gsub(/[.\/-]+$/, "", w)
+				if (w != "" && !index(out, " " w " ")) out = out w " "
+			}
+			return out
+		}
+		function pcount(s,   parts) { return split(s, parts, " ") }
+		function pshared(a, b,   n, i, parts, c) {
+			n = split(a, parts, " ")
+			for (i = 1; i <= n; i++) if (index(b, " " parts[i] " ")) c++
+			return c + 0
+		}
 		function flushblk(   k, t) {
 			if (!inblk) return
 			total++; ft[bf]++
 			k = cls(bf)
 			if (!hashint && k != "chain") { nohint++; fh[bf]++ }
 			if (k == "lvl" && q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[bf]++ }
+			# same-words -- two branches of a {a|b|c} say it in the same
+			# words. a reordered sentence, or one verb swapped for its
+			# synonym, is not a second phrasing: the learner still answers
+			# from the shape rather than reading it. three quarters of the
+			# prose shared is the line, integer-compared so no float
+			# rounding decides a card.
+			if (k == "lvl") {
+				sv_a = index(q, "{"); sv_b = index(q, "}")
+				if (sv_a > 0 && sv_b > sv_a) {
+					sv_n = split(substr(q, sv_a + 1, sv_b - sv_a - 1), sv_br, "|")
+					for (sv_i = 1; sv_i <= sv_n; sv_i++) sv_p[sv_i] = prose(sv_br[sv_i])
+					for (sv_i = 1; sv_i < sv_n && !sv_hit; sv_i++)
+						for (sv_j = sv_i + 1; sv_j <= sv_n && !sv_hit; sv_j++) {
+							sv_ca = pcount(sv_p[sv_i]); sv_cb = pcount(sv_p[sv_j])
+							if (sv_ca == 0 || sv_cb == 0) continue
+							sv_sh = pshared(sv_p[sv_i], sv_p[sv_j])
+							sv_un = sv_ca + sv_cb - sv_sh
+							if (sv_un > 0 && sv_sh * 4 >= sv_un * 3) sv_hit = 1
+						}
+					if (sv_hit) {
+						nsame++; fs[bf]++
+						if (verbose == "-vv")
+							printf "  %s/%d: the phrasings share their words\n    %s\n", bf, bi, q > "/dev/stderr"
+					}
+					sv_hit = 0
+				}
+			}
 			if (!graded && k != "chain") { nograde++; fg[bf]++; if (haswhy) explained++ }
 			# an out: with fewer than four literal characters once the regex
 			# metacharacters are gone (. ^/ Mem [0-9] ^[0-9]+$) is matched by
@@ -306,11 +368,11 @@ lint() {
 			if (verbose == "-v")
 				for (f in ft) {
 					n = split(f, p, "/")
-					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal  %3d unnamed-word  %3d motiveless  %3d orphan-setup\n", \
-						p[n], ft[f], fh[f] + 0, fv[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0, fx[f] + 0, fm[f] + 0, fo[f] + 0
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing  %3d same-words  %3d ungraded  %3d weak-out  %3d unnamed-token  %3d unnamed-literal  %3d unnamed-word  %3d motiveless  %3d orphan-setup\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0, fs[f] + 0, fg[f] + 0, fw2[f] + 0, fu[f] + 0, fl[f] + 0, fx[f] + 0, fm[f] + 0, fo[f] + 0
 				}
-			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal, %d with an unnamed word, %d teaching a flag with no motive, %d orphan setups\n", \
-				total, nohint, novary, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0, noword + 0, nomot + 0, norph + 0
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing, %d whose phrasings share their words, %d ungraded (%d explained), %d weak out:, %d with an unnamed token, %d with an unnamed literal, %d with an unnamed word, %d teaching a flag with no motive, %d orphan setups\n", \
+				total, nohint, novary, nsame + 0, nograde, explained + 0, nweak + 0, nounnamed, nolit + 0, noword + 0, nomot + 0, norph + 0
 		}
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 }

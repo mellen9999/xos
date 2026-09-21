@@ -64,7 +64,7 @@ ref: hostname
 teach: hostname -s
 hint: -s trims off everything after the first dot
 ---
-q: {the fully qualified name including the domain, with `hostname`|the `hostname` together with its domain, in full|report the fully qualified domain name, with `hostname`}
+q: {the fully qualified name including the domain, with `hostname`|the `hostname` together with its domain, in full|this machine's name with its domain attached, via `hostname`}
 a: hostname -f
 why: live-hw
 ref: hostname
@@ -238,7 +238,7 @@ ref: watch
 teach: watch
 hint: watch reruns a command every 2 seconds by default
 ---
-q: {rerun `df` every 5 seconds instead, with `watch`|`watch` `df`, but on a 5 second interval instead|rerun `df` every 5 seconds, with `watch`}
+q: {rerun `df` every 5 seconds instead, with `watch`|`watch` `df`, but on a 5 second interval instead|refresh `df` on a 5 second cycle, using `watch`}
 a: watch -n 5 df
 why: live-hw
 ref: watch

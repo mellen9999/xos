@@ -111,7 +111,7 @@ ref: printf
 teach: printf
 hint: the 0 before the 5 means zero-pad instead of space-pad
 ---
-q: {%show% the word @word@ on stderr, not stdout, with `echo`|write the word @word@ to stderr, not stdout, with `echo`|send the word @word@ to stderr, not stdout, with `echo`}
+q: {%show% the word @word@ on stderr, not stdout, with `echo`|write the word @word@ to stderr, not stdout, with `echo`|`echo` @word@ so it lands on the error stream, not the output one}
 a: echo @word@ >&2
 out: @word@
 ref: echo
