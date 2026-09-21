@@ -26,7 +26,7 @@ neither needs the production signing key or a human.
   of the git remote -- the cheapest mitigation for the split-view gap the
   attestation design cannot close from inside the repo:
 
-      journalctl --user -u xos-repro.service | grep WITNESS
+      grep WITNESS ~/.local/state/xos-ci/witness
 
 - **full tier** (`xos-ci-full`, weekly, staggered): a complete SIGNED build with
   every gate and the qemu self-test. it mints a throwaway keyset sealed with a
@@ -38,6 +38,36 @@ neither needs the production signing key or a human.
 
 both run in a throwaway clone; no working tree is touched. only a release, signed
 with the real sealed key, still needs a human.
+
+## evidence
+
+the journal is not where a CI record can live. this box keeps
+`SystemMaxUse=500M` and is already over it, so the user journal rotates inside a
+day -- the full tier failed on 2026-09-17 and three days later there was nothing
+left to read, not even which step died. so both runners also append to files
+nothing rotates:
+
+    ~/.local/state/xos-ci/xos-repro.log      every repro run, newest last
+    ~/.local/state/xos-ci/xos-ci-full.log    every full run
+    ~/.local/state/xos-ci/witness            the WITNESS ledger, append-only
+
+`XOS_CI_LOGDIR` moves them. these are per-machine facts and never claims, so
+like the repro tier's last-verified head they live outside the repo.
+
+a failing run also shouts, once, on both channels that reach a headless box and
+a desktop alike: `logger` and `notify-send -u critical`. a red CI nobody is told
+about is a decoration, not a wall.
+
+## when you change a runner
+
+the installed copy in `~/.local/bin` is a COPY, and a copy drifts in silence:
+the full tier ran for days on a `--depth 1` clone the repo had already fixed,
+and a shallow clone makes `G52` SKIP forever -- the provenance check reporting
+"did not run" underneath a green summary. each runner now compares itself
+against the `ci/` copy in the tree it just cloned and refuses if they differ, so
+**editing a runner means reinstalling it** (the install block above is
+idempotent). `G48` parse-checks all three files, so a syntax error in one is
+caught by the build rather than by a timer firing into a rotated journal.
 
 install (systemd --user, survives reboot via linger):
 

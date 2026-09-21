@@ -12,15 +12,27 @@
 # (this toolchain is not the pinned one); crepro is where reproducibility is
 # checked. everything runs in a throwaway clone; no working tree is touched.
 set -uo pipefail
+# shellcheck source=ci/lib.sh
+. "$(dirname "$(readlink -f "$0")")/lib.sh" 2>/dev/null \
+  || . "$(dirname "$0")/lib.sh"
+ci_log_open
 REPO=${XOS_CI_REPO:-git@github.com:mellen9999/xos.git}
 BRANCH=${XOS_CI_BRANCH:-main}
 d=$(mktemp -d /tmp/xos-cif.XXXXXX)
 trap 'rm -rf "$d" 2>/dev/null || true' EXIT
-# no --depth: G52 walks the signature chain back to the epoch.
-git clone -q --branch "$BRANCH" "$REPO" "$d/tree" || { echo "xos-ci-full: clone failed"; exit 1; }
-cd "$d/tree"
-export XOS_KEYPASS="$(head -c24 /dev/urandom | base64)"   # throwaway, this run only
+# no --depth: G52 walks the signature chain back to the epoch, and a shallow
+# clone makes it SKIP forever -- green summary, provenance never checked.
+git clone -q --branch "$BRANCH" "$REPO" "$d/tree" \
+  || { ci_shout "clone of $BRANCH from $REPO failed"; exit 1; }
+cd "$d/tree" || { ci_shout "cannot enter the clone"; exit 1; }
+ci_selfcheck || exit 1
+# throwaway, this run only. assigned and checked separately: the export would
+# have masked a failing head, and an empty XOS_KEYPASS seals the per-run keyset
+# with no passphrase at all -- a signed path that passed while testing nothing.
+_pass=$(head -c24 /dev/urandom | base64) || _pass=
+[ -n "$_pass" ] || { ci_shout "cannot draw a throwaway passphrase from /dev/urandom"; exit 1; }
+export XOS_KEYPASS="$_pass"
 echo "xos-ci-full: testing $(git rev-parse --short HEAD)"
-./build.sh all || { echo "xos-ci-full: FAIL (build or gates)"; exit 1; }
-./selftest.sh  || { echo "xos-ci-full: FAIL (selftest)"; exit 1; }
+./build.sh all || { ci_shout "build or gates, at $(git rev-parse --short HEAD)"; exit 1; }
+./selftest.sh  || { ci_shout "qemu selftest, at $(git rev-parse --short HEAD)"; exit 1; }
 echo "xos-ci-full: PASS $(git rev-parse --short HEAD)"

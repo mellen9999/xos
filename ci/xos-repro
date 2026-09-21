@@ -17,14 +17,18 @@
 # no signing key is touched, so it runs unattended. every step runs in a
 # throwaway clone: no working tree, no installed checkout, is read or written.
 # the building gates and the qemu self-test need the key and stay ci/xos-ci-full.
-set -euo pipefail
+set -uo pipefail
+# shellcheck source=ci/lib.sh
+. "$(dirname "$(readlink -f "$0")")/lib.sh" 2>/dev/null \
+  || . "$(dirname "$0")/lib.sh"
+ci_log_open
 REPO=${XOS_CI_REPO:-git@github.com:mellen9999/xos.git}
 BRANCH=${XOS_CI_BRANCH:-main}
 # per-machine fact, never a claim -- so it lives in the cache, never in the repo.
 STATE=${XOS_CI_STATE:-$HOME/.cache/xos-ci/last-repro}
 
 remote=$(git ls-remote "$REPO" "refs/heads/$BRANCH" | awk '{print $1}')
-[ -n "$remote" ] || { echo "xos-repro: cannot read $BRANCH from $REPO"; exit 1; }
+[ -n "$remote" ] || { ci_shout "cannot read $BRANCH from $REPO"; exit 1; }
 if [ "$remote" = "$(cat "$STATE" 2>/dev/null || true)" ]; then
   echo "xos-repro: ${remote:0:12} already verified -- nothing pushed since"
   exit 0
@@ -35,23 +39,29 @@ trap 'rm -rf "$d" 2>/dev/null || true' EXIT
 echo "xos-repro: cloning $REPO ($BRANCH) at ${remote:0:12}"
 # no --depth: vouch walks every commit back to the epoch, and a shallow clone
 # cannot see them, so it would report unverified forever.
-git clone -q --branch "$BRANCH" "$REPO" "$d/tree"
-cd "$d/tree"
+git clone -q --branch "$BRANCH" "$REPO" "$d/tree" \
+  || { ci_shout "clone of $BRANCH from $REPO failed"; exit 1; }
+cd "$d/tree" || { ci_shout "cannot enter the clone"; exit 1; }
+ci_selfcheck || exit 1
 
 # whose tree is this. cheapest check here and the only one that answers "who".
 # CI only ever VERIFIES signatures and never makes one -- no signing key of any
 # kind reaches a runner.
-./build.sh vouch
-./build.sh ci
+./build.sh vouch      || { ci_shout "vouch, at ${remote:0:12}"; exit 1; }
+./build.sh ci         || { ci_shout "buildless gates, at ${remote:0:12}"; exit 1; }
 # the chain and the signatures first: they take a second, need no docker, and
 # a broken chain is worth knowing about before spending half an hour compiling.
-./build.sh verify_log
-./build.sh verify_sigs
-./build.sh crepro
+./build.sh verify_log  || { ci_shout "verify_log, at ${remote:0:12}"; exit 1; }
+./build.sh verify_sigs || { ci_shout "verify_sigs, at ${remote:0:12}"; exit 1; }
+./build.sh crepro      || { ci_shout "crepro rebuild, at ${remote:0:12}"; exit 1; }
 
 # the witness line. one grep over the journal shows every head this machine has
 # ever been served, with a date attached to each.
-echo "xos-repro: WITNESS $(date -u +%Y-%m-%dT%H:%M:%SZ) head $(./build.sh verify_log | sed -n 's/.*head //p')"
+_w="WITNESS $(date -u +%Y-%m-%dT%H:%M:%SZ) head $(./build.sh verify_log | sed -n 's/.*head //p')"
+echo "xos-repro: $_w"
+# and into an append-only ledger of its own. the journal holding this was the
+# plan, and the journal on this box does not keep a day; grep the file instead.
+printf '%s\n' "$_w" >> "${CI_LOGDIR:-$HOME/.local/state/xos-ci}/witness"
 mkdir -p "$(dirname "$STATE")"
 printf '%s\n' "$remote" > "$STATE"
 echo "xos-repro: PASS $(git rev-parse --short HEAD)"

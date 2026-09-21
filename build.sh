@@ -2268,7 +2268,7 @@ TODO: write this entry by hand.
 #   G45 a source signed by an expired or revoked key is refused
 #   G46 every carried patch is in the tree, and its effect is in the binary
 #   G47 every arsenal source is pinned before build, no fetch bypasses it
-#   G48 the remaining first-party scripts parse (the commit hook, arsenal)
+#   G48 the remaining first-party scripts parse (the commit hook, arsenal, ci)
 #   G49 the install entry point writes only through the guarded disk paths
 #   G50 every level's teaching brief fits one 80x25 screen
 #   G51 a failed command at the real prompt reaches learn, and only a name
@@ -2691,15 +2691,19 @@ G44EOF
   g "G38 build scripts parse under bash" "$g38"
 
   # G48 -- the scripts G35 and G38 do not name: the commit hook, the arsenal
-  # builders, and the on-stick helpers (arsenal, xexec, the learn installers).
-  # the hook is the sharp one -- it IS gate G9, and a syntax error in it makes
-  # git skip it silently, so the guard would wave through the artifacts and
-  # keys it exists to stop. each script is parsed under the shell its shebang
-  # names: bash for the hook, the shipped ash for the rest (a stricter POSIX
-  # check that also catches a bashism smuggled into a #!/bin/sh file).
+  # builders, the on-stick helpers (arsenal, xexec, the learn installers), and
+  # the two CI runners. the hook is the sharp one -- it IS gate G9, and a syntax
+  # error in it makes git skip it silently, so the guard would wave through the
+  # artifacts and keys it exists to stop. the runners are the same shape of
+  # danger one level out: they are what runs every other gate unattended, and a
+  # syntax error in one surfaces only when the timer fires, into a journal that
+  # on a busy box does not keep a day. each script is parsed under the shell its
+  # shebang names: bash for the hook, the shipped ash for the rest (a stricter
+  # POSIX check that also catches a bashism smuggled into a #!/bin/sh file).
   local g48=ok f48 e48 chk48
   for f48 in githooks/pre-commit learn/install.sh learn/push learn/wrapper \
-             arsenal/*.sh arsenal/arsenal arsenal/xexec; do
+             arsenal/*.sh arsenal/arsenal arsenal/xexec \
+             ci/lib.sh ci/xos-repro ci/xos-ci-full; do
     [ -f "$f48" ] || continue
     case "$(head -1 "$f48")" in *bash) chk48="bash -n" ;; *) chk48="$bb35 ash -n" ;; esac
     e48=$($chk48 "$f48" 2>&1) \
