@@ -71,6 +71,7 @@ caught by the build rather than by a timer firing into a rotated journal.
 
 install (systemd --user, survives reboot via linger):
 
+    install -Dm644 ci/lib.sh "$HOME/.local/bin/lib.sh"   # both runners source it
     for u in xos-repro xos-ci-full; do
       install -Dm755 "ci/$u" "$HOME/.local/bin/$u"
       install -Dm644 "ci/$u.service" "$HOME/.config/systemd/user/$u.service"
