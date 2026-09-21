@@ -57,7 +57,7 @@ ref: wc
 teach: wc -l
 hint: $f holds one filename per iteration, ready to feed to wc
 ---
-q: count from 1 to 5, one number per line, with seq and `for`
+q: {count from 1 to 5, one number per line, with seq and `for`|`for` over seq 1 to 5, each number on its own line|walk 1 to 5 with seq in a `for` loop, one per line}
 a: for i in $(seq 1 5); do echo $i; done
 cmp: ref
 ref: seq
@@ -71,7 +71,7 @@ ref: seq
 teach: seq
 hint: seq alone needs no loop -- it prints the whole range itself
 ---
-q: count up from 1 to `10`, by 3
+q: {count up from 1 to `10`, by 3|from 1 to `10` in steps of 3, with seq|seq from 1 to `10`, stepping by 3}
 a: seq 1 3 10
 cmp: ref
 ref: seq

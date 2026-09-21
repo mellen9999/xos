@@ -122,7 +122,7 @@ ref: ls
 teach: ls -A
 hint: like -a, but leaves out . and ..
 ---
-q: confirm @dir@ exists with `ls`, without dumping what's inside it
+q: {confirm @dir@ exists, without dumping what's inside it|check @dir@ is there but don't list its contents|does @dir@ exist? don't print what's in it}, with `ls`
 a: ls -d @dir@
 out: ^@dir@$
 ref: ls

@@ -341,7 +341,7 @@ teach: microcom -t
 hint: -t sets an idle timeout in milliseconds before it gives up
 ---
 setup: the battery-backed clock has no timezone of its own, and this box keeps it set to utc
-q: set the system clock from the rtc, as UTC, with `hwclock`
+q: {set the system clock from the rtc, as UTC|pull the system time out of the rtc, which keeps UTC|the rtc holds UTC -- set the system clock from it}, with `hwclock`
 a: hwclock -s -u
 why: root
 ref: hwclock
@@ -349,7 +349,7 @@ teach: hwclock -s
 teach: hwclock -u
 hint: -s sets the system time from the rtc; -u says the rtc keeps UTC, not local time
 ---
-q: write the system time back to the hardware clock with `hwclock`
+q: {write the system time back to the hardware clock|store the current system time into the rtc|push the system clock into the hardware clock}, with `hwclock`
 a: hwclock -w
 why: root
 ref: hwclock
@@ -357,7 +357,7 @@ teach: hwclock -w
 hint: -w is the reverse of -s: it stores the current system time into the rtc
 ---
 setup: some register only shows up in a datasheet -- no driver here will read it for you
-q: read the 32-bit word at physical address `0x1000` with `devmem`
+q: {read the 32-bit word at physical address `0x1000`|what is the 32-bit word at physical `0x1000`?|peek the 32-bit word living at physical `0x1000`}, with `devmem`
 a: devmem 0x1000
 why: root
 ref: devmem
@@ -365,7 +365,7 @@ teach: devmem
 hint: devmem peeks (or pokes) a physical address directly, for hardware you can't reach otherwise
 ---
 setup: the console's keymap doesn't match your keyboard, and typing blind through it invites mistakes
-q: load the keymap in @word@.bmap with `loadkmap`
+q: {load the keymap in @word@.bmap|put the keymap from @word@.bmap into the console|@word@.bmap holds the keymap -- load it}, with `loadkmap`
 a: loadkmap < @word@.bmap
 why: live-hw
 ref: loadkmap
@@ -373,7 +373,7 @@ teach: loadkmap
 hint: loadkmap reads a binary keymap on stdin; dumpkmap writes the current one out
 ---
 setup: you're about to load a different keymap, and want this one back if it goes wrong
-q: save the console's current keyboard map to `keymap.bin` with `dumpkmap`
+q: {save the console's current keyboard map to `keymap.bin`|write the keymap in use out to `keymap.bin`|keep a copy of this keymap in `keymap.bin`}, with `dumpkmap`
 a: dumpkmap > keymap.bin
 why: live-hw
 ref: dumpkmap
@@ -388,7 +388,7 @@ teach: lsscsi
 hint: lsscsi names each scsi/usb disk and its host, the layer under lsblk
 ---
 setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
-q: record this whole session to `session.log` with `script`, quietly
+q: {record this whole session to `session.log`, quietly|log this entire session into `session.log`, no banner|capture the whole session in `session.log`, silently}, with `script`
 a: script -q session.log
 why: interactive
 ref: script
@@ -396,7 +396,7 @@ teach: script -q
 hint: script logs everything printed to the terminal into a typescript file
 ---
 setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
-q: capture just the output of `uname` into `session.log` with `script`
+q: {capture just the output of `uname` into `session.log`|record only `uname` into `session.log`, not a whole shell|run `uname` and log just that to `session.log`}, with `script`
 a: script -c uname session.log
 why: interactive
 ref: script
@@ -404,7 +404,7 @@ teach: script -c
 hint: -c runs one PROG and records only it, instead of a whole interactive shell
 ---
 setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
-q: append this session to `session.log` with `script`
+q: {append this session to `session.log`|add this session to the end of `session.log`|log this session onto what `session.log` already holds}, with `script`
 a: script -a session.log
 why: interactive
 ref: script
@@ -412,7 +412,7 @@ teach: script -a
 hint: -a appends to the typescript; without it script starts the file fresh
 ---
 setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
-q: replay the recorded `session.log` at its original speed, with `scriptreplay`
+q: {replay the recorded `session.log` at its original speed|play `session.log` back at the pace it was recorded|watch `session.log` again, timed as it happened}, with `scriptreplay`
 a: scriptreplay timing session.log
 why: fixture-cost
 ref: scriptreplay

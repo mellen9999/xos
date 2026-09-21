@@ -261,7 +261,7 @@ teach: mktemp -d
 hint: d for directory instead of a file
 ---
 setup: the program you hand this to insists on creating the file itself
-q: get a temporary name from `mktemp` without actually creating anything
+q: {get a temporary name without actually creating anything|you want the name only -- nothing created on disk|hand back a temp name but don't reserve it}, with `mktemp`
 a: mktemp -u
 state: made:none
 ref: mktemp

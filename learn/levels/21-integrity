@@ -194,7 +194,7 @@ ref: diff
 teach: diff -q
 hint: -q collapses the whole comparison down to a single differ/no-differ line
 ---
-q: write Abc to `a.txt` and abc to `b.txt`, then `diff` them ignoring case
+q: {write Abc to `a.txt` and abc to `b.txt`, then `diff` ignoring case|put Abc in `a.txt`, abc in `b.txt`, then `diff` them case-blind|`a.txt` gets Abc and `b.txt` abc -- `diff` them, case aside}
 a: printf 'Abc\n' > a.txt; printf 'abc\n' > b.txt; diff -i a.txt b.txt
 status: 0
 ref: diff

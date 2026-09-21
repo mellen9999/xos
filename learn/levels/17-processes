@@ -289,7 +289,7 @@ teach: killall -l
 hint: -l lists the signal names killall recognizes
 ---
 setup: you want to poke around as root without any of it reaching the real filesystem or network
-q: run a shell in new mount, net and pid namespaces with `unshare`
+q: {run a shell in new mount, net and pid namespaces|give a shell its own mounts, network and pids|a shell that sees its own mount, net and pid namespaces}, with `unshare`
 a: unshare -r -m -n -p sh
 why: root
 ref: unshare
@@ -300,7 +300,7 @@ teach: unshare -p
 hint: -r maps you to root; -m -n -p give the new shell its own mounts, network and pids
 ---
 setup: something behaves differently when it's the first process in a pid namespace and you need to reproduce that here
-q: `unshare` a new pid namespace and fork so the shell becomes pid 1 inside it
+q: {`unshare` a new pid namespace, forking so the shell is pid 1|fork into a new pid namespace with `unshare`, shell as pid 1|`unshare` a pid namespace and fork, so the shell lands as pid 1}
 a: unshare -f -p sh
 why: root
 ref: unshare
@@ -308,7 +308,7 @@ teach: unshare -f
 hint: a pid namespace only takes effect for children, so -f forks before exec
 ---
 setup: you need a shell inside another process's world to see what it sees, not a new one of your own
-q: enter pid 1's mount, net and pid namespaces with `nsenter`
+q: {enter pid 1's mount, net and pid namespaces|join pid 1's mounts, network and pids|borrow pid 1's mount, net and pid namespaces}, with `nsenter`
 a: nsenter -t 1 -m -n -p sh
 why: root
 ref: nsenter

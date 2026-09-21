@@ -157,7 +157,7 @@ ref: hexedit
 teach: hexedit
 hint: hexdump shows you bytes; this is how you change them
 ---
-q: securely erase @txt@ with `shred`, then remove it
+q: {securely erase @txt@, then remove it|overwrite @txt@'s bytes and unlink it|wipe @txt@ properly, then delete it}, with `shred`
 a: shred -u @txt@
 state: gone:@txt@
 ref: shred
@@ -165,7 +165,7 @@ teach: shred -u
 hint: shred overwrites the bytes first; -u then unlinks the file
 ---
 setup: someone insists three passes isn't enough and wants the old-school seven
-q: overwrite @txt@ seven times with `shred` before removing it
+q: {overwrite @txt@ seven times before removing it|seven passes over @txt@, then remove it|wipe @txt@ with seven passes, then delete it}, with `shred`
 a: shred -n 7 -u @txt@
 state: gone:@txt@
 ref: shred
@@ -173,7 +173,7 @@ teach: shred -n
 hint: -n sets how many overwrite passes; the default is three
 ---
 setup: you don't want it obvious afterward that this file was ever wiped
-q: `shred` @txt@ with a final zero pass, then remove it
+q: {`shred` @txt@ with a final zero pass, then remove it|`shred` @txt@, zeroing it last, then delete it|end the `shred` of @txt@ with zeros, then remove it}
 a: shred -z -u @txt@
 state: gone:@txt@
 ref: shred
@@ -189,7 +189,7 @@ teach: truncate -s
 hint: -s sets the size; the file reads as that many bytes without using the space
 ---
 setup: you need the space guaranteed now, not created as a hole that might fail to fill later
-q: preallocate 64 kilobytes of real space for `blob.bin` with `fallocate`
+q: {preallocate 64 kilobytes of real space for `blob.bin`|claim 64 kilobytes of actual blocks for `blob.bin`|reserve 64 kilobytes for `blob.bin`, blocks and all}, with `fallocate`
 a: fallocate -l 64k blob.bin
 state: exists:blob.bin
 ref: fallocate

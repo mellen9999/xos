@@ -20,7 +20,7 @@ brief: these matter for what you write to tmpfs and to disks you mount -- not
 brief: for defending this machine from you.
 ---
 setup: you just wrote @script@ and ./@script@ says permission denied
-q: make @script@ executable with `chmod`
+q: {make @script@ executable|add the execute bit to @script@|@script@ should be runnable}, with `chmod`
 a: chmod +x @script@
 state: mode:@script@:755
 ref: chmod
@@ -70,7 +70,7 @@ ref: chmod
 teach: chmod
 hint: = sets the listed permissions exactly, and an empty list means none
 ---
-q: make everything under @dir@ readable with `chmod`, subdirs included
+q: {make everything under @dir@ readable, subdirs included|@dir@ and every subdirectory under it should be readable|open @dir@ up for reading, all the way down}, with `chmod`
 a: chmod -R a+r @dir@
 why: primitive-cost
 ref: chmod
@@ -145,7 +145,7 @@ teach: stat -c
 hint: -c takes a format; %s is size, %n name, %a permission bits
 ---
 setup: a script compares this against a number, not against a string like rwxr-xr-x
-q: you want @script@'s mode as a plain octal number, with `stat` not ls
+q: {@script@'s mode as a plain octal number, not rwxr-xr-x|@script@'s permission bits as digits, not as a string|the octal mode of @script@, digits only}, with `stat` not ls
 a: stat -c %a @script@
 cmp: ref
 ref: stat
@@ -191,7 +191,7 @@ teach: setuidgid
 hint: setuidgid USER PROG switches to USER's uid and gid, then runs PROG -- learn runs your answers this way
 ---
 setup: a script running as root keeps clobbering @txt@ by accident and you want that impossible, not just discouraged
-q: make @txt@ immutable with `chattr`
+q: {make @txt@ immutable|@txt@ must be unchangeable, even by root|lock @txt@ against any change at all}, with `chattr`
 a: chattr +i @txt@
 why: root
 ref: chattr
@@ -199,7 +199,7 @@ teach: chattr
 hint: +i makes it unchangeable even by root; chattr -i clears it again
 ---
 setup: you want a log that can grow but never be edited or truncated, even by you
-q: set @txt@ append-only with `chattr`
+q: {set @txt@ append-only|@txt@ should take appends and refuse edits|allow appends to @txt@ and nothing else}, with `chattr`
 a: chattr +a @txt@
 why: root
 ref: chattr

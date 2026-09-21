@@ -474,14 +474,14 @@ ref: lsblk
 teach: lsblk
 hint: lsblk draws every disk and its partitions; what it shows is the machine you booted on
 ---
-q: is `/proc` a `mountpoint`? ask `mountpoint`
+q: {is `/proc` a `mountpoint`? ask `mountpoint`|ask `mountpoint` whether `/proc` is one|does `/proc` have a filesystem on it? ask `mountpoint`}
 a: mountpoint /proc
 out: is a mountpoint
 ref: mountpoint
 teach: mountpoint
 hint: mountpoint says whether a path is where a filesystem is attached
 ---
-q: quietly confirm `/proc` is a `mountpoint` with `mountpoint`, exit status only
+q: {quietly confirm `/proc` is a `mountpoint`, exit status only|`mountpoint` `/proc` silently -- answer in the exit status|check `/proc` with `mountpoint`, printing nothing, status only}
 a: mountpoint -q /proc
 status: 0
 cmp: ref
@@ -490,21 +490,21 @@ teach: mountpoint -q
 hint: -q prints nothing and answers in the exit status -- zero when it is a mount
 ---
 setup: the installed system won't boot on its own, but its own tools are still there to fix it with
-q: run a shell inside the rootfs at `/mnt` with `chroot`
+q: {run a shell inside the rootfs at `/mnt`|get a shell with `/mnt` as its root|`/mnt` holds a rootfs -- run a shell in it}, with `chroot`
 a: chroot /mnt sh
 why: root
 ref: chroot
 teach: chroot
 hint: chroot runs PROG with NEWROOT as /
 ---
-q: have the kernel re-read `/dev/sdb`'s partition table with `partprobe`
+q: {have the kernel re-read `/dev/sdb`'s partition table|ask the kernel to rescan the table on `/dev/sdb`|make the kernel pick up `/dev/sdb`'s new partitions}, with `partprobe`
 a: partprobe /dev/sdb
 why: root
 ref: partprobe
 teach: partprobe
 hint: partprobe asks the kernel to rescan the table without a reboot
 ---
-q: securely discard every sector of the ssd `/dev/sdb` with `blkdiscard`
+q: {securely discard every sector of the ssd `/dev/sdb`|secure-discard the whole of the ssd `/dev/sdb`|throw every sector on the ssd `/dev/sdb` away, securely}, with `blkdiscard`
 a: blkdiscard -s /dev/sdb
 why: root
 ref: blkdiscard
@@ -512,7 +512,7 @@ teach: blkdiscard -s
 hint: -s asks the drive for a secure discard, not just a plain trim
 ---
 setup: wiping the whole disk would take too long, and only the front needs to go
-q: discard the first `1G` of `/dev/sdb` with `blkdiscard`
+q: {discard the first `1G` of `/dev/sdb`|discard `1G` from the start of `/dev/sdb`|only `/dev/sdb`'s first `1G` needs discarding}, with `blkdiscard`
 a: blkdiscard -l 1G /dev/sdb
 why: root
 ref: blkdiscard

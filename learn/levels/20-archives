@@ -274,7 +274,7 @@ ref: tar
 teach: tar -J
 hint: -J routes the archive through xz, the way -z does for gzip and -j for bzip2
 ---
-q: decompress @word@.xz with `xz`, keeping the .xz file as well
+q: {decompress @word@.xz, keeping the .xz file as well|unpack @word@.xz but leave the .xz in place|decompress @word@.xz without removing the .xz}, with `xz`
 a: xz -dk @word@.xz
 why: fixture-cost
 ref: xz
@@ -282,21 +282,21 @@ teach: xz -d
 teach: xz -k
 hint: -d decompresses; -k keeps the .xz instead of replacing it with the output
 ---
-q: decompress @word@.xz to stdout with `xz`, writing nothing to disk
+q: {decompress @word@.xz to stdout, writing nothing to disk|unpack @word@.xz onto stdout, leaving no file behind|decompress @word@.xz to stdout only, no output file}, with `xz`
 a: xz -dc @word@.xz
 why: fixture-cost
 ref: xz
 teach: xz -c
 hint: -c sends the result to stdout; pair it with -d to decompress there
 ---
-q: check @word@.xz is intact with `xz`, without unpacking it
+q: {check @word@.xz is intact, without unpacking it|test @word@.xz for corruption without extracting it|is @word@.xz sound? don't unpack it to find out}, with `xz`
 a: xz -t @word@.xz
 why: fixture-cost
 ref: xz
 teach: xz -t
 hint: -t tests the compressed stream and stays silent unless it is corrupt
 ---
-q: decompress @word@.xz with `unxz`, the plain decompressor
+q: {decompress @word@.xz with `unxz`, the plain decompressor|use `unxz` on @word@.xz -- the decompress-only name|@word@.xz through `unxz`, which only ever decompresses}
 a: unxz @word@.xz
 why: fixture-cost
 ref: unxz
@@ -311,7 +311,7 @@ teach: xzcat
 hint: xzcat is xz -dc -- decompress straight to stdout, as zcat does for gzip
 ---
 setup: you're building an initramfs, which must be packed in this specific format
-q: pack @txt@ into a newc-format archive `out.cpio` with `cpio`
+q: {pack @txt@ into a newc-format archive `out.cpio`|put @txt@ in `out.cpio` using the newc format|make `out.cpio` hold @txt@, newc format}, with `cpio`
 a: echo @txt@ | cpio -o -H newc > out.cpio
 state: match:out.cpio:070701
 ref: cpio
@@ -326,7 +326,7 @@ ref: cpio
 teach: cpio -t
 hint: -t lists the members; feed the archive in on stdin
 ---
-q: extract `archive.cpio` with `cpio`, creating the directories its members need
+q: {extract `archive.cpio`, creating the directories its members need|unpack `archive.cpio`, making leading directories as it goes|extract `archive.cpio` and build the directories it needs}, with `cpio`
 a: cpio -id < archive.cpio
 state: exists:rescue/manifest.txt
 ref: cpio

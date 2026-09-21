@@ -174,7 +174,7 @@ ref: grep
 teach: grep -s
 hint: s silences the "no such file" complaints, built into grep itself
 ---
-q: `grep` @txt@ using its own lines as the list of patterns to look for
+q: {`grep` @txt@ using its own lines as the patterns|@txt@ holds the patterns -- `grep` @txt@ with them|use @txt@'s own lines as `grep`'s pattern list}
 a: grep -f @txt@ @txt@
 cmp: ref
 ref: grep

@@ -189,7 +189,7 @@ ref: which
 teach: which -a
 hint: -a lists every match in $PATH, not just the first one found
 ---
-q: set @var@ to @word@, then `echo` it with s glued on the end
+q: {set @var@ to @word@, then `echo` it with s glued on the end|put @word@ in @var@, then `echo` @var@ with s stuck on|@var@ holds @word@ -- `echo` it with a trailing s, no space}
 a: @var@=@word@; echo ${@var@}s
 cmp: ref
 ref: echo

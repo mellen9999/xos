@@ -100,14 +100,14 @@ ref: grep
 teach: grep -q
 hint: a leading ! flips the status
 ---
-q: make a broken step stop the script instead of continuing, with `set`
+q: {make a broken step stop the script instead of continuing|one failing command should end the script, not be ignored|stop at the first failure rather than carrying on}, with `set`
 a: set -e
 why: conceptual
 ref: set
 teach: set -e
 hint: -e makes any failing command end the script immediately
 ---
-q: catch a typo'd variable expanding to empty -- fail loudly, with `set`
+q: {catch a typo'd variable expanding to empty -- fail loudly|a misspelled variable is an error -- not an empty string|an unset variable should stop the shell -- not blank out}, with `set`
 a: set -u
 why: conceptual
 ref: set
@@ -121,7 +121,7 @@ ref: cd
 teach: cd
 hint: || only runs its right side when the left side's exit status is nonzero -- cd fails cleanly when the target is missing
 ---
-q: make the shell show each command as it runs, for debugging, with `set`
+q: {make the shell show each command as it runs, for debugging|trace every command, so you can see where the script goes|print each line as it executes, to debug this}, with `set`
 a: set -x
 why: conceptual
 ref: set
@@ -171,7 +171,7 @@ ref: sh
 teach: sh
 hint: "$*" joins every positional parameter into a single word -- $@ keeps them apart
 ---
-q: run `sh` `-c` to `echo` $0, invoked under the name `myscript`
+q: {run `sh` `-c` to `echo` $0, invoked under the name `myscript`|`echo` $0 from `sh` `-c`, with `myscript` as the name|have `sh` `-c` `echo` $0 where $0 is `myscript`}
 a: sh -c "echo \$0" myscript
 cmp: ref
 ref: sh
@@ -193,7 +193,7 @@ teach: sh
 hint: { } runs in the current shell -- x=2 here really overwrites the outer x
 ---
 setup: an argument you need to pass looks exactly like a flag
-q: load -n as a plain argument with `set`, then print it back with `printf`
+q: {load -n as a plain argument with `set`, then `printf` it back|`set` -n as an argument, not a flag, then `printf` it|make -n a plain word with `set`, then `printf` what you got}
 a: set -- -n; printf '%s\n' "$1"
 cmp: ref
 ref: printf
