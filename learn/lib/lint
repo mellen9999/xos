@@ -49,9 +49,21 @@
 #                   `learn lint -vv` prints each one with its prompt.
 #   motiveless      levels only, and only cards that teach a FLAG: nothing on
 #                   screen says what the flag is FOR -- no setup:, and no --
-#                   aside the roll is sure to show. generous by design: plenty
-#                   of asides only disambiguate, so this is a floor on the
-#                   debt, never a worklist, and it is not meant to reach zero.
+#                   aside the roll is sure to show. it is a floor on the debt,
+#                   never a worklist, and it is NOT meant to reach zero.
+#                   measured 2026-09-20, at 297: 42 of them read by hand (20
+#                   drawn at random, and the 22 whose shortest branch is the
+#                   barest in the corpus) and every one states the flag's
+#                   purpose as the task itself -- `sort` @txt@ backwards,
+#                   confirm @var@ is empty, drop @ip@ from the arp cache.
+#                   that is what this number really counts: a motive written
+#                   as the goal rather than as a separate aside, which is
+#                   most of a corpus that teaches commands. of the 297, 82
+#                   carry no {a|b|c} at all, 170 have one with no -- in any
+#                   branch, and 45 have an -- in some branch but not all, so
+#                   the roll may show one without it. driving it toward zero
+#                   means writing asides for cards that already say it, and
+#                   filler is what lint exists to refuse. do not mine it.
 #   orphan-setup    levels only: a card with no setup whose lesson-mate has
 #                   one -- the same cmd/flag pair, or the same first answer, in
 #                   any file. every setup added RAISES this until the rest of
