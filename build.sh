@@ -2302,7 +2302,15 @@ gates() {
   # is never a green pass: reporting it as ok is how "unverified" became
   # indistinguishable from "verified" for as long as that line existed.
   g() { printf '  %-42s %s\n' "$1" "$2"; ran=$((ran+1)); saw="$saw ${1%% *}"
+        LASTGATE=${1%% *}
         case "$2" in ok) ;; SKIP) skipped=$((skipped+1)) ;; *) bad=1 ;; esac; }
+  # the roster check at the end of this function is supposed to catch a gate
+  # that dies mid-run -- but it is INSIDE the function that died, so it never
+  # ran, and G62 aborting looked like a build that simply stopped talking. the
+  # trap says which gate was the last to report, which is the one after it that
+  # died. cleared before the roster check, so an honest `return 1` down there
+  # does not trip it.
+  trap 'printf "\033[1;31m  the gate run died right after %s -- that gate aborted under set -e\033[0m\n" "${LASTGATE:-none}" >&2' ERR
 
   local sz; sz=$(stat -c%s xos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
@@ -3256,8 +3264,16 @@ G37
   while IFS=$'\t' read -r bz_l bz_e bz_p bz_g; do
     case "$bz_l" in ''|'#'*) continue ;; esac
     bz_n=$((bz_n + 1))
-    bz_ao=$(PATH="$PWD/root/bin" timeout 5 ./busybox ash -c "$bz_p" </dev/null 2>&1); bz_ar=$?
-    bz_bo=$(timeout 5 bash -c "$bz_p" </dev/null 2>&1); bz_br=$?
+    # `x=$(cmd)` takes the status of cmd, so under set -e a probe that FAILS
+    # kills the whole gate run -- and failing under this ash is the normal case
+    # here, it is what makes a row a bashism. the first row (`for (( ))`) exits
+    # 2, so this gate aborted gates() before the roster check could notice and
+    # took every gate after it down with it, printing nothing at all. the
+    # `&& x=0 || x=$?` form keeps the status without ever being a failed
+    # command itself.
+    bz_ao=$(PATH="$PWD/root/bin" timeout 5 ./busybox ash -c "$bz_p" </dev/null 2>&1) \
+      && bz_ar=0 || bz_ar=$?
+    bz_bo=$(timeout 5 bash -c "$bz_p" </dev/null 2>&1) && bz_br=0 || bz_br=$?
     if [ "$bz_ar" = "$bz_br" ] && [ "$bz_ao" = "$bz_bo" ]; then
       printf '    %s: this shell runs it exactly as bash does -- not a bashism\n' "$bz_l" >&2
       bz_bad=$((bz_bad + 1))
@@ -3599,6 +3615,7 @@ G51
   # emitted twice; the set difference names WHICH gate went missing, and
   # catches a gate added to the code that never reached the roster, plus one
   # rostered that nothing implements. no integer can see those last two.
+  trap - ERR
   local seen missing="" extra="" gi
   seen=$(printf '%s\n' "$saw" | tr ' ' '\n' | grep -v '^$' | sort -u)
   for gi in $roster; do printf '%s\n' "$seen"   | grep -qx "$gi" || missing="$missing $gi"; done
