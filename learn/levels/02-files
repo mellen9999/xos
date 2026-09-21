@@ -6,24 +6,20 @@ brief: Six commands move bytes around: `cp` copies, `mv` renames or moves, `rm`
 brief: deletes, `mkdir` and `rmdir` make and unmake directories, `touch` creates an
 brief: empty file or bumps its timestamp.
 brief:
-brief: Two of them are quietly dangerous. `cp` and `mv` overwrite the destination
-brief: without asking. `-n` refuses to, `-i` asks first. Learn those two flags now
-brief: and you will not need to learn them from a loss later.
+brief: Two are quietly dangerous. `cp` and `mv` overwrite the destination without
+brief: asking. `-n` refuses to, `-i` asks first.
 brief:
-brief: Three more make files that are not ordinary files. `ln -s` makes a
-brief: symlink -- a name that points at another path instead of holding
-brief: anything itself. `mktemp` makes a file with a name nobody can guess, in a
-brief: place you are allowed to write. `mkfifo` makes a named pipe: a file that
-brief: carries text straight to whoever is reading it instead of storing it,
-brief: so two programs started apart can meet at a name.
+brief: Three more make files that are not ordinary. `ln -s` makes a symlink -- a
+brief: name pointing at another path rather than holding anything itself. `mktemp`
+brief: makes a file with an unguessable name somewhere you may write. `mkfifo`
+brief: makes a named pipe: it carries text straight to whoever is reading rather
+brief: than storing it, so two programs started apart meet at a name.
 brief:
-brief: `mkdir` and `mkfifo` both take `-m`: permissions set at the moment the
-brief: thing is made rather than a moment later. A mode is one octal digit per
-brief: set -- you, your group, everyone else -- and each digit is `r`=4 plus
-brief: `w`=2 plus `x`=1 added up. So `600` is read and write for you and
-brief: nothing for anyone else, `700` the same plus the right to enter a
-brief: directory, `644` is `rw-r--r--`. Level 18 is the whole story; this is
-brief: just the arithmetic.
+brief: `mkdir` and `mkfifo` both take `-m`: permissions set as the thing is made,
+brief: not after. A mode is one octal digit per set -- you, your group, everyone
+brief: else -- each `r`=4 plus `w`=2 plus `x`=1 added up. So `600` is read and
+brief: write for you alone, `700` adds the right to enter a directory, `644` is
+brief: `rw-r--r--`. Level 18 has the rest.
 ---
 q: {copy @cfg@ to @cfg2@|make a copy of @cfg@ named @cfg2@|duplicate @cfg@ as @cfg2@}
 a: cp @cfg@ @cfg2@
