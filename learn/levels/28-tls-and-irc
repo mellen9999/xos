@@ -94,7 +94,7 @@ hint: whatever you echo into a channel's in fifo, ii sends as a message
 setup: ii's files live under $HOME/irc, one directory per server.
 q: %find% every mention of your nick `xos` across every channel, with `grep`
 a: grep -r xos $HOME/irc
-why: live-net
+why: fixture-cost
 ref: grep
 teach: grep -r
 hint: -r walks every channel directory recursively
@@ -102,7 +102,7 @@ hint: -r walks every channel directory recursively
 setup: ii's files live under $HOME/irc, one directory per server.
 q: %list% the channel directories ii has joined, with `find` -- named #...
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
-why: live-net
+why: fixture-cost
 ref: find
 teach: find -type
 hint: -maxdepth 2 stops find from wandering past the channel folders
@@ -177,7 +177,7 @@ hint: wg show with no name reports on every interface
 ---
 q: %make% an `ed25519` ssh key at `/state/id`, with `dropbearkey`
 a: dropbearkey -t ed25519 -f /state/id
-why: live-net
+why: fixture-cost
 ref: dropbearkey
 teach: dropbearkey -t
 teach: dropbearkey -f
@@ -185,7 +185,7 @@ hint: -t picks the key type, -f where to write it
 ---
 q: %show% the public half of `/state/id`, with `dropbearkey`, to hand over
 a: dropbearkey -y -f /state/id
-why: live-net
+why: fixture-cost
 ref: dropbearkey
 teach: dropbearkey -y
 hint: -y prints the public key for an existing private key file

@@ -208,7 +208,7 @@ hint: +a is the append-only attribute
 ---
 q: %list% @txt@'s ext2 file attributes with `lsattr`
 a: lsattr @txt@
-why: root
+cmp: ref
 ref: lsattr
 teach: lsattr
 hint: lsattr prints the attribute letters chattr would set, in one fixed column

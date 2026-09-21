@@ -52,7 +52,7 @@ hint: -T adds a column naming each filesystem's type
 ---
 q: is the read-only root full -- %show% free space for `squashfs`, with `df`
 a: df -t squashfs
-why: root
+why: live-hw
 ref: df
 teach: df -t
 hint: -t filters the listing down to one filesystem type
@@ -247,14 +247,14 @@ hint: --getro reads that same read-only flag back
 ---
 q: {about to yank a usb drive -- flush everything buffered out to disk|force every dirty buffer out to disk right now|write all pending buffered data to disk}
 a: sync
-why: root
+why: primitive-cost
 ref: sync
 teach: sync
 hint: sync with no arguments flushes every dirty buffer on the system
 ---
 q: {you just wrote @txt@ -- flush just its data, with `sync`|flush just @txt@'s buffered data, with `sync`, rest alone|write out only @txt@'s pending data, with `sync`, not all}
 a: sync -d @txt@
-why: root
+why: primitive-cost
 ref: sync
 teach: sync -d
 hint: -d limits the flush to the file you name
