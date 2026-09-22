@@ -354,11 +354,11 @@ hint: tar -tvf's first column is d for a directory and - for a file; grep -c cou
 ---
 setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
 q: {%find% @archive@'s smallest real file|which file in @archive@ takes least space?|@archive@'s tiniest member, dirs aside}, with `tar`
-a: tar -tvf @archive@ | grep '^-' | sort -k3n | head -1
+a: tar -tvf @archive@ | grep '^-' | sort -k3n,3 -k6 | head -1
 cmp: ref
 ref: tar
 teach: tar
-hint: grep '^-' drops the directory rows, sort -k3n orders what's left by the size column, and head -1 keeps the smallest
+hint: grep '^-' drops the directory rows, sort -k3n,3 orders by the size column and -k6 breaks size ties by name so the answer is stable, head -1 keeps the smallest
 ---
 setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
 q: {%count% the bytes @archive@'s files add up to|@archive@'s files, summed byte for byte|add up every real file's size in @archive@}, with `tar`

@@ -295,6 +295,11 @@ _sandbox_fill() {
 	# card that says "pull src/main.c out of the archive" was asking after a
 	# member that was never in it: extracting printed "not found in archive"
 	# and the lesson had no way to know.
+	# pin every member's mtime before taring, or tar -tvf reports the wall-clock
+	# second the fixture was built -- and a rebuild lists a different one, so a
+	# cmp:ref card over the listing flakes when two rebuilds straddle a second.
+	# same fixed-date rule the txt loop below keeps, applied to archive members.
+	find src data -type f -exec touch -t 202401010000 {} + 2>/dev/null
 	tar czf "$(sed -n 1p "$POOLS/archives")" src data 2>/dev/null
 	# export.tar carries one member the tree does NOT keep, so extracting it
 	# leaves something behind that was not already there. every txt in it
@@ -302,6 +307,7 @@ _sandbox_fill() {
 	# before the learner typed anything -- the same trap archive.zip's member
 	# is removed to avoid.
 	printf 'recovered from the archive\n' > recovered.txt
+	touch -t 202401010000 $(grep . "$POOLS/txts") recovered.txt 2>/dev/null
 	tar cf  "$(sed -n 2p "$POOLS/archives")" $(grep . "$POOLS/txts") recovered.txt 2>/dev/null
 	rm -f recovered.txt
 
