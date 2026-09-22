@@ -532,7 +532,7 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 
 teaches the whole shipped command surface -- the 203 applets, builtins, binaries
 and xos's own verbs (`irc`, `scrub`, `recon_accept`) this image contains -- in
-dependency order. 30 levels, 899 questions, generated
+dependency order. 30 levels, 900 questions, generated
 not fixed: each rolls its own filenames, values and file contents, and is graded by
 *running* what you type as `nobody` in a throwaway sandbox, so `sort -u` and
 `sort | uniq` both pass.

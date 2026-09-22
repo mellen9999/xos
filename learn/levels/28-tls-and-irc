@@ -253,3 +253,10 @@ why: live-net
 ref: irc
 teach: irc
 hint: after the #channel, irc reads a nick then a server, each the way it looks
+---
+q: {bring the link up and print the paths, no channel yet, with `irc`|start the tunnel and ii and just print the fifo paths using `irc`|open the link with `irc` and no channel, so it prints the paths}
+a: irc
+why: live-net
+ref: irc
+teach: irc
+hint: with no argument irc brings the tunnel and ii up and prints the paths -- then tail -f and echo are the client
