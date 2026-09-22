@@ -45,3 +45,4 @@ file          url   https://astron.com/pub/file/file-5.46.tar.gz                
 binwalk       git   https://github.com/ReFirmLabs/binwalk                                   4fdab3d464d97b68e0af9088df3f9e2e1545b21c
 tcc           git   https://github.com/TinyCC/tinycc                                        0fb54300b56512754221d80adda85ddb9815bceb
 radare2       git   https://github.com/radareorg/radare2                                   ad27058877024389292fddf12e1db6e13824ba34
+mandoc        url   https://mandoc.bsd.lv/snapshots/mandoc-1.14.6.tar.gz                    8bf0d570f01e70a6e124884088870cbed7537f36328d512909eb10cd53179d9c

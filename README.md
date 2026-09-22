@@ -496,6 +496,7 @@ is the post-build attestation, source + sha256:
 | photorec | carve files back off a formatted or damaged filesystem by signature |
 | smartctl | a drive's SMART health -- is it dying before you trust or wipe it |
 | file | identify an unknown blob by content -- where strings only shows text |
+| mandoc | render a man page -- the reader for the staged man-pages, no roff |
 | binwalk | scan a firmware blob for embedded filesystems, keys and streams |
 | cc | compile C on the stick -- tcc + a musl sysroot, one static toolchain |
 | radare2 | reverse a binary offline -- disassemble, analyse, hex-edit (r2/rabin2/rax2) |
@@ -605,7 +606,8 @@ directions are build gates, not intentions.
 
 rough split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
 Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2 GB docs
-(exploit-db mirror, man-pages, gtfobins, an rfc text bundle), the rest loot.
+(exploit-db mirror, man-pages read with the arsenal's mandoc, gtfobins, an rfc
+text bundle), the rest loot.
 
 the knowledge payload is bigger and never needs exec, so it rides a separate exFAT
 stick labelled `XOS-KNOW` instead of p3, everything read-only. xos builds the

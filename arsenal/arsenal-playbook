@@ -118,6 +118,7 @@ testdisk	testdisk image.img          # interactive: rebuild partition table/boot
 photorec	photorec image.img          # interactive: carve files by signature
 smartctl	smartctl -H /dev/sdX ; smartctl -a /dev/sdX ; smartctl -t short /dev/sdX
 file	file blob ; file -k blob        # -k = keep going, show every match
+mandoc	mandoc PAGE.2 ; mandoc man/ls.1   # render a staged man page, no roff needed
 binwalk	binwalk firmware.bin ; binwalk -Me firmware.bin   # -Me = extract, recursive
 strace	strace -f -e trace=network CMD ; strace -p PID     # follow forks / attach
 radare2	r2 -A blob   then: afl (list fns) ; pdf @main ; iz (strings) ; V (visual)

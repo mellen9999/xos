@@ -186,7 +186,7 @@ echo "== docs staged into $OUT/ =="
 column -t "$LOCK" 2>/dev/null | sed 's/^/  /' || sed 's/^/  /' "$LOCK"
 echo "  total: $(du -sh "$OUT" | cut -f1)"
 echo "  use:  searchsploit <term>"
-echo "        man -M $OUT/man-pages-6.19 <page>"
+echo "        mandoc $OUT/man-pages-6.19/man*/<page>.N   (~/tools/mandoc on the stick)"
 echo "        rg -i '<binary>' $OUT/gtfobins/_gtfobins/  (or: jq . $OUT/gtfobins/api.json)"
 echo "        grep -ril '<topic>' $OUT/rfcs/"
 

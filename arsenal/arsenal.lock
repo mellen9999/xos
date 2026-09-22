@@ -38,3 +38,4 @@ file.mgc    file@5.46(magic-db)  10355472  d8f9ea8a75992831593c3ae417435fbc89d44
 binwalk     binwalk@3.1.0(musl-static-pie)  5307104  aa3ed44ad7c0c7723a25b1ab5fff38e4e8123b2787940d80e4666ca9e0391def
 cc          tcc@0fb5430+musl-sysroot(tree)  28162434  tree-checkout
 radare2     radare2@6.2.2(musl-static-blob)  22619616  e1d8e140758ba9e2a380624c86c2b595f9e97e85475aadcbd82e2ac73aef3359
+mandoc      mandoc@1.14.6(musl-static)  631056  82240abf03655323d89aed05a12434009aac4075f9934a440eaf7757d1d63299

@@ -35,6 +35,7 @@ testdisk	rebuild a lost or corrupt partition table and its boot sectors
 photorec	carve files back off a formatted or damaged filesystem by signature
 smartctl	read a drive's SMART health -- is it dying before you trust or wipe it
 file	identify an unknown blob by content -- where strings only shows text
+mandoc	render a man page -- the reader for the staged man-pages corpus, no roff
 binwalk	scan a firmware blob for embedded filesystems, keys and streams
 cc	compile C on the stick -- tcc (its own cpp/as/linker), static, + a musl sysroot
 radare2	reverse-engineer a binary offline -- disassemble, analyse, hex-edit (r2/rabin2/rax2)

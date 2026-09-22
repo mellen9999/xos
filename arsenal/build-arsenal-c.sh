@@ -10,7 +10,7 @@
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
 # regen, or by hand). builds masscan + tcpdump + socat + nmap + links + mutool +
 # frotz + whois + hydra + john + jq + rg + zstd + ddrescue + strace + testdisk +
-# photorec + smartctl + file, all static (rg is static-PIE, see its block; nmap
+# photorec + smartctl + file + mandoc, all static (rg is static-PIE, see its block; nmap
 # is C++, its block documents the static-musl fix). the last seven are the
 # recovery/forensics/triage flank: read a .zst, image a dying disk, trace a
 # binary, rebuild a partition table, carve files back, read a drive's SMART
@@ -374,6 +374,26 @@ clone_pinned() {
   strip src/file
   cp src/file /out/file
   cp magic/magic.mgc /out/file.mgc ) || log "file FAILED"
+
+# mandoc 1.14.6 -- the man-page reader. build-docs stages the linux man-pages
+# corpus onto XOS-KNOW, but nothing rendered it: busybox has no man applet and
+# troff source is not reading material. mandoc renders man(7)/mdoc(7) to a plain
+# terminal with no roff and no dep but zlib (so .gz pages open too). `mandoc
+# PAGE` prints one page; build-docs' own usage line points at it now. AN ARSENAL
+# TOOL, NOT A ROOTFS ONE: a reader is capability, and capability rides p3 -- the
+# man-pages payload rides XOS-KNOW beside it, both off the signed fort.
+# NOTE: the build embeds a BuildID, so the arsenal.lock sha drifts per build
+# (size stable) -- a point-in-time attestation, like masscan/nmap/radare2.
+( set -e; log mandoc
+  mkdir -p /s && fetch mandoc /s/mandoc.tgz && tar xz -C /s -f /s/mandoc.tgz
+  cd /s/mandoc-1.14.6
+  { echo 'PREFIX=/usr'; echo 'CFLAGS="-O2 -static"'; echo 'LDFLAGS="-static"'; echo 'LDADD="-lz"'; } > configure.local
+  ./configure >/s/mandoc.log 2>&1
+  make -j"$(nproc)" mandoc >>/s/mandoc.log 2>&1
+  file mandoc | grep -q "statically linked" || { echo "not static"; tail -12 /s/mandoc.log; exit 1; }
+  ./mandoc -T ascii mandoc.1 | grep -q . || { echo "mandoc renders nothing"; exit 1; }
+  strip mandoc
+  cp mandoc /out/mandoc ) || log "mandoc FAILED"
 
 # binwalk 3.1.0 -- firmware carving: scan a blob for embedded filesystems,
 # bootloaders, compressed streams and keys, and map where each begins. the v3
