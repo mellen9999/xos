@@ -519,8 +519,8 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 
 ## learn
 
-teaches the whole shipped command surface -- the ~200 applets, builtins and binaries
-this image contains -- in dependency order. 30 levels, 900-odd questions, generated
+teaches the whole shipped command surface -- the 200 applets, builtins and binaries
+this image contains -- in dependency order. 30 levels, 895 questions, generated
 not fixed: each rolls its own filenames, values and file contents, and is graded by
 *running* what you type as `nobody` in a throwaway sandbox, so `sort -u` and
 `sort | uniq` both pass.
