@@ -116,11 +116,12 @@ mechanism can help you. say so plainly rather than pretend otherwise.
   that dependency is deliberately declined. `XOS_EXPECT_HEAD` is the cheap
   mitigation; the CI runner journalling the head it saw on each date is the
   other.
-- **the author lying about results that verify cannot re-derive.** the gate
-  count and the selftest section count are in the manifest and are labelled
-  `CLAIMED, not checked`, because `verify` re-derives digests and cannot re-run
-  a qemu suite. run `./build.sh gates` and `./selftest.sh` yourself if you want
-  those.
+- **the author lying about whether the gates and self-test PASS.** their
+  *counts* are re-derived by `verify` from the tree at that commit -- structural,
+  so a manifest that miscounts its own commit's gates is caught. what `verify`
+  cannot do is re-run the qemu suite or the gate sweep to prove they went green;
+  that needs the signing key and a boot. run `./build.sh gates` and
+  `./selftest.sh` yourself if you want that half.
 - **a source tree that reproduces perfectly and is malicious anyway.**
   reproducibility says the bytes came from this source. reading the source is
   still your job.
@@ -135,3 +136,36 @@ it refuses a dirty tree, refuses a second attestation for a commit that already
 has one, and verifies the chain before appending to it. an attestation is
 always a claim about an *earlier* commit -- it cannot contain its own digest --
 so the entry lands in the commit after the one it covers.
+
+## publishing one
+
+minting is half of it: an attestation nobody can reach is a chain of one
+reader. a release is published in two moves, and both are out of band -- the
+whole point is that they do not come from this clone.
+
+1. **the head, every time.** `./build.sh verify_log` ends with `head <hash>`.
+   put that hash in the release announcement, verbatim. a verifier pins it:
+
+   ```sh
+   XOS_EXPECT_HEAD=<the head from the announcement> ./build.sh verify
+   ```
+
+   this is the split-view mitigation named above -- a history rewritten for one
+   person no longer matches the head everyone else was told. no witness network,
+   no new dependency; the announcement IS the witness, and every later
+   announcement carries a head that chains back to this one.
+
+2. **the signing fingerprint, once.** the release key is
+   `227F91A83156DECA2B8BEA93958CD4D44A09531E` (also `attest/release-key.asc`,
+   pinned as `RELEASE_FPRS` in `build.sh`). in-repo it is circular; break the
+   circle by publishing that fingerprint somewhere this clone does not control
+   -- a WKD entry under the author's own domain, a DNS TXT record, a keyserver
+   upload, the pinned git host's profile. a verifier who has it from ANY of
+   those checks `./build.sh vouch` against it. one channel is enough; more only
+   shorten the odds.
+
+there is no separate version number: the signed image carries its build date
+(`xos.epoch`, shown in the boot banner) and the fingerprint words derived from
+its root hash. the date orders releases, the words name the exact bytes, and
+the attestation `release` counter (`0001`, `0002`, ...) is the human index into
+`attest/`.
