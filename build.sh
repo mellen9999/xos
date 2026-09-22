@@ -4151,9 +4151,10 @@ attest() {
     for k in image squashfs roothash kernel toolchain; do
       printf '%-10s %s\n' "$k" "$(awk -v kk="$k" '$1==kk{print $2}' image.sha256)"
     done
-    echo "# CLAIMED, not checked. verify re-derives digests; it cannot re-run a qemu"
-    echo "# suite or a gate sweep, and presenting these as verified would be the exact"
-    echo "# 'unverified looks verified' sin the SKIP tier exists to prevent."
+    echo "# the gate/section COUNTS below are re-derived by verify from the tree at"
+    echo "# this commit -- structural, so checked, not claimed. what verify still"
+    echo "# cannot do is re-run the qemu suite or the gate sweep to prove they PASS;"
+    echo "# that needs the signing key and a boot, and is never asserted here."
     printf 'claimed-gates    %s\n' "$(sed -n 's/^#   \(G[0-9][0-9]*\) .*/\1/p' build.sh | sort -u | grep -c .)"
     printf 'claimed-sections %s\n' "$(sed -n 's/^EXPECTED_SECTIONS=\([0-9][0-9]*\).*/\1/p' selftest.sh | head -1)"
   } > "$mf"
@@ -4251,6 +4252,12 @@ verify() {
   chk base "$(sed -n 's/^FROM[[:space:]]\+[^@]*@\(sha256:[0-9a-f]\{64\}\).*/\1/p' "$s2/tree/repro/Dockerfile" | head -1)"
   chk ala  "$(sed -n 's/^ARG ALA=\(.*\)$/\1/p' "$s2/tree/repro/Dockerfile" | head -1)"
   chk epoch "$(sed -n 's/^export SOURCE_DATE_EPOCH=\([0-9]*\).*/\1/p' "$s2/tree/build.sh" | head -1)"
+  # the gate and section COUNTS are structural -- derivable from the tree at
+  # this commit without running a single gate or booting qemu. so verify settles
+  # them here, the same way it settles a digest; only whether they PASS stays out
+  # of reach (that needs the key'd build and the qemu suite).
+  chk claimed-gates    "$(sed -n 's/^#   \(G[0-9][0-9]*\) .*/\1/p' "$s2/tree/build.sh" | sort -u | grep -c .)"
+  chk claimed-sections "$(sed -n 's/^EXPECTED_SECTIONS=\([0-9][0-9]*\).*/\1/p' "$s2/tree/selftest.sh" | head -1)"
   for k in image squashfs roothash kernel toolchain; do
     chk "$k" "$(awk -v kk="$k" '$1==kk{print $2}' "$s2/tree/image.sha256")"
   done
