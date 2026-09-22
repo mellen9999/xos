@@ -947,6 +947,7 @@ banner() {
 
 BANNER
 	[ -n "$fpw" ] && printf '  this image is: %s\n' "$fpw"
+	case "$epoch" in ''|*[!0-9]*) : ;; *) bdate=$(date -u -d "@$epoch" +%Y-%m-%d 2>/dev/null); [ -n "$bdate" ] && printf '  built: %s (UTC)\n' "$bdate" ;; esac
 	printf '  tether: %s\n' "$XOS_TETHER"
 	case "$XOS_TLSTIME" in "skipped (rtc sane)"|synced) : ;; *) printf '  clock: %s\n' "$XOS_TLSTIME" ;; esac
 	echo
