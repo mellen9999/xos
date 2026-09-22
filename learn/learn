@@ -1945,10 +1945,28 @@ selftest() {
 	# a row's label reaches the panel intact. the label that IS a backslash
 	# printed as nothing: it was handed to awk with -v, and awk processes
 	# escape sequences in a -v assignment, so the gloss arrived nameless.
-	( EXP_W=9; C=; N=; TERM_COLS=80
-	  case "$(_exp_row '\' 'protects the next character')" in *'\'*) exit 0 ;; esac
+	( C=; N=; TERM_COLS=80
+	  case "$(_exp_row '\' 'protects the next character' 9)" in *'\'*) exit 0 ;; esac
 	  exit 1 ) \
 		|| { echo "FAIL explain: a row label does not survive to the panel" >&2; bad=$((bad+1)); }
+
+	# the label column is as wide as the labels IN it. it used to be cut for
+	# the widest label in the whole table, ${NAME:-WORD}, so a panel of `*`
+	# and `?` opened with eight columns of gap and lost eight off the gloss.
+	( C=; N=; TERM_COLS=80
+	  _w=$(explain_syntax 'ls *' | awk 'NR==1 { print index($0, "a filename") }')
+	  [ "${_w:-0}" -ge 3 ] && [ "$_w" -le 8 ] ) \
+		|| { echo "FAIL explain: the label column is not sized to its labels" >&2; bad=$((bad+1)); }
+
+	# and it widens to hold one, across both halves of `learn explain`: the
+	# command names and the syntax labels are one column, not two that agree
+	# by luck.
+	( C=; N=; W=; U=; D=; TERM_COLS=80
+	  _t=$(explain 'grep x "${f:-log}"')
+	  _a=$(printf '%s\n' "$_t" | awk '/^  grep /   { print index($0, "Search"); exit }')
+	  _b=$(printf '%s\n' "$_t" | awk '/^  \$\{NAME/ { print index($0, "a variable"); exit }')
+	  [ -n "$_a" ] && [ "$_a" = "$_b" ] ) \
+		|| { echo "FAIL explain: the names and the labels are not one column" >&2; bad=$((bad+1)); }
 
 	# every label a level DECLARES must be a row in the table. order_syntax
 	# only ever asks whether a required construct was declared, so a label
