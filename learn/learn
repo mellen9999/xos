@@ -204,6 +204,10 @@ boss_limit() { echo $(( 30 + $(level_num "$1") / 3 )); }
 # the passed ledger -- which bosses have actually fallen. the gauntlet gate
 # reads ONLY this file: a boss-fall is the one thing that may ever write it.
 PASSED="$STATE/passed"
+# the daily streak ledger -- one line "lastdaynum streak best", keyed on the
+# same UTC day number the daily seed uses. showing up correctly on consecutive
+# days is the one number the daily was shaped to earn and never kept.
+DAILY="$STATE/daily"
 # every ledger write is a same-directory rename: `cp` into place was a
 # truncate followed by a write, and the tether can cut power between them --
 # a half-written passed file re-locks the gauntlet with no message.
@@ -916,8 +920,28 @@ daily() {
 	ask "$lvl" "$idx"; rc=$?
 	MODE=learn
 	[ "$rc" = 2 ] && return 0
+	# a persistent day-streak: the daily is once a day by construction, so a
+	# streak means showing up and getting it right on consecutive UTC days. the
+	# first daily of a new day advances or breaks it; re-opening the same day
+	# just shows what stands. keyed on the day NUMBER, so no date-string math.
+	local dnum lastd dstreak dbest
+	dnum=$(( $(date +%s 2>/dev/null || echo 0) / 86400 ))
+	[ -f "$DAILY" ] && read -r lastd dstreak dbest < "$DAILY" 2>/dev/null || true
+	lastd=${lastd:-0}; dstreak=${dstreak:-0}; dbest=${dbest:-0}
+	if [ "$lastd" != "$dnum" ]; then
+		if [ "$rc" = 0 ]; then
+			[ "$lastd" = "$((dnum - 1))" ] && dstreak=$((dstreak + 1)) || dstreak=1
+		else
+			dstreak=0
+		fi
+		[ "$dstreak" -gt "$dbest" ] && dbest=$dstreak
+		mkdir -p "$STATE" 2>/dev/null || true
+		printf '%s %s %s\n' "$dnum" "$dstreak" "$dbest" > "$DAILY.tmp.$$" 2>/dev/null 			&& mv "$DAILY.tmp.$$" "$DAILY" 2>/dev/null || rm -f "$DAILY.tmp.$$" 2>/dev/null
+	fi
 	rule
-	printf '  %sdaily %s%s  %s\n' "$B" "$day" "$N" "$([ "$rc" = 0 ] && echo correct || echo wrong)"
+	printf '  %sdaily %s%s  %s%s\n' "$B" "$day" "$N" \
+		"$([ "$rc" = 0 ] && echo correct || echo wrong)" \
+		"$([ "$dstreak" -ge 2 ] && printf '  %s%s-day streak%s' "$Y" "$dstreak" "$N")"
 	# every other mode holds the screen after a card; daily did not, so called
 	# from the menu the verdict was wiped by the next redraw before it could be
 	# read -- one card answered and back at the menu reads as an insta-exit.
@@ -960,6 +984,13 @@ stats() {
 	# you are; this says which questions keep taking you back there -- and a
 	# card you have lost four times is not one more card, it is the one to go
 	# and read the reference for.
+	# the daily's own streak: consecutive UTC days answered correctly, and the
+	# best run so far. only shown once the daily has ever been played.
+	if [ -f "$DAILY" ]; then
+		local _dd _ds _db; read -r _dd _ds _db < "$DAILY" 2>/dev/null || true
+		[ -n "${_ds:-}" ] && printf '  %s%-28s%s %s%s%s  %sbest %s%s\n' \
+			"$W" "daily streak" "$N" "$G" "${_ds:-0}" "$N" "$D" "${_db:-0}" "$N"
+	fi
 	lk=$(cards_leeches 3 | head -5)
 	if [ -n "$lk" ]; then
 		rule
