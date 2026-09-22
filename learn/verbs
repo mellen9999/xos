@@ -1,0 +1,10 @@
+# xos-native verbs: shell functions in /etc/shrc, not busybox applets and not
+# EXTRA_BINS, so they appear in neither `busybox --list` nor on disk as a file.
+# they are still part of the command surface -- the one-word ways in that the
+# curriculum is meant to teach -- so they are declared here and G24 holds them
+# to the same two rules every borrowed tool obeys: each has a ref page, and each
+# is really a function of the /etc/shrc this build ships (no drift into fiction).
+# internal helpers (_fumble, _ircui) are not verbs a person types and are not
+# listed. carried p3/arsenal capability (xexec, vault) rides p3, never the
+# signed fort, and is documented with the arsenal, not here.
+irc scrub recon_accept

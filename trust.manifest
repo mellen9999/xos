@@ -116,6 +116,7 @@ img    /usr/local                                   -                the prefix 
 img    /usr/share/learn                             -                the learn corpus, shipped in the squashfs
 img    /usr/share/xos                               -                the fingerprint wordlist
 img    /usr/share/udhcpc                            -                the dhcp hook script
+img    /usr/share/doc/xos                           -                the offline operator narrative (README), shipped in the squashfs
 
 # ---- trust anchors shipped in the image ---------------------------------------
 ca     isrg-root-x1.pem                             tofu             the only CA tlstunnel will accept. see trust/README

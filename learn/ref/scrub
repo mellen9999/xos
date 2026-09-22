@@ -1,0 +1,19 @@
+scrub
+Usage: scrub
+
+Read every verity-covered byte on the stick now, on demand.
+
+	scrub
+
+Normally dm-verity checks a block only when something reads it, so a
+rotten block deep in an image you rarely touch can sit undetected until
+the day you need it. scrub reads the whole covered device straight to
+/dev/null, forcing every block through the check at once.
+
+A block that no longer matches the signed hash tree panics the machine
+on the spot -- that is the alarm working, not a failure of scrub. A
+clean pass prints that every byte still matches, and means the medium is
+sound today. If it cannot read the device and no panic fires, the medium
+is failing: reflash the stick.
+
+See also: cryptsetup, dd, sha256sum

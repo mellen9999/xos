@@ -1,0 +1,19 @@
+recon_accept
+Usage: recon_accept
+
+Accept the current machine as the recon baseline.
+
+	recon_accept
+
+Recon records what the hardware around the stick looks like and reports,
+on every boot, any machine whose inventory has changed since its
+baseline -- a new one it has never seen, or a known one that is not what
+it was. That report keeps firing until a human decides the change is
+expected. This is that decision: the reported inventory becomes the new
+baseline, and the machine stops being flagged.
+
+Run it only once you have looked at what changed and know why. It says
+which machines it accepted; with nothing flagged it says there was
+nothing to accept.
+
+See also: lspci, lsusb, dmesg

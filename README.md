@@ -422,6 +422,17 @@ moved a tag, replaced a tarball, or the download was tampered. don't loosen the 
 to make it build. confirm the new artifact is legitimate, then update the pin in
 `arsenal/arsenal.pins` in a visible diff.
 
+**an operational failure, not a security alarm.** a few boot messages mean p3 or
+its bookkeeping had a problem, not that anything was tampered with, and none stop
+the boot: `ledger CORRUPT -- kept as evidence, count restarts` (the boot-count file
+didn't parse -- the count resets, the old one is kept to inspect), `ledger FAILED`
+and `recon FAILED: could not record the baseline` (a write to p3 didn't land --
+the medium is full, failing, or was pulled), `recon FAILED: empty inventory` (the
+hardware probe returned nothing), and `note: boot device unknown` (init couldn't
+tell which disk it booted, so it won't prefer any for state). each says the state
+partition is unreliable this boot -- treat what it holds as suspect until a clean
+boot writes it again.
+
 ## the parts
 
 anchors and the case for each part are in `SOURCES.md`.
@@ -519,8 +530,9 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 
 ## learn
 
-teaches the whole shipped command surface -- the 200 applets, builtins and binaries
-this image contains -- in dependency order. 30 levels, 895 questions, generated
+teaches the whole shipped command surface -- the 203 applets, builtins, binaries
+and xos's own verbs (`irc`, `scrub`, `recon_accept`) this image contains -- in
+dependency order. 30 levels, 899 questions, generated
 not fixed: each rolls its own filenames, values and file contents, and is graded by
 *running* what you type as `nobody` in a throwaway sandbox, so `sort -u` and
 `sort | uniq` both pass.
@@ -529,16 +541,25 @@ tab opens that command's reference under the prompt, tab again takes it away. ev
 level ends with a named boss -- five questions, thirty seconds each, no hints -- and
 the last level is the machine itself.
 
-    learn             resume where you stopped
-    learn review      re-ask the weakest cards first
-    learn daily       one hard question a day, boss rules, same for everyone
-    learn place       climb the curriculum, skip what you already know
-    learn challenge   timed chains, one life -- unlocked at the last boss
-    learn scenario    narrative missions against the real machine
-    learn project     write a program against a spec, graded by running it
-    learn shell       a shell in that same sandbox, to try things in
-    learn autopsy     read your own shell history, name the drills that fit
-    learn fumbles     what you got wrong at the real prompt -- off until you say on
+    learn                resume where you stopped
+    learn N              practice level N
+    learn brief N        reprint level N's teaching brief
+    learn ref CMD        the reference page for a command
+    learn CMD            same, shorthand
+    learn -k WORD        search the corpus for a word
+    learn list           every command xos ships
+    learn place          climb the curriculum, skip what you already know
+    learn review         re-ask the weakest cards first
+    learn daily          one hard question a day, boss rules, same for everyone
+    learn challenge      timed chains, one life -- unlocked at the last boss
+    learn scenario       narrative missions against the real machine
+    learn project        write a program against a spec, graded by running it
+    learn shell          a shell in that same sandbox, to try things in
+    learn autopsy        read your own shell history, name the drills that fit
+    learn explain LINE   name every command in a shell line and the syntax in it
+    learn stats          what you have mastered
+    learn fumbles        what you got wrong at the real prompt -- off until you say on
+    learn reset          forget all progress
 
 with no argument `learn` names the level it would open and where it picks up
 before it opens anything -- `n` wipes every ledger for a new game, behind a
@@ -634,11 +655,18 @@ write-protect switch has to be confirmed hardware, not a firmware toggle, or vau
 mode is fiction. gear beyond the stick: a passive usb<->sata/nvme adapter (reach a
 host's internal disk), a usb-a<->usb-c adapter, a second cloned stick stored apart.
 
-provisioning: `build.sh usb /dev/sdX`, `build.sh addstate /dev/sdX`, then optionally
-`arsenal/build-wordlists.sh` / `arsenal/build-docs.sh` to stage wordlists/docs (and
-`arsenal/build-games.sh` + `arsenal/build-books.sh` for the if library and the
-reference shelf onto the XOS-KNOW stick), then
-`arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the arsenal --
+provisioning: `build.sh usb /dev/sdX`, then `build.sh addstate /dev/sdX` for the
+luks p3. the arsenal is built into `$XOS_ARSENAL` (default `~/.local/share/xos-arsenal`)
+before it can be laid down -- nothing in the signed image builds it. the tools:
+`arsenal/build-arsenal.sh` (the Go tools -- ffuf, httpx, nuclei, subfinder, dnsx,
+gobuster, chisel, ligolo), `arsenal/build-arsenal-c.sh` (the static-musl C tools --
+masscan, tcpdump, socat, nmap, hydra, john, and the rest), `arsenal/build-python.sh`
+(carried python + sqlmap + impacket). the knowledge: `arsenal/build-wordlists.sh`,
+`arsenal/build-docs.sh`, `arsenal/build-kiwix.sh`, and `arsenal/build-games.sh` +
+`arsenal/build-books.sh` for the if library and the reference shelf onto the
+XOS-KNOW stick. each is optional and pinned; run whichever you carry. then
+`arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the arsenal
+(it prints `no arsenal ... run build-arsenal.sh first` if you skipped the builds) --
 write-protect off (work mode) first, since p3 has to be writable. idempotent --
 re-run to update.
 

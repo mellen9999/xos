@@ -237,3 +237,19 @@ why: live-net
 ref: dbclient
 teach: dbclient -L
 hint: -L sets up local port forwarding, local port first then the far side
+---
+setup: ii and the tls tunnel are two commands wired by hand above. `irc` is the
+setup: one word that brings both up the only way that reaches a real network.
+q: {reach `#xos` on libera in one word with `irc`, as one screen|open `#xos` as a one-screen chat with `irc`, on libera's defaults|join `#xos` on libera in one screen using `irc`}
+a: irc #xos
+why: live-net
+ref: irc
+teach: irc
+hint: given just a #channel, irc uses its defaults -- libera over tls, nick xos -- and opens it as one screen
+---
+q: {open `#xos` on @host@ as nick `xos` in one screen with `irc`|one-screen `#xos` on @host@ as `xos` via `irc`|use `irc` to open `#xos` on @host@ as the nick `xos`, one screen}
+a: irc #xos xos @host@
+why: live-net
+ref: irc
+teach: irc
+hint: after the #channel, irc reads a nick then a server, each the way it looks

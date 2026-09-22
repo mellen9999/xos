@@ -1040,14 +1040,19 @@ rootfs() {
   for part in ref lib pools levels scenarios projects; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  for _f in skip skip-syntax builtins phrases syntax vs bashisms chains migrations; do
+  for _f in skip skip-syntax builtins verbs phrases syntax vs bashisms chains migrations; do
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
-  cp learn/skip learn/skip-syntax learn/builtins learn/phrases learn/chains \
+  cp learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains \
      learn/syntax learn/vs learn/bashisms learn/migrations root/usr/share/learn/
+  # the full operator narrative -- boot ledger, refusals, the arsenal, the verbs
+  # -- shipped offline so a booted stranger can read what this machine is, not
+  # only how each command works. the curriculum is the how; this is the why.
+  mkdir -p root/usr/share/doc/xos
+  cp README.md root/usr/share/doc/xos/README
 
   # overlay carries the udhcpc script, without which dhcp silently configures
   # nothing, and the wordlist init turns the roothash into four spoken words. it was optional; under `set -e` a
@@ -1299,6 +1304,18 @@ irc() {
 	echo "  send:  echo hi      > $dir/#chan/in"
 	echo "  read:  tail -f $dir/#chan/out"
 }
+# start here. a booted stranger has a prompt and no way to know the curriculum
+# and the reference even exist -- this is the one line that says so. printed
+# once per boot, not per shell: /tmp is the tmpfs init creates, so the flag is
+# gone at the next boot and back for exactly one session. only on a real
+# terminal (a pipe or a non-interactive shell gets nothing), and never twice,
+# because the console respawns and every subshell re-sources this file.
+case "$-" in
+	*i*) if [ -t 1 ] && [ ! -e /tmp/.xos-greeted ]; then
+		: > /tmp/.xos-greeted 2>/dev/null
+		echo "xos -- run learn to start, or learn ref ls for every command"
+	fi ;;
+esac
 SHRC
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
@@ -3165,11 +3182,24 @@ G37
       || { bi_bad=$((bi_bad + 1)); printf '    %s is not a builtin of the built ash\n' "$b" >&2; }
   done
   [ "$bi_bad" -eq 0 ] || c_ok=0
+  # xos's own verbs are part of the surface too -- the one-word ways in (irc,
+  # scrub, recon_accept) that are shell functions in /etc/shrc, so they appear
+  # in neither --list nor on disk as a file. same rule as the builtins above:
+  # each declared verb must really BE a function of the /etc/shrc this build
+  # ships, so the list cannot drift into fiction. root/etc/shrc is already on
+  # disk here -- G46 below reads it the same way.
+  local verbs vb_bad=0 v
+  verbs=$(grep -v '^[[:space:]]*#' learn/verbs | tr ' ' '\n' | grep -v '^$' | sort -u)
+  for v in $verbs; do
+    grep -qE "^$v\(\)" root/etc/shrc 2>/dev/null \
+      || { vb_bad=$((vb_bad + 1)); printf '    %s is not a function of the shipped /etc/shrc\n' "$v" >&2; }
+  done
+  [ "$vb_bad" -eq 0 ] || c_ok=0
   # every shipped command has a ref ...
   # "." is a real builtin and can never be a filename -- that name always means
   # the directory itself -- so its page is stored as "dot" and learn translates.
   refname() { [ "$1" = "." ] && echo dot || echo "$1"; }
-  miss_ref=$( { printf '%s\n' "$have_ap"; printf '%s\n' "$builtins"; printf '%s\n' $EXTRA_BINS; } | sort -u | while read -r c; do
+  miss_ref=$( { printf '%s\n' "$have_ap"; printf '%s\n' "$builtins"; printf '%s\n' "$verbs"; printf '%s\n' $EXTRA_BINS; } | sort -u | while read -r c; do
       [ -n "$c" ] && [ ! -f "learn/ref/$(refname "$c")" ] && echo "$c"; done | grep -c . || true)
   [ "${miss_ref:-0}" -eq 0 ] || { c_ok=0; printf '    %s shipped command(s) undocumented\n' "$miss_ref" >&2; }
   # ... and every ref is a shipped command
@@ -3177,6 +3207,7 @@ G37
       # -F: command names are literals. '[' is a real applet and an invalid regex.
       printf '%s\n' "$have_ap" | grep -qxF "$r" && continue
       printf '%s\n' "$builtins" | grep -qxF "$r" && continue
+      printf '%s\n' "$verbs" | grep -qxF "$r" && continue
       case " $EXTRA_BINS " in *" $r "*) continue ;; esac
       echo "$r"; done | grep -c . || true)
   [ "${miss_cmd:-0}" -eq 0 ] || { c_ok=0; printf '    %s ref(s) document nothing shipped\n' "$miss_cmd" >&2; }

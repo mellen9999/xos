@@ -418,3 +418,12 @@ why: fixture-cost
 ref: scriptreplay
 teach: scriptreplay
 hint: scriptreplay reads the timing file script wrote and plays the typescript back
+---
+setup: recon reports any machine whose hardware inventory changed since its
+setup: baseline, on every boot, until a human says the change is expected.
+q: {accept this machine as the recon baseline with `recon_accept`|make the current inventory the baseline using `recon_accept`|stop the change report by accepting this machine, via `recon_accept`}
+a: recon_accept
+why: root
+ref: recon_accept
+teach: recon_accept
+hint: recon_accept promotes the reported inventory to the new baseline, so the machine stops being flagged

@@ -1,0 +1,34 @@
+irc
+Usage: irc [#channel] [nick] [server]
+
+Reach irc over tls in one word.
+
+No client, nothing new in the image: it brings up the tls tunnel and ii,
+the two binaries that already ship, wired the one way that reaches a real
+network.
+
+With no argument it just prints the paths and returns -- a channel is a
+directory you tail -f and an in fifo you echo to, so every text tool on
+this system still works on the log.
+
+	irc			bring the link up, print the paths
+	irc #chan		open that channel as one screen
+	irc #chan nick server	override nick and server
+
+`irc #chan` is a live one screen: incoming scrolls the top rows, you
+type at the bottom, both from the same two fifos, on a plain vt320 with
+no client. A line starting with / is a server command; anything else is
+a message. Ctrl-C or /quit leaves.
+
+The arguments are read the way they look: a leading #channel, then a
+nick, then a server, each optional. Nick defaults to xos, server to
+irc.libera.chat, and the port is always 6697 -- tls only. The tunnel
+checks the certificate against the anchors compiled into tlstunnel, not
+a file on disk anyone could edit.
+
+A registered nick's password rides the IRC_PASS environment variable,
+read by name so it never lands in argv or the shell history. If the
+tunnel never comes up the clock is unsynced or the certificate was
+refused; the reason is in the tunnel's log, not lost to the console.
+
+See also: ii, tlstunnel, tail

@@ -532,6 +532,9 @@ if cmdline_has xos.test; then
 	printf 'learn-refs: '; _n=0; for _f in /usr/share/learn/ref/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	printf 'learn-runs: '; _c=$(learn list 2>/dev/null | grep -c .); echo "${_c:-0}"
 	printf 'learn-ref-ls: '; learn ref ls 2>/dev/null | head -1 | grep . || echo MISSING
+	# xos's own verbs are documented like every borrowed tool -- prove the pages
+	# shipped by reading one line back out of each, not by stat'ing the file.
+	printf 'learn-ref-verbs: '; _v=ok; for _r in irc scrub recon_accept; do learn ref "$_r" 2>/dev/null | grep -q . || _v="no ($_r BAD)"; done; echo "$_v"
 	printf 'learn-levels: '; _n=0; for _f in /usr/share/learn/levels/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	printf 'learn-pools: '; _n=0; for _f in /usr/share/learn/pools/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	# phrases drives the question-wording variety; without it prompts render with

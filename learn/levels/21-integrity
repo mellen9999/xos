@@ -274,3 +274,12 @@ cmp: ref
 ref: base64
 teach: base64
 hint: land the decoded bytes in a file, then cmp exits 0 only if it matches @txt@ byte for byte
+---
+setup: dm-verity checks a covered block only when something reads it, so a rotten
+setup: block in an image you rarely touch can sit undetected until you need it.
+q: {read every verity-covered byte on the stick right now with `scrub`|force every covered block through its check now with `scrub`|verify the whole signed image on demand with `scrub`}
+a: scrub
+why: root
+ref: scrub
+teach: scrub
+hint: scrub reads the whole covered device straight through, so a bad block panics now instead of the day you rely on it
