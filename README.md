@@ -37,6 +37,7 @@ one is attached.
 
     ./build.sh usb /dev/sdX       write a stick (install wraps this)
     ./build.sh addstate /dev/sdX  add the encrypted state partition
+    ./build.sh clone SRC DST     copy a whole xos stick, p3 and all, to a spare
     ./build.sh revoke IMAGE       retire a superseded image
     ./build.sh vouch              check every commit is signed by the pinned key
     ./build.sh repro              rebuild a clean clone, compare to the pin
@@ -422,6 +423,14 @@ moved a tag, replaced a tarball, or the download was tampered. don't loosen the 
 to make it build. confirm the new artifact is legitimate, then update the pin in
 `arsenal/arsenal.pins` in a visible diff.
 
+**`clone` refuses, or its readback fails.** `clone` will not write if the target
+is not a whole removable disk, is smaller than the source, or if the source is
+not an xos stick (no xos root + state partitions) -- a mistyped source must not
+image an unrelated disk onto your spare. after the copy it reads every byte back
+under direct i/o; `clone readback mismatch` means the write did not land, so the
+spare is not trustworthy -- retry on a different stick or port before relying on
+it. the source is only ever read, so it is never at risk.
+
 **an operational failure, not a security alarm.** a few boot messages mean p3 or
 its bookkeeping had a problem, not that anything was tampered with, and none stop
 the boot: `ledger CORRUPT -- kept as evidence, count restarts` (the boot-count file
@@ -650,7 +659,12 @@ tools through xexec, phone home over the wireguard tunnel and ssh back down it.
 
 two things never rebuild from source: your p3 secrets and your signing keys. back
 both up offline, apart from the stick and each other -- a fireproof metal plate,
-ideally split. everything else -- image, stick, tools -- rebuilds from source. a
+ideally split. everything else -- image, stick, tools -- rebuilds from source. for
+the whole stick at once -- p3 included -- `./build.sh clone /dev/SRC /dev/DST` writes
+a verified spare: it reads the source read-only, guards the target like a flash
+(whole, removable, model typed back), copies the LUKS state as ciphertext so the
+spare unlocks with the same passphrase, and reads every byte back under direct i/o
+before it calls the copy good. a
 write-protect switch has to be confirmed hardware, not a firmware toggle, or vault
 mode is fiction. gear beyond the stick: a passive usb<->sata/nvme adapter (reach a
 host's internal disk), a usb-a<->usb-c adapter, a second cloned stick stored apart.

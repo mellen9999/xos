@@ -1728,6 +1728,92 @@ usb() {
   echo "  stick's /xos-keys (db, KEK, then PK last). see README."
 }
 
+# ── clone: a verified spare stick, p3 and all ───────────────────────────────
+#
+# the README calls for "a second cloned stick stored apart" and for backing up
+# p3 offline; this is that, as tooling instead of a hand-typed dd an operator
+# gets wrong once. SRC is only read; DST is written and so is guarded exactly
+# like usb()/addstate() -- whole, removable, unmounted, model typed back. the
+# LUKS state copies as CIPHERTEXT: nothing is decrypted, the spare unlocks with
+# the same passphrase and is exactly as secret as the original.
+#
+# the size and the byte-range readback are factored into three helpers so G64
+# can exercise the refusals and the copy-is-faithful check on image files,
+# without a removable disk in the loop.
+
+disk_bytes() { # $1 device or image -> size in bytes, 0 if unknown
+  if [ -b "$1" ]; then
+    blockdev --getsize64 "$1" 2>/dev/null \
+      || echo $(( $(cat "/sys/block/$(basename "$1")/size" 2>/dev/null || echo 0) * 512 ))
+  else
+    stat -c%s "$1" 2>/dev/null || echo 0
+  fi
+}
+
+range_hash() { # $1 path  $2 bytes  $3 iflag (optional, e.g. direct) -> sha256 of the first $2 bytes
+  local fl=count_bytes; [ -n "${3:-}" ] && fl="$3,count_bytes"
+  dd if="$1" bs=4M iflag="$fl" count="$2" status=none 2>/dev/null | sha256sum | awk '{print $1}'
+}
+
+clone_precheck() { # $1 src  $2 dst  $3 src_bytes  $4 dst_bytes -- non-destructive refusals
+  [ "$1" != "$2" ] || { echo "FAIL: source and destination are the same device" >&2; return 1; }
+  [ "${3:-0}" -gt 0 ] 2>/dev/null || { echo "FAIL: source $1 has zero size" >&2; return 1; }
+  [ "${4:-0}" -ge "${3:-0}" ] 2>/dev/null \
+    || { echo "FAIL: destination too small ($4 < $3) -- a spare cannot be smaller than the stick" >&2; return 1; }
+}
+
+clone() {
+  local src="${1:-}" dst="${2:-}"
+  [ -n "$src" ] && [ -n "$dst" ] || { echo "FAIL: usage: ./build.sh clone /dev/SRC /dev/DST" >&2; return 1; }
+  [ -b "$src" ] || { echo "FAIL: source $src is not a block device" >&2; return 1; }
+  [ -b "$dst" ] || { echo "FAIL: destination $dst is not a block device" >&2; return 1; }
+  # DST is the one written, so it takes the full destructive-path guard. SRC is
+  # only ever read.
+  guard_removable "$dst" || return 1
+  # SRC must actually BE an xos stick, or a mistyped source silently images some
+  # unrelated disk onto the spare. require both xos partition type GUIDs.
+  local srctab; srctab=$(sfdisk -d "$src" 2>/dev/null || true)
+  { printf '%s\n' "$srctab" | grep -qi "$PU_ROOT" && printf '%s\n' "$srctab" | grep -qi "$PU_STATE"; } \
+    || { echo "FAIL: $src does not look like an xos stick (no xos root + state partitions)" >&2
+         echo "  clone copies a stick you already trust; it will not image an arbitrary disk." >&2
+         return 1; }
+  local src_bytes dst_bytes
+  src_bytes=$(disk_bytes "$src"); dst_bytes=$(disk_bytes "$dst")
+  clone_precheck "$src" "$dst" "$src_bytes" "$dst_bytes" || return 1
+  local model; model=$(disk_model "$dst")
+  echo "  source: $src  ($((src_bytes / 1024 / 1024)) MiB, an xos stick -- read only)"
+  echo "  target: $dst  ($((dst_bytes / 1024 / 1024)) MiB, model ${model:-unknown}) -- EVERYTHING on it is destroyed"
+  if wipefs -n "$dst" 2>/dev/null | has .; then
+    echo "  WARNING: $dst already holds a filesystem/partition signature -- it will be DESTROYED."
+  fi
+  confirm_model "$dst" || return 1
+  say "cloning $src -> $dst ($((src_bytes / 1024 / 1024)) MiB, p3 included)"
+  dd if="$src" of="$dst" bs=4M iflag=direct oflag=direct conv=fsync status=progress
+
+  # verify by DIRECT-IO readback over the whole copied region: a page-cache read
+  # would echo what we just wrote and prove nothing. src is not being written,
+  # so its hash is stable across the compare.
+  say "verifying the clone, byte for byte"
+  local hs hd
+  hs=$(range_hash "$src" "$src_bytes" direct)
+  hd=$(range_hash "$dst" "$src_bytes" direct)
+  [ -n "$hs" ] && [ "$hs" = "$hd" ] \
+    || { echo "FAIL: clone readback mismatch -- the copy did not land; do not rely on $dst" >&2; return 1; }
+
+  # a larger DST carries SRC's GPT verbatim, so its backup header and last-usable
+  # LBA still describe the smaller source and the tail reads as unpartitionable.
+  # move the backup header to the real end -- GPT metadata only, no signed byte,
+  # and deliberately AFTER the readback this one edit diverges from.
+  if [ "$dst_bytes" -gt "$src_bytes" ]; then
+    sfdisk --relocate gpt-bak-std "$dst" >/dev/null 2>&1 \
+      || echo "WARN: could not move $dst's backup GPT to the end -- harmless, but its tail may read as unusable" >&2
+  fi
+  sync
+  printf '\n  \033[1;32mdone -- %s is a verified clone of %s, p3 and all\033[0m\n' "$dst" "$src"
+  echo "  it boots on the same enrolled keys and unlocks p3 with the same passphrase."
+  echo "  store it apart from the original -- a spare you can prove is a spare you can trust."
+}
+
 verity() {
   say "building verity hash tree"
   cp rootfs.squashfs xos.img
@@ -2301,6 +2387,7 @@ TODO: write this entry by hand.
 #   G61 every carried book is pinned by sha256 and carries a licence
 #   G62 every row of learn/bashisms is a construct this shell really lacks
 #   G63 the levels ask you to put two commands together, and keep asking
+#   G64 clone is guarded and proves the spare is a faithful copy
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2781,6 +2868,35 @@ G44EOF
       && { g49=FAIL; printf '    stick_install writes a raw device directly -- must go through usb()/addstate()\n' >&2; }
   fi
   g "G49 install writes only through the guarded paths" "$g49"
+
+  # G64 -- clone() images a stick onto a spare, so it writes a raw device and
+  # must be guarded like the others: guard_removable + confirm_model on the DST,
+  # nothing raw around them. no test can hand it a removable disk, so the static
+  # half mirrors G39/G49 and the live half runs its two factored helpers on
+  # image files -- clone_precheck's refusals, and range_hash telling a faithful
+  # copy from a one-byte corruption. proven to go red if either helper is broken.
+  local g64=ok body64
+  body64=$(sed -n '/^clone() {/,/^}/p' build.sh)
+  if [ -z "$body64" ]; then
+    g64=FAIL; printf '    clone() not found\n' >&2
+  else
+    for need64 in 'guard_removable "' 'confirm_model "' clone_precheck range_hash; do
+      printf '%s' "$body64" | has "$need64" \
+        || { g64=FAIL; printf '    clone() no longer calls %s\n' "$need64" >&2; }
+    done
+  fi
+  clone_precheck /dev/x /dev/x 100 100 2>/dev/null && { g64=FAIL; printf '    clone_precheck accepted src==dst\n' >&2; }
+  clone_precheck a b 200 100 2>/dev/null && { g64=FAIL; printf '    clone_precheck accepted a too-small dst\n' >&2; }
+  clone_precheck a b 100 200 2>/dev/null || { g64=FAIL; printf '    clone_precheck refused a valid pair\n' >&2; }
+  local t64; t64=$(mktemp -d)
+  head -c 1048576 /dev/zero | tr '\0' 'A' > "$t64/src"; cp "$t64/src" "$t64/dst"
+  [ "$(range_hash "$t64/src" 1048576)" = "$(range_hash "$t64/dst" 1048576)" ] \
+    || { g64=FAIL; printf '    range_hash called a faithful copy different\n' >&2; }
+  printf 'B' | dd of="$t64/dst" bs=1 seek=1000 count=1 conv=notrunc status=none 2>/dev/null
+  [ "$(range_hash "$t64/src" 1048576)" != "$(range_hash "$t64/dst" 1048576)" ] \
+    || { g64=FAIL; printf '    range_hash missed a one-byte corruption\n' >&2; }
+  rm -rf "$t64"
+  g "G64 clone is guarded and its copy-is-faithful check works" "$g64"
 
   # G40 -- the respawn backoff, run for real. it is written once now, but the
   # dropbear copy it replaced was never reached by any boot, healthy or not, so
@@ -4683,7 +4799,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
   *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac
