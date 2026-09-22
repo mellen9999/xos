@@ -2760,8 +2760,14 @@ G44EOF
   # either. a uki step that fails (locked keys) while verity and stick succeed
   # leaves a stale signed efi beside a fresh image, every gate green, and a
   # stick that panics at the verity mount on real hardware. seen happen.
+  # `|| true`: under `set -o pipefail` a missing xos-signed.efi makes strings
+  # exit 1, the assignment fails, and set -e takes the WHOLE gate run down here
+  # -- every gate after this one never ran and never said so, which is the one
+  # failure mode a gate wall cannot have. a missing artifact is this gate's
+  # FAIL to report, not the run's death.
   local g34_have
-  g34_have=$(strings xos-signed.efi 2>/dev/null | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2)
+  g34_have=$( { strings xos-signed.efi 2>/dev/null || true; } \
+    | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2 || true)
   g "G34 signed UKI embeds the tree's roothash" \
     "$([ -n "$g34_have" ] && [ "$g34_have" = "$(cat verity.roothash)" ] && echo ok || echo FAIL)"
 
@@ -3522,8 +3528,11 @@ G51
   # gate caller, so the subcommand a stranger runs and the gate the build runs
   # cannot drift. unverified maps to SKIP, never ok: no ssh-keygen here, or a
   # clone too shallow to hold the epoch, is a check that did not run.
-  local g52; vouch >/dev/null
-  case "$?" in 0) g52=ok ;; 2) g52=SKIP ;; *) g52=FAIL ;; esac
+  # `|| rc=$?` and not a bare call: under set -e a non-zero vouch aborts the
+  # whole run right here, so the SKIP and FAIL arms below -- and every gate
+  # after them -- were unreachable by the only exit codes that select them.
+  local g52 g52rc=0; vouch >/dev/null || g52rc=$?
+  case "$g52rc" in 0) g52=ok ;; 2) g52=SKIP ;; *) g52=FAIL ;; esac
   g "G52 every commit since the epoch is signed by the pinned key" "$g52"
 
   # G29 -- the challenge track holds its shape. at least twelve stages, every
