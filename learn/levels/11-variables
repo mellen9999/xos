@@ -99,6 +99,13 @@ ref: env
 teach: env
 hint: -i drops the entire inherited environment before running the command
 ---
+q: {run `env` with ONLY @mvar@=@word@ set, nothing inherited|`env` the environment down to just @mvar@=@word@ and nothing else|show a clean environment holding only @mvar@=@word@, with `env`}
+a: env -i @mvar@=@word@ env
+cmp: ref
+ref: env
+teach: env -i
+hint: -i starts from an empty environment, so only what you set after it survives
+---
 q: {remove @mvar@ from the environment, printing `gone` to prove it|run a command that cannot see @mvar@, printing `gone` to prove it|hide @mvar@ from one command, printing `gone` to prove it}, with `env`
 a: env -u @mvar@ sh -c 'echo gone'
 out: gone

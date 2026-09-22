@@ -352,7 +352,6 @@ dbclient -f      # background after auth
 # to coverage since the start. each is retired on purpose or noted as a
 # future lesson.
 date -s          # sets the system clock; danger, and xos pins its own clock
-env -i           # clean-slate environment; worth a lesson one day
 flock -c         # run a shell string; the direct PROG form is taught
 hash -r          # drop the shell's command cache, a debugging one-off
 ifconfig -a      # legacy tool kept for compat; ip addr is the taught spelling
@@ -378,7 +377,6 @@ od -l            # ditto
 od -o            # ditto
 od -s            # ditto
 od -x            # ditto
-od -j            # skip bytes before dumping; pairs with -N, worth a lesson one day
 od -S            # minimum string length, strings(1) territory
 od -v            # do not fold repeated lines
 od -w            # bytes per output line, a formatting knob

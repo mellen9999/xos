@@ -86,6 +86,13 @@ ref: od
 teach: od -N
 hint: -N caps how many bytes od reads, from the start
 ---
+q: {`od` @bin@ as hex, skipping its first `4` bytes|dump @bin@ hex with `od`, starting `4` bytes in|%show% @bin@ hex with `od`, past its first `4` bytes}
+a: od -j 4 -t x1 @bin@
+cmp: ref
+ref: od
+teach: od -j
+hint: -j skips that many bytes before the dump starts -- it pairs with -N to window a file
+---
 q: {copy @txt@ to copy.txt using `dd`|use `dd` to copy @txt@ into copy.txt|make a copy of @txt@ named copy.txt with `dd`}
 a: dd if=@txt@ of=copy.txt
 state: exists:copy.txt
