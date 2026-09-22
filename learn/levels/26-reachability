@@ -9,9 +9,6 @@ brief: `ping` proves a host answers. `traceroute` shows where the packets stop.
 brief: `netstat` shows what your own machine is doing about it. `nslookup` answers
 brief: the last question on its own: what address does this name resolve to,
 brief: and which server said so.
-brief:
-brief: `ping6` and `traceroute6` are the same two tools over ipv6. Reach for them
-brief: when v4 works, the name resolves, and it still will not connect.
 ---
 q: {does @ip@ even answer -- send three pings and stop|`ping` @ip@ three times, then stop|send exactly three pings to @ip@}, with `ping`
 a: ping -c 3 @ip@
@@ -211,37 +208,9 @@ ref: netstat
 teach: netstat -e
 hint: -e adds extended fields like user and inode
 ---
-q: ipv6 addresses keep getting cut off -- %show% `netstat` with wide columns
+q: long addresses keep getting cut off -- %show% `netstat` with wide columns
 a: netstat -W
 why: live-net
 ref: netstat
 teach: netstat -W
 hint: -W widens columns so long addresses print in full
----
-q: {`ping6` the ipv6 loopback `::1` three times|send three `ping6` probes to the ipv6 loopback `::1`|`ping6` `::1`, the ipv6 loopback, stopping after three}
-a: ping6 -c 3 ::1
-why: live-net
-ref: ping6
-teach: ping6
-hint: the whole world is moving to ipv6; the tools have a 6 on the end
----
-q: {trace the ipv6 path to `::1`|where does a packet go on its way to the ipv6 loopback `::1`?|show the ipv6 path a trace to `::1` takes}
-a: traceroute6 ::1
-why: live-net
-ref: traceroute6
-teach: traceroute6
-hint: traceroute6 is traceroute's ipv6-only counterpart
----
-q: {`traceroute6` the ipv6 path to `::1` without resolving names|`traceroute6` to `::1`, skipping name resolution|`traceroute6` the ipv6 path to `::1` with no hostname lookups}
-a: traceroute6 -n ::1
-why: live-net
-ref: traceroute6
-teach: traceroute6 -n
-hint: -n skips name resolution here too
----
-q: {`traceroute6` the ipv6 path to `::1`, no further than `10` hops|cap the `traceroute6` to `::1` at `10` hops|`traceroute6` over ipv6 to `::1`, stopping after `10` hops}
-a: traceroute6 -m 10 ::1
-why: live-net
-ref: traceroute6
-teach: traceroute6 -m
-hint: -m caps hops the same way it does for traceroute

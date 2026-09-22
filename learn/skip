@@ -305,34 +305,15 @@ ls -w                           # force an output width
 ls -X                           # sort by extension
 
 # ── recon applets: niche flags on tools drilled for their core use ──
-# ping6 and traceroute6 take the SAME flags as ping and traceroute, drilled in
-# the reachability level. teaching them twice teaches nothing new.
-# ping -4 / traceroute -4 are the default and -6 is the ping6/traceroute6
-# applet learn already teaches: a second spelling, not a second capability
+# ping -4 / traceroute -4 are the default; -6 selects ipv6, which this kernel
+# has no stack for (no CONFIG_IPV6). so ping6/traceroute6 are not shipped at all
+# -- a v6 address would hand the visited LAN a stable, autoconfigured identity,
+# against the dial-out-only posture. busybox still documents the -6 flag, so it
+# is retired here rather than taught: a spelling with no capability behind it.
 ping -4         # alias
-ping -6         # alias
+ping -6         # ipv6 select -- no v6 stack in this kernel
 traceroute -4   # alias
-traceroute -6   # alias
-ping6 -A
-ping6 -c
-ping6 -i
-ping6 -I
-ping6 -p
-ping6 -q
-ping6 -s
-ping6 -w
-ping6 -W
-traceroute6 -f
-traceroute6 -i
-traceroute6 -I
-traceroute6 -p
-traceroute6 -q
-traceroute6 -r
-traceroute6 -s
-traceroute6 -t
-traceroute6 -v
-traceroute6 -w
-traceroute6 -z
+traceroute -6   # ipv6 select -- no v6 stack in this kernel
 fuser -4          # ipv4-only socket filter, for the network mode fuser is rarely used in
 fuser -6
 fuser -s          # already drilled: silent, exit-status only

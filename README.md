@@ -440,7 +440,7 @@ anchors and the case for each part are in `SOURCES.md`.
 | part | does |
 |---|---|
 | linux 6.18 lts, from `tinyconfig` | the kernel -- every driver is opt-in |
-| busybox 1.38 | the userland and the one shell (ash) -- 158 applets in one binary |
+| busybox 1.38 | the userland and the one shell (ash) -- 156 applets in one binary |
 | bearssl + `tlstunnel.c` | tls, with the trust set compiled in |
 | cryptsetup | luks2 + hmac integrity for p3 |
 | dropbear | ssh server, client and keygen in one binary -- the one listening service |
@@ -530,7 +530,7 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 
 ## learn
 
-teaches the whole shipped command surface -- the 203 applets, builtins, binaries
+teaches the whole shipped command surface -- the 201 applets, builtins, binaries
 and xos's own verbs (`irc`, `scrub`, `recon_accept`) this image contains -- in
 dependency order. 30 levels, 900 questions, generated
 not fixed: each rolls its own filenames, values and file contents, and is graded by
@@ -676,6 +676,15 @@ re-run to update.
   image: `tcc` rides p3 with the arsenal, like every other capability
 - pre-xHCI machines (roughly pre-2012) are out of scope
 - no wifi: wired, usb-ethernet or tether, plus wireguard
+- ipv4 only -- no ipv6 stack in the kernel. it is left out on purpose: an
+  autoconfigured v6 address would give the visited LAN a stable way to reach
+  the stick, against the dial-out-only posture that keeps a port scan finding
+  nothing. `ping6`/`traceroute6` are not shipped for the same reason
+- found-disk filesystems are ext4, vfat/exfat, ntfs (read-only) and iso9660.
+  btrfs, xfs, f2fs and lvm are not in the kernel: reading them means adding a
+  driver to the signed fort, and capability here comes from what rides p3, not
+  from widening the kernel. mount a found disk over usb -- an internal sata or
+  nvme never enumerates at all, by design
 - iphone tethering needs usbmuxd, which xos does not ship; android works
 - don't enroll these keys on hardware whose own secure boot chain you still need
 - gcc is the root of trust and stays there: the compiler, binutils,
