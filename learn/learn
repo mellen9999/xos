@@ -918,6 +918,10 @@ daily() {
 	[ "$rc" = 2 ] && return 0
 	rule
 	printf '  %sdaily %s%s  %s\n' "$B" "$day" "$N" "$([ "$rc" = 0 ] && echo correct || echo wrong)"
+	# every other mode holds the screen after a card; daily did not, so called
+	# from the menu the verdict was wiped by the next redraw before it could be
+	# read -- one card answered and back at the menu reads as an insta-exit.
+	pause_card || return 0
 }
 
 # ---- stats ----------------------------------------------------------------
