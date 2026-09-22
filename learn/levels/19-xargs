@@ -38,7 +38,7 @@ ref: xargs
 teach: xargs -n
 hint: -n caps how many arguments go into each invocation
 ---
-q: {"`found` NAME" per .log name `ls` prints, NAME mid-command|for every .log name `ls` prints, `echo` `found` NAME, not trailing|"`found` NAME" per .log name from `ls`, name in the middle}, with `xargs`
+q: {"``found`` NAME" per .log name `ls` prints, NAME mid-command|for every .log name `ls` prints, `echo` ``found`` NAME, not trailing|"``found`` NAME" per .log name from `ls`, name in the middle}, with `xargs`
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
 cmp: ref
@@ -53,7 +53,7 @@ ref: xargs
 teach: xargs -t
 hint: -t prints the command line to stderr before running it
 ---
-q: {`printf` '' sends no input -- don't let `echo` `nothing` run at all|with `printf` '' as the input, skip running `echo` `nothing` entirely|empty input from `printf` '' must not still run `echo` `nothing` once}, with `xargs`
+q: {`printf` '' sends no input -- don't let `echo` ``nothing`` run at all|with `printf` '' as the input, skip running `echo` ``nothing`` entirely|empty input from `printf` '' must not still run `echo` ``nothing`` once}, with `xargs`
 a: printf '' | xargs -r echo nothing
 why: primitive-cost
 ref: xargs
@@ -82,14 +82,14 @@ ref: basename
 teach: basename
 hint: basename strips everything up through the last slash
 ---
-q: {strip @txt@ down to its name, dropping the `.txt` suffix too|get @txt@'s bare name with the `.txt` extension gone as well|reduce @txt@ to just its name, no directory and no `.txt` suffix}
+q: {strip @txt@ down to its name, dropping the ``.txt`` suffix too|get @txt@'s bare name with the ``.txt`` extension gone as well|reduce @txt@ to just its name, no directory and no ``.txt`` suffix}
 a: basename @txt@ .txt
 cmp: ref
 ref: basename
 teach: basename
 hint: a second argument to basename is a suffix to strip as well
 ---
-q: {strip `.txt` off @txt@ with `basename`, the suffix named as a flag|`basename` @txt@, naming the `.txt` suffix explicitly|drop `.txt` from @txt@ with `basename`, the way that scales to more files}
+q: {strip ``.txt`` off @txt@ with `basename`, the suffix named as a flag|`basename` @txt@, naming the ``.txt`` suffix explicitly|drop ``.txt`` from @txt@ with `basename`, the way that scales to more files}
 a: basename -s .txt @txt@
 cmp: ref
 ref: basename

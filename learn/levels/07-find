@@ -103,7 +103,7 @@ ref: find
 teach: find -executable
 hint: tests the permission bits directly, not the file extension
 ---
-q: {which entries under here have permission mode exactly `755`|list entries here whose mode is exactly `755`|you want entries under here set to exactly mode `755`}, with `find`
+q: {which entries under here have permission mode exactly ``755``|list entries here whose mode is exactly ``755``|you want entries under here set to exactly mode ``755``}, with `find`
 a: find . -perm 755
 cmp: ref
 ref: find
@@ -117,14 +117,14 @@ ref: find
 teach: find -perm
 hint: a dash before the mode means all its bits must be set -- the file can have others too
 ---
-q: {which files under here belong to the user `nobody`|list files here that the user `nobody` owns|you want files under here owned by `nobody`}, with `find`
+q: {which files under here belong to the user ``nobody``|list files here that the user ``nobody`` owns|you want files under here owned by ``nobody``}, with `find`
 a: find . -user nobody
 cmp: ref
 ref: find
 teach: find -user
 hint: matches the file's owner, not who's running find
 ---
-q: {which files under here belong to the group `nobody`|list files here owned by the group `nobody`|you want files under here in the group `nobody`}, with `find`
+q: {which files under here belong to the group ``nobody``|list files here owned by the group ``nobody``|you want files under here in the group ``nobody``}, with `find`
 a: find . -group nobody
 cmp: ref
 ref: find
@@ -152,7 +152,7 @@ ref: find
 teach: find -path
 hint: -path matches the whole path, not just the filename like -name does
 ---
-q: {round up .log files here, skipping the `logs` directory|list .log files here, but never enter `logs`|you want .log files here, none from inside `logs`}, with `find`
+q: {round up .log files here, skipping the ``logs`` directory|list .log files here, but never enter ``logs``|you want .log files here, none from inside ``logs``}, with `find`
 a: find . -name logs -prune -o -name '*.log' -print
 cmp: ref
 ref: find
@@ -211,7 +211,7 @@ teach: find -print0
 hint: this is what you pipe into xargs -0 when filenames may contain spaces
 ---
 setup: find only lists what matched -- turning that into a number or an order takes another command
-q: %count% how many `.log` files are under here, with `find`
+q: %count% how many ``.log`` files are under here, with `find`
 a: find . -name '*.log' | wc -l
 out: ^[0-9]+$
 cmp: ref
@@ -220,7 +220,7 @@ teach: find
 hint: find lists the matches one per line; wc -l turns that list into a number
 ---
 setup: find only lists what matched -- turning that into a number or an order takes another command
-q: {alphabetically, which `.log` file's name sorts last, with `find`|`find` the `.log` files here and keep the alphabetically last one|of the `.log` files here, which name sorts last, alphabetically}
+q: {alphabetically, which ``.log`` file's name sorts last, with `find`|`find` the ``.log`` files here and keep the alphabetically last one|of the ``.log`` files here, which name sorts last, alphabetically}
 a: find . -name '*.log' | sort | tail -1
 cmp: ref
 ref: find
@@ -228,7 +228,7 @@ teach: find
 hint: find's order isn't alphabetical -- sort the list first, then take its last line
 ---
 setup: find only lists what matched -- turning that into a number or an order takes another command
-q: %count% how many files under here are `.log` or `.txt`, with `find`
+q: %count% how many files under here are ``.log`` or ``.txt``, with `find`
 a: find . -name '*.log' -o -name '*.txt' | wc -l
 out: ^[0-9]+$
 cmp: ref

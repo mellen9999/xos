@@ -47,7 +47,7 @@ teach: grep -q
 hint: -q silences grep's output, leaving only its exit status for &&
 ---
 setup: the absence is the thing worth reporting here, not the presence
-q: %show% "`missing`" if @log@ has no match for `nonexistent`, with `grep`
+q: %show% "``missing``" if @log@ has no match for ``nonexistent``, with `grep`
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 cmp: ref
@@ -56,7 +56,7 @@ teach: grep -q
 hint: || runs its right side only when the left side fails
 ---
 setup: the script has to say something either way, and it gets one line to do it
-q: %show% `found` if @needle@ is in @log@, else `missing`, with `grep`
+q: %show% ``found`` if @needle@ is in @log@, else ``missing``, with `grep`
 a: grep -q @needle@ @log@ && echo found || echo missing
 cmp: ref
 ref: grep
@@ -93,7 +93,7 @@ teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
 setup: this step should pass only when the thing is NOT there -- a guard, not a search
-q: {`grep` @log@ for `nonexistent`, succeed only if there's no match|flip `grep`'s status so no match for `nonexistent` in @log@ succeeds|with `grep`, make a missing `nonexistent` match in @log@ succeed}
+q: {`grep` @log@ for ``nonexistent``, succeed only if there's no match|flip `grep`'s status so no match for ``nonexistent`` in @log@ succeeds|with `grep`, make a missing ``nonexistent`` match in @log@ succeed}
 a: ! grep -q nonexistent @log@
 status: 0
 ref: grep
@@ -171,7 +171,7 @@ ref: sh
 teach: sh
 hint: "$*" joins every positional parameter into a single word -- $@ keeps them apart
 ---
-q: {run `sh` `-c` to `echo` $0, invoked under the name `myscript`|`echo` $0 from `sh` `-c`, with `myscript` as the name|have `sh` `-c` `echo` $0 where $0 is `myscript`}
+q: {run `sh` `-c` to `echo` $0, invoked under the name ``myscript``|`echo` $0 from `sh` `-c`, with ``myscript`` as the name|have `sh` `-c` `echo` $0 where $0 is ``myscript``}
 a: sh -c "echo \$0" myscript
 cmp: ref
 ref: sh

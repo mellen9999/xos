@@ -40,7 +40,7 @@ ref: sort
 teach: sort
 hint: < connects the file to stdin -- sort never sees a filename argument
 ---
-q: {run "`ls` @word@-missing" and send only its error message to `errors.txt`|run "`ls` @word@-missing", capturing just the error message in `errors.txt`|run "`ls` @word@-missing" so only the error text lands in `errors.txt`}
+q: {run "`ls` @word@-missing" and send only its error message to ``errors.txt``|run "`ls` @word@-missing", capturing just the error message in ``errors.txt``|run "`ls` @word@-missing" so only the error text lands in ``errors.txt``}
 a: ls @word@-missing 2> errors.txt
 state: match:errors.txt:No such file
 ref: ls
@@ -54,21 +54,21 @@ ref: ls
 teach: ls
 hint: /dev/null is the bit bucket -- everything written to it is discarded
 ---
-q: {run "`ls` @dir@ @word@-missing", output and errors both into `all.txt`|run "`ls` @dir@ @word@-missing", capturing output and errors in `all.txt`|run "`ls` @dir@ @word@-missing" so everything lands in `all.txt`}
+q: {run "`ls` @dir@ @word@-missing", output and errors both into ``all.txt``|run "`ls` @dir@ @word@-missing", capturing output and errors in ``all.txt``|run "`ls` @dir@ @word@-missing" so everything lands in ``all.txt``}
 a: ls @dir@ @word@-missing > all.txt 2>&1
 state: match:all.txt:No such file
 ref: ls
 teach: ls
 hint: redirect stdout first, then point stderr at wherever stdout now goes
 ---
-q: %show% @log@ on screen while saving a copy to `copy.txt`, with `tee`
+q: %show% @log@ on screen while saving a copy to ``copy.txt``, with `tee`
 a: cat @log@ | tee copy.txt
 out: service started
 ref: tee
 teach: tee
 hint: tee writes to the file and passes the same data through to stdout
 ---
-q: %show% @log@ on screen and APPEND a copy to `copy.txt`, with `tee`
+q: %show% @log@ on screen and APPEND a copy to ``copy.txt``, with `tee`
 a: cat @log@ | tee -a copy.txt
 out: service started
 ref: tee
@@ -119,7 +119,7 @@ teach: echo
 hint: >&2 points stdout at wherever stderr goes -- short for 1>&2, since 1 is the default
 ---
 setup: "ls @dir@ @word@-missing" -- one real hit, one error
-q: {run it with stderr merged in, then `grep` for "`such`"|run it, merging stderr with `2>&1`, then `grep` "`such`"|run it with output and errors merged, then `grep` "`such`"}
+q: {run it with stderr merged in, then `grep` for "``such``"|run it, merging stderr with `2>&1`, then `grep` "``such``"|run it with output and errors merged, then `grep` "``such``"}
 a: ls @dir@ @word@-missing 2>&1 | grep such
 out: such
 ref: grep

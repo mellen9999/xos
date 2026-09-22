@@ -42,7 +42,7 @@ teach: ping -I
 hint: -I picks which interface the pings go out of
 ---
 setup: every ping here sends three, then stops
-q: {probe for MTU trouble -- `ping` @ip@ with a `1000` byte payload|`ping` @ip@ using a `1000` byte payload, to see where the MTU breaks|send `1000` byte pings to @ip@ to test for MTU issues}
+q: {probe for MTU trouble -- `ping` @ip@ with a ``1000`` byte payload|`ping` @ip@ using a ``1000`` byte payload, to see where the MTU breaks|send ``1000`` byte pings to @ip@ to test for MTU issues}
 a: ping -s 1000 -c 3 @ip@
 why: live-net
 ref: ping
@@ -70,7 +70,7 @@ ref: traceroute
 teach: traceroute -n
 hint: -n skips resolving each hop's hostname, so it runs faster
 ---
-q: {the `traceroute` to @ip@ is dragging on -- cap it at `10` hops|cap the `traceroute` to @ip@ at `10` hops|`traceroute` to @ip@ but stop after `10` hops}
+q: {the `traceroute` to @ip@ is dragging on -- cap it at ``10`` hops|cap the `traceroute` to @ip@ at ``10`` hops|`traceroute` to @ip@ but stop after ``10`` hops}
 a: traceroute -m 10 @ip@
 why: live-net
 ref: traceroute

@@ -42,14 +42,14 @@ ref: sh
 teach: sh
 hint: for walks a literal list of words, one iteration per word
 ---
-q: {loop over every .log file here and print its name|use `for` with a *.log glob to print each matching filename|iterate over the .log files here, echoing each name}
+q: {loop over every .log file here and print its name|use `for` with a ``*.log`` glob to print each matching filename|iterate over the .log files here, echoing each name}
 a: for f in *.log; do echo $f; done
 cmp: ref
 ref: sh
 teach: sh
 hint: *.log expands to the matching filenames before the loop ever runs
 ---
-q: {loop over every .log file here printing its line count alone|use `for` over *.log, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}, with `wc`
+q: {loop over every .log file here printing its line count alone|use `for` over ``*.log``, printing each count with no filename beside it|iterate over the .log files here, printing just each line count}, with `wc`
 a: for f in *.log; do wc -l < $f; done
 out: ^[0-9]+$
 cmp: ref
@@ -71,7 +71,7 @@ ref: seq
 teach: seq
 hint: seq alone needs no loop -- it prints the whole range itself
 ---
-q: {count up from 1 to `10`, by 3|from 1 to `10` in steps of 3, with seq|seq from 1 to `10`, stepping by 3}
+q: {count up from 1 to ``10``, by 3|from 1 to ``10`` in steps of 3, with `seq`|`seq` from 1 to ``10``, stepping by 3}
 a: seq 1 3 10
 cmp: ref
 ref: seq
@@ -109,14 +109,14 @@ ref: sh
 teach: sh
 hint: $((...)) does the arithmetic; there's no ++ in POSIX sh
 ---
-q: {check @var@ against @word@ with `case`, printing `hit` on a match|route on the value of @var@ using `case`, printing `hit` when it's @word@|match @var@ against @word@, printing `hit` only when it hits}
+q: {check @var@ against @word@ with `case`, printing ``hit`` on a match|route on the value of @var@ using `case`, printing ``hit`` when it's @word@|match @var@ against @word@, printing ``hit`` only when it hits}
 a: @var@=@word@; case $@var@ in @word@) echo hit ;; *) echo miss ;; esac
 cmp: ref
 ref: sh
 teach: sh
 hint: each pattern ends with ) and each branch ends with ;;
 ---
-q: {f is app.log -- print `log` when the name ends in .log|match f=app.log against *.log, printing `log`|set f=app.log, print `log` if it ends in .log}
+q: {f is ``app.log`` -- print ``log`` when the name ends in .log|match f=app.log against ``*.log``, printing ``log``|set f=app.log, print ``log`` if it ends in .log}
 a: f=app.log; case $f in *.log) echo log ;; *) echo other ;; esac
 cmp: ref
 ref: sh

@@ -4,10 +4,10 @@ flavor: I started before you logged in. I'll be here after.
 brief: Every running program is a process with a number. `ps` lists them, `kill`
 brief: sends them a signal, `top` watches them live.
 brief:
-brief: `kill` does not mean kill. It sends a signal, and the default is `TERM`,
-brief: which asks politely and can be caught or ignored. `KILL` (`9`) cannot be
+brief: `kill` does not mean kill. It sends a signal, and the default is ``TERM``,
+brief: which asks politely and can be caught or ignored. ``KILL`` (``9``) cannot be
 brief: caught, which is why it is a last resort and not a first one -- a
-brief: program killed with `9` never gets to clean up after itself.
+brief: program killed with ``9`` never gets to clean up after itself.
 brief:
 brief: Finding the one you want: `pgrep` and `pidof` match by name, `pstree` shows
 brief: who started whom, `pwdx` says where a process is standing, `pmap` what it
@@ -122,21 +122,21 @@ teach: pgrep -P
 hint: -P filters by parent pid
 ---
 setup: you've tracked the runaway process down to pid 12345
-q: {politely ask process `12345` to exit|send process `12345` the default signal, asking it to exit|ask process `12345` to terminate, with no explicit signal}
+q: {politely ask process ``12345`` to exit|send process ``12345`` the default signal, asking it to exit|ask process ``12345`` to terminate, with no explicit signal}
 a: kill 12345
 why: live-hw
 ref: kill
 teach: kill
 hint: no flag means TERM, which the program may catch
 ---
-q: {TERM didn't work -- force `12345` to die immediately, uncatchably|`12345` ignored TERM -- give it no chance to clean up|`12345` won't die politely -- send the signal it can't ignore}, with `kill`
+q: {TERM didn't work -- force ``12345`` to die immediately, uncatchably|``12345`` ignored TERM -- give it no chance to clean up|``12345`` won't die politely -- send the signal it can't ignore}, with `kill`
 a: kill -9 12345
 why: live-hw
 ref: kill
 teach: kill -9
 hint: 9 is KILL, the one signal a process cannot catch or ignore
 ---
-q: {a doc gives a signal number, not a name -- send `12345` signal 15|send `12345` signal 15, the number for default TERM|told to send signal 15, not just the bare command, to `12345`}, with `kill`
+q: {a doc gives a signal number, not a name -- send ``12345`` signal 15|send ``12345`` signal 15, the number for default TERM|told to send signal 15, not just the bare command, to ``12345``}, with `kill`
 a: kill -15 12345
 why: live-hw
 ref: kill

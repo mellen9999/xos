@@ -9,7 +9,7 @@ survive, because nothing was forked.
 	. ./settings.sh		load settings into this shell
 	sh ./settings.sh	run it in a child -- the changes are lost
 
-That difference is the whole reason this exists. `source` is the bash
+That difference is the whole reason this exists. ``source`` is the bash
 spelling; ash has only the dot.
 
 This page is stored as "dot" because a file cannot be named "." -- that

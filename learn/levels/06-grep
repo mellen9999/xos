@@ -132,7 +132,7 @@ ref: grep
 teach: grep -m
 hint: m caps the number of matches before grep stops reading
 ---
-q: {`grep` @log@ for the literal `0.0.0.0` -- the dots aren't wildcards|`grep` @log@ for `0.0.0.0`, dots not wildcards|`grep` @log@ for `0.0.0.0` as plain text, no regex}
+q: {`grep` @log@ for the literal ``0.0.0.0`` -- the dots aren't wildcards|`grep` @log@ for ``0.0.0.0``, dots not wildcards|`grep` @log@ for ``0.0.0.0`` as plain text, no regex}
 a: grep -F 0.0.0.0 @log@
 out: 0\.0\.0\.0
 cmp: ref
@@ -205,7 +205,7 @@ teach: grep
 hint: sort -u sorts and drops duplicates in one pass, so the repeats collapse
 ---
 setup: no grep flag answers this one -- the search is one step of three
-q: {which `ERROR` line in @log@ repeats most, and how often|the most frequent `ERROR` line in @log@, with its count|`grep` `ERROR` in @log@ and name the line that repeats most}
+q: {which ``ERROR`` line in @log@ repeats most, and how often|the most frequent ``ERROR`` line in @log@, with its count|`grep` ``ERROR`` in @log@ and name the line that repeats most}
 a: grep ERROR @log@ | sort | uniq -c | sort -rn | head -1
 cmp: ref
 ref: grep

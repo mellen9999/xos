@@ -38,7 +38,7 @@ hint: drop -l: not what is waiting, but what is already talking
 setup: The shortest reverse shells skip the tools entirely and let the SHELL open
 setup: the socket, through bash's /dev/tcp. xos ships no bash. /bin/sh is ash and
 setup: has no network of its own, so that one-liner has nothing to write to.
-q: `test` for a `/dev/tcp` back door, printing `present` or `absent`
+q: `test` for a `/dev/tcp` back door, printing ``present`` or ``absent``
 a: test -e /dev/tcp && echo present || echo absent
 out: absent
 ref: test
@@ -83,7 +83,7 @@ hint: on a running stick this is the file to eyeball line by line
 setup: The oldest persistence of all: a second account with uid 0. root should be
 setup: the only name the system answers to as superuser; a hidden second uid-0 is
 setup: a whole extra root hiding in plain sight in the passwd database.
-q: print every account in `/etc/passwd` whose uid is 0, with `awk`
+q: print every account in ``/etc/passwd`` whose uid is 0, with `awk`
 a: awk -F: '$3==0 {print $1}' /etc/passwd
 cmp: ref
 ref: awk
@@ -145,7 +145,7 @@ hint: field 4 is the mount options; ro is the one that matters
 setup: A kernel-level implant is the way past a read-only root -- load a module, or
 setup: write kernel memory through /dev/mem. xos compiles both out: no module
 setup: loader, no /dev/mem. Show that /proc/modules, the loader interface, is not there.
-q: `test` `/proc/modules`, printing `present` or `absent`
+q: `test` ``/proc/modules``, printing ``present`` or ``absent``
 a: test -e /proc/modules && echo present || echo absent
 ref: test
 cmp: ref
@@ -166,7 +166,7 @@ setup: Last. You have swept for listeners, egress, fifos, keys, hidden roots,
 setup: startup hooks and implants, and proven the root cannot be written and the
 setup: kernel cannot be reached. One line to state the verdict: the machine is
 setup: running the code you signed, and nothing is listening for anyone else.
-q: `/proc/mounts`' root device and options with `awk`, nothing on the network
+q: ``/proc/mounts``' root device and options with `awk`, nothing on the network
 a: awk '$2=="/" {print $1, $4}' /proc/mounts && netstat -tln
 why: live-net
 ref: awk

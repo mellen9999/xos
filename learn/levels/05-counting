@@ -115,7 +115,7 @@ ref: sort
 teach: sort -f
 hint: f folds case, treating upper and lower as equal
 ---
-q: {check with `sort` whether `versions.txt` is sorted, without printing|verify with `sort` that `versions.txt` is in order, printing nothing|confirm with `sort` that `versions.txt` is sorted, silently}
+q: {check with `sort` whether ``versions.txt`` is sorted, without printing|verify with `sort` that ``versions.txt`` is in order, printing nothing|confirm with `sort` that ``versions.txt`` is sorted, silently}
 a: sort -c versions.txt
 status: 1
 cmp: ref
@@ -123,7 +123,7 @@ ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
 ---
-q: {`sort` `sizes.txt`'s sizes like 2K and 1M, print only the smallest|`sort` `sizes.txt` so 2K and 1M compare right, print just the smallest|`sort` `sizes.txt` by sizes like 2K and 1M, print only the first}
+q: {`sort` ``sizes.txt``'s sizes like 2K and 1M, print only the smallest|`sort` ``sizes.txt`` so 2K and 1M compare right, print just the smallest|`sort` ``sizes.txt`` by sizes like 2K and 1M, print only the first}
 a: sort -h sizes.txt | head -1
 cmp: ref
 ref: sort
@@ -138,14 +138,14 @@ teach: sort -i
 hint: -i drops the bytes with no glyph before comparing -- case-blind sorting is -f's job
 ---
 setup: redirecting a command's output back onto the file it's reading from empties the file before anything gets read
-q: {`sort` @txt@ writing the result into `sorted.txt`|`sort` @txt@ and write the sorted result into `sorted.txt`|`sort` @txt@, saving the output into `sorted.txt` rather than printing it}
+q: {`sort` @txt@ writing the result into ``sorted.txt``|`sort` @txt@ and write the sorted result into ``sorted.txt``|`sort` @txt@, saving the output into ``sorted.txt`` rather than printing it}
 a: sort -o sorted.txt @txt@
 state: exists:sorted.txt
 ref: sort
 teach: sort -o
 hint: -o names the output file -- sort reads it all into memory before writing
 ---
-q: {`sort` `versions.txt` so 1.10 follows 1.9, print only the last|`sort` `versions.txt`'s version numbers, print just the highest|put `versions.txt` in version order and show the newest}, with `sort`
+q: {`sort` ``versions.txt`` so 1.10 follows 1.9, print only the last|`sort` ``versions.txt``'s version numbers, print just the highest|put ``versions.txt`` in version order and show the newest}, with `sort`
 a: sort -V versions.txt | tail -1
 cmp: ref
 ref: sort

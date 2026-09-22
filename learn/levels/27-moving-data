@@ -3,7 +3,7 @@ boss: Plaintext
 flavor: Every byte you send bare, I already have.
 brief: `wget` fetches over http. `nc` opens a raw tcp connection and hands it to
 brief: you as stdin and stdout, which is how you speak any text protocol by
-brief: hand. The older `ftp` and `tftp` clients are here because the machines you
+brief: hand. The older ``ftp`` and `tftp` clients are here because the machines you
 brief: will meet in a bad week are often older than you are.
 brief:
 brief: `udhcpc` is the first step when nothing handed you an address: it asks
@@ -16,42 +16,42 @@ brief: compiled out on purpose. xos opens no doors it was not asked to.
 ---
 setup: file.txt is served over plain http below -- only the host and the
 setup: flag change from here on.
-q: {keep file.txt's own name pulling it from @host@|don't rename it -- grab file.txt from @host@|leave the name alone, fetching file.txt from @host@}, with `wget`
+q: {keep ``file.txt``'s own name pulling it from @host@|don't rename it -- grab ``file.txt`` from @host@|leave the name alone, fetching ``file.txt`` from @host@}, with `wget`
 a: wget http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget
 hint: wget with no -O saves the file under the url's own basename
 ---
-q: {pick `out.txt` as your own name for file.txt from @host@|choose `out.txt` as the name, saving file.txt from @host@|rename it `out.txt`, pulling file.txt from @host@}, with `wget`
+q: {pick ``out.txt`` as your own name for ``file.txt`` from @host@|choose ``out.txt`` as the name, saving ``file.txt`` from @host@|rename it ``out.txt``, pulling ``file.txt`` from @host@}, with `wget`
 a: wget -O out.txt http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -O
 hint: -O picks the output filename yourself, instead of using the url's
 ---
-q: {stay quiet fetching file.txt from @host@|silence the output grabbing file.txt from @host@|no progress noise pulling file.txt from @host@}, with `wget`
+q: {stay quiet fetching ``file.txt`` from @host@|silence the output grabbing ``file.txt`` from @host@|no progress noise pulling ``file.txt`` from @host@}, with `wget`
 a: wget -q http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -q
 hint: -q silences wget's normal progress output
 ---
-q: {pick up file.txt's stalled download from @host@|don't restart -- resume file.txt from @host@|continue file.txt's interrupted pull from @host@}, with `wget`
+q: {pick up ``file.txt``'s stalled download from @host@|don't restart -- resume ``file.txt`` from @host@|continue ``file.txt``'s interrupted pull from @host@}, with `wget`
 a: wget -c http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -c
 hint: -c picks up a partial download where it left off
 ---
-q: {confirm file.txt is really there on @host@|check file.txt exists, no download, on @host@|make sure file.txt is there without pulling it from @host@}, with `wget`
+q: {confirm ``file.txt`` is really there on @host@|check ``file.txt`` exists, no download, on @host@|make sure ``file.txt`` is there without pulling it from @host@}, with `wget`
 a: wget --spider http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget --spider
 hint: --spider checks the url without saving anything
 ---
-q: {watch the headers fetching file.txt from @host@|see what headers come back pulling file.txt from @host@|check the response headers on file.txt from @host@}, with `wget`
+q: {watch the headers fetching ``file.txt`` from @host@|see what headers come back pulling ``file.txt`` from @host@|check the response headers on ``file.txt`` from @host@}, with `wget`
 a: wget -S http://@host@/file.txt
 why: live-net
 ref: wget
@@ -59,7 +59,7 @@ teach: wget -S
 hint: -S prints the server's response headers as they arrive
 ---
 setup: the server won't serve this without a token in the request, and wget doesn't send custom headers by default
-q: {fetch file.txt from @host@ using header '`X-Token:` `abc`'|send header '`X-Token:` `abc`' fetching file.txt from @host@|get file.txt from @host@ with header '`X-Token:` `abc`'}, with `wget`
+q: {fetch ``file.txt`` from @host@ using header '``X-Token:`` ``abc``'|send header '``X-Token:`` ``abc``' fetching ``file.txt`` from @host@|get ``file.txt`` from @host@ with header '``X-Token:`` ``abc``'}, with `wget`
 a: wget --header 'X-Token: abc' http://@host@/file.txt
 why: live-net
 ref: wget
@@ -73,21 +73,21 @@ ref: wget
 teach: wget --post-data
 hint: --post-data sends the string as the request body over POST
 ---
-q: {land file.txt in @dir@, pulling it from @host@|drop file.txt into @dir@ fetching from @host@|save file.txt into @dir@ instead, from @host@}, with `wget`
+q: {land ``file.txt`` in @dir@, pulling it from @host@|drop ``file.txt`` into @dir@ fetching from @host@|save ``file.txt`` into @dir@ instead, from @host@}, with `wget`
 a: wget -P @dir@ http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -P
 hint: -P sets the directory the download is saved into
 ---
-q: {give up on file.txt after `10` silent seconds from @host@|cap the wait on file.txt at 10s from @host@|abandon file.txt if @host@ stays quiet 10s}, with `wget`
+q: {give up on ``file.txt`` after ``10`` silent seconds from @host@|cap the wait on ``file.txt`` at 10s from @host@|abandon ``file.txt`` if @host@ stays quiet 10s}, with `wget`
 a: wget -T 10 http://@host@/file.txt
 why: live-net
 ref: wget
 teach: wget -T
 hint: -T caps how long wget waits for the server before giving up
 ---
-q: {with `wget`, log file.txt's fetch to `wget.log`, from @host@|`wget` file.txt from @host@, its own messages into `wget.log`|pull file.txt off @host@, keeping `wget`'s progress in `wget.log`}
+q: {with `wget`, log ``file.txt``'s fetch to ``wget.log``, from @host@|`wget` ``file.txt`` from @host@, its own messages into ``wget.log``|pull ``file.txt`` off @host@, keeping `wget`'s progress in ``wget.log``}
 a: wget -o wget.log http://@host@/file.txt
 why: live-net
 ref: wget
@@ -109,7 +109,7 @@ ref: nc
 teach: nc
 hint: nc with just a host and port opens a raw tcp connection
 ---
-q: {send a `HEAD` request to @host@ on port `80` via `nc`, by hand|hand-craft a `HEAD` request to @host@ port `80`, send it through `nc`|pipe a `HEAD` request into `nc`, talking http to @host@ port `80`}
+q: {send a ``HEAD`` request to @host@ on port ``80`` via `nc`, by hand|hand-craft a ``HEAD`` request to @host@ port ``80``, send it through `nc`|pipe a ``HEAD`` request into `nc`, talking http to @host@ port ``80``}
 a: printf 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
 why: live-net
 ref: nc
@@ -240,7 +240,7 @@ teach: udhcpc -n
 hint: -n exits immediately if no lease shows up, rather than retrying forever
 ---
 setup: udhcpc only negotiates the lease -- something else has to apply the address and routes it hands back
-q: {run `/usr/share/udhcpc/default.script` on @iface@ once the lease arrives|name `/usr/share/udhcpc/default.script` to run when @iface@ gets a lease|have @iface@'s lease run `/usr/share/udhcpc/default.script`}
+q: {run ``/usr/share/udhcpc/default.script`` on @iface@ once the lease arrives|name ``/usr/share/udhcpc/default.script`` to run when @iface@ gets a lease|have @iface@'s lease run ``/usr/share/udhcpc/default.script``}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
 why: live-net
 ref: udhcpc

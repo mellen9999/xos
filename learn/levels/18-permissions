@@ -3,15 +3,15 @@ boss: Gatekeeper
 flavor: Every door has a lock. I hold the modes.
 brief: Every file has three sets of permissions -- owner, group, everyone --
 brief: and three bits in each: read, write, execute. `ls -l` shows them as
-brief: `rwxr-xr-x`. `chmod` changes them.
+brief: ``rwxr-xr-x``. `chmod` changes them.
 brief:
-brief: Numeric modes are the fast way once they click: `r=4`, `w=2`, `x=1`, added up
-brief: per set. `755` is `rwxr-xr-x`, `644` is `rw-r--r--`, `600` is `rw-------`.
+brief: Numeric modes are the fast way once they click: ``r=4``, ``w=2``, ``x=1``, added up
+brief: per set. ``755`` is ``rwxr-xr-x``, ``644`` is ``rw-r--r--``, ``600`` is ``rw-------``.
 brief:
 brief: `whoami` and `id` say who the shell thinks you are. `stat` prints a file's
 brief: whole record -- mode, owner, size, timestamps -- where `ls -l` prints a
 brief: summary of it. `umask` is the mode a new file does not get. `chattr` sets
-brief: flags the filesystem itself enforces underneath the mode bits, and `+i`
+brief: flags the filesystem itself enforces underneath the mode bits, and ``+i``
 brief: is immutable: not even root writes it until the flag comes off. `lsattr`
 brief: reads them back. `setuidgid` runs one command as another user.
 brief:
@@ -168,7 +168,7 @@ teach: stat -L
 hint: -L follows the link and reports on its target instead of the link itself
 ---
 setup: a backup tool only touches files older than a cutoff date, and @txt@ needs to look like it predates it
-q: {back-date @txt@'s timestamp to `2024-03-01`, not right now|@txt@ needs to look last touched on `2024-03-01`|stamp @txt@ with `2024-03-01`, not the current time}, with `touch`
+q: {back-date @txt@'s timestamp to ``2024-03-01``, not right now|@txt@ needs to look last touched on ``2024-03-01``|stamp @txt@ with ``2024-03-01``, not the current time}, with `touch`
 a: touch -d 2024-03-01 @txt@
 state: stamp:@txt@:2024-03-01
 ref: touch
@@ -183,7 +183,7 @@ teach: touch -r
 hint: -r copies another file's timestamp instead of specifying one yourself
 ---
 setup: you want to check what an unprivileged account would see, not root
-q: {run `id` as the user `nobody` instead of as root|check what `id` looks like as `nobody`, not root|see your identity as `nobody` would see it, not as root}
+q: {run `id` as the user ``nobody`` instead of as root|check what `id` looks like as ``nobody``, not root|see your identity as ``nobody`` would see it, not as root}
 a: setuidgid nobody id
 why: root
 ref: setuidgid

@@ -6,16 +6,16 @@ Change file permissions (mode) for FILE.
 MODE is octal number (bit pattern sstrwxrwxrwx) or [ugoa]{+|-|=}[rwxXst]
 
 Octal: one digit per set -- you, your group, everyone else -- and each
-digit is `r`=4 plus `w`=2 plus `x`=1 added up. So `600` is read+write for
-you and nothing for anyone else, `644` is `rw-r--r--`, `755` is
-`rwxr-xr-x`, `700` is `rwx------`. A fourth digit in front is setuid,
-setgid and sticky: `4755` runs as its owner, `1777` is a shared
+digit is ``r``=4 plus ``w``=2 plus ``x``=1 added up. So ``600`` is read+write for
+you and nothing for anyone else, ``644`` is ``rw-r--r--``, ``755`` is
+``rwxr-xr-x``, ``700`` is ``rwx------``. A fourth digit in front is setuid,
+setgid and sticky: ``4755`` runs as its owner, ``1777`` is a shared
 directory only owners can delete from.
 
-Symbolic: who, then what to do, then which bits. `u` is you, `g` your
-group, `o` others, `a` all three; `+` adds, `-` removes, `=` sets exactly.
-So `u+x` makes it executable by you, `go-w` takes write off everyone else,
-`a=r` leaves it read-only for all.
+Symbolic: who, then what to do, then which bits. ``u`` is you, `g` your
+group, ``o`` others, ``a`` all three; `+` adds, `-` removes, `=` sets exactly.
+So ``u+x`` makes it executable by you, ``go-w`` takes write off everyone else,
+``a=r`` leaves it read-only for all.
 
 	-R	Recurse
 	-c	List changed files

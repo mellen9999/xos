@@ -407,7 +407,7 @@ blk_load() {
 	# is backticked by the author and comes out underlined, the same mark the
 	# brief pages use for the same reason. backticks are fenced BEFORE the
 	# roll, so a pool value can never be read as markup.
-	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | lit_fence | render_named "$seed")
+	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | fence | render_named "$seed")
 	Q_PROMPT=$(printf '%s\n' "$Q_PROMPT_HI" | hi_strip | lit_strip)
 	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
@@ -2555,8 +2555,8 @@ c' 20)" = 3 ] || exit 1
 	# own first paragraph away.
 	( for _f in $(level_ids); do
 		_m=$(sed -n 's/^brief: \{0,1\}//p' "$(level_path "$_f")")
-		_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
-		_b=$(printf '%s\n' "$_m" | lit_fence | wrap 76 | lit_strip)
+			_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
+		_b=$(printf '%s\n' "$_m" | fence | wrap 76 | lit_strip | hi_strip)
 		[ "$_a" = "$_b" ] || exit 1
 	  done
 	  exit 0 ) \
@@ -2569,8 +2569,11 @@ c' 20)" = 3 ] || exit 1
 	( _c=0
 	  for _f in $(level_ids); do
 		_p=$(level_path "$_f")
+		# a name's markup is four backticks, a literal's is two: an odd
+		# count is a typo either way, and the doubled form is checked by
+		# fencing it away and looking for what is left over.
 		awk '/^brief:/ { n = gsub(/`/, "`"); if (n % 2) exit 1 } END { }' "$_p" || exit 1
-		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q '``' && exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | fence | grep -q '`' && exit 1
 		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
 		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q '`' && _c=$((_c + 1))
 	  done
@@ -2581,15 +2584,13 @@ c' 20)" = 3 ] || exit 1
 		|| { echo "FAIL brief markup: an unpaired backtick, a raw fence, or the marks are gone" >&2; bad=$((bad+1)); }
 
 	# the same claim for a setup, which reaches the screen through the same
-	# say(). only the LITERAL fences are zero width in wrap() -- the name fence
-	# is not, and ask() pays for that deliberately -- so what is asserted here
-	# is the literal half: marking a command in a setup must not re-break the
-	# paragraph under it.
+	# say(). every fence is zero width in wrap(), so marking a command or a
+	# path in a setup must not re-break the paragraph under it.
 	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"; do
 		_m=$(sed -n 's/^setup: \{0,1\}//p' "$_f")
 		[ -n "$_m" ] || continue
-		_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
-		_b=$(printf '%s\n' "$_m" | lit_fence | wrap 76 | lit_strip)
+			_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
+		_b=$(printf '%s\n' "$_m" | fence | wrap 76 | lit_strip | hi_strip)
 		[ "$_a" = "$_b" ] || exit 1
 	  done
 	  exit 0 ) \
@@ -2637,7 +2638,7 @@ c' 20)" = 3 ] || exit 1
 	# no reason to write it.
 	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"; do
 		[ -f "$_f" ] || continue
-		# per BRANCH, not per line. lit_fence runs before {a|b|c} is split and
+		# per BRANCH, not per line. fence runs before {a|b|c} is split and
 		# pairs backticks positionally, so one in the first branch can pair
 		# with one in the third and swallow the | between them -- and the
 		# line's total was even, so a whole-line parity check passed it.
@@ -2651,11 +2652,22 @@ c' 20)" = 3 ] || exit 1
 			}
 			if (gsub(/`/, "`", t) % 2) exit 1
 		}' "$_f" || exit 1
-		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q '``' && exit 1
+		# what fence() cannot pair is left standing, which catches the odd
+		# backtick the branch check above cannot see.
+		sed -n 's/^q: \{0,1\}//p' "$_f" | fence | grep -q '`' && exit 1
 		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
-		sed -n 's/^q: \{0,1\}//p' "$_f" \
-			| awk '{ n = split($0, p, "`"); for (i = 2; i <= n; i += 2) if (index(p[i], "@") > 0) exit 1 }' \
-			|| exit 1
+		# and no mark wraps a rolled value: sub() marks those itself, so a
+		# card that also marks them by hand resets one mark halfway through
+		# the other.
+		sed -n 's/^q: \{0,1\}//p' "$_f" | fence \
+			| awk -v l1="$LIT1" -v l2="$LIT2" -v h1="$HI1" -v h2="$HI2" '{
+				for (i = 1; i <= length($0); i++) {
+					c = substr($0, i, 1)
+					if (c == l1 || c == h1) inside = 1
+					else if (c == l2 || c == h2) inside = 0
+					else if (c == "@" && inside) exit 1
+				}
+			}' || exit 1
 	  done
 	  exit 0 ) \
 		|| { echo "FAIL q markup: a backtick unpaired within its branch, a raw fence, or a rolled name inside one" >&2; bad=$((bad+1)); }
@@ -2996,6 +3008,32 @@ two'; ED_PANEL_ROWS=2
 	[ -z "$_unlit" ] || { printf '%s\n' "$_unlit" >&2
 		echo "FAIL: $(printf '%s\n' "$_unlit" | grep -c 'in prose') literal(s) a prompt names but does not mark" >&2
 		bad=$((bad+1)); }
+
+	# and the half that gate cannot see. it reads the ANSWER for what should
+	# have been marked, so a name the answer never types is invisible to it:
+	# "list src/main.c and src/util.c with `ls` `src/[mu]*.c`" typed neither
+	# of the first two and printed them as flat prose beside a marked glob.
+	# this one needs no answer -- it knows a path by its shape.
+	_unnam=$(unmarked_name)
+	[ -z "$_unnam" ] || { printf '%s\n' "$_unnam" >&2
+		echo "FAIL: $(printf '%s\n' "$_unnam" | grep -c 'in prose') name(s) a prompt says but does not mark" >&2
+		bad=$((bad+1)); }
+
+	# and both of those gates are awk, run under the awk the image ships. a
+	# clean corpus and a gate that cannot start look identical from here:
+	# mask() padded with %*s, which busybox awk does not have, so the gate
+	# died on its first card and wrote its complaint to the /dev/null the
+	# caller aimed there for the missing-file case. it passed clean for two
+	# days. so plant one of each and demand they are found.
+	( _p="$TMP/planted"
+	  { echo '---'
+	    echo 'q: put @txt@ in src/main.c with cp'
+	    echo 'a: cp @txt@ src/main.c'
+	  } > "$_p"
+	  [ -n "$(unmarked_literal "$_p")" ] || exit 1
+	  [ -n "$(unmarked_name "$_p")" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL: a markup gate cannot run, or no longer bites" >&2; bad=$((bad+1)); }
 
 	# learn/syn -- the rows a command's page carries whatever you typed. a
 	# label that is not in learn/syntax prints nothing at all, silently: the

@@ -18,14 +18,8 @@ POOLS="$ROOT/pools"
 SUBST=""            # path to the rolled sed script; set by ctx_init
 SUBST_HI=""         # the same roll, with every value fenced for display
 
-# the fence. a rolled value is the one thing on a card the learner must type
-# back letter for letter -- "make build the directory you're standing in" is a
-# sentence about a directory called build, and nothing on screen said so. the
-# two bytes are chosen for what they are not: \001 and \002 cannot be typed,
-# appear in no pool and mean nothing to a terminal, so no value can be mistaken
-# for a fence and no fence can survive into a file or an answer unnoticed.
-HI1=$(printf '\001')
-HI2=$(printf '\002')
+# the fence a rolled value is wrapped in is HI1/HI2, defined in lib/ui beside
+# the mark it becomes and the literal fence it must never collide with.
 
 ctx_init() {
 	SUBST="$TMP/subst"

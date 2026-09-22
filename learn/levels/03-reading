@@ -45,7 +45,7 @@ ref: head
 teach: head -n
 hint: -n takes a count, or glue the number straight onto the dash
 ---
-q: %show% @log@'s date header with `head` -- the first `20` bytes
+q: %show% @log@'s date header with `head` -- the first ``20`` bytes
 a: head -c 20 @log@
 out: 2024-03-01
 cmp: ref
@@ -143,7 +143,7 @@ ref: less
 teach: less -I
 hint: capital I makes searches ignore case
 ---
-q: %show% @log@'s last `20` bytes with `tail` -- just how it ended
+q: %show% @log@'s last ``20`` bytes with `tail` -- just how it ended
 a: tail -c 20 @log@
 cmp: ref
 ref: tail

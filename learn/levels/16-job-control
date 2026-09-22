@@ -80,14 +80,14 @@ ref: timeout
 teach: timeout
 hint: timeout runs the command and sends TERM if it's still going after the limit
 ---
-q: {cap `sleep` `10` at 2 seconds with `timeout`, force-killing it, no TERM first|run `sleep` `10` under a 2 second `timeout` that skips straight to `KILL`|give `sleep` `10` two seconds under `timeout`, then make sure it dies via `KILL`}
+q: {cap `sleep` ``10`` at 2 seconds with `timeout`, force-killing it, no TERM first|run `sleep` ``10`` under a 2 second `timeout` that skips straight to ``KILL``|give `sleep` ``10`` two seconds under `timeout`, then make sure it dies via ``KILL``}
 a: timeout -s KILL 2 sleep 10
 why: interactive
 ref: timeout
 teach: timeout -s
 hint: -s picks which signal timeout sends when the limit is hit
 ---
-q: {give `sleep` `10` one second under `timeout`, then force-kill it if it won't die|cap `sleep` `10` at 1 second with `timeout`, escalating to KILL if it won't die|run `sleep` `10` under a 1 second `timeout` that escalates to KILL}
+q: {give `sleep` ``10`` one second under `timeout`, then force-kill it if it won't die|cap `sleep` ``10`` at 1 second with `timeout`, escalating to KILL if it won't die|run `sleep` ``10`` under a 1 second `timeout` that escalates to KILL}
 a: timeout -k 1 1 sleep 10
 why: interactive
 ref: timeout
@@ -95,7 +95,7 @@ teach: timeout -k
 hint: -k gives a grace period, then escalates to KILL if the first signal didn't work
 ---
 setup: abduco sessions here are called work and run /bin/sh.
-q: {start a detached session called `work` running `/bin/sh`|use `abduco` `-n` to create `work`, detached, running `/bin/sh`|create the detached session `work` running `/bin/sh`}
+q: {start a detached session called ``work`` running ``/bin/sh``|use `abduco` `-n` to create ``work``, detached, running ``/bin/sh``|create the detached session ``work`` running ``/bin/sh``}
 a: abduco -n work /bin/sh
 why: interactive
 ref: abduco
@@ -103,14 +103,14 @@ teach: abduco -n
 hint: -n creates the session detached, without attaching to it
 ---
 setup: abduco sessions here are called work and run /bin/sh.
-q: {start a session called `work` running `/bin/sh` and attach now|use `abduco` `-c` to create `work` on `/bin/sh`, attaching at once|create `work` running `/bin/sh` with `abduco`, attaching right away}
+q: {start a session called ``work`` running ``/bin/sh`` and attach now|use `abduco` `-c` to create ``work`` on ``/bin/sh``, attaching at once|create ``work`` running ``/bin/sh`` with `abduco`, attaching right away}
 a: abduco -c work /bin/sh
 why: interactive
 ref: abduco
 teach: abduco -c
 hint: -c creates the session and attaches to it in one step
 ---
-q: {reattach to the session called `work`|use `abduco` `-a` to reattach to `work`|attach back into the existing `work` session}
+q: {reattach to the session called ``work``|use `abduco` `-a` to reattach to ``work``|attach back into the existing ``work`` session}
 a: abduco -a work
 why: interactive
 ref: abduco
@@ -118,14 +118,14 @@ teach: abduco -a
 hint: -a attaches to a session that already exists
 ---
 setup: abduco sessions here are called work and run /bin/sh.
-q: {attach to `work`, or create it on `/bin/sh` if it does not exist|use `abduco` `-A` so `work` is created on `/bin/sh` only if missing|attach to `work`, letting `abduco` create it on `/bin/sh` if needed}
+q: {attach to ``work``, or create it on ``/bin/sh`` if it does not exist|use `abduco` `-A` so ``work`` is created on ``/bin/sh`` only if missing|attach to ``work``, letting `abduco` create it on ``/bin/sh`` if needed}
 a: abduco -A work /bin/sh
 why: interactive
 ref: abduco
 teach: abduco -A
 hint: -A attaches if the session exists, or creates it if it doesn't
 ---
-q: {watch the session `work` without being able to type into it|use `abduco` `-r` to observe `work` without sending it input|open `work` read-only, with no typing allowed}
+q: {watch the session ``work`` without being able to type into it|use `abduco` `-r` to observe ``work`` without sending it input|open ``work`` read-only, with no typing allowed}
 a: abduco -r work
 why: interactive
 ref: abduco
@@ -140,7 +140,7 @@ teach: abduco
 hint: abduco with no session name lists what it's holding
 ---
 setup: you are nesting one session inside another, and the default detach key would reach through both
-q: {rebind the detach key to ctrl-q before attaching to `work`, with `abduco`|attach to `work` with `abduco`, using ctrl-q as the detach key|use `abduco` and ctrl-q as your detach key when you attach to `work`}
+q: {rebind the detach key to ctrl-q before attaching to ``work``, with `abduco`|attach to ``work`` with `abduco`, using ctrl-q as the detach key|use `abduco` and ctrl-q as your detach key when you attach to ``work``}
 a: abduco -e ^q -a work
 why: interactive
 ref: abduco
@@ -154,7 +154,7 @@ ref: jobs
 teach: jobs -l
 hint: -l adds the pid alongside each job's normal listing
 ---
-q: {tell process `12345` to reload -- send it HUP by number, with `kill`|nudge process `12345` to reload its config, with `kill`|send process `12345` signal 1 (HUP) with `kill`, to make it reload}
+q: {tell process ``12345`` to reload -- send it HUP by number, with `kill`|nudge process ``12345`` to reload its config, with `kill`|send process ``12345`` signal 1 (HUP) with `kill`, to make it reload}
 a: kill -1 12345
 why: interactive
 ref: kill

@@ -7,7 +7,7 @@ intro: that IS the skill.
 ---
 setup: /etc/passwd is colon-separated. Field 1 is the username, field 7 the
 setup: login shell. It is the first file you read on any machine you are handed.
-q: count how many accounts exist in `/etc/passwd`, with `wc`
+q: count how many accounts exist in ``/etc/passwd``, with `wc`
 a: wc -l < /etc/passwd
 a: cat /etc/passwd | wc -l
 a: wc -l /etc/passwd
@@ -17,14 +17,14 @@ ref: wc
 hint: wc -l counts lines; feed it the file as an argument or on stdin
 ---
 setup: You want just the usernames out of /etc/passwd, nothing else around them.
-q: print every username in `/etc/passwd` with `cut`, one per line
+q: print every username in ``/etc/passwd`` with `cut`, one per line
 a: cut -d: -f1 /etc/passwd
 ref: cut
 cmp: ref
 hint: -d sets the field delimiter, -f picks which field
 ---
 setup: Same file, same field -- now put the names in order.
-q: print every username in `/etc/passwd`, with `sort`, alphabetically
+q: print every username in ``/etc/passwd``, with `sort`, alphabetically
 a: cut -d: -f1 /etc/passwd | sort
 ref: sort
 cmp: ref

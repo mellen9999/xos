@@ -25,7 +25,7 @@ ref: hexdump
 teach: hexdump -C
 hint: C is the canonical format, and the only one worth memorising
 ---
-q: {@bin@'s header -- `32` bytes, hex and text|dump @bin@'s `32` bytes as hex and text|cap @bin@ at `32` bytes, hex and text}, with `hexdump`
+q: {@bin@'s header -- ``32`` bytes, hex and text|dump @bin@'s ``32`` bytes as hex and text|cap @bin@ at ``32`` bytes, hex and text}, with `hexdump`
 a: hexdump -C -n 32 @bin@
 cmp: ref
 ref: hexdump
@@ -86,21 +86,21 @@ ref: od
 teach: od -N
 hint: -N caps how many bytes od reads, from the start
 ---
-q: {`od` @bin@ as hex, skipping its first `4` bytes|dump @bin@ hex with `od`, starting `4` bytes in|%show% @bin@ hex with `od`, past its first `4` bytes}
+q: {`od` @bin@ as hex, skipping its first ``4`` bytes|dump @bin@ hex with `od`, starting ``4`` bytes in|%show% @bin@ hex with `od`, past its first ``4`` bytes}
 a: od -j 4 -t x1 @bin@
 cmp: ref
 ref: od
 teach: od -j
 hint: -j skips that many bytes before the dump starts -- it pairs with -N to window a file
 ---
-q: {copy @txt@ to copy.txt using `dd`|use `dd` to copy @txt@ into copy.txt|make a copy of @txt@ named copy.txt with `dd`}
+q: {copy @txt@ to ``copy.txt`` using `dd`|use `dd` to copy @txt@ into ``copy.txt``|make a copy of @txt@ named ``copy.txt`` with `dd`}
 a: dd if=@txt@ of=copy.txt
 state: exists:copy.txt
 ref: dd
 teach: dd
 hint: if= is the source, of= is the destination -- no other flags needed
 ---
-q: {only need @log@'s start -- copy 512 bytes to head.bin|grab the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ into head.bin}, with `dd`
+q: {only need @log@'s start -- copy 512 bytes to ``head.bin``|grab the first 512 bytes of @log@ into ``head.bin``|pull the first 512 bytes off @log@ into ``head.bin``}, with `dd`
 a: dd if=@log@ of=head.bin bs=512 count=1
 state: exists:head.bin
 ref: dd
@@ -115,21 +115,21 @@ ref: dd
 teach: dd
 hint: skip= moves the read start point; bs=1 makes skip/count mean bytes
 ---
-q: %make% zero.bin with `dd`, a 1 kilobyte file of zero bytes
+q: %make% ``zero.bin`` with `dd`, a 1 kilobyte file of zero bytes
 a: dd if=/dev/zero of=zero.bin bs=1k count=1
 state: exists:zero.bin
 ref: dd
 teach: dd
 hint: /dev/zero is an endless stream of zero bytes; bs=/count= cap it
 ---
-q: %make% rand.bin with `dd`, 32 random bytes for a key
+q: %make% ``rand.bin`` with `dd`, 32 random bytes for a key
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd
 teach: dd
 hint: /dev/urandom is the random byte source; bs= sets how many bytes total
 ---
-q: {copy @txt@ to copy.txt with `dd` for a script -- no progress, no summary|copy @txt@ to copy.txt with `dd`, no progress or summary output|copy @txt@ to copy.txt with `dd` as quietly as possible}
+q: {copy @txt@ to ``copy.txt`` with `dd` for a script -- no progress, no summary|copy @txt@ to ``copy.txt`` with `dd`, no progress or summary output|copy @txt@ to ``copy.txt`` with `dd` as quietly as possible}
 a: dd if=@txt@ of=copy.txt status=none
 state: exists:copy.txt
 ref: dd
@@ -143,7 +143,7 @@ ref: split
 teach: split -l
 hint: -l counts lines per output piece, split's default unit
 ---
-q: {you need to move @log@ in chunks under `100` bytes -- `split` it up|break @log@ into 100-byte pieces with `split`|cut @log@ into 100-byte chunks with `split`}
+q: {you need to move @log@ in chunks under ``100`` bytes -- `split` it up|break @log@ into 100-byte pieces with `split`|cut @log@ into 100-byte chunks with `split`}
 a: split -b 100 @log@
 state: exists:xaa
 ref: split
@@ -188,7 +188,7 @@ teach: shred -z
 hint: -z adds a last zero pass
 ---
 setup: you need a megabyte-sized file to test with and no megabyte to spend on it
-q: %make% a 1-megabyte file `sparse.img` with `truncate`
+q: %make% a 1-megabyte file ``sparse.img`` with `truncate`
 a: truncate -s 1M sparse.img
 state: exists:sparse.img
 ref: truncate
@@ -196,7 +196,7 @@ teach: truncate -s
 hint: -s sets the size; the file reads as that many bytes without using the space
 ---
 setup: you need the space guaranteed now, not created as a hole that might fail to fill later
-q: {preallocate 64 kilobytes of real space for `blob.bin`|claim 64 kilobytes of actual blocks for `blob.bin`|reserve 64 kilobytes for `blob.bin`, blocks and all}, with `fallocate`
+q: {preallocate 64 kilobytes of real space for ``blob.bin``|claim 64 kilobytes of actual blocks for ``blob.bin``|reserve 64 kilobytes for ``blob.bin``, blocks and all}, with `fallocate`
 a: fallocate -l 64k blob.bin
 state: exists:blob.bin
 ref: fallocate
@@ -213,7 +213,7 @@ teach: strings
 hint: sort -u collapses duplicate lines before wc -l counts what's left
 ---
 setup: you're checking a binary someone handed you, byte by byte, not by eye
-q: {count how many null bytes @bin@ has, with `hexdump`|`hexdump` @bin@ one byte per line and count the zero bytes|how many `00` bytes does @bin@ contain, via `hexdump`}
+q: {count how many null bytes @bin@ has, with `hexdump`|`hexdump` @bin@ one byte per line and count the zero bytes|how many ``00`` bytes does @bin@ contain, via `hexdump`}
 a: hexdump -v -e '1/1 "%02x\n"' @bin@ | grep -c '^00$'
 cmp: ref
 ref: hexdump
@@ -221,7 +221,7 @@ teach: hexdump
 hint: -e '1/1 "%02x\n"' prints one byte per line as two hex digits; -v stops repeats folding into *, so every line counts
 ---
 setup: you're checking a binary someone handed you, byte by byte, not by eye
-q: {`split` @log@ into `100`-byte pieces and report how many resulted|break @log@ into 100-byte chunks with `split` and count the pieces|`split` @log@ into 100-byte pieces, then count how many came out}
+q: {`split` @log@ into ``100``-byte pieces and report how many resulted|break @log@ into 100-byte chunks with `split` and count the pieces|`split` @log@ into 100-byte pieces, then count how many came out}
 a: split -b 100 @log@ && ls x?? | wc -l
 cmp: ref
 ref: split
@@ -229,7 +229,7 @@ teach: split
 hint: split with no -a writes two-letter suffixes (xaa, xab, ...); ls plus wc -l counts how many pieces it made
 ---
 setup: you're checking a binary someone handed you, byte by byte, not by eye
-q: {`dd` @bin@ to `copy.bin`, stats to `dd.err`, then `cmp` the two|`dd`-copy @bin@ to `copy.bin`, stats aside in `dd.err`, `cmp` it|copy @bin@ to `copy.bin` with `dd`, stats to `dd.err`, `cmp` it}
+q: {`dd` @bin@ to ``copy.bin``, stats to ``dd.err``, then `cmp` the two|`dd`-copy @bin@ to ``copy.bin``, stats aside in ``dd.err``, `cmp` it|copy @bin@ to ``copy.bin`` with `dd`, stats to ``dd.err``, `cmp` it}
 a: dd if=@bin@ of=copy.bin 2>dd.err && cmp @bin@ copy.bin
 status: 0
 cmp: ref

@@ -17,9 +17,9 @@ brief: than storing it, so two programs started apart meet at a name.
 brief:
 brief: `mkdir` and `mkfifo` both take `-m`: permissions set as the thing is made,
 brief: not after. A mode is one octal digit per set -- you, your group, everyone
-brief: else -- each `r`=4 plus `w`=2 plus `x`=1 added up. So `600` is read and
-brief: write for you alone, `700` adds the right to enter a directory, `644` is
-brief: `rw-r--r--`. Level 18 has the rest.
+brief: else -- each ``r``=4 plus ``w``=2 plus ``x``=1 added up. So ``600`` is read and
+brief: write for you alone, ``700`` adds the right to enter a directory, ``644`` is
+brief: ``rw-r--r--``. Level 18 has the rest.
 ---
 q: {copy @cfg@ to @cfg2@|make a copy of @cfg@ named @cfg2@|duplicate @cfg@ as @cfg2@}
 a: cp @cfg@ @cfg2@
@@ -133,7 +133,7 @@ ref: mkdir
 teach: mkdir -m
 hint: -m sets permissions at creation time -- 700 is owner-only rwx
 ---
-q: {remove the already-empty directory `empty-dir`|delete `empty-dir`, which is already empty|get rid of `empty-dir`, sitting there empty}
+q: {remove the already-empty directory ``empty-dir``|delete ``empty-dir``, which is already empty|get rid of ``empty-dir``, sitting there empty}
 a: rmdir empty-dir
 state: gone:empty-dir
 ref: rmdir
@@ -156,7 +156,7 @@ teach: touch
 hint: with no flags, touch just sets the timestamp to now
 ---
 setup: bumping the clock on a file that is already gone would leave a fake one behind
-q: {`touch` `missing.txt` but do NOT create it if it is absent|`touch` `missing.txt`, but skip creating it if it does not exist|refresh `missing.txt`'s timestamp with `touch`, only if it is already there}
+q: {`touch` ``missing.txt`` but do NOT create it if it is absent|`touch` ``missing.txt``, but skip creating it if it does not exist|refresh ``missing.txt``'s timestamp with `touch`, only if it is already there}
 a: touch -c missing.txt
 state: gone:missing.txt
 ref: touch
@@ -221,7 +221,7 @@ ref: rm
 teach: rm -i
 hint: i for interactive -- prompts before removing
 ---
-q: {remove `prune/mid/deep` and any parents left empty, with `rmdir`|delete `prune/mid/deep`, cleaning up now-empty parents, with `rmdir`|`rmdir` removes `prune/mid/deep` and the empty parents it leaves}
+q: {remove ``prune/mid/deep`` and any parents left empty, with `rmdir`|delete ``prune/mid/deep``, cleaning up now-empty parents, with `rmdir`|`rmdir` removes ``prune/mid/deep`` and the empty parents it leaves}
 a: rmdir -p prune/mid/deep
 state: gone:prune
 ref: rmdir
@@ -264,21 +264,21 @@ ref: mktemp
 teach: mktemp -u
 hint: u for unsafe -- it hands you a name without reserving it
 ---
-q: {list every *.log file inside logs, with `ls`|match `logs/*.log` and list every hit, with `ls`}
+q: {list every ``*.log`` file inside logs, with `ls`|match ``logs/*.log`` and list every hit, with `ls`}
 a: ls logs/*.log
 cmp: ref
 ref: ls
 teach: ls
 hint: unquoted, logs/*.log expands before ls ever sees it -- quoting it would pass the literal string instead
 ---
-q: {list image-a.txt and image-b.txt with `ls` `image-?.txt`|match `image-?.txt` with `ls` -- that's image-a.txt and image-b.txt}
+q: {list ``image-a.txt`` and ``image-b.txt`` with `ls` ``image-?.txt``|match ``image-?.txt`` with `ls` -- that's ``image-a.txt`` and ``image-b.txt``}
 a: ls image-?.txt
 cmp: ref
 ref: ls
 teach: ls
 hint: ? matches exactly one character -- * would also catch image-ab.txt if that name existed, ? never would
 ---
-q: {list src/main.c and src/util.c with `ls` `src/[mu]*.c`|match `src/[mu]*.c` with `ls` -- that's src/main.c and src/util.c}
+q: {list ``src/main.c`` and ``src/util.c`` with `ls` ``src/[mu]*.c``|match ``src/[mu]*.c`` with `ls` -- that's ``src/main.c`` and ``src/util.c``}
 a: ls src/[mu]*.c
 cmp: ref
 ref: ls

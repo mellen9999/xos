@@ -523,8 +523,8 @@ qwidth_over() {
 #
 # measured through the real say() and _prows -- the same two calls ask() makes
 # -- so the number here is the number the screen will have. the widest roll is
-# substituted first: a @token@ mark is NOT zero width in wrap(), so a one-row
-# setup must stay one row under the longest value its pool can hold.
+# substituted first, since a one-row setup must stay one row under the longest
+# value its pool can hold.
 #
 # setup_budget_under N -- prints every card whose panel budget falls under N.
 setup_budget_under() {
@@ -572,7 +572,7 @@ setup_budget_under() {
 		END { flush() }
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null |
 	while IFS="$(printf '\t')" read -r f i pred s; do
-		rows=$( ( COLS=80; printf '%s\n' "$s" | tr '\r' '\n' | say | hi_strip | _prows 80 ) )
+		rows=$( ( COLS=80; printf '%s\n' "$s" | tr '\r' '\n' | say | _prows 80 ) )
 		budget=$(( 24 - 1 - (3 + 1 + rows + 1 + 1 + (pred ? 3 : 0)) - 2 ))
 		[ "$budget" -lt "$max" ] \
 			&& printf '  %s/%s: setup is %d rows, panel left with %d\n' "${f##*/}" "$i" "$rows" "$budget"
@@ -936,8 +936,9 @@ unnamed_cmd() {
 	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
 }
 
-# unmarked_literal -- prints every prompt that says, in plain prose, a word the
-# learner has to type back letter for letter.
+# unmarked_literal [FILE...] -- prints every prompt that says, in plain prose, a
+# word the learner has to type back letter for letter. the corpus by default;
+# named files so selftest can prove the gate still bites on one it plants.
 #
 # a rolled name is fenced by sub() and comes out reversed. a name the card
 # hardcodes -- empty-dir, missing.txt, src/[mu]*.c, and the command itself --
@@ -950,6 +951,7 @@ unnamed_cmd() {
 # a backticked span, an @token@, a %macro% -- and then anything still visible
 # that the block's own answer types is a literal wearing prose clothing.
 unmarked_literal() {
+	[ "$#" -gt 0 ] || set -- "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
 	awk '
 		function has(s, w,   p, c) {
 			s = " " s " "
@@ -963,16 +965,36 @@ unmarked_literal() {
 		}
 		# blank out every span that already carries a mark, leaving its width
 		# so nothing on either side fuses into a word it is not part of.
+		# busybox awk has no %*s, and the host awk this was written under
+		# does: mask() died on its first card, on the image, and the gate
+		# went quiet for two days with its complaint in /dev/null.
+		function sp(n,   s) { s = ""; while (length(s) < n) s = s " "; return s }
 		function mask(t,   out, p, e) {
+			# the NAME form first, and whole: ``src/main.c`` read as two
+			# single-backtick spans masks the two pairs and leaves the name
+			# itself standing, which is the one thing masking is for.
+			out = ""
+			while ((p = index(t, "``")) > 0) {
+				e = index(substr(t, p + 2), "``")
+				if (e == 0) break
+				out = out substr(t, 1, p - 1) sp(e + 3)
+				t = substr(t, p + e + 3)
+			}
+			t = out t
 			out = ""
 			while ((p = index(t, "`")) > 0) {
 				e = index(substr(t, p + 1), "`")
 				if (e == 0) break
-				out = out substr(t, 1, p - 1) sprintf("%*s", e + 1, "")
+				out = out substr(t, 1, p - 1) sp(e + 1)
 				t = substr(t, p + e + 1)
 			}
 			t = out t
-			gsub(/@[A-Za-z0-9_]*@/, "  ", t)
+			# a rolled value and whatever is glued to it are ONE mark --
+			# widen() slides the closing fence over .txt, -nope.txt and the
+			# rest of a path, and fuse() joins @dir@/@word@/deep -- so the
+			# whole run is masked. masking the token alone leaves /deep and
+			# -nope.txt standing as names the card forgot, which it did not.
+			gsub(/([A-Za-z0-9_.*?-]+\/)*@[A-Za-z0-9_]*@[A-Za-z0-9_.\/-]*/, "  ", t)
 			gsub(/%[a-z]+%/, " ", t)
 			return t
 		}
@@ -1013,5 +1035,77 @@ unmarked_literal() {
 		inblk && /^q: / && q == "" { q = substr($0, 4); ql = FNR }
 		inblk && /^a: / && a == "" { a = substr($0, 4) }
 		END { flush() }
-	' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null
+	' "$@" 2>/dev/null
+}
+
+# unmarked_name [FILE...] -- the other half of unmarked_literal, and the hole it
+# left. takes files for the same reason that one does.
+#
+# that gate reads the ANSWER for what the prompt should have marked, so a name
+# the answer never types is invisible to it. "list src/main.c and src/util.c
+# with `ls` `src/[mu]*.c`" typed neither of the first two, and they printed as
+# flat prose beside a marked glob -- three paths on one line wearing two
+# different faces, one of them none.
+#
+# what this one looks for needs no answer to know: a word shaped like a path or
+# a filename. a slash with a name on either side of it, a leading slash, or one
+# of the suffixes the corpus writes. English does not spell that way, so what is
+# still visible after masking is a name somebody forgot to mark.
+unmarked_name() {
+	[ "$#" -gt 0 ] || set -- "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"
+	awk '
+		function sp(n,   s) { s = ""; while (length(s) < n) s = s " "; return s }
+		function mask(t,   out, p, e) {
+			out = ""
+			while ((p = index(t, "``")) > 0) {
+				e = index(substr(t, p + 2), "``")
+				if (e == 0) break
+				out = out substr(t, 1, p - 1) sp(e + 3)
+				t = substr(t, p + e + 3)
+			}
+			t = out t
+			out = ""
+			while ((p = index(t, "`")) > 0) {
+				e = index(substr(t, p + 1), "`")
+				if (e == 0) break
+				out = out substr(t, 1, p - 1) sp(e + 1)
+				t = substr(t, p + e + 1)
+			}
+			t = out t
+			gsub(/([A-Za-z0-9_.*?-]+\/)*@[A-Za-z0-9_]*@[A-Za-z0-9_.\/-]*/, "  ", t)
+			gsub(/%[a-z]+%/, " ", t)
+			return t
+		}
+		function flush(   m, n, i, w, parts, seen) {
+			if (inblk && q != "") {
+				m = mask(q)
+				gsub(/[{}|]/, " ", m)
+				n = split(m, parts, /[ \t]+/)
+				for (i = 1; i <= n; i++) {
+					w = parts[i]
+					# the punctuation a sentence ends on is not part of the
+					# name: "in src/main.c," and "src/main.c" are one word.
+					gsub(/^[\x27"(]+|[\x27",.;:)?]+$/, "", w)
+					if (w ~ /[@%]/ || w in seen) continue
+					# one slash between two plain English words is
+					# English: yes/no, owner/group, date/time. a path
+					# says so some other way -- it leads with a slash,
+					# carries a dot or a glob, has a second slash, or
+					# ends in one.
+					if (w ~ /^[A-Za-z0-9_.~-]+\/[]A-Za-z0-9_.*?[-]/ &&
+					    (w ~ /[.*?[]/ || w ~ /\/.*\// || w ~ /\/$/) ||
+					    w ~ /^\/[A-Za-z0-9_]/ ||
+					    w ~ /^[]A-Za-z0-9_*?.[-]+\.(txt|log|c|csv|ini|conf|sh|md|img|iso|bin|gz|bz2|xz|zip|tar|sed|key|cpio|err)$/) {
+						seen[w] = 1
+						printf "  %s:%d: the prompt says the name %s in prose\n    %s\n", bf, ql, w, q
+					}
+				}
+			}
+			inblk = 0; q = ""
+		}
+		FNR == 1 { flush() }
+		/^---$/  { flush(); inblk = 1; bf = FILENAME; next }
+		inblk && /^q: / && q == "" { q = substr($0, 4); ql = FNR }
+		END { flush() }
+	' "$@" 2>/dev/null
 }

@@ -7,7 +7,7 @@ brief: the path. `tlstunnel` is this system's answer: it wraps a plain connectio
 brief: in TLS, checking the server's certificate against trust anchors compiled
 brief: into the binary itself, not read from a file some attacker could edit.
 brief:
-brief: `ii` is irc as a directory tree. Each channel is a folder with an `out`
+brief: `ii` is irc as a directory tree. Each channel is a folder with an ``out``
 brief: file you read and an `in` named pipe you write to -- a file that hands
 brief: what you write straight to the program reading it rather than storing
 brief: it. No client, no ui, which means `tail`, `grep` and `echo` are the client.
@@ -17,7 +17,7 @@ brief: connects, `dropbearkey` makes the key, `dropbear` is the server. `wg` is
 brief: wireguard -- a private link to a machine elsewhere, brought up before
 brief: anything speaks over it.
 ---
-q: {open `tlstunnel` to @host@:`443`, ready to pipe commands through|wrap a session to @host@:`443` with `tlstunnel`, ready to drive by hand|reach @host@ on port `443` via `tlstunnel`, ready to speak the protocol}
+q: {open `tlstunnel` to @host@:``443``, ready to pipe commands through|wrap a session to @host@:``443`` with `tlstunnel`, ready to drive by hand|reach @host@ on port ``443`` via `tlstunnel`, ready to speak the protocol}
 a: tlstunnel - @host@ 443
 why: live-net
 ref: tlstunnel
@@ -25,7 +25,7 @@ teach: tlstunnel
 hint: tlstunnel takes - for stdin/stdout, then the host and port to wrap
 ---
 setup: the request is HEAD / HTTP/1.0, Host: @host@, Connection: close
-q: {send that request to @host@ on `443` through `tlstunnel`|pipe that request into `tlstunnel`, to @host@ on `443`|hand that request to @host@ on `443` via `tlstunnel`}
+q: {send that request to @host@ on ``443`` through `tlstunnel`|pipe that request into `tlstunnel`, to @host@ on ``443``|hand that request to @host@ on ``443`` via `tlstunnel`}
 a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
 why: live-net
 ref: tlstunnel
@@ -33,7 +33,7 @@ teach: tlstunnel
 hint: pipe a raw http request into tlstunnel the same way you would into nc
 ---
 setup: the trust roots aren't in a file you could edit -- they're compiled straight into the binary
-q: %count% "`Internet` `Security` `Research` `Group`" in `/bin/tlstunnel` with `strings`
+q: %count% "``Internet`` ``Security`` ``Research`` ``Group``" in ``/bin/tlstunnel`` with `strings`
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 cmp: ref
 ref: strings
@@ -42,7 +42,7 @@ hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
 setup: ii keeps one directory per server. Your nick is xos and your session
 setup: directory is $HOME/irc unless a question says otherwise.
-q: {start `ii` against @host@ on the standard tls-free irc port, as nick `xos`|connect `ii` to @host@ on the plain irc port, using the nick `xos`|start `ii`, joining @host@ on the standard irc port as `xos`}
+q: {start `ii` against @host@ on the standard tls-free irc port, as nick ``xos``|connect `ii` to @host@ on the plain irc port, using the nick ``xos``|start `ii`, joining @host@ on the standard irc port as ``xos``}
 a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
 why: live-net
 ref: ii
@@ -52,7 +52,7 @@ teach: ii -n
 hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: {start `ii` against @host@ with `xos` as the real name too|start `ii` on @host@, setting the real name to `xos`|connect `ii` to @host@ supplying `xos` as the real name}
+q: {start `ii` against @host@ with ``xos`` as the real name too|start `ii` on @host@, setting the real name to ``xos``|connect `ii` to @host@ supplying ``xos`` as the real name}
 a: ii -s @host@ -f xos -n xos -i $HOME/irc
 why: live-net
 ref: ii
@@ -60,7 +60,7 @@ teach: ii -f
 hint: -f sets the real name shown alongside the nick
 ---
 setup: Your nick is xos.
-q: {start a second `ii` session on @host@ as `xos`, its files in `/tmp/irc`|run `ii` on @host@ as nick `xos`, files in `/tmp/irc`, not the default|point `ii` at @host@ as `xos` with `/tmp/irc` as its directory}
+q: {start a second `ii` session on @host@ as ``xos``, its files in ``/tmp/irc``|run `ii` on @host@ as nick ``xos``, files in ``/tmp/irc``, not the default|point `ii` at @host@ as ``xos`` with ``/tmp/irc`` as its directory}
 a: ii -s @host@ -n xos -i /tmp/irc
 why: live-net
 ref: ii
@@ -68,7 +68,7 @@ teach: ii -i
 hint: -i points ii at a directory of your choosing instead of the default
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: {join `#xos` on @host@ by sending `/j` `#xos` to its in fifo|write `/j` `#xos` into @host@'s in fifo|send the line `/j` `#xos` to @host@'s in fifo}
+q: {join ``#xos`` on @host@ by sending `/j` ``#xos`` to its in fifo|write `/j` ``#xos`` into @host@'s in fifo|send the line `/j` ``#xos`` to @host@'s in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in
 why: live-net
 ref: ii
@@ -84,7 +84,7 @@ teach: tail -f
 hint: -f keeps tail running, printing new lines as they arrive
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: {say `hello` in #xos on @host@|send `hello` to #xos on @host@|drop a `hello` into #xos on @host@}
+q: {say ``hello`` in #xos on @host@|send ``hello`` to #xos on @host@|drop a ``hello`` into #xos on @host@}
 a: echo hello > $HOME/irc/@host@/#xos/in
 why: live-net
 ref: ii
@@ -92,7 +92,7 @@ teach: ii
 hint: whatever you echo into a channel's in fifo, ii sends as a message
 ---
 setup: ii's files live under $HOME/irc, one directory per server.
-q: %find% every mention of your nick `xos` across every channel, with `grep`
+q: %find% every mention of your nick ``xos`` across every channel, with `grep`
 a: grep -r xos $HOME/irc
 why: fixture-cost
 ref: grep
@@ -111,7 +111,7 @@ setup: Remote access on xos works by dialing OUT to a machine you control over
 setup: wireguard, so xos never listens on the network it is plugged into. These
 setup: are the pieces. None can run in this practice sandbox, so they are graded
 setup: on what you type.
-q: {generate a new wireguard private key and save it to `private.key`|make a new wireguard private key and save it as `private.key`|create a wireguard private key, writing it to `private.key`}, with `wg`
+q: {generate a new wireguard private key and save it to ``private.key``|make a new wireguard private key and save it as ``private.key``|create a wireguard private key, writing it to ``private.key``}, with `wg`
 a: wg genkey > private.key
 why: live-net
 ref: wg
@@ -119,7 +119,7 @@ teach: wg
 hint: genkey writes a fresh private key to stdout
 ---
 setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
-q: {derive the public key from `private.key`|what public key goes with `private.key`?|compute the public key that pairs with `private.key`}, with `wg`
+q: {derive the public key from ``private.key``|what public key goes with ``private.key``?|compute the public key that pairs with ``private.key``}, with `wg`
 a: wg pubkey < private.key
 why: live-net
 ref: wg
@@ -127,7 +127,7 @@ teach: wg
 hint: pubkey reads a private key on stdin and writes the matching public key
 ---
 setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
-q: %make% a `wireguard` interface called `wg0`, with `ip`
+q: %make% a ``wireguard`` interface called ``wg0``, with `ip`
 a: ip link add wg0 type wireguard
 why: live-net
 ref: ip
@@ -135,7 +135,7 @@ teach: ip
 hint: ip link add type wireguard creates the interface itself, before any config
 ---
 setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
-q: {give `wg0` the address 10.9.0.2 in a /24|assign `wg0` the address 10.9.0.2 with a /24 netmask|`add` the address `10.9.0.2/24` to `wg0`}, with `ip`
+q: {give ``wg0`` the address ``10.9.0.2`` in a ``/24``|assign ``wg0`` the address ``10.9.0.2`` with a ``/24`` netmask|`add` the address ``10.9.0.2/24`` to ``wg0``}, with `ip`
 a: ip addr add 10.9.0.2/24 dev wg0
 why: live-net
 ref: ip
@@ -143,7 +143,7 @@ teach: ip
 hint: the ip addr add ADDR/PREFIX dev IFACE you know, now on a wireguard iface
 ---
 setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
-q: {bring `wg0` `up`|bring the `wg0` interface `up`|`set` `wg0` `up`}, with `ip`
+q: {bring ``wg0`` `up`|bring the ``wg0`` interface `up`|`set` ``wg0`` `up`}, with `ip`
 a: ip link set wg0 up
 why: live-net
 ref: ip
@@ -151,7 +151,7 @@ teach: ip
 hint: the ip link set IFACE up you already know, on a wireguard interface
 ---
 setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
-q: {`set` `wg0`'s private key from `private.key`|point `wg0` at the key sitting in `private.key`|configure `wg0` to use the key in `private.key`}, with `wg`
+q: {`set` ``wg0``'s private key from ``private.key``|point ``wg0`` at the key sitting in ``private.key``|configure ``wg0`` to use the key in ``private.key``}, with `wg`
 a: wg set wg0 private-key private.key
 why: live-net
 ref: wg
@@ -160,7 +160,7 @@ hint: wg set applies configuration to an existing interface, private-key here
 ---
 setup: The peer's public key is PUBKEY, its endpoint titan.example:51820, and
 setup: the addresses it is allowed to use are 10.9.0.0/24.
-q: {add that `peer` to `wg0` by public key, `endpoint` and allowed ips|configure that `peer` on `wg0` with its key, `endpoint` and allowed ips|add that `peer` to `wg0`, naming its key, `endpoint` and allowed ips}, with `wg`
+q: {add that ``peer`` to ``wg0`` by public key, ``endpoint`` and allowed ips|configure that ``peer`` on ``wg0`` with its key, ``endpoint`` and allowed ips|add that ``peer`` to ``wg0``, naming its key, ``endpoint`` and allowed ips}, with `wg`
 a: wg set wg0 peer PUBKEY endpoint titan.example:51820 allowed-ips 10.9.0.0/24
 why: live-net
 ref: wg
@@ -175,7 +175,7 @@ ref: wg
 teach: wg
 hint: wg show with no name reports on every interface
 ---
-q: %make% an `ed25519` ssh key at `/state/id`, with `dropbearkey`
+q: %make% an ``ed25519`` ssh key at ``/state/id``, with `dropbearkey`
 a: dropbearkey -t ed25519 -f /state/id
 why: fixture-cost
 ref: dropbearkey
@@ -183,7 +183,7 @@ teach: dropbearkey -t
 teach: dropbearkey -f
 hint: -t picks the key type, -f where to write it
 ---
-q: %show% the public half of `/state/id`, with `dropbearkey`, to hand over
+q: %show% the public half of ``/state/id``, with `dropbearkey`, to hand over
 a: dropbearkey -y -f /state/id
 why: fixture-cost
 ref: dropbearkey
@@ -192,7 +192,7 @@ hint: -y prints the public key for an existing private key file
 ---
 setup: The host key is /state/host_key, this machine's wireguard address is
 setup: 10.9.0.1, and you log in there as root with the key /state/id.
-q: {run `dropbear` on `10.9.0.1:22`, bound to wireguard only|start `dropbear` listening only on 10.9.0.1 port 22|run `dropbear` bound to `10.9.0.1:22`, the wireguard side only}
+q: {run `dropbear` on ``10.9.0.1:22``, bound to wireguard only|start `dropbear` listening only on 10.9.0.1 port 22|run `dropbear` bound to ``10.9.0.1:22``, the wireguard side only}
 a: dropbear -r /state/host_key -p 10.9.0.1:22
 why: live-net
 ref: dropbear
@@ -209,7 +209,7 @@ teach: dropbear -F
 teach: dropbear -E
 hint: -F keeps dropbear in the foreground, -E sends logging to stderr
 ---
-q: {`dbclient` out to root at 10.9.0.1 using the key `/state/id`|`dbclient` to root at 10.9.0.1, authenticating with `/state/id`|use `dbclient` to ssh to root at 10.9.0.1 with the key `/state/id`}
+q: {`dbclient` out to root at 10.9.0.1 using the key ``/state/id``|`dbclient` to root at 10.9.0.1, authenticating with ``/state/id``|use `dbclient` to ssh to root at 10.9.0.1 with the key ``/state/id``}
 a: dbclient -i /state/id root@10.9.0.1
 why: live-net
 ref: dbclient
@@ -217,14 +217,14 @@ teach: dbclient -i
 hint: -i points dbclient at the private key to authenticate with
 ---
 setup: The host key is /state/host_key; you log in with the key /state/id.
-q: {reach root at 10.9.0.1 by `dbclient`, straight into `abduco`'s `work` session|`dbclient` to root at 10.9.0.1, attaching straight to `abduco`'s `work`|combine `dbclient` to root at 10.9.0.1 with `abduco` `-a` `work`, one line}
+q: {reach root at 10.9.0.1 by `dbclient`, straight into `abduco`'s ``work`` session|`dbclient` to root at 10.9.0.1, attaching straight to `abduco`'s ``work``|combine `dbclient` to root at 10.9.0.1 with `abduco` `-a` ``work``, one line}
 a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
 why: live-net
 ref: dbclient
 teach: dbclient
 hint: the whole point -- reconnect straight into the work that survived the drop
 ---
-q: {`dbclient` to root at 10.9.0.1 on port `2222` instead of 22|`dbclient` to root at 10.9.0.1, connecting on port `2222`|use `dbclient` to reach root at 10.9.0.1 on port `2222`}
+q: {`dbclient` to root at 10.9.0.1 on port ``2222`` instead of 22|`dbclient` to root at 10.9.0.1, connecting on port ``2222``|use `dbclient` to reach root at 10.9.0.1 on port ``2222``}
 a: dbclient -p 2222 root@10.9.0.1
 why: live-net
 ref: dbclient
@@ -240,14 +240,14 @@ hint: -L sets up local port forwarding, local port first then the far side
 ---
 setup: ii and the tls tunnel are two commands wired by hand above. `irc` is the
 setup: one word that brings both up the only way that reaches a real network.
-q: {reach `#xos` on libera in one word with `irc`, as one screen|open `#xos` as a one-screen chat with `irc`, on libera's defaults|join `#xos` on libera in one screen using `irc`}
+q: {reach ``#xos`` on libera in one word with `irc`, as one screen|open ``#xos`` as a one-screen chat with `irc`, on libera's defaults|join ``#xos`` on libera in one screen using `irc`}
 a: irc #xos
 why: live-net
 ref: irc
 teach: irc
 hint: given just a #channel, irc uses its defaults -- libera over tls, nick xos -- and opens it as one screen
 ---
-q: {open `#xos` on @host@ as nick `xos` in one screen with `irc`|one-screen `#xos` on @host@ as `xos` via `irc`|use `irc` to open `#xos` on @host@ as the nick `xos`, one screen}
+q: {open ``#xos`` on @host@ as nick ``xos`` in one screen with `irc`|one-screen ``#xos`` on @host@ as ``xos`` via `irc`|use `irc` to open ``#xos`` on @host@ as the nick ``xos``, one screen}
 a: irc #xos xos @host@
 why: live-net
 ref: irc

@@ -16,12 +16,12 @@ a: grep @sev@ @log@ | wc -l
 lvl: 06
 ref: grep
 ---
-q: %count% the `refused` connections in @log@, with `grep` and a pipe
+q: %count% the ``refused`` connections in @log@, with `grep` and a pipe
 a: grep refused @log@ | wc -l
 lvl: 06
 ref: grep
 ---
-q: %show% the last `FATAL` line in @log@, with `grep`
+q: %show% the last ``FATAL`` line in @log@, with `grep`
 a: grep FATAL @log@ | tail -1
 lvl: 06
 ref: grep
@@ -56,7 +56,7 @@ a: grep @sev@ @log@ | awk '{print $2}' | sort
 lvl: 10
 ref: awk
 ---
-q: %get% the `refused` address in @log@ with `awk`, listed once
+q: %get% the ``refused`` address in @log@ with `awk`, listed once
 a: grep refused @log@ | awk '{print $NF}' | sort -u
 lvl: 10
 ref: awk
@@ -76,22 +76,22 @@ a: od -A n -t x1 -N 8 @bin@ | head -1
 lvl: 22
 ref: od
 ---
-q: {pull the readable `unlock` string buried in @bin@|carve the `unlock` string out of @bin@|dig out @bin@'s string that mentions unlocking}, with `strings`
+q: {pull the readable ``unlock`` string buried in @bin@|carve the ``unlock`` string out of @bin@|dig out @bin@'s string that mentions unlocking}, with `strings`
 a: strings @bin@ | grep unlock
 lvl: 22
 ref: strings
 ---
-q: %count% the `processor` lines in `/proc/cpuinfo` with `grep`, a pipe not a flag
+q: %count% the ``processor`` lines in ``/proc/cpuinfo`` with `grep`, a pipe not a flag
 a: grep processor /proc/cpuinfo | wc -l
 lvl: 24
 ref: grep
 ---
-q: %count% the `inet` addresses on this machine, with `ip`
+q: %count% the ``inet`` addresses on this machine, with `ip`
 a: ip addr | grep -c inet
 lvl: 25
 ref: ip
 ---
-q: %show% just the `roothash` value from `/proc/cmdline`, with `tr`
+q: %show% just the ``roothash`` value from ``/proc/cmdline``, with `tr`
 a: tr ' ' '\n' < /proc/cmdline | grep roothash | cut -d= -f2
 lvl: 30
 ref: tr

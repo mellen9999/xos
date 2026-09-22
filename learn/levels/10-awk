@@ -119,7 +119,7 @@ ref: awk
 teach: awk
 hint: a bare condition with no action still means print
 ---
-q: %show% rows of @csv@ whose count field is above `10`, with `awk`
+q: %show% rows of @csv@ whose count field is above ``10``, with `awk`
 a: awk -F, 'NR > 1 && $4 > 10' @csv@
 cmp: ref
 ref: awk

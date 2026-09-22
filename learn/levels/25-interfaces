@@ -12,7 +12,7 @@ brief: The link layer underneath: a neighbour is a machine on your own wire,
 brief: found by `arp`, which is the old view of the table `ip neigh` now shows.
 brief: `arping` asks one address directly whether anybody holds it -- an answer
 brief: that arrives before any routing is involved. `ipcalc` does the subnet
-brief: arithmetic: what a `/24` covers, where it starts, where it ends.
+brief: arithmetic: what a ``/24`` covers, where it starts, where it ends.
 ---
 q: you just booted this stick -- %show% every interface's addresses, with `ip`
 a: ip addr
@@ -56,7 +56,7 @@ ref: ip
 teach: ip
 hint: ip link set IFACE down is the mirror of ip link set IFACE up
 ---
-q: {no dhcp -- give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a /24 netmask|`add` the address @ip@/24 to @iface@}
+q: {no dhcp -- give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a ``/24`` netmask|`add` the address @ip@/24 to @iface@}
 a: ip addr add @ip@/24 dev @iface@
 why: live-hw
 ref: ip
@@ -77,21 +77,21 @@ ref: ip
 teach: ip
 hint: ip route with no filter lists the whole table
 ---
-q: is a gateway even configured -- %show% only the `default` `route`
+q: is a gateway even configured -- %show% only the ``default`` `route`
 a: ip route show default
 why: live-hw
 ref: ip
 teach: ip
 hint: show default filters the route table to just the default route
 ---
-q: {`add` a `default` `route` `via` @ip@|set @ip@ as the `default` `route`|make @ip@ the gateway for the `default` `route`}
+q: {`add` a ``default`` `route` ``via`` @ip@|set @ip@ as the ``default`` `route`|make @ip@ the gateway for the ``default`` `route`}
 a: ip route add default via @ip@
 why: live-hw
 ref: ip
 teach: ip
 hint: route add default via sets where traffic with no other match goes
 ---
-q: {delete the `default` `route` with `ip`|remove the `default` `route` with `ip`|take the `default` `route` out with `ip`}
+q: {delete the ``default`` `route` with `ip`|remove the ``default`` `route` with `ip`|take the ``default`` `route` out with `ip`}
 a: ip route del default
 why: live-hw
 ref: ip
@@ -176,7 +176,7 @@ ref: arp
 teach: arp -d
 hint: -d removes one entry from the cache
 ---
-q: {pin @ip@ to the mac `00:11:22:33:44:55` permanently, with `arp`|permanently map @ip@ to `00:11:22:33:44:55` with `arp`|add a static `arp` entry for @ip@ at `00:11:22:33:44:55`}
+q: {pin @ip@ to the mac ``00:11:22:33:44:55`` permanently, with `arp`|permanently map @ip@ to ``00:11:22:33:44:55`` with `arp`|add a static `arp` entry for @ip@ at ``00:11:22:33:44:55``}
 a: arp -s @ip@ 00:11:22:33:44:55
 why: live-hw
 ref: arp
@@ -266,7 +266,7 @@ ref: ipcalc
 teach: ipcalc -m
 hint: -m isolates just the netmask
 ---
-q: %show% @ip@'s prefix length for netmask `255.255.255.0`, with `ipcalc`
+q: %show% @ip@'s prefix length for netmask ``255.255.255.0``, with `ipcalc`
 a: ipcalc -p @ip@ 255.255.255.0
 cmp: ref
 ref: ipcalc

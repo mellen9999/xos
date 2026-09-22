@@ -7,5 +7,5 @@ Create DIRECTORY.
 	-p	No error if exists; make parent directories as needed
 
 Setting the mode at creation rather than with a later `chmod` means the
-directory is never briefly readable by anyone it should not be. `700` is
+directory is never briefly readable by anyone it should not be. ``700`` is
 yours alone; see `chmod` for the arithmetic.

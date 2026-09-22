@@ -21,7 +21,7 @@ brief: `exec` and `.` both act on the shell you are in rather than a child: `exe
 brief: replaces it or rewires its file descriptors for good, `.` runs a script
 brief: here so what it sets survives. Neither is undoable mid-line.
 ---
-q: {define a function f that echoes ok, then run it|write f so it echoes ok, then call it|f should echo ok -- define it, then run it}
+q: {define a function f that echoes ok, then run it|write f so it echoes ok, then call it|f should `echo` ok -- define it, then run it}
 a: f() { echo ok; }; f
 cmp: ref
 ref: sh
@@ -79,7 +79,7 @@ ref: :
 teach: :
 hint: the null command does nothing and succeeds, so the redirect is the point
 ---
-q: {`trap` EXIT to `echo` `bye`, then `echo` `work`|`trap` `bye` onto EXIT with `echo`, then `echo` `work`|arrange for `echo` `bye` on EXIT with `trap`, then `echo` `work`}
+q: {`trap` EXIT to `echo` ``bye``, then `echo` ``work``|`trap` ``bye`` onto EXIT with `echo`, then `echo` ``work``|arrange for `echo` ``bye`` on EXIT with `trap`, then `echo` ``work``}
 a: trap 'echo bye' EXIT; echo work
 cmp: ref
 ref: trap
@@ -87,7 +87,7 @@ teach: trap
 hint: EXIT fires however the shell ends, which is where cleanup belongs
 ---
 setup: every command from here on should send its errors where stdout already goes, without redirecting each one
-q: {send errors to stdout with `exec`, then `ls` the missing `nosuch`|point errors at stdout with `exec`, then `ls` `nosuch`, which isn't there|rewire errors to stdout using `exec`, then `ls` the absent `nosuch`}
+q: {send errors to stdout with `exec`, then `ls` the missing ``nosuch``|point errors at stdout with `exec`, then `ls` ``nosuch``, which isn't there|rewire errors to stdout using `exec`, then `ls` the absent ``nosuch``}
 a: exec 2>&1; ls nosuch
 cmp: ref
 ref: exec
