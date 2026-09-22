@@ -329,9 +329,13 @@ the set rides the hash tree.
 - **scrub** -- type `scrub` to read every verity-covered byte now: a rotten block
   panics on the spot, a clean pass means every byte still matches
 - **irc** -- type `irc` to reach libera over tls in one word: it brings up the
-  tunnel and ii, then a channel is a directory you `tail -f` and an `in` you echo
-  to. `irc <nick> <server>` overrides the defaults; a registered nick's password
-  rides `IRC_PASS` from the environment, never argv or history
+  tunnel and ii. `irc #chan` opens that channel as one screen -- incoming scrolls
+  the top rows, you type at the bottom, both from the same two fifos, on a plain
+  vt320 with no client and nothing new in the image. bare `irc` just prints the
+  paths -- a channel is a directory you `tail -f` and an `in` you echo to, so every
+  text tool still works on the log. `irc #chan <nick> <server>` overrides the
+  defaults; a registered nick's password rides `IRC_PASS` from the environment,
+  never argv or history
 
 the one attack surface this knowingly accepts: the usb-net drivers (rndis,
 cdc-ether) that make tethering work, and the usb-serial drivers (ftdi, cp210x,
@@ -425,7 +429,7 @@ anchors and the case for each part are in `SOURCES.md`.
 | part | does |
 |---|---|
 | linux 6.18 lts, from `tinyconfig` | the kernel -- every driver is opt-in |
-| busybox 1.38 | the userland and the one shell (ash) -- 135 applets in one binary |
+| busybox 1.38 | the userland and the one shell (ash) -- 158 applets in one binary |
 | bearssl + `tlstunnel.c` | tls, with the trust set compiled in |
 | cryptsetup | luks2 + hmac integrity for p3 |
 | dropbear | ssh server, client and keygen in one binary -- the one listening service |
@@ -515,8 +519,8 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 
 ## learn
 
-teaches the whole shipped command surface -- the ~180 applets, builtins and binaries
-this image contains -- in dependency order. 30 levels, 800-odd questions, generated
+teaches the whole shipped command surface -- the ~200 applets, builtins and binaries
+this image contains -- in dependency order. 30 levels, 900-odd questions, generated
 not fixed: each rolls its own filenames, values and file contents, and is graded by
 *running* what you type as `nobody` in a throwaway sandbox, so `sort -u` and
 `sort | uniq` both pass.
