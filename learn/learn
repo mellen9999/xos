@@ -251,6 +251,16 @@ BRIEFED="$STATE/briefed"
 level_briefed()    { _ledger_add "$BRIEFED" "$1"; }
 level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
 
+# the acts overlay -- learn/acts groups the flat levels into named parts so the
+# climb reads as a journey. display only: no ordering, no unlock, no gate looks
+# at it. act_row NN prints "from<TAB>name<TAB>intro" for the act that holds level
+# number NN, or nothing if none does. the seen-ledger fires each act's intro once.
+ACTS="$ROOT/acts"
+ACTS_SEEN="$STATE/acts_seen"
+act_row() { awk -F'\t' -v n="$1" 'NF>=4 && n+0>=$1+0 && n+0<=$2+0 { print $1 "\t" $3 "\t" $4; exit }' "$ACTS" 2>/dev/null; }
+act_seen()  { grep -qxF -- "$1" "$ACTS_SEEN" 2>/dev/null; }
+act_marked() { _ledger_add "$ACTS_SEEN" "$1"; }
+
 # the schema ledger -- which state migrations have been applied. a plain
 # integer, absent on a fresh install, so a first run stamps the current
 # version and rewrites nothing.
@@ -694,6 +704,20 @@ run_level() {
 	lsub="level ${id%%-*}"
 	fp=$(level_fp "$id")
 
+	# crossing into a new act gets its own screen, once, before that act's first
+	# brief -- the felt boundary between parts of the climb. a resume past the
+	# opener never sees it again (the ledger), and a level in no act just skips it.
+	local _an=${id%%-*} _arow _aname _aintro
+	_arow=$(act_row "$_an")
+	if [ -n "$_arow" ] && [ "$_an" = "${_arow%%	*}" ] && ! act_seen "$_an"; then
+		_aname=${_arow#*	}; _aintro=${_aname#*	}; _aname=${_aname%%	*}
+		cls
+		hdr "$_aname" "a new part of the climb"
+		printf '%s\n' "$_aintro" | say
+		act_marked "$_an"
+		pause_card || return 2
+	fi
+
 	# the brief teaches once, on its own screen; after that the header alone, so
 	# a resume is the questions, not the lecture. `learn brief <n>` reprints it.
 	if ! level_is_briefed "$id"; then
@@ -969,7 +993,18 @@ stats() {
 	# this level", which is the drift every shared walker in here exists to
 	# avoid. it also stops an orphaned key reading as 35 of 33 mastered.
 	held_scan > "$TMP/mastered"
+	local _ar _af _lastact=
 	for id in $(level_ids); do
+		# an act header prints once, above its first level, so the mastery list
+		# reads as the same journey the climb does. no acts file -> no headers.
+		_ar=$(act_row "${id%%-*}")
+		if [ -n "$_ar" ]; then
+			_af=${_ar%%	*}
+			if [ "$_af" != "$_lastact" ]; then
+				_lastact=$_af; _ar=${_ar#*	}; _ar=${_ar%%	*}
+				printf '\n  %s%s%s\n' "$D" "$_ar" "$N"
+			fi
+		fi
 		n=$(level_nq "$id")
 		m=$(awk -v id="$id" '$1 == id { print $2 }' "$TMP/mastered"); m=${m:-0}
 		printf '  %s%-28s%s %s%s/%s%s\n' "$W" "$(level_field "$id" name)" "$N" \

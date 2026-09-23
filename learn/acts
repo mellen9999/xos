@@ -1,0 +1,18 @@
+# learn/acts -- the visible arc. the levels are a flat 00..N on disk; this file
+# groups them into acts so the climb is felt, not just numbered. it is a DISPLAY
+# layer only: it changes no ordering, unlocks nothing, and every gate ignores it.
+#
+# one act per line, tab-separated:  FROM  TO  NAME  INTRO
+#   FROM TO  the inclusive level-number range the act covers (bare integers)
+#   NAME     the act's title (lowercase, terse)
+#   INTRO    one line, shown once, the first time you cross into the act
+#
+# ranges must be contiguous and cover every level; a level in no act simply
+# gets no intro and no header, which is a hole worth seeing, not a crash.
+0	3	hello	you and the machine, learning to talk. no flags yet -- just move around and look at what is there.
+4	10	plumbing	small tools joined by pipes. this is the unix idea itself: many little programs, each doing one job, chained into one.
+11	15	the language	the shell is a language. variables, tests, branches, loops, whole scripts -- now you write it, not just run it.
+16	19	running things	a program is a thing you start, watch, stop, and permit. this is control of the machine while it is running.
+20	24	the disk	where the bytes actually live: files packed and unpacked, checked for damage, sliced by the byte, and the disks under them.
+25	28	the wire	the machine talks to other machines. bring up an interface, prove you can reach one, move data across, in the clear and sealed.
+29	30	root	the editor that is always on every unix, and the power that acts as everyone. both reward care and punish haste.
