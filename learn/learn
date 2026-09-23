@@ -797,6 +797,10 @@ victory() {
 	  every unix you will ever be handed -- including the ones you have
 	  no reason to trust.
 
+	  The base is yours. The other half is the toolkit -- the arsenal on
+	  the encrypted side of the stick. When it is set up, `arsenal learn`
+	  walks you through it the way this walked you through the shell.
+
 	    learn stats    what you kept, not what you passed once
 	    learn N        any level again. the questions are generated, so
 	                   they will not be the ones you memorised

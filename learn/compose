@@ -36,6 +36,7 @@
 # a level in neither column fails the build. a new level has to say which it
 # is, which is the whole point: the question gets asked once, on the commit
 # that adds it, instead of never.
+00-hello             -  foundation
 01-first-steps       -  foundation
 02-files             -  foundation
 03-reading           -  foundation

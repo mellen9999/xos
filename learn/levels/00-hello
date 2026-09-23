@@ -1,0 +1,68 @@
+name: hello
+boss: boot
+flavor: The screen is blank and waiting for you.
+brief: A terminal is a place where you TYPE to the computer instead of clicking.
+brief: You type one word -- a command -- and press Enter. The computer does it
+brief: and shows you the answer. That is the whole idea.
+brief:
+brief: Three commands are all you need to begin. `pwd` says where you are. `ls`
+brief: shows what is here. `cd` moves you somewhere else. No flags yet, no
+brief: options -- just the bare word and Enter.
+brief:
+brief: Nothing you type here can break anything. If a command does not work the
+brief: screen tells you, and you simply type another. Answers RUN -- type what
+brief: you would really type, and if the output is right it counts.
+---
+q: {print|show} where you are right now -- the directory you are standing in
+a: pwd
+a: echo $PWD
+cmp: ref
+ref: pwd
+teach: pwd
+hint: three letters -- print working directory
+---
+q: {list|show} what is in this directory
+a: ls
+cmp: ref
+ref: ls
+teach: ls
+hint: two letters
+---
+q: {change into @dir@|move into @dir@|put yourself inside @dir@}
+a: cd @dir@
+a: cd @dir@/
+a: cd ./@dir@
+why: conceptual
+ref: cd
+teach: cd
+hint: just the command and the folder name -- no flags needed
+---
+q: {go up one directory|move to the parent directory|go one level up}, with `cd`
+a: cd ..
+a: cd ../
+why: conceptual
+ref: cd
+teach: cd
+hint: two dots means "the directory above this one"
+---
+q: {go home|return to your home directory} with `cd` and nothing after it
+a: cd
+why: conceptual
+ref: cd
+teach: cd
+hint: cd with nothing after it always takes you home
+---
+q: make the shell print the word ``hello`` with `echo`
+a: echo hello
+out: ^hello$
+ref: echo
+teach: echo
+hint: echo prints back whatever you hand it
+---
+q: {`clear`|wipe} the screen clean
+a: clear
+why: conceptual
+cmp: ref
+ref: clear
+teach: clear
+hint: one word -- it scrolls the screen clean
