@@ -1051,6 +1051,15 @@ if cmdline_has xos.test; then
 	_ser=$(ls -d /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | tr '\n' ' ')
 	echo "serial-usb: ${_ser:-none}"
 	[ -n "$_ser" ] && printf 'serial-baud: %s\n' "$(stty -F "${_ser%% *}" speed 2>/dev/null)"
+	# and the TERM those lines get, which A20 had no way to see. it is the one
+	# setting that decides which of learn's three tiers a serial session draws
+	# in -- vt320 means attributes and no colour -- and a typo in SERIAL_TERM
+	# would have shipped as a terminal quietly drawn for the wrong hardware.
+	# the geometry too: a serial line reports no window size, so init pins it,
+	# and the brief-height gate is measured against exactly these numbers.
+	printf 'serial-term: %s\n' "$SERIAL_TERM"
+	[ -n "$_ser" ] && printf 'serial-size: %s\n' \
+		"$(stty -F "${_ser%% *}" size 2>/dev/null | tr ' ' 'x')"
 	echo "XOS-TEST-DONE"
 	sync
 	# PID 1 no longer exits, so a test boot would otherwise run until the

@@ -2683,7 +2683,11 @@ G44EOF
   # G15 -- the tamper-proof hardening lives on the cmdline (inside the UKI
   # signature). assert every param that must be there is.
   local c15=0 want15
-  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
+  # console=ttyS0,19200 is in this list because the serial terminal is a promise
+  # the README makes and nothing was holding it: drop it from the cmdline and the
+  # hardware terminal goes dark from the first kernel message, with every gate
+  # still green. the baud is part of it -- a vt320 receives garbage above 19200.
+  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID=' 'console=ttyS0,19200'; do
     grep -qF "$want15" cmdline.txt || { c15=$((c15+1)); printf '    cmdline missing: %s\n' "$want15" >&2; }
   done
   # ...and assert NO param is present that would neuter the compiled-in
@@ -3454,10 +3458,16 @@ G37
   # G50 -- every level's brief fits the screen it is printed on. the brief is
   # the level's teaching page and it is shown once, full-screen, before the
   # first card: a brief taller than the terminal scrolls its own first
-  # paragraph away before the learner reads a word of it. the floor is an
-  # 80x25 console -- 25 rows less the header (3) and the pause (2) -- so 20
-  # rendered lines at learn's own 76-column wrap. a level with no brief at all
-  # is the same failure, earlier.
+  # paragraph away before the learner reads a word of it.
+  #
+  # the floor is the SMALLEST screen xos drives, which is the serial line, not
+  # the console in front of you: init pins every ttyS/ttyUSB to `rows 24 cols
+  # 80` because a serial line reports no window size. 24 rows less the header
+  # (3) and the pause (2) is 19 rendered lines at learn's own 76-column wrap.
+  # it read 80x25 -- the fbcon -- for as long as this gate existed, so two
+  # briefs sat at 20 and scrolled their own first line away on the one
+  # terminal the whole mono tier is drawn for. a level with no brief at all is
+  # the same failure, earlier.
   #
   # the backticks that mark a literal come out first: they are one byte each in
   # the source and zero columns on the screen -- learn's wrap() skips them -- so
@@ -3469,11 +3479,11 @@ G37
     [ "$br_n" -gt "$br_worst" ] && br_worst=$br_n
     if [ "$br_n" -eq 0 ]; then
       br_ok=0; printf '    %s has no brief\n' "${br_f##*/}" >&2
-    elif [ "$br_n" -gt 20 ]; then
-      br_ok=0; printf '    %s brief is %s lines, 20 fit an 80x25 screen\n' "${br_f##*/}" "$br_n" >&2
+    elif [ "$br_n" -gt 19 ]; then
+      br_ok=0; printf '    %s brief is %s lines, 19 fit an 80x24 serial screen\n' "${br_f##*/}" "$br_n" >&2
     fi
   done
-  g "G50 every level brief fits one screen (worst ${br_worst}/20 lines)" \
+  g "G50 every level brief fits one screen (worst ${br_worst}/19 lines)" \
     "$([ "$br_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # G51 -- the loop back from the real prompt. a failed command at /bin/sh is

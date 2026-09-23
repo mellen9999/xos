@@ -17,11 +17,10 @@ brief:
 brief: The other specials: `$$` this shell's pid, `$!` the last background pid,
 brief: `$#` how many arguments, `$@` all of them, `$0` the name it was invoked as.
 brief:
-brief: `$*` joins that same list into one word instead of keeping every piece
-brief: separate. `--` marks the end of options, so anything after it is a
-brief: literal argument even if it starts with `-`. `( )` run their commands in
-brief: a fresh subshell -- a copy that can't change the parent; `{ }` run them
-brief: in the current shell, just grouped as one.
+brief: `$*` joins that same list into one word. `--` marks the end of options,
+brief: so anything after it is a literal argument even if it starts with `-`.
+brief: `( )` run their commands in a fresh subshell -- a copy that can't change
+brief: the parent; `{ }` run them in the current shell, just grouped as one.
 ---
 q: {run false, then %show% the exit status it left behind in `$?`|run false and check what `$?` comes back as|execute false, then %show% its exit code from `$?`}
 a: false; echo $?

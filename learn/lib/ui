@@ -27,6 +27,22 @@
 # only one of those can be undone. streaks are counts going the right way and
 # went to green with every other such count; the row label went to W.
 #
+# ON MONO those twelve slots become FOUR appearances, because four is what the
+# hardware has. this is the other half of the doctrine and it was never written
+# down, so read it before adding a meaning:
+#
+#   reverse    R wrong, M contrast, V/HI_ON a name
+#   bold       G correct, Y the miss, C what you type, W live text, B a title
+#   underline  LIT_ON a literal, U a heading (bold on top)
+#   nothing    D
+#
+# five meanings on bold and three on reverse. that is only survivable because
+# each one is ALSO carried by something that is not a colour, which is the rule
+# at the top of this file doing its work: ok()'s +, no()'s -, reveal()'s prompt
+# character, the vs row's leading "vs", a flag's leftmost column, a title's
+# rule. a new bold meaning with no such marker is invisible on a vt320 even
+# though the code looks right, and nothing but this paragraph will tell you.
+#
 # three tiers, because xos is driven from a linux console, over ssh from
 # whatever the far end runs, and down a serial line from whatever is bolted to
 # the other end of that. COLOUR is the terminal's own eight rather than a
@@ -38,15 +54,37 @@
 # reverse carry the same distinctions. NONE is NO_COLOR, TERM=dumb, or
 # output that is not a terminal.
 
-# _ui_tier TERM -- sets _tier. a function so the choice can be tested; nothing
-# below this line can be, since all of it needs a real terminal. colour is the
-# default and the list names only what is known to lack it: a terminal that
-# drops a colour it has not got loses nothing, one wrongly denied the palette
-# loses all of it. the list is closed rather than merely current -- DEC's line
-# ended in the nineties.
+# _ui_tier TERM -- sets _tier AND _csi. a function so the choice can be tested;
+# nothing below this line can be, since all of it needs a real terminal. colour
+# is the default and the list names only what is known to lack it: a terminal
+# that drops a colour it has not got loses nothing, one wrongly denied the
+# palette loses all of it. the list is closed rather than merely current --
+# DEC's line ended in the nineties.
+#
+# _csi is the SECOND question, and it is not the same question. every tier above
+# none assumes the terminal parses CSI -- ESC [ -- and DEC's line did not always.
+# the vt50 and vt52 predate ANSI entirely: their cursor move is ESC Y, their
+# clear is ESC H ESC J, and terminfo gives them no bold, no underline, no blink,
+# no reverse and no sgr0, because they have none. ESC [ is not a command they
+# know, so the bytes AFTER it print as text -- every marked name in the
+# curriculum spraying `0;7m` into the prose, and cls() writing `H2J3J` across
+# the screen before the first question. they were matched by vt* and handed the
+# mono tier, which is the one classification in this file that was simply wrong.
+#
+# written out rather than globbed, and this is the whole reason: `vt52*` also
+# matches vt520 (mono, full SGR) and vt525 (colour), so the obvious pattern
+# demotes two terminals that have everything. the arm goes FIRST so nothing
+# below can claim them.
 _ui_tier() {
+	_csi=1
 	case "$1" in
-		dumb|'')              _tier=none ;;
+		vt50|vt50h|vt52|vt50-*|vt50h-*|vt52-*)
+		                      _tier=none; _csi=0 ;;   # pre-ANSI: no CSI at all
+		# dumb has no CSI either -- terminfo gives it cr, bel and a line feed
+		# and nothing else -- so it joins them, and _csi becomes the ONE owner
+		# of this question. the checks below used to ask `TERM != dumb`
+		# separately, which is how the pre-ANSI terminals slipped past them.
+		dumb|'')              _tier=none; _csi=0 ;;
 		vt241*|vt340*|vt525*) _tier=colour ;;   # the DEC terminals with colour
 		vt*|*-m|*-mono|*-nc)  _tier=mono ;;     # and the rest of that line
 		*)                    _tier=colour ;;
@@ -71,6 +109,15 @@ _ui_colours() {
 	# the fourth attribute a vt320 has, and the only one nothing wanted. it
 	# is unreadable under anything you have to read, which is exactly what
 	# makes it right for two digits counting down and nothing else.
+	#
+	# it is also NOTHING on the machine's own screen. xos boots an EFI
+	# framebuffer console -- FB_EFI and FRAMEBUFFER_CONSOLE, no VGA_CONSOLE --
+	# and fbcon has no blink timer, because blinking was a VGA text-mode
+	# attribute. so blink is real on a vt320 and on foot, and a no-op on the
+	# display in front of you. it may therefore only ever be ADDITIVE: the
+	# clock's last five seconds are red AND blinking AND two digits counting
+	# down, and the red and the digits are what carry it locally. blink alone
+	# would be a signal that does not exist where it matters most.
 	BL=$(printf '\033[5m')
 	if [ "$1" = colour ]; then
 		R=$(printf '\033[31m')
@@ -98,9 +145,16 @@ _ui_colours "$_tier"
 # that has attributes, and only a function can be asserted without a terminal.
 # it used to be set inline with the colours -- 1;34 here, a bare 4 on mono --
 # which is how it came to be byte-for-byte the literal mark on the vt320, with
-# nothing in the build watching. bold carries it there and blue rides on top
-# where there is colour; a heading also has a row to itself, which is the other
-# half of why underline can be shared at all.
+# nothing in the build watching.
+#
+# be honest about what the 1 buys, though: this file argues two paragraphs down
+# that a vt320 renders bold as a shade more phosphor, and that is why the name
+# mark is reverse. the same argument applies here -- 1;4 against the literal's
+# 0;4 differs only in the part that barely shows. what actually separates them
+# on DEC glass is STRUCTURAL: a heading owns its row, a literal is a word inside
+# a sentence, and the two never share a line. the selftest holds that.
+# the bold is the courtesy for xterm-mono, linux-nc and screen.vt320, which is
+# most of this tier in practice; the blue rides on top where there is colour.
 _ui_head() {
 	case "$1" in
 		none) U= ;;
@@ -133,6 +187,17 @@ _ui_head "$_tier"
 # value can be mistaken for a fence and no fence can survive into a file or an
 # answer unnoticed. they live here, next to the mark they become and next to the
 # literal fence they must never collide with -- sub() in lib/ctx writes them.
+# a note on what is NOT here: no 22, 24, 25 or 27 -- the codes that turn one
+# attribute off and leave the others. a vt100 has none of them; only the vt200
+# line added them, and this file's floor is the vt100. so every mark closes with
+# a full SGR 0.
+#
+# that costs something real, and it is a deliberate trade: on mono there is no
+# way to return TO an attribute after an inner span. ok() opens bold and an
+# embedded ${D}...${N} inside its message closes that bold early, because the
+# only close available is "all off". the alternative is a reset the floor cannot
+# parse, so the span ends early and the line is still readable. if you ever
+# reach for 24m to fix a nested span, that is what you are trading away.
 HI1=$(printf '\001')
 HI2=$(printf '\002')
 
@@ -244,8 +309,9 @@ expand() { hi_expand "${1:-}" | lit_expand "${1:-}"; }
 # synchronised output: the editor reprints the whole answer line on every
 # keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
 # redraw in these markers tells the terminal to paint it in one frame. unknown
-# to older terminals, which ignore the private mode -- so it is safe everywhere.
-if [ "${TERM:-dumb}" = dumb ] || [ ! -t 1 ]; then
+# to older terminals THAT PARSE CSI, which ignore the private mode. a terminal
+# that does not parse CSI at all prints the parameters, so this asks _csi.
+if [ "$_csi" = 0 ] || [ ! -t 1 ]; then
 	SYNC_BEG= SYNC_END=
 else
 	SYNC_BEG=$(printf '\033[?2026h') SYNC_END=$(printf '\033[?2026l')
@@ -291,7 +357,7 @@ if [ "$_tier" != none ] && [ -t 0 ]; then
 	fi
 	unset _stty _cpr _c
 fi
-unset _tier
+unset _tier   # _csi stays: cls(), the clock and SYNC_* all ask it
 
 # progress-bar cells and the separator between two short labels. every ascii
 # substitute is exactly one display column, and the separator degrades to the
@@ -374,8 +440,14 @@ PROMPT_NORM=$(printf '%s%s%s%s ' "$N" "$V" "$PROMPT_CH" "$N")
 # the ref page and the ref card all draw their subject the same way. each of
 # 1-7 says one thing now, and magenta says contrast -- the vs line, the one
 # row on a card whose whole job is "not the other one". a title is not a
-# contrast, and bold is what a title has always been on a terminal that has
-# no colour at all. a heading INSIDE a screen is U; this is the screen.
+# contrast. a heading INSIDE a screen is U; this is the screen.
+#
+# and what marks a title is not the bold -- on mono B, G, Y, C and W are all
+# \033[1m, so bold says "one of five things" there. it is the RULE BENEATH IT:
+# hdr() prints the title then rule(), statusbar() does the same, and the ref
+# page sets its name between two of them. that reads on every tier including
+# the one with no attributes at all, which is the only kind of mark this file
+# is allowed to rely on.
 hdr() {
 	printf '\n%s%s%s %s\n' "$B" "$1" "$N" "${D}$2$N"
 	rule
@@ -456,7 +528,9 @@ reveal() { printf '%s%s %s%s%s%s\n' "$D" "$PROMPT_CH" "$N" "$Y" "$1" "$N"; }
 # probes and any piped run stay linear and never block.
 
 # clear the screen AND the scrollback, so you cannot scroll up to the last card
-cls() { [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && printf '\033[H\033[2J\033[3J'; return 0; }
+# _csi, not TERM: a vt52 has no ED and no CUP, so this wrote H2J3J across the
+# screen -- before the first question, on every card.
+cls() { [ -t 1 ] && [ "$_csi" = 1 ] && printf '\033[H\033[2J\033[3J'; return 0; }
 
 # a green fill bar: $1 done, $2 total, $3 cells wide. filled cells green, the
 # rest dim -- the one moving element in the whole ui, and it does not animate,
@@ -490,8 +564,12 @@ statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 	# the subtitle. published rather than guessed at, because only this function
 	# knows the widths -- and zeroed when the gap is too narrow to hold one, so
 	# a clock never lands on top of the bar.
+	# and only where the terminal can be addressed at all: the clock is drawn by
+	# CUP between a DECSC/DECRC pair, none of which a pre-ANSI terminal has. one
+	# gate here covers the ticker, the cell and clock_stop, because all three
+	# already ask whether this column exists.
 	SB_CLOCK_COL=0
-	[ "$padw" -ge 6 ] && SB_CLOCK_COL=$(( ${#lt} + 3 ))
+	[ "$padw" -ge 6 ] && [ "$_csi" = 1 ] && SB_CLOCK_COL=$(( ${#lt} + 3 ))
 	printf '  %s%s%s  %s%s%s%*s' "$B" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
 	bar "$done" "$tot" "$bw"
 	printf ' %s%s/%s%s' "$D" "$done" "$tot" "$N"
@@ -587,7 +665,10 @@ clock_stop() {
 	# synchronised-output mode, which looks exactly like a frozen screen. one
 	# idempotent sequence of insurance, on the path the interrupt takes too.
 	printf '%s' "$SYNC_END"
-	[ "$SB_CLOCK_COL" -gt 0 ] && printf '\0337\033[%d;%dH   \0338' "$CLOCK_ROW" "$SB_CLOCK_COL"
+	# this had no terminal check at all -- not a tier, not a TERM, not a -t --
+	# so a ctrl-c down a pipe wrote cursor motion into whatever was reading it.
+	[ "$SB_CLOCK_COL" -gt 0 ] && [ "$_csi" = 1 ] && [ -t 1 ] \
+		&& printf '\0337\033[%d;%dH   \0338' "$CLOCK_ROW" "$SB_CLOCK_COL"
 	return 0
 }
 

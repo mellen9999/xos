@@ -966,6 +966,20 @@ else
 	grep -q 'serial-baud: 19200' <<< "$serout" \
 		&& ok "init set the serial line to 19200 for a vt320" \
 		|| bad "the usb-serial line was not set to the vt320 baud"
+	# the TERM, which this section never checked. it is what puts a serial
+	# session on learn's mono tier -- attributes, no colour -- and the whole
+	# vt320 half of lib/ui is drawn for it. the device node and the baud were
+	# asserted while the one setting that decides how the screen looks was not.
+	grep -q 'serial-term: vt320' <<< "$serout" \
+		&& ok "the serial line got TERM=vt320 (learn draws it on the mono tier)" \
+		|| bad "the serial TERM is not vt320 -- a serial session draws for the wrong hardware"
+	# and its geometry, because the brief-height gate is measured against it: a
+	# serial line reports no window size, so init pins 80x24 and G50 budgets 19
+	# rendered rows from it. if these ever disagree, a teaching page scrolls its
+	# own first line away on the terminal the mono tier exists for.
+	grep -q 'serial-size: 24x80' <<< "$serout" \
+		&& ok "the serial line is 80x24, the screen G50 measures briefs against" \
+		|| bad "the serial geometry is not 24x80 -- G50's brief budget no longer matches it"
 	assert_complete "$serout" "A20 usb-serial boot"
 fi
 

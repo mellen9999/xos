@@ -295,7 +295,14 @@ read_line() {   # [DEADLINE] -- sets REPLY_LINE. 0 line, 1 EOF/quit, 2 time up
 	local L="" R="" mode=insert c c2 c3 _r _pc _quit= _pm _bk _grc
 	local _pend= _pcnt= _mcnt= _await= _fop= _fch= _uL= _uR= _umode= _usnap=
 	local _dl="${1:-${ED_DEADLINE:-}}"
-	if [ ! -t 0 ]; then
+	# the editor is built out of CUU, CUF, ED and EL: it redraws the answer line
+	# in place on every keystroke. a terminal that does not parse CSI has none of
+	# those, so vi mode there is not degraded, it is impossible -- the moves
+	# would print as text over the answer being typed. it takes the same path a
+	# pipe takes, which is a plain read that still returns the line and still
+	# honours the deadline. the one thing lost is editing, and the alternative
+	# was a screen of digits.
+	if [ ! -t 0 ] || [ "$_csi" = 0 ]; then
 		if [ -n "$_dl" ]; then
 			_ed_budget "$_dl" || { REPLY_LINE=""; return 2; }
 			IFS= read -t "$_ED_BUD" -r REPLY_LINE; _grc=$?

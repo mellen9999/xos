@@ -8,10 +8,9 @@ brief: Looking: `lsblk` draws what is attached, `blkid` names each filesystem an
 brief: its uuid, `findfs` turns a `UUID=` back into a device, `blockdev` asks the
 brief: device its size, `df` how full a mount is, `du` what a directory costs.
 brief:
-brief: Making: `fdisk` edits the partition table and `partprobe` re-reads it,
-brief: `mkdosfs` and `mke2fs` write a fat or ext filesystem, `losetup` turns a file
-brief: into a block device, `cryptsetup` makes a luks container that is noise
-brief: without the key.
+brief: Making: `fdisk` edits the partition table, `partprobe` re-reads it, `mkdosfs`
+brief: and `mke2fs` write a fat or ext filesystem, `losetup` turns a file into a
+brief: block device, `cryptsetup` makes a luks container, noise without the key.
 brief:
 brief: Attaching: `mount`, `mountpoint` tests a path, `sync` forces writes out,
 brief: `umount` detaches -- pull a stick first and the loss is yours. `chroot`
