@@ -1,0 +1,67 @@
+name: the pattern
+boss: Sphinx
+flavor: Ask the wrong question and I match nothing at all.
+brief: A regex is built from four ideas, and everything else is spelling.
+brief: Anchors (`^` start, `$` end) pin a match to a position, not just
+brief: text. Classes (`[abc]`, `[^abc]`, `[0-9]`, `[[:space:]]`) pick one
+brief: character from a set. Quantifiers (`*` zero or more, `+` one or more,
+brief: `?` zero or one, `{n,m}` exactly this many to that many) say how
+brief: often. Alternation (`a|b`) is either-or, and `( )` groups a piece of
+brief: the pattern so a quantifier or `|` applies to the WHOLE group, not
+brief: just the character next to it.
+brief:
+brief: `grep -E` and `sed -E` read the same extended syntax -- `+`, `?`,
+brief: `{n,m}`, `|` and `( )` all work unescaped in both, which is why
+brief: extended regex is worth reaching for over the basic kind.
+---
+setup: you know the port is 4 digits and nothing else on the line comes close
+q: {pull the 4-digit port out of @cfg@ with an interval quantifier, `grep`|@cfg@'s port is 4 digits -- match just that, with `grep -E`|match exactly 4 digits in @cfg@ to find the port, `grep`}
+a: grep -oE '[0-9]{4}' @cfg@
+out: ^8080$
+cmp: ref
+ref: grep
+teach: grep -E
+hint: {4} means exactly four of whatever came before it -- no more, no fewer
+---
+setup: @log@ carries one bare line per severity, with nothing else on it
+q: {%count% @log@ lines that are just ERROR or WARN, with `grep`|how many @log@ lines are bare ERROR or WARN, via `grep -E`|count @log@ lines anchored to ERROR or WARN alone, `grep`}
+a: grep -cE '^(ERROR|WARN)$' @log@
+out: ^2$
+cmp: ref
+ref: grep
+teach: grep -E
+hint: the group holds the alternation together, and anchoring both ends makes sure the WHOLE line is just that word
+---
+setup: you want to confirm @cfg@'s listen line really is a full dotted address, not just digits and dots in any order
+q: {check @cfg@'s listen line is a strict IPv4 shape, `grep -E`|match @cfg@'s listen value as an exact dotted-quad, `grep`|confirm @cfg@'s listen address is 4 dot-separated groups, `grep -E`}
+a: grep -E '^listen = [0-9]{1,3}(\.[0-9]{1,3}){3}$' @cfg@
+out: listen
+cmp: ref
+ref: grep
+teach: grep -E
+hint: the group captures "dot then 1-3 digits", and {3} repeats that whole group three more times after the first octet
+---
+setup: you want ERROR and WARN treated the same downstream, without two separate sed passes
+q: {turn @log@'s bare ERROR or WARN lines into ``ALERT``, `sed -E`|collapse @log@'s bare ERROR/WARN lines to ``ALERT``, one `sed -E` pass|rewrite @log@'s lone ERROR/WARN lines as ``ALERT``, `sed -E`}
+a: sed -E 's/^(ERROR|WARN)$/ALERT/' @log@ | grep -c ALERT
+out: ^2$
+cmp: ref
+ref: sed
+teach: sed -E
+hint: the group makes | choose between the two words, and both anchors keep it from touching the longer lines that merely mention them
+---
+setup: you just want the digits out of @cfg@'s port line, nothing else on it
+q: {strip non-digits from @cfg@'s port line, `sed`'s negated class|@cfg@'s port line, digits only, with `sed`'s negated class|keep only digits from @cfg@'s port line, with `sed`}
+a: sed -n '/port/s/[^0-9]//gp' @cfg@
+out: ^8080$
+cmp: ref
+ref: sed
+teach: sed
+hint: [^0-9] matches anything that is NOT a digit -- g strips every one of them, and p prints only because /port/ matched first
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: printf 'color\ncolour\ncolonizer\n' | grep -cE 'colou?r'
+a: 2
+ref: grep
+teach: grep
+hint: ? makes the character before it optional -- zero or one -- so both spellings count, but "colonizer" has neither right after "colo"

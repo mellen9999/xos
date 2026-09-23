@@ -16,3 +16,4 @@
 20	24	the disk	where the bytes actually live: files packed and unpacked, checked for damage, sliced by the byte, and the disks under them.
 25	28	the wire	the machine talks to other machines. bring up an interface, prove you can reach one, move data across, in the clear and sealed.
 29	30	root	the editor that is always on every unix, and the power that acts as everyone. both reward care and punish haste.
+31	34	the deep end	one last stretch: not new tools, but the tricks that make the ones you have do more than you thought they could.

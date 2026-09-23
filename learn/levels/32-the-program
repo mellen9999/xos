@@ -1,0 +1,69 @@
+name: awk programs
+boss: Architect
+flavor: One line was never the plan.
+brief: A real `awk` program is more than one filter -- `BEGIN` and `END` frame
+brief: it, semicolons chain several statements inside one `{ }`, and an
+brief: associative array can hold a running number OR a growing string per
+brief: key, whichever the job needs.
+brief:
+brief: `if`/`else` reads like any other language's; `cond ? a : b` is the
+brief: same choice written as one expression, handy inside a `print`.
+brief:
+brief: `function name(args) { ... }` defines a routine once and calls it from
+brief: anywhere in the program, including from inside `END` -- which is how
+brief: a two-pass job (accumulate first, compute second) stays readable
+brief: instead of one line no one wants to touch again.
+---
+setup: @csv@'s status column repeats -- you want one total per status, not per row
+q: {@csv@'s count column, summed per status, with `awk`|total @csv@'s count column by status, using `awk`|group @csv@ by status and sum the count column, with `awk`}
+a: awk -F, 'NR>1{s[$3]+=$4} END{for (k in s) print k, s[k]}' @csv@
+cmp: ref
+ref: awk
+teach: awk
+hint: the array key is the status field, and += grows a running sum under it instead of just counting occurrences
+---
+setup: you want both ends of the range in one pass, not a separate command for each
+q: {@csv@'s smallest AND largest count, one `awk` pass|the low and high of @csv@'s count column, from one `awk` program|@csv@'s count column range -- min and max -- with one `awk` program}
+a: awk -F, 'NR>1{if (mn=="" || $4<mn) mn=$4; if ($4>mx) mx=$4} END{print mn, mx}' @csv@
+cmp: ref
+ref: awk
+teach: awk
+hint: mn starts unset, so the first row always wins the "or" -- after that only a smaller value replaces it
+---
+setup: you want to know WHICH hosts share a status, not just how many
+q: {@csv@'s host names, grouped by status, with `awk`|which @csv@ hosts share each status? group them with `awk`|list @csv@'s names under their status, grouped by `awk`}
+a: awk -F, 'NR>1{a[$3]=a[$3]" "$1} END{for (k in a) print k":"a[k]}' @csv@
+cmp: ref
+ref: awk
+teach: awk
+hint: an awk array holds any value, not just a count -- string concatenation grows the list one name at a time
+---
+q: {@csv@'s name and a big/small label by count, with `awk`'s `?:`|label each @csv@ row big or small by count, one `awk` expression|tag @csv@'s rows big or small on count, with `awk`'s ternary}
+a: awk -F, 'NR>1{print $1, ($4>20?"big":"small")}' @csv@
+cmp: ref
+ref: awk
+teach: awk
+hint: cond?a:b reads as one value -- the same choice as an if/else, folded straight into the print argument
+---
+q: %show% @csv@ with header ``=== report ===`` and a row-count footer, `awk`
+a: awk -F, 'BEGIN{print "=== report ==="} NR>1{n++} END{print "rows:", n}' @csv@
+out: rows: [0-9]+$
+cmp: ref
+ref: awk
+teach: awk
+hint: BEGIN runs once before any line, END once after the last -- everything between them is the body that runs per line
+---
+setup: each row's share of the whole only makes sense once you know the whole -- store first, compute after
+q: {each @csv@ host's percent of total, via a reusable `awk` `function`|@csv@'s counts as percentages, computed by an `awk` `function`|@csv@ rows as percent-of-total, via a defined `awk` `function`}
+a: awk -F, 'function pct(n,t){return t? 100*n/t : 0} NR>1{a[$1]=$4; tot+=$4} END{for(k in a) printf "%s %.0f%%\n", k, pct(a[k],tot)}' @csv@
+cmp: ref
+ref: awk
+teach: awk
+hint: the body only stores rows and adds to the running total; the function does the actual division once the total is known, from inside END
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: awk 'function double(n){return n*2} BEGIN{print double(21)}'
+a: 42
+ref: awk
+teach: awk
+hint: a function is defined once, outside any block, and called like any other awk expression -- here, from BEGIN

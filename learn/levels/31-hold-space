@@ -1,0 +1,74 @@
+name: hold space
+boss: Palimpsest
+flavor: Erase me and I remember anyway.
+brief: `sed` keeps a second buffer alongside the line it is working on: the
+brief: hold space, empty until you touch it. `h` copies pattern space into
+brief: it, `H` appends instead of overwriting, `g` copies it back, `G`
+brief: appends it back, and `x` swaps the two outright.
+brief:
+brief: `N` reads one more line into the pattern space instead of starting a
+brief: new cycle -- now a pattern can span two lines. `P` prints just the
+brief: first of them, `D` deletes it and restarts the cycle without reading
+brief: a fresh line, which is how a script walks the file two lines at a
+brief: time without ever losing its place.
+brief:
+brief: `:label` marks a spot, `b label` jumps to it unconditionally, `t label`
+brief: jumps to it only if the last `s///` actually changed something --
+brief: which is how a substitution loops until nothing is left to fix.
+---
+setup: tac isn't always around, but sed's hold space can do its job
+q: {reverse the line order of @cfg@ using `sed`'s hold space, no `tac`|read @cfg@ backwards with `sed` alone, not `tac`|flip @cfg@ top-to-bottom with `sed`, no `tac` involved}
+a: sed '1!G;h;$!d' @cfg@
+cmp: ref
+ref: sed
+teach: sed
+hint: every line appends itself before whatever G already holds, then h saves it back -- only the last line's turn prints, by when the hold has all of it in reverse
+---
+setup: you want to skim a dense @cfg@ with breathing room between lines, without editing the file
+q: {double @cfg@'s line spacing with `sed`'s bare `G`|blank-line-pad every line of @cfg@ with `sed`'s `G`|add a blank line after each line of @cfg@, with `sed`}
+a: sed 'G' @cfg@ | wc -l
+out: ^[0-9]*[02468]$
+cmp: ref
+ref: sed
+teach: sed
+hint: G appends the hold space, still empty, after every line -- one blank line per real line, so the total count always comes out even
+---
+setup: @log@ carries one line straight after a byte-identical copy of itself, and neither d nor s alone can compare a line to its neighbor
+q: {collapse @log@'s one back-to-back repeat with `sed`|drop @log@'s one adjacent duplicate line, `sed` not `uniq`|remove @log@'s repeated-in-a-row line, `sed`-only}
+a: sed '$!N; /^\(.*\)\n\1$/!P; D' @log@ | grep -c 'connection refused'
+out: ^1$
+cmp: ref
+ref: sed
+teach: sed
+hint: N pulls the next line in beside this one; if the backreference finds them equal nothing prints, otherwise P prints the first and D loops on the second
+---
+setup: you need @cfg@ as one line to search across a value, and there's no fixed number of lines to N through
+q: {join @cfg@ into one space-separated line, with `sed`|flatten @cfg@ to a single line with `sed`, spaces between|collapse @cfg@ onto one line with `sed`, space-joined}
+a: sed ':a;N;$!ba;s/\n/ /g' @cfg@
+out: listen.*port.*timeout
+cmp: ref
+ref: sed
+teach: sed
+hint: the label and b pull in every remaining line first -- only once N has swallowed the whole file does the final s/// turn the newlines into spaces
+---
+setup: two settings need to trade places line-for-line through the whole file, not just the first pair
+q: {swap every pair of adjacent lines in @cfg@, with `sed`|trade each line of @cfg@ with the one after it, using `sed`|reorder @cfg@ two lines at a time, each pair flipped, with `sed`}
+a: sed -n 'h;n;p;x;p' @cfg@
+cmp: ref
+ref: sed
+teach: sed
+hint: h banks the first line of the pair, n reads the second and p prints it, then x swaps the bank back in for the first -- a leftover odd line has no partner and is dropped
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: printf 'a\nb\n' | sed -n '1h;1!H;${g;s/\n/+/;p}'
+a: a+b
+ref: sed
+teach: sed
+hint: the first line seeds the hold space with h; every line after that appends with H; nothing prints until the last line copies the whole thing back with g
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: printf 'aaaa\n' | sed ':a;s/aa/a/;ta'
+a: a
+ref: sed
+teach: sed
+hint: each pass eats one pair of a's; t loops back to :a only while the last s/// actually matched, so it keeps squeezing until a single a is left

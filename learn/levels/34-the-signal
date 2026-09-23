@@ -1,0 +1,64 @@
+name: the signal
+boss: Reaper
+flavor: Every signal is a door. Some I let you answer.
+brief: `trap` is not just cleanup -- it is how a script decides what a
+brief: signal means. `trap 'CMD' SIG...` runs CMD for every signal named,
+brief: a bare `trap` lists what is currently set, and `trap - SIG` puts a
+brief: signal back to its default action.
+brief:
+brief: `trap '' SIG` is different from both: an EMPTY command means ignore
+brief: the signal outright -- it arrives and nothing happens, not even the
+brief: default. `kill -15` (TERM, the default signal) is what most things
+brief: send when they ask a process to stop; a caught or ignored TERM never
+brief: gets that chance to end it.
+brief:
+brief: EXIT is still the one that always fires -- on a normal finish, on
+brief: `exit`, or after a signal with no trap of its own -- which is why
+brief: cleanup belongs on EXIT and nowhere else.
+---
+setup: a script wants the chance to clean up before it actually stops, even when told to stop
+q: {catch `TERM` with `trap` before it can end the shell, then send it|`trap` `TERM` to a handler, `kill -15` this shell to prove it's ``caught``|make `TERM` run a handler via `trap`, then `kill -15` yourself to test it}
+a: trap 'echo caught' TERM; kill -15 $$; echo after
+cmp: ref
+ref: trap
+teach: trap
+hint: TERM arrives, runs the trap instead of the default action, and the shell carries on to the next line afterward
+---
+setup: you want a stretch of the script that TERM genuinely cannot interrupt
+q: {`trap` `TERM` to nothing so `kill -15` can't touch this shell|ignore `TERM` outright with `trap`, `kill -15` yourself to prove it|make `TERM` a no-op via `trap`, then send it with `kill` to check}
+a: trap '' TERM; kill -15 $$; echo survived
+out: ^survived$
+cmp: ref
+ref: trap
+teach: trap
+hint: an empty command is not the same as no trap at all -- it silences the signal completely, default action included
+---
+q: {`trap` one handler onto both `INT` and `TERM`, then list current traps|set the same handler for `INT` and `TERM` with one `trap`, then list traps|`trap` `INT` and `TERM` to one handler, then show current traps}
+a: trap 'echo x' INT TERM; trap
+cmp: ref
+ref: trap
+teach: trap
+hint: trap takes every signal name that follows the command, and a bare trap with no arguments lists what is currently set
+---
+setup: you decided TERM should behave normally again, but INT should still be caught
+q: {put `TERM` back to default with `trap -`, `INT` still caught|`trap - TERM` to undo just that signal, keep `INT` trapped|reset `TERM` to default via `trap`, `INT` untouched}
+a: trap 'echo x' TERM; trap - TERM; trap 'echo y' INT; trap
+cmp: ref
+ref: trap
+teach: trap
+hint: trap - SIGNAL removes just that one trap; the listing afterward proves TERM is gone and INT is not
+---
+setup: a script drops a marker file mid-run, and it must not survive the script that made it
+q: {make ``cleanup.mark``, `trap` its removal for `EXIT`, then finish|drop ``cleanup.mark``, `trap` its removal on `EXIT`, then exit clean|create ``cleanup.mark``, `trap` `rm -f` it for `EXIT`, let the script end}
+a: f=cleanup.mark; : > "$f"; trap 'rm -f "$f"' EXIT; echo done
+state: gone:cleanup.mark
+ref: trap
+teach: trap
+hint: EXIT fires when the script ends for any reason, including just running off the end -- that's where the rm actually happens
+---
+q: {what does this print?|call it -- what comes out?|read it: what does it print?}
+predict: trap 'echo bye' EXIT; exit 3; echo unreached
+a: bye
+ref: trap
+teach: trap
+hint: exit ends the script immediately and still fires the EXIT trap on the way out -- nothing written after exit ever runs
