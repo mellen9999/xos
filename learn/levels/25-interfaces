@@ -192,11 +192,11 @@ hint: -i filters the cache down to one interface
 ---
 setup: a host lives on a different segment, and its neighbours need to think it's local
 q: {publish an `arp` entry for @ip@ on @iface@, on another's behalf|answer `arp` requests for @ip@ on @iface@, on another's behalf|publish a proxy `arp` entry for @ip@ out of @iface@}
-a: arp -D @iface@ -s @ip@
+a: arp -Ds @ip@ @iface@ pub
 why: live-hw
 ref: arp
 teach: arp -D
-hint: -D answers arp requests for an address on another host's behalf
+hint: -Ds publishes @ip@ using @iface@'s own MAC; the trailing pub makes it a proxy entry answered on another host's behalf
 ---
 setup: three probes, then stop
 q: {is anyone using @ip@ -- ask at the link layer, with `arping`|check at the link layer whether @ip@ is in use, with `arping`|find out, below ip, whether @ip@ has an owner, with `arping`}

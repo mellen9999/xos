@@ -176,7 +176,7 @@ out: ^---
 status: 1
 ref: diff
 teach: diff
-hint: diff's default output shows changed lines with < and > markers
+hint: busybox diff prints unified output -- ---/+++ headers, then - and + lines
 ---
 q: %show% @txt@ vs @txt2@ as a unified `diff`, 3 lines of context
 a: diff -U 3 @txt@ @txt2@

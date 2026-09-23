@@ -13,9 +13,9 @@ brief: Arguments arrive as `$1 $2 $3`. `shift` drops `$1` and slides the rest do
 brief: which is how you walk a list you did not write. `getopts` walks option
 brief: letters instead, one call per option.
 brief:
-brief: `trap` is the cleanup. `trap CMD EXIT` runs CMD however the shell ends --
-brief: normally, by error, or killed -- so a temp file you made gets removed
-brief: on the path you did not plan for.
+brief: `trap` is the cleanup. `trap CMD EXIT` runs CMD when the shell exits --
+brief: normally or by error -- so a temp file you made gets removed on the path
+brief: you did not plan for. A kill signal is not an exit: catch it separately.
 brief:
 brief: `exec` and `.` both act on the shell you are in rather than a child: `exec`
 brief: replaces it or rewires its file descriptors for good, `.` runs a script

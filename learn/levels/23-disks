@@ -256,7 +256,7 @@ a: sync -d @txt@
 why: primitive-cost
 ref: sync
 teach: sync -d
-hint: -d limits the flush to the file you name
+hint: naming the file scopes the flush to it; -d skips syncing its metadata
 ---
 setup: two scripts could grab the same lock at once, and only one may hold it while it writes
 q: {hold an exclusive lock on ``lock.file``, with `flock`, echoing ``held``|with `flock`, lock ``lock.file`` exclusively, running `echo` ``held``|take ``lock.file``'s exclusive lock with `flock`, around `echo` ``held``}

@@ -28,7 +28,7 @@ a: wc -c < @txt@
 cmp: ref
 ref: wc
 teach: wc -c
-hint: c counts bytes -- pair with -m for characters on multibyte text
+hint: c counts bytes -- for a busybox built without locale support that is also the character count
 ---
 q: {%count% how many entries are in the current directory|how many things are in this directory?|number of files and folders here}, with `wc`
 a: ls | wc -l

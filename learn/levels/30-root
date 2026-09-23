@@ -80,9 +80,9 @@ ref: sha256sum
 teach: sha256sum
 hint: cut -d' ' -f1 drops the device name sha256sum prints after the hash
 ---
-setup: Compare that against the digest recorded when the image was built --
-setup: which you must have carried here from somewhere else. Reading it off
-setup: this disk would prove nothing at all.
+setup: The roothash the kernel enforces is a Merkle-tree root, not a flat
+setup: sha256sum of the device -- the two numbers are different things and will
+setup: not be equal. Print both as two facts, not a comparison.
 q: {print the running digest ``mounted``, the anchored hash as roothash|label the running digest ``mounted``, the anchored hash roothash|two labelled lines: ``mounted``, then roothash}, with `printf`
 a: printf 'mounted %s\nroothash %s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
 cmp: ref
@@ -118,7 +118,7 @@ hint: -e tests for existence, same idea as the modules check above
 ---
 setup: Three doors, one line. Close them and check they stayed closed.
 q: {label 3 lines -- ``modules``, devmem ``present`` or absent, lockdown|print ``modules``, devmem ``present`` or absent, lockdown's value|one line each: ``modules``, devmem ``present`` or absent, then lockdown}, with `printf`
-a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
+a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo none)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
 cmp: ref
 ref: printf
 teach: printf
@@ -201,8 +201,9 @@ teach: awk
 hint: two commands chained with && so both must succeed as evidence
 ---
 setup: Last. Everything you have learned, aimed at the machine underneath you.
-setup: If this prints and the numbers are the ones you carried in, the system
-setup: running this command is the system you built.
+setup: The roothash is signed and enforced -- panic_on_corruption halts the
+setup: machine on a single altered block. That live enforcement, not a hash you
+setup: match by eye, is what proves this is the system you built.
 q: %show% the mounted digest, the anchored hash, enforcement, with `printf`
 a: printf '%s\n%s\n%s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)" "$(grep -o panic_on_corruption /proc/cmdline)"
 cmp: ref
