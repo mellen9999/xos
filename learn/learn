@@ -2567,6 +2567,52 @@ c' 20)" = 3 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL ui mark: the heading mark is wrong, or is another mark" >&2; bad=$((bad+1)); }
 
+	# and the palette itself. the block at the top of lib/ui is the only place a
+	# colour's MEANING is written down, and nothing read it -- so three slots
+	# drifted at once: yellow held four meanings including "this erases your
+	# save", the heading mark had become the literal mark on mono, and magenta's
+	# line said "a banner" while its one consumer was the vs row. a comment that
+	# can rot in silence is not a rule. this reads the block back and holds it
+	# against the definitions, so the doctrine and the code cannot disagree.
+	#
+	# the numbers are pinned too, and that is the point of pinning them: red is
+	# error, green is success, yellow is warning everywhere else on this machine,
+	# and a palette that quietly renumbered would teach the reader the opposite
+	# of every other tool they will use.
+	( _ui="$ROOT/lib/ui"
+	  # every slot the block names. one per line by construction, so a slot that
+	  # loses its line or gains a second one moves this string.
+	  _doc=$(sed -n 's/^#   \([A-Z][A-Z]*\)  *[a-z].*/\1/p' "$_ui" | tr '\n' ' ')
+	  [ "$_doc" = "R G Y U M C W D V B BL N " ] || exit 1
+	  # and each one is really assigned in that file
+	  for _s in R G Y U M C W D V B BL N; do
+	  	grep -q "[^A-Za-z_]$_s=" "$_ui" || exit 1
+	  done
+	  # the colour tier, derived rather than inherited: the build runs this
+	  # under NO_COLOR, where every one of them is the empty string, and a
+	  # palette test that passed on twelve empty strings would be a green light
+	  # bolted over the exact hole this gate exists to close.
+	  _ui_colours colour; _ui_head colour
+	  case "$R" in *'[31m') ;; *) exit 1 ;; esac
+	  case "$G" in *'[32m') ;; *) exit 1 ;; esac
+	  case "$Y" in *'[33m') ;; *) exit 1 ;; esac
+	  case "$U" in *'34m')  ;; *) exit 1 ;; esac
+	  case "$M" in *'[35m') ;; *) exit 1 ;; esac
+	  case "$C" in *'[36m') ;; *) exit 1 ;; esac
+	  case "$W" in *'[37m') ;; *) exit 1 ;; esac
+	  case "$D" in *'[90m') ;; *) exit 1 ;; esac
+	  case "$V" in *'[7m')  ;; *) exit 1 ;; esac
+	  # and no two of them are the same thing, which is what "one meaning per
+	  # colour" comes to from the reader's side
+	  [ "$(printf '%s\n' "$R" "$G" "$Y" "$U" "$M" "$C" "$W" "$D" "$V" \
+	       | sort -u | grep -c .)" = 9 ] || exit 1
+	  # the none tier empties all of them: a slot left set there would print an
+	  # escape down a pipe and into whatever read it.
+	  _ui_colours none; _ui_head none
+	  [ -z "$R$G$Y$U$M$C$W$D$V$B$BL$N" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui palette: the doctrine block and the colours disagree" >&2; bad=$((bad+1)); }
+
 	# and the claim the whole marking rests on: a mark changes how a line looks,
 	# never which lines exist. wrap() treats the two literal fences as zero
 	# width, so a marked brief and its bare self break in exactly the same

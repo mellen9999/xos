@@ -3,15 +3,22 @@
 # colour is a courtesy, never information: every state it marks is also marked
 # by a character, so NO_COLOR and a dumb terminal lose nothing.
 #
-#   R wrong   G correct, and every count going the right way
-#   Y the miss: the answer you did not give, the habit worth dropping,
-#     and the warning before something is wiped
-#   U a section heading inside a screen -- the screen's own title is hdr(), bold
-#   M contrast: the vs row, and nothing else
-#   C what you type -- a command, a flag, an operator, an expansion, a key
-#   W live text: a label, a prompt, a value -- what is being said to you now
-#   D the frame, and everything quiet
-#   V reverse video: the one MARK, and the same on every terminal that has it
+# ONE SLOT PER LINE, and the selftest reads this block: it is the only place a
+# colour's meaning is written down, and a comment nothing checks is not a rule.
+#
+#   R  wrong
+#   G  correct, and every count going the right way
+#   Y  the miss -- the answer you did not give, the habit worth dropping, and
+#      the warning before something is wiped
+#   U  a section heading inside a screen; the screen's own title is hdr(), bold
+#   M  contrast -- the vs row, and nothing else
+#   C  what you type: a command, a flag, an operator, an expansion, a key
+#   W  live text -- a label, a prompt, a value: what is being said to you now
+#   D  the frame, and everything quiet
+#   V  reverse video -- the one MARK, the same on every terminal that has it
+#   B  bold -- the one title style: hdr(), the status bar, a ref page, a card
+#   BL blink -- two digits counting down, and nothing else
+#   N  reset, which every mark above closes with
 #
 # one meaning per colour, and the selftest holds the three marks apart. a slot
 # that grows a second meaning is a slot that says nothing: yellow meant the
@@ -49,33 +56,42 @@ _ui_tier "${TERM:-dumb}"
 [ -z "${NO_COLOR:-}" ] || _tier=none
 [ -t 1 ] || _tier=none
 
-if [ "$_tier" = none ]; then
-	N= B= D= R= G= Y= M= C= W= V= BL=
-else
+# _ui_colours TIER -- the whole palette, and a function for the same reason the
+# three marks are: a value set inline with the tier cannot be asserted without a
+# terminal, and the build runs the selftest under NO_COLOR, where every one of
+# these is the empty string. that is precisely how the doctrine block above went
+# unwatched while three of its slots drifted. now the selftest reads the block
+# back and holds it against what this function produces.
+_ui_colours() {
+	if [ "$1" = none ]; then
+		N= B= V= BL= R= G= Y= M= C= W= D=
+		return 0
+	fi
 	N=$(printf '\033[0m')  B=$(printf '\033[1m')  V=$(printf '\033[7m')
 	# the fourth attribute a vt320 has, and the only one nothing wanted. it
 	# is unreadable under anything you have to read, which is exactly what
 	# makes it right for two digits counting down and nothing else.
 	BL=$(printf '\033[5m')
-fi
-if [ "$_tier" = colour ]; then
-	R=$(printf '\033[31m')
-	G=$(printf '\033[32m')
-	Y=$(printf '\033[33m')
-	M=$(printf '\033[35m')
-	C=$(printf '\033[36m')
-	W=$(printf '\033[37m')
-	# dim has to name a colour. a bare \033[2m keeps the terminal's DEFAULT
-	# foreground, which under most schemes is brighter than the 37 live text
-	# uses -- the quiet rows then read as the loudest thing on the screen.
-	D=$(printf '\033[90m')
-elif [ "$_tier" = mono ]; then
-	# the loud half reverses, the quiet half bolds. dim is the exception: a
-	# vt-series terminal has no faint, so quiet text is simply NOT bold -- the
-	# same idea by the only means the hardware has. headings are _ui_head.
-	R=$V  M=$V
-	G=$B  Y=$B  C=$B  W=$B  D=
-fi
+	if [ "$1" = colour ]; then
+		R=$(printf '\033[31m')
+		G=$(printf '\033[32m')
+		Y=$(printf '\033[33m')
+		M=$(printf '\033[35m')
+		C=$(printf '\033[36m')
+		W=$(printf '\033[37m')
+		# dim has to name a colour. a bare \033[2m keeps the terminal's DEFAULT
+		# foreground, which under most schemes is brighter than the 37 live text
+		# uses -- the quiet rows then read as the loudest thing on the screen.
+		D=$(printf '\033[90m')
+	else
+		# the loud half reverses, the quiet half bolds. dim is the exception: a
+		# vt-series terminal has no faint, so quiet text is simply NOT bold --
+		# the same idea by the only means the hardware has. headings: _ui_head.
+		R=$V  M=$V
+		G=$B  Y=$B  C=$B  W=$B  D=
+	fi
+}
+_ui_colours "$_tier"
 
 # _ui_head TIER -- the mark on a section heading, and a function for the same
 # reason the other two marks are: a heading has to be ONE shape on every tier
