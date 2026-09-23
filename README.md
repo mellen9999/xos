@@ -139,9 +139,12 @@ the fbcon virtual terminals stay `TERM=linux`; only the serial lines are vt320.
 the usb adapter enumerates during boot, so **plug it in before booting**. two
 signed-cmdline knobs cover other hardware: `xos.term=vt220`, `xos.baud=9600`.
 
-nothing on screen is utf-8: the banner and `learn` degrade to ascii on a terminal
-that reports no utf-8, so box-drawing and colour never reach a glass that can't
-render them.
+nothing on screen assumes more than the terminal has. the banner and `learn`
+degrade to ascii on a terminal that reports no utf-8; colour gives way to bold,
+underline and reverse on a monochrome vt; and a pre-ANSI terminal -- a vt50 or
+vt52, which answer no escape sequence at all -- gets neither, so the marks in a
+question become the quotes and backticks you would have typed. no terminal is
+ever sent an escape it cannot parse.
 
 ## secure boot
 
