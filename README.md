@@ -503,6 +503,10 @@ is the post-build attestation, source + sha256:
 | binwalk | scan a firmware blob for embedded filesystems, keys and streams |
 | cc | compile C on the stick -- tcc + a musl sysroot, one static toolchain |
 | radare2 | reverse a binary offline -- disassemble, analyse, hex-edit (r2/rabin2/rax2) |
+| minisign | sign/verify a file -- ed25519, one binary, no gpg trust model |
+| age | encrypt/decrypt a file -- modern, no gpg keyring, passphrase or keypair |
+| dvtm | suckless terminal multiplexer -- split panes atop abduco, no server |
+| rsync | sync/backup over ssh -- delta transfer, resumable |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | impacket | windows/ad attack suite -- secretsdump, ntlmrelayx, psexec, kerberos (70 tools, pure-python) |
@@ -513,7 +517,7 @@ is the post-build attestation, source + sha256:
 and cross-checks `arsenal.lock` so an attested-but-missing or present-but-unattested
 binary shows up loud instead of hiding. `arsenal <tool>` prints that tool's
 canonical recipes and `arsenal chains` the mission workflows (recon, web, crack,
-pivot, ad, forensics, reverse) wired end-to-end -- the offline how-to, in
+pivot, ad, forensics, crypto, reverse) wired end-to-end -- the offline how-to, in
 `arsenal-playbook`; the base cli it sits on is taught by `learn`.
 
 a lean static cli kit reaches most of a full kali install without the ~600 packages
@@ -530,6 +534,8 @@ and a desktop -- and unlike kali, every byte of it is reproducible and attested:
 | brute / crack | hydra, john | hydra john (musl); hashcat out (needs gpu) |
 | disk recovery | ddrescue, testdisk | ddrescue testdisk photorec smartctl (musl) |
 | reversing | radare2, gdb | radare2 strace file (musl); gdb not built -- r2's own debugger + strings + python cover it |
+| crypto / sign | gpg | minisign age (musl) -- sign/verify + encrypt, no gpg trust model |
+| sync / panes | rsync, tmux | rsync dvtm (musl) -- delta backup over ssh, split panes atop abduco |
 | exploit framework | metasploit | out (ruby+db) -- carried python covers it |
 | python tooling | sqlmap, impacket | carried python 3.12 via xexec -t |
 | wireless | aircrack, wifite | out -- no wifi drivers, by design |
