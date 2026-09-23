@@ -59,8 +59,9 @@ show_tool() {  # one tool's canonical recipes
 
 case "${1:-}" in
   chains)  show_chains; exit $? ;;
+  tour)    shift; exec sh "$T/tour" "$@" ;;    # the guided, from-zero walkthrough
   "")      ;;                                  # no arg -> the full listing below
-  -h|--help) printf 'usage: arsenal            list every tool\n       arsenal chains     the mission workflows\n       arsenal <tool>     that tool'\''s recipes\n'; exit 0 ;;
+  -h|--help) printf 'usage: arsenal            list every tool\n       arsenal tour       a guided, from-zero walkthrough\n       arsenal chains     the mission workflows\n       arsenal <tool>     that tool'\''s recipes\n'; exit 0 ;;
   *)       show_tool "$1"; exit $? ;;
 esac
 
@@ -70,7 +71,7 @@ present=""
 for f in "$T"/*; do
   [ -e "$f" ] || continue
   b=$(basename "$f")
-  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec) continue ;; esac
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|tour|tour-lessons) continue ;; esac
   present="$present $b "
   d=$(desc "$b")
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"

@@ -1,0 +1,330 @@
+#!/bin/sh
+# tour -- a guided, from-zero walk through the whole arsenal, for someone who has
+# never touched a shell. it TEACHES by running each tool live against safe practice
+# targets the tour stands up on 127.0.0.1 (its own website, its own login), then
+# tears them down. it remembers where you got to, so you can learn over days.
+#
+# rides p3 (noexec), so run it as `sh ~/tools/tour` -- the shell only READS this
+# file; the tools it demos go through xexec exactly as the launcher shows. NOT part
+# of the signed image: it is capability, a file on p3, changed without a rebuild.
+#
+#   sh ~/tools/tour              resume where you left off (or start at the top)
+#   sh ~/tools/tour <mission>    jump to a mission (start, files, web, ...)
+#   sh ~/tools/tour --list       list the missions
+#   sh ~/tools/tour --reset      forget all progress and start over
+#   sh ~/tools/tour --selfcheck  prove the curriculum is well-formed (runs nothing)
+#
+# WHY THIS EXISTS: a tool you cannot find or dare not try is a tool you do not have.
+# `arsenal` is the index and `arsenal chains` the recipes; this is the hand that
+# walks a beginner through actually doing it, safely, once.
+set -u
+
+# ---- where things live (mirror the launcher's resolution) -------------------
+T="${XOS_TOOLS:-$HOME/tools}"
+[ -d "$T" ] || T=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CAT="$T/arsenal-catalog"
+LESSONS="$T/tour-lessons"
+[ -f "$LESSONS" ] || LESSONS="$(dirname -- "$0")/tour-lessons"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/tour"
+LEDGER="$STATE/progress"
+US=$(printf '\037')          # field separator for the parsed step stream
+ROOT=0; [ "$(id -u)" = 0 ] && ROOT=1
+
+# ---- colours: ansi-256, semantic, no motion ---------------------------------
+if [ -t 1 ]; then
+  C_H=$(printf '\033[38;5;208m')   # orange  -- headings / tool name (heatsync)
+  C_D=$(printf '\033[38;5;244m')   # grey    -- meta / dim
+  C_OK=$(printf '\033[38;5;46m')   # green   -- success / it worked
+  C_R=$(printf '\033[38;5;196m')   # red     -- the rule / danger
+  C_RV=$(printf '\033[7m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
+else
+  C_H=; C_D=; C_OK=; C_R=; C_RV=; C_B=; C_0=
+fi
+cls()  { printf '\033[2J\033[H'; }
+rule() { printf '%s%s%s\n' "$C_D" "------------------------------------------------------------" "$C_0"; }
+
+# ---- parse the lessons into one US-delimited line per step ------------------
+# fields: mission_id, mission_title, tool, mode, what, why, run, see, note
+parse() {
+  awk -v US="$US" '
+    function flush(){ if(tool!=""){ printf "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+        mid,US,mtitle,US,tool,US,mode,US,what,US,why,US,run,US,see,US,note }
+      tool="";mode="";what="";why="";run="";see="";note="" }
+    /^#/  { next }
+    /^[[:space:]]*$/ { next }
+    /^:/  { flush(); l=$0; sub(/^:/,"",l); mid=l; sub(/[ \t].*/,"",mid);
+            mtitle=l; sub(/^[^ \t]+[ \t]+/,"",mtitle); next }
+    /^>/  { flush(); l=$0; sub(/^>/,"",l); tool=l; sub(/[ \t].*/,"",tool);
+            mode=l; sub(/^[^ \t]+[ \t]*/,"",mode); if(mode==tool) mode=""; next }
+    /^[ \t]/ { l=$0; sub(/^[ \t]+/,"",l); k=l; sub(/:.*/,"",k);
+            v=l; sub(/^[^:]*:[ \t]?/,"",v)
+            if(k=="what")what=v; else if(k=="why")why=v; else if(k=="run")run=v;
+            else if(k=="see")see=v; else if(k=="note")note=v; next }
+    END{ flush() }
+  ' "$LESSONS"
+}
+
+# ---- token substitution: fill a run: line with the live lab's real paths ----
+subst() {
+  printf '%s' "$1" | sed \
+    -e "s#@py#sh $T/xexec -t $T/python bin/python3#g" \
+    -e "s#@ap#${APORT:-0}#g" \
+    -e "s#@url#http://127.0.0.1:${WPORT:-0}#g" \
+    -e "s#@port#${WPORT:-0}#g" \
+    -e "s#@hash#$LAB/pw.hash#g" \
+    -e "s#@w#$LAB/words.txt#g" \
+    -e "s#@T#$T#g" \
+    -e "s#@t#$LAB#g" \
+    -e "s#@x#sh $T/xexec#g"
+}
+
+# ---- the safe practice lab: a scratch tmpfs + loopback targets --------------
+LAB=""; WEB_PID=""; AUTH_PID=""; WPORT=""; APORT=""; SEEDED=""
+free_port() {  # first free loopback port at/above $1
+  p=$1
+  while netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$p "; do p=$((p+1)); done
+  echo "$p"
+}
+lab_make() {
+  [ -n "$LAB" ] && return 0
+  LAB=$(mktemp -d "${TMPDIR:-/tmp}/.tourlab.XXXXXX") || { echo "no scratch space"; exit 1; }
+  # a private tmpfs so the compiled-C demo has somewhere it is allowed to run, and
+  # so teardown is a single umount. only root may mount; unprivileged falls back to
+  # the plain dir (live steps need root anyway, via xexec).
+  [ "$ROOT" = 1 ] && mount -t tmpfs -o nosuid,nodev,size=64m tmpfs "$LAB" 2>/dev/null || true
+}
+lab_seed() {
+  [ -n "$SEEDED" ] && return 0; SEEDED=1; lab_make
+  printf '{"tools":["file","jq","rg"]}\n' > "$LAB/sample.json"
+  mkdir -p "$LAB/loot" "$LAB/backup"
+  printf 'nothing to see here\nthe secret is 42\n' > "$LAB/loot/diary.txt"
+  printf 'more notes here\n' > "$LAB/loot/notes.txt"
+  printf 'this is a practice note.\n' > "$LAB/note.txt"
+  printf 'admin\nbackup\nsecret\nletmein\npassword\ndemo\nhello\n' > "$LAB/words.txt"
+  printf '<h1>practice site</h1>\n' > "$LAB/index.html"
+  printf 'you found the hidden page!\n' > "$LAB/secret"
+  { printf 'JUNKHEADER'; printf 'hidden payload\n' | gzip 2>/dev/null; } > "$LAB/mystery.bin" 2>/dev/null
+  printf '.TH DEMO 1\n.SH NAME\ndemo \\- a practice manual page\n.SH DESCRIPTION\nyou are reading a rendered man page.\n' > "$LAB/demo.1"
+  printf '#include <stdio.h>\nint main(void){ printf("hello from a program you just built\\n"); return 0; }\n' > "$LAB/hello.c"
+  cp "$(command -v busybox 2>/dev/null || command -v sh)" "$LAB/hello" 2>/dev/null || cp /bin/sh "$LAB/hello" 2>/dev/null
+  h=$(printf 'letmein' | md5sum 2>/dev/null | cut -d' ' -f1); printf 'demo:%s\n' "$h" > "$LAB/pw.hash"
+  [ "$ROOT" = 1 ] && sh "$T/xexec" zstd -q -o "$LAB/note.txt.zst" "$LAB/note.txt" 2>/dev/null || true
+  cat > "$LAB/authserver.py" <<'PY'
+import sys, base64
+from http.server import BaseHTTPRequestHandler, HTTPServer
+USER, PW = b'demo', b'letmein'
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        a = self.headers.get('Authorization', '')
+        ok = False
+        if a.startswith('Basic '):
+            try:
+                u, p = base64.b64decode(a[6:]).split(b':', 1); ok = (u == USER and p == PW)
+            except Exception:
+                ok = False
+        if ok:
+            self.send_response(200); self.end_headers(); self.wfile.write(b'welcome demo\n')
+        else:
+            self.send_response(401); self.send_header('WWW-Authenticate', 'Basic realm=x'); self.end_headers()
+    def log_message(self, *a):
+        pass
+HTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
+PY
+}
+wait_port() { p=$1; i=0; while [ $i -lt 6 ]; do netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$p " && return 0; sleep 1; i=$((i+1)); done; return 1; }
+lab_web() {
+  [ -n "$WEB_PID" ] && return 0; lab_seed; WPORT=$(free_port 8000)
+  setsid sh -c "cd '$LAB' && exec sh '$T/xexec' -t '$T/python' bin/python3 -m http.server $WPORT --bind 127.0.0.1" >/dev/null 2>&1 &
+  WEB_PID=$!; wait_port "$WPORT" || true
+}
+lab_auth() {
+  [ -n "$AUTH_PID" ] && return 0; lab_seed; APORT=$(free_port 8100)
+  setsid sh -c "exec sh '$T/xexec' -t '$T/python' bin/python3 '$LAB/authserver.py' $APORT" >/dev/null 2>&1 &
+  AUTH_PID=$!; wait_port "$APORT" || true
+}
+lab_ensure() {  # start only the target a mission needs
+  case "$1" in
+    web) lab_web ;;
+    passwords) lab_auth ;;
+  esac
+}
+cleanup() {
+  for pg in $WEB_PID $AUTH_PID; do kill -TERM "-$pg" 2>/dev/null; done
+  [ -n "$WPORT" ] && pkill -f "http.server $WPORT" 2>/dev/null
+  if [ -n "$LAB" ]; then umount -l "$LAB" 2>/dev/null; rm -rf "$LAB" 2>/dev/null; fi
+  for m in "${TMPDIR:-/tmp}"/.xexec.*; do [ -d "$m" ] && { umount -l "$m" 2>/dev/null; rmdir "$m" 2>/dev/null; }; done
+}
+trap cleanup EXIT INT TERM
+
+# ---- progress ledger: atomic, keyed on the lesson content -------------------
+fp() { md5sum "$LESSONS" 2>/dev/null | cut -d' ' -f1; }
+ledger_load() {   # echoes done ids if the fingerprint still matches, else nothing
+  [ -f "$LEDGER" ] || return 0
+  read -r tag val < "$LEDGER" 2>/dev/null || return 0
+  [ "$tag" = "fp" ] && [ "$val" = "$(fp)" ] || return 0
+  sed -n '2,$p' "$LEDGER"
+}
+ledger_mark() {   # $1 = step id; append once, atomically
+  mkdir -p "$STATE" 2>/dev/null
+  cur=$(ledger_load)
+  case "
+$cur
+" in *"
+$1
+"*) return 0 ;; esac
+  { printf 'fp %s\n' "$(fp)"; printf '%s\n' "$cur" | sed '/^$/d'; printf '%s\n' "$1"; } \
+    > "$LEDGER.tmp.$$" 2>/dev/null && mv "$LEDGER.tmp.$$" "$LEDGER" 2>/dev/null || rm -f "$LEDGER.tmp.$$"
+}
+is_done() { case "
+$1
+" in *"
+$2
+"*) return 0 ;; *) return 1 ;; esac; }
+
+# ---- one step on screen -----------------------------------------------------
+prompt_key() { printf '%s%s%s ' "$C_D" "$1" "$C_0"; IFS= read -r REPLY 2>/dev/null || REPLY=q; }
+show_step() {  # positional fields already split by caller into these globals
+  cls
+  printf '%s%s %s·%s %s%s%s   %s%s/%s%s\n' "$C_RV" " $S_MTITLE " "$C_0$C_D" "$C_0" \
+    "$C_H$C_B" "$S_TOOL" "$C_0" "$C_D" "$S_N" "$S_TOTAL" "$C_0"
+  rule
+  printf '%swhat%s  %s\n' "$C_H" "$C_0" "$S_WHAT"
+  printf '%swhy%s   %s\n' "$C_H" "$C_0" "$S_WHY"
+  case "$S_MODE" in
+    note)
+      [ -n "$S_NOTE" ] && { printf '\n%s\n' "$S_NOTE"; }
+      rule; prompt_key "[enter] next  ·  [q] quit"
+      case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
+    show)
+      printf '\n%show you run it%s\n  %s%s%s\n' "$C_H" "$C_0" "$C_B" "$S_RUN" "$C_0"
+      printf '\n%s! %s%s\n' "$C_R" "$S_NOTE" "$C_0"
+      rule; prompt_key "[enter] next  ·  [q] quit"
+      case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
+    run)
+      lab_seed                       # scratch dir + practice fixtures (idempotent)
+      cmd=$(subst "$S_RUN")
+      printf '\n%sthe command%s\n  %s%s%s\n' "$C_H" "$C_0" "$C_B" "$cmd" "$C_0"
+      rule; prompt_key "[enter] run it  ·  [s] skip  ·  [q] quit"
+      case "$REPLY" in
+        q|Q) return 2 ;;
+        s|S) return 0 ;;
+        *)
+          lab_ensure "$S_MID"
+          printf '\n%s$ %s%s\n\n' "$C_D" "$cmd" "$C_0"
+          if sh -c "$cmd"; then
+            printf '\n%s\xe2\x9c\x93 %s%s\n' "$C_OK" "$S_SEE" "$C_0"
+          else
+            printf '\n%s(that did not run here -- it needs the built stick and root. the command above is real.)%s\n' "$C_D" "$C_0"
+          fi
+          rule; prompt_key "[enter] next  ·  [q] quit"
+          case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
+      esac ;;
+  esac
+}
+
+# ---- walk the steps from a starting index -----------------------------------
+STEPS=""    # the parsed stream, cached
+load_steps() { [ -n "$STEPS" ] || STEPS=$(parse); }
+step_count() { load_steps; printf '%s\n' "$STEPS" | grep -c . ; }
+nth() { load_steps; printf '%s\n' "$STEPS" | sed -n "${1}p"; }
+
+split_step() {  # $1 = one US-delimited record -> S_* globals
+  oldIFS=$IFS; IFS=$US
+  # shellcheck disable=SC2086
+  set -- $1
+  IFS=$oldIFS
+  S_MID=$1; S_MTITLE=$2; S_TOOL=$3; S_MODE=${4:-note}
+  S_WHAT=$5; S_WHY=$6; S_RUN=$7; S_SEE=${8:-}; S_NOTE=${9:-}
+}
+
+mission_first_index() {  # $1 = mission id -> line number of its first step, or ""
+  load_steps; n=0
+  printf '%s\n' "$STEPS" | while IFS=$US read -r mid _rest; do
+    n=$((n+1)); [ "$mid" = "$1" ] && { echo "$n"; break; }
+  done
+}
+
+walk() {  # $1 = start index
+  total=$(step_count); i=$1
+  # per-mission counters for the header (n/total-in-mission)
+  while [ "$i" -le "$total" ]; do
+    rec=$(nth "$i"); split_step "$rec"
+    # count position within this mission
+    S_N=0; S_TOTAL=0; j=1
+    while [ "$j" -le "$total" ]; do
+      r=$(nth "$j"); m=${r%%"$US"*}
+      [ "$m" = "$S_MID" ] && { S_TOTAL=$((S_TOTAL+1)); [ "$j" -le "$i" ] && S_N=$((S_N+1)); }
+      j=$((j+1))
+    done
+    show_step; rc=$?
+    [ "$rc" = 2 ] && { printf '\n%sprogress saved. come back with: sh ~/tools/tour%s\n' "$C_D" "$C_0"; return 0; }
+    ledger_mark "$S_MID/$S_TOOL"
+    i=$((i+1))
+  done
+  cls
+  printf '%s\xe2\x9c\x93 that is the whole arsenal. %s\n\n' "$C_OK$C_B" "$C_0"
+  printf 'from here:\n  %ssh ~/tools/arsenal%s         every tool, one line each\n' "$C_B" "$C_0"
+  printf '  %ssh ~/tools/arsenal chains%s   the mission recipes, end to end\n' "$C_B" "$C_0"
+  printf '  %ssh ~/tools/arsenal <tool>%s   one tool in depth\n\n' "$C_B" "$C_0"
+  printf '%sand remember the one rule: only ever aim these at a machine you own.%s\n' "$C_R" "$C_0"
+}
+
+# ---- entry points -----------------------------------------------------------
+list_missions() {
+  load_steps; printf 'missions:\n'
+  printf '%s\n' "$STEPS" | awk -F"$US" '!seen[$1]++{ printf "  %-11s %s\n",$1,$2 }'
+}
+selfcheck() {
+  load_steps; fail=0; n=0
+  cats=$(awk -F"$(printf '\t')" 'NF>1{print $1}' "$CAT" 2>/dev/null | tr '\n' ' ')
+  fort_ok=" abduco "
+  printf '%s\n' "$STEPS" | { while IFS=$US read -r mid _mt tool mode what why run see note; do
+      n=$((n+1))
+      [ -n "$mid" ] && [ -n "$tool" ] || { echo "FAIL: step $n missing id/tool"; fail=1; }
+      [ -n "$what" ] && [ -n "$why" ] || { echo "FAIL: $mid/$tool missing what/why"; fail=1; }
+      case "$mode" in
+        note) : ;;
+        run)  [ -n "$run" ] && [ -n "$see" ] || { echo "FAIL: $mid/$tool run needs run+see"; fail=1; }
+              case " $cats $fort_ok" in *" $tool "*) : ;; *) echo "FAIL: $mid/$tool not in catalog"; fail=1 ;; esac ;;
+        show) [ -n "$run" ] && [ -n "$note" ] || { echo "FAIL: $mid/$tool show needs run+note"; fail=1; }
+              case " $cats $fort_ok" in *" $tool "*) : ;; *) echo "FAIL: $mid/$tool not in catalog"; fail=1 ;; esac ;;
+        *)    echo "FAIL: $mid/$tool unknown mode '$mode'"; fail=1 ;;
+      esac
+    done
+    if [ "$fail" = 0 ]; then printf 'selfcheck: %s steps, all well-formed\n' "$n"; exit 0
+    else exit 1; fi; }
+}
+
+main() {
+  case "${1:-}" in
+    --selfcheck) selfcheck ;;
+    --list) list_missions ;;
+    --reset)
+      # guarded wipe: only ever an absolute, tour-owned state path
+      case "$STATE" in /*/tour) rm -f "$LEDGER" 2>/dev/null; echo "progress cleared." ;; *) echo "refused: state path looks wrong ($STATE)"; exit 1 ;; esac ;;
+    -h|--help)
+      printf 'usage: sh ~/tools/tour [mission|--list|--reset|--selfcheck]\n'; list_missions ;;
+    "")
+      load_steps; done_ids=$(ledger_load)
+      # resume at first unseen step
+      total=$(step_count); start=1; i=1
+      while [ "$i" -le "$total" ]; do
+        rec=$(nth "$i"); mid=${rec%%"$US"*}; tool=$(printf '%s' "$rec" | cut -d"$US" -f3)
+        is_done "$done_ids" "$mid/$tool" || { start=$i; break; }
+        i=$((i+1)); start=$i
+      done
+      if [ -n "$done_ids" ] && [ "$start" -gt 1 ] && [ "$start" -le "$total" ]; then
+        rec=$(nth "$start"); rmid=${rec%%"$US"*}
+        cls
+        printf '%swelcome back.%s you left off in %s%s%s.\n\n' "$C_H$C_B" "$C_0" "$C_H" "$rmid" "$C_0"
+        prompt_key "[enter] resume  ·  [b] begin at the start  ·  [q] quit"
+        case "$REPLY" in q|Q) exit 0 ;; b|B) start=1 ;; esac
+      elif [ "$start" -gt "$total" ]; then start=1; fi
+      walk "$start" ;;
+    *)
+      idx=$(mission_first_index "$1")
+      [ -n "$idx" ] || { echo "no such mission: $1"; list_missions; exit 1; }
+      walk "$idx" ;;
+  esac
+}
+main "$@"
