@@ -59,6 +59,13 @@
 	testdisk image.img                  # rebuild a lost partition table
 	photorec image.img                  # carve files by signature when FS is gone
 
+:crypto  sign/verify a release, then seal loot for transport
+	minisign -G -p key.pub -s key.sec       # once: generate a keypair
+	minisign -S -s key.sec -m file          # sign -- writes file.minisig
+	minisign -V -p key.pub -m file          # verify before you trust it
+	age -e -p -o loot.age loot.tar          # passphrase-encrypt for carry
+	age -d -o loot.tar loot.age             # decrypt on the other end
+
 :reverse  understand an unknown binary/blob offline
 	file blob                           # what is it, before anything else
 	binwalk -Me firmware.bin            # carve embedded FS/keys, recursively
@@ -134,3 +141,12 @@ zstd	zstd -d file.zst ; zstd -19 file ; zstd -dc x.zst | tar xf -
 kiwix-serve	kiwix-serve --port 8080 ZIM.zim   then: links http://localhost:8080
 kiwix-search	kiwix-search ZIM.zim 'query'                     # no server needed
 python	sh ~/tools/xexec -t ~/tools/python bin/python3        # repl / -m http.server 8000
+minisign	minisign -G -p key.pub -s key.sec                 # generate a keypair
+minisign	minisign -S -s key.sec -m file                    # sign file -> file.minisig
+minisign	minisign -V -p key.pub -m file                    # verify a signed file
+age	age -e -p -o out.age file                            # passphrase-encrypt
+age	age -d -o file out.age                                # decrypt (prompts for passphrase)
+dvtm	dvtm                                                  # ctrl-g then c=new pane, o=next, x=close
+rsync	rsync -avz src/ user@HOST:dest/                       # push, delta transfer
+rsync	rsync -avz --delete user@HOST:src/ dest/              # pull, mirror exactly
+rsync	rsync -avzP src dest                                  # resumable, show progress

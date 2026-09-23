@@ -39,3 +39,7 @@ mandoc	render a man page -- the reader for the staged man-pages corpus, no roff
 binwalk	scan a firmware blob for embedded filesystems, keys and streams
 cc	compile C on the stick -- tcc (its own cpp/as/linker), static, + a musl sysroot
 radare2	reverse-engineer a binary offline -- disassemble, analyse, hex-edit (r2/rabin2/rax2)
+minisign	sign/verify a file -- ed25519, one binary, no gpg trust model
+age	encrypt/decrypt a file -- modern, no gpg keyring, passphrase or keypair
+dvtm	suckless terminal multiplexer -- split panes, no server, no config
+rsync	sync/backup over ssh -- delta transfer, resumable

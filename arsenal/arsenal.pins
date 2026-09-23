@@ -46,3 +46,6 @@ binwalk       git   https://github.com/ReFirmLabs/binwalk                       
 tcc           git   https://github.com/TinyCC/tinycc                                        0fb54300b56512754221d80adda85ddb9815bceb
 radare2       git   https://github.com/radareorg/radare2                                   ad27058877024389292fddf12e1db6e13824ba34
 mandoc        url   https://mandoc.bsd.lv/snapshots/mandoc-1.14.6.tar.gz                    8bf0d570f01e70a6e124884088870cbed7537f36328d512909eb10cd53179d9c
+minisign      git   https://github.com/jedisct1/minisign                                   b85e15d45ac9eab34e44596fd309f5b07db9545c
+dvtm          git   https://github.com/martanne/dvtm                                       7e39b34896f7e1832f0138afc35fcde2377ee198
+rsync         url   https://download.samba.org/pub/rsync/src/rsync-3.5.1.tar.gz             c55f9c9dc10fb8bec397b399a0fdded53cc9a2d8e30891bb0d63724d25c37bef

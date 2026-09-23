@@ -10,12 +10,14 @@
 # needs: docker. output: appends binaries to ./arsenal/ (lock via build-arsenal
 # regen, or by hand). builds masscan + tcpdump + socat + nmap + links + mutool +
 # frotz + whois + hydra + john + jq + rg + zstd + ddrescue + strace + testdisk +
-# photorec + smartctl + file + mandoc, all static (rg is static-PIE, see its block; nmap
-# is C++, its block documents the static-musl fix). the last seven are the
-# recovery/forensics/triage flank: read a .zst, image a dying disk, trace a
-# binary, rebuild a partition table, carve files back, read a drive's SMART
-# health, identify an unknown blob. `file` also emits file.mgc (its magic db),
-# which provision drops at $HOME/.magic.mgc for libmagic to auto-discover.
+# photorec + smartctl + file + mandoc + minisign + dvtm + rsync, all static (rg
+# is static-PIE, see its block; nmap is C++, its block documents the
+# static-musl fix). the recovery/forensics/triage flank: read a .zst, image a
+# dying disk, trace a binary, rebuild a partition table, carve files back, read
+# a drive's SMART health, identify an unknown blob. `file` also emits file.mgc
+# (its magic db), which provision drops at $HOME/.magic.mgc for libmagic to
+# auto-discover. minisign/dvtm/rsync are the field-ops trio: sign/verify a
+# transfer, split panes with no tmux server, sync/backup over ssh.
 # NOTE: masscan + tcpdump + nmap + radare2 embed a build-id/timestamp, so their
 # arsenal.lock sha drifts per build (size is stable) -- a point-in-time
 # attestation. links + mutool are
@@ -40,7 +42,7 @@ apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   file lzip xz linux-headers e2fsprogs-dev e2fsprogs-static util-linux-dev \
   rustup fontconfig-dev fontconfig-static freetype-dev freetype-static \
   expat-static libpng-static brotli-static xz-static xz-dev musl-dev \
-  meson ninja >/dev/null 2>&1
+  meson ninja cmake libsodium-dev libsodium-static >/dev/null 2>&1
 log() { echo "[c-build] $*"; }
 
 # ---- integrity: read the pins, verify before build ------------------------
@@ -395,6 +397,59 @@ clone_pinned() {
   strip mandoc
   cp mandoc /out/mandoc ) || log "mandoc FAILED"
 
+# ---- field ops: sign/verify, sync, multiplexed terminal --------------------
+
+# minisign 0.12 -- field signature sign/verify (jedisct1, ed25519 via libsodium).
+# verifies a release tarball or a backup image against a detached .minisig
+# without gpg's whole trust model; the :crypto chain below pairs it with age.
+# cmake's own BUILD_STATIC_EXECUTABLES flips pkg_check_modules to the .a in
+# libsodium-static and forces LINK_SEARCH_{START,END}_STATIC -- no manual
+# link-flag surgery needed, unlike the rest of this file.
+( set -e; log minisign
+  clone_pinned minisign /s/minisign
+  cd /s/minisign
+  mkdir build && cd build
+  cmake -D BUILD_STATIC_EXECUTABLES=1 -D CMAKE_BUILD_TYPE=MinSizeRel .. >/s/minisign.log 2>&1
+  make -j"$(nproc)" >>/s/minisign.log 2>&1
+  file minisign | grep -q "statically linked" || { echo "not static"; tail -20 /s/minisign.log; exit 1; }
+  ./minisign -v | head -1
+  strip minisign
+  cp minisign /out/minisign ) || log "minisign FAILED"
+
+# dvtm 0.15 -- suckless terminal multiplexer: split panes with no tmux server,
+# no config file, no dependency beyond ncurses -- a shell running abduco (the
+# existing detach layer) gains real panes for it. LDFLAGS goes into config.mk
+# rather than the make command line: dvtm's own CFLAGS already carries a
+# shell-quoted -DVERSION="0.15" that a CLI override would re-escape and break
+# (the compiler then sees VERSION as a bare float literal, not a string).
+( set -e; log dvtm
+  clone_pinned dvtm /s/dvtm
+  cd /s/dvtm
+  sed -i 's/^LDFLAGS += /LDFLAGS += -static /' config.mk
+  make -j"$(nproc)" >/s/dvtm.log 2>&1
+  file dvtm | grep -q "statically linked" || { echo "not static"; tail -20 /s/dvtm.log; exit 1; }
+  strip dvtm
+  cp dvtm /out/dvtm ) || log "dvtm FAILED"
+
+# rsync 3.5.1 -- sync/backup over ssh, resumable and delta-transferring: the
+# one thing scp/socat can't do is skip what already matches on the far end.
+# optional deps are all disabled rather than fought static: openssl/xxhash/
+# zstd/lz4 buy modern checksum/compression choices this kit doesn't need, and
+# idn needs libidn2 (deliberately absent, same call as whois above); dropping
+# all five leaves rsync's own bundled zlib+popt as the only libs, both already
+# static-clean. --disable-md2man drops the python3-only manpage build.
+( set -e; log rsync
+  mkdir -p /s && fetch rsync /s/rsync.tgz && tar xz -C /s -f /s/rsync.tgz
+  cd /s/rsync-3.5.1
+  ./configure --disable-openssl --disable-xxhash --disable-zstd --disable-lz4 \
+    --disable-idn --disable-md2man --with-included-popt \
+    CFLAGS="-O2 -static" LDFLAGS="-static" >/s/rsync.log 2>&1
+  make -j"$(nproc)" >>/s/rsync.log 2>&1
+  file rsync | grep -q "statically linked" || { echo "not static"; tail -20 /s/rsync.log; exit 1; }
+  ./rsync --version | head -1
+  strip rsync
+  cp rsync /out/rsync ) || log "rsync FAILED"
+
 # binwalk 3.1.0 -- firmware carving: scan a blob for embedded filesystems,
 # bootloaders, compressed streams and keys, and map where each begins. the v3
 # rewrite is rust. two knots, both handled here:
@@ -521,7 +576,7 @@ clone_pinned() {
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file|binwalk)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file|mandoc|minisign|dvtm|rsync|binwalk)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to
@@ -529,7 +584,7 @@ echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # a builder that ships nothing must fail, not shrink -- the same rule as rootfs().
 # john ships as a tree (john/john inside), not a lone file -- checked with -e.
 built=0
-for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg; do [ -f "$OUT/$b" ] && built=$((built+1)); done
+for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg minisign dvtm rsync; do [ -f "$OUT/$b" ] && built=$((built+1)); done
 [ -f "$OUT/john/john" ] && built=$((built+1))
 [ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
 echo "note: refresh arsenal/arsenal.lock after (sha256 + sizes)."
