@@ -1,5 +1,5 @@
-# range-lessons -- the curriculum for `arsenal range`, kept as DATA so the copy can
-# change without touching the engine. read by ~/tools/range.
+# the curriculum for `arsenal learn`, kept as DATA so the copy can
+# change without touching the engine. read by ~/tools/learn.
 #
 # FORMAT
 #   :id  title            opens a mission (id = one lowercase word, the jump name)
