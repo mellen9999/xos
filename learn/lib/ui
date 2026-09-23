@@ -3,20 +3,33 @@
 # colour is a courtesy, never information: every state it marks is also marked
 # by a character, so NO_COLOR and a dumb terminal lose nothing.
 #
-#   R wrong   G correct   Y the answer   U a heading   M a banner
-#   C what you type -- flags, operators, keys
-#   W a name or a value        D the frame, and everything quiet
+#   R wrong   G correct, and every count going the right way
+#   Y the miss: the answer you did not give, the habit worth dropping,
+#     and the warning before something is wiped
+#   U a section heading inside a screen -- the screen's own title is hdr(), bold
+#   M contrast: the vs row, and nothing else
+#   C what you type -- a command, a flag, an operator, an expansion, a key
+#   W live text: a label, a prompt, a value -- what is being said to you now
+#   D the frame, and everything quiet
 #   V reverse video: the one MARK, and the same on every terminal that has it
+#
+# one meaning per colour, and the selftest holds the three marks apart. a slot
+# that grows a second meaning is a slot that says nothing: yellow meant the
+# answer AND a streak AND a row label AND "this erases your save" -- a colour
+# that is celebration and destruction at once is worse than no colour, since
+# only one of those can be undone. streaks are counts going the right way and
+# went to green with every other such count; the row label went to W.
 #
 # three tiers, because xos is driven from a linux console, over ssh from
 # whatever the far end runs, and down a serial line from whatever is bolted to
 # the other end of that. COLOUR is the terminal's own eight rather than a
 # 256-colour ramp: those always exist, and they arrive in the reader's scheme
-# instead of fighting it -- 1..7 above, and 0 only ever through V, which swaps
-# foreground and back. MONO is a vt320: no colour, and it drops every colour
-# escape without a word, so the whole channel would vanish silently -- bold,
-# underline and reverse carry the same distinctions. NONE is NO_COLOR,
-# TERM=dumb, or output that is not a terminal.
+# instead of fighting it -- 1..7 above, 0 only ever through V, which swaps
+# foreground and back, and 8 only as D, for the reason written at D itself.
+# MONO is a vt320: no colour, and it drops every colour escape without a
+# word, so the whole channel would vanish silently -- bold, underline and
+# reverse carry the same distinctions. NONE is NO_COLOR, TERM=dumb, or
+# output that is not a terminal.
 
 # _ui_tier TERM -- sets _tier. a function so the choice can be tested; nothing
 # below this line can be, since all of it needs a real terminal. colour is the
@@ -37,7 +50,7 @@ _ui_tier "${TERM:-dumb}"
 [ -t 1 ] || _tier=none
 
 if [ "$_tier" = none ]; then
-	N= B= D= R= G= Y= U= M= C= W= V= BL=
+	N= B= D= R= G= Y= M= C= W= V= BL=
 else
 	N=$(printf '\033[0m')  B=$(printf '\033[1m')  V=$(printf '\033[7m')
 	# the fourth attribute a vt320 has, and the only one nothing wanted. it
@@ -49,7 +62,6 @@ if [ "$_tier" = colour ]; then
 	R=$(printf '\033[31m')
 	G=$(printf '\033[32m')
 	Y=$(printf '\033[33m')
-	U=$(printf '\033[1;34m')
 	M=$(printf '\033[35m')
 	C=$(printf '\033[36m')
 	W=$(printf '\033[37m')
@@ -58,12 +70,29 @@ if [ "$_tier" = colour ]; then
 	# uses -- the quiet rows then read as the loudest thing on the screen.
 	D=$(printf '\033[90m')
 elif [ "$_tier" = mono ]; then
-	# the loud half reverses, the quiet half bolds, headings underline. dim is
-	# the exception: a vt-series terminal has no faint, so quiet text is simply
-	# NOT bold -- the same idea by the only means the hardware has.
-	R=$V  M=$V  U=$(printf '\033[4m')
+	# the loud half reverses, the quiet half bolds. dim is the exception: a
+	# vt-series terminal has no faint, so quiet text is simply NOT bold -- the
+	# same idea by the only means the hardware has. headings are _ui_head.
+	R=$V  M=$V
 	G=$B  Y=$B  C=$B  W=$B  D=
 fi
+
+# _ui_head TIER -- the mark on a section heading, and a function for the same
+# reason the other two marks are: a heading has to be ONE shape on every tier
+# that has attributes, and only a function can be asserted without a terminal.
+# it used to be set inline with the colours -- 1;34 here, a bare 4 on mono --
+# which is how it came to be byte-for-byte the literal mark on the vt320, with
+# nothing in the build watching. bold carries it there and blue rides on top
+# where there is colour; a heading also has a row to itself, which is the other
+# half of why underline can be shared at all.
+_ui_head() {
+	case "$1" in
+		none) U= ;;
+		mono) U=$(printf '\033[1;4m') ;;
+		*)    U=$(printf '\033[1;4;34m') ;;
+	esac
+}
+_ui_head "$_tier"
 
 # a rolled name inside a question: the file, the directory, the word the answer
 # has to type back letter for letter. it is the one thing in a sentence that is
@@ -325,10 +354,12 @@ PROMPT_CH='$'
 PROMPT_INS=$(printf '%s%s %s' "$W" "$PROMPT_CH" "$N")
 PROMPT_NORM=$(printf '%s%s%s%s ' "$N" "$V" "$PROMPT_CH" "$N")
 
-# the title is bold, not coloured. each of 1-7 says one thing now, and magenta
-# says contrast -- the vs line, the one row on a card whose whole job is "not
-# the other one". a heading is not a contrast, and bold is what a heading has
-# always been on a terminal that has no colour at all.
+# the title is bold, not coloured, and it is the ONE title style: statusbar(),
+# the ref page and the ref card all draw their subject the same way. each of
+# 1-7 says one thing now, and magenta says contrast -- the vs line, the one
+# row on a card whose whole job is "not the other one". a title is not a
+# contrast, and bold is what a title has always been on a terminal that has
+# no colour at all. a heading INSIDE a screen is U; this is the screen.
 hdr() {
 	printf '\n%s%s%s %s\n' "$B" "$1" "$N" "${D}$2$N"
 	rule
@@ -445,7 +476,7 @@ statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 	# a clock never lands on top of the bar.
 	SB_CLOCK_COL=0
 	[ "$padw" -ge 6 ] && SB_CLOCK_COL=$(( ${#lt} + 3 ))
-	printf '  %s%s%s  %s%s%s%*s' "$B$W" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
+	printf '  %s%s%s  %s%s%s%*s' "$B" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
 	bar "$done" "$tot" "$bw"
 	printf ' %s%s/%s%s' "$D" "$done" "$tot" "$N"
 	[ -n "$right" ] && printf '  %s+%s%s' "$G" "$right" "$N"

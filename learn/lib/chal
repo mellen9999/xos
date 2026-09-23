@@ -122,7 +122,7 @@ challenge() {
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" != 0 ] && { pause_card; break; }
 		score=$((score + 1))
-		[ $((score % 5)) -eq 0 ] && printf '  %s%s* * *  on fire -- %d clean  * * *%s\n' "$Y" "$B" "$score" "$N"
+		[ $((score % 5)) -eq 0 ] && printf '  %s%s* * *  on fire -- %d clean  * * *%s\n' "$G" "$B" "$score" "$N"
 		pause_card || { MODE=learn; return 2; }
 		i=$((i + 1))
 	done

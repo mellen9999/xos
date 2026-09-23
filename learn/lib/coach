@@ -148,7 +148,7 @@ coach_miss() {
 					_row="${_row:+$_row  }$_cmd:$_n"
 				done < "$TMP/coach.st"
 				rm -f "$TMP/coach.st"
-				[ -z "$_row" ] || _c_row stages "${Y}${_row}${N}"
+				[ -z "$_row" ] || _c_row stages "${W}${_row}${N}"
 			fi ;;
 		esac ;;
 	esac

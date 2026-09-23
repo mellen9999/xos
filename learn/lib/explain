@@ -252,11 +252,11 @@ examples_cached() {
 
 # paint -- an example line read the way the card reads a flag row. it was one
 # dim colour end to end, which hid the one thing an example is for: seeing
-# where the command stops and the arguments start. the same three the rest of
-# the panel uses -- a command name is a name (W), a flag or a redirection is
-# what you type (C), an argument is neither and stays plain. a quoted span is
-# left alone on purpose: an awk program is not a list of tokens, and painting
-# inside one would be a lie about its structure.
+# where the command stops and the arguments start. the split lib/ui draws
+# everywhere else -- the command, its flags and its operators are what you
+# TYPE (C); an argument is what they are pointed at and stays plain. a quoted
+# span is left alone on purpose: an awk program is not a list of tokens, and
+# painting inside one would be a lie about its structure.
 _PAINT_AWK='
 	function paint(l,   n, t, i, w, out, head) {
 		n = split(l, t, " ")
@@ -270,7 +270,11 @@ _PAINT_AWK='
 				out = out C w N " "; head = 1; continue
 			}
 			if (w ~ /^([0-9]?>>?&?[0-9]?|<)$/) { out = out C w N " "; continue }
-			if (head && w !~ /^-/ && w !~ /=/) { out = out W w N " "; head = 0; continue }
+			# the leading word is a command: syntax you type, the same as the
+			# flags and operators beside it. it was W, which said a command
+			# name is a NAME -- the thing syntax is pointed at -- and left
+			# every example with its verb the one unmarked-looking word on it.
+			if (head && w !~ /^-/ && w !~ /=/) { out = out C w N " "; head = 0; continue }
 			if (w ~ /^-/) { out = out C w N " "; continue }
 			out = out w " "
 		}
@@ -284,7 +288,7 @@ _PAINT_AWK='
 ref_examples() {
 	local out src=${3:-${Q_SRC:-}}
 	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v w="${COLS:-80}" \
-	                            -v D="$D" -v N="$N" -v C="$C" -v W="$W" "$_PAINT_AWK"'
+	                            -v N="$N" -v C="$C" "$_PAINT_AWK"'
 		$1 == c && $3 != src && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
 		END {
 			# the fullest line that still fits a row, not the shortest: a real
@@ -322,7 +326,7 @@ ref_card() {
 	_ref_rows "$REF/$r" |
 	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
 	    -v vs="$(vs_of "$1")" -v summary="$(summary_of "$1")" \
-	    -v W="$W" -v N="$N" -v D="$D" -v C="$C" -v M="$M" '
+	    -v B="$B" -v N="$N" -v D="$D" -v C="$C" -v M="$M" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
 		# a panel that ran out of room says so. it used to just stop: flags
 		# past the budget vanished with nothing on screen to say a page had
@@ -406,8 +410,11 @@ ref_card() {
 				if (usage == c) usage = ""
 				else if (index(usage, c " ") == 1) usage = substr(usage, length(c) + 2)
 				usage = abridge(usage)
-				if (usage == "") printf "  %s%s%s\n", W, c, N
-				else printf "  %s%s%s  %s%s%s\n", W, c, N, D, clip(usage, cols - length(c) - 6), N
+				# bold, the one title style: hdr(), statusbar() and the full
+				# ref page all draw their subject this way, and a card is the
+				# same page in a panel.
+				if (usage == "") printf "  %s%s%s\n", B, c, N
+				else printf "  %s%s%s  %s%s%s\n", B, c, N, D, clip(usage, cols - length(c) - 6), N
 				if (summary != "") print "  " clip(summary, cols - 4)
 				# magenta: the row exists to hold this command against the
 				# one you might have reached for instead, and dim said the

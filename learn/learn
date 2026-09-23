@@ -88,7 +88,7 @@ ref() {
 	# that render at whatever tabstop the terminal happens to use. this pins the
 	# flag column to one width and wraps the whole thing in rules, top and bottom.
 	_ref_rows "$REF/$_r" |
-	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v C="$C" -v cols="$COLS" \
+	awk -v B="$B" -v N="$N" -v D="$D" -v C="$C" -v M="$M" -v cols="$COLS" \
 	    -v LON="$LIT_ON" -v LOFF="$LIT_OFF$N" \
 	    -v RL="$RULE" -v vs="$(vs_of "$1")" '
 		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
@@ -118,10 +118,14 @@ ref() {
 			col=maxw+2
 
 			print RL
-			printf "  %s%s%s\n", B W, line[1], N          # command name
+			printf "  %s%s%s\n", B, line[1], N            # what the page is about
 			for(i=2;i<=NR;i++) if(line[i] ~ /^Usage:/){
 				printf "  %susage:%s %s\n", D, N, substr(line[i],8); break }
-			if(vs != "") printf "  %s%s%s\n", D, vs, N
+			# magenta, the same as the card in lib/explain draws it: the row
+			# holds this command against the one you might have reached for
+			# instead, and dim says the opposite -- that it is frame. the card
+			# was fixed and the page was not, so one string had two colours.
+			if(vs != "") printf "  %s%s%s\n", M, vs, N
 			print RL
 
 			started=0
@@ -585,10 +589,10 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			S_RIGHT=$((S_RIGHT + 1)); S_STREAK=$((S_STREAK + 1))
 			[ "$S_STREAK" -gt "$S_BEST" ] && S_BEST=$S_STREAK
 			_stk=""
-			[ "$S_STREAK" -ge 3 ] && _stk="  ${Y}${S_STREAK} in a row${N}"
+			[ "$S_STREAK" -ge 3 ] && _stk="  ${G}${S_STREAK} in a row${N}"
 			ok "correct${tier:+  ${D}tier $tier${N}}$_stk"
 			# five straight lights the banner; it burns until a miss
-			[ "$S_STREAK" -eq 5 ] && printf '  %s on fire -- five straight %s\n' "$V$Y" "$N"
+			[ "$S_STREAK" -eq 5 ] && printf '  %s on fire -- five straight %s\n' "$V$G" "$N"
 			[ "$MODE" = learn ] && coach_right "$input"
 			return 0
 		fi
@@ -941,7 +945,7 @@ daily() {
 	rule
 	printf '  %sdaily %s%s  %s%s\n' "$B" "$day" "$N" \
 		"$([ "$rc" = 0 ] && echo correct || echo wrong)" \
-		"$([ "$dstreak" -ge 2 ] && printf '  %s%s-day streak%s' "$Y" "$dstreak" "$N")"
+		"$([ "$dstreak" -ge 2 ] && printf '  %s%s-day streak%s' "$G" "$dstreak" "$N")"
 	# every other mode holds the screen after a card; daily did not, so called
 	# from the menu the verdict was wiped by the next redraw before it could be
 	# read -- one card answered and back at the menu reads as an insta-exit.
@@ -2547,6 +2551,22 @@ c' 20)" = 3 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL ui mark: the literal mark is wrong, or is the name mark" >&2; bad=$((bad+1)); }
 
+	# the third mark, on the same terms as the other two, and the reason it is
+	# a function at all. a section heading must be one shape wherever there are
+	# attributes, and it must be NEITHER of the other marks: it used to be a
+	# bare underline on mono -- byte for byte the literal -- so on the vt320 a
+	# heading and a marked command were the same thing, with nothing watching.
+	( _ui_head colour; case "$U" in *'[1;4;34m') ;; *) exit 1 ;; esac
+	  _ui_head mono;   case "$U" in *'[1;4m') ;; *) exit 1 ;; esac
+	  _ui_head none;   [ -z "$U" ] || exit 1
+	  for _t in colour mono; do
+	  	_ui_head "$_t"; _ui_lit "$_t"; _ui_hi "$_t"
+	  	[ "$U" != "$LIT_ON" ] || exit 1
+	  	[ "$U" != "$HI_ON" ]  || exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL ui mark: the heading mark is wrong, or is another mark" >&2; bad=$((bad+1)); }
+
 	# and the claim the whole marking rests on: a mark changes how a line looks,
 	# never which lines exist. wrap() treats the two literal fences as zero
 	# width, so a marked brief and its bare self break in exactly the same
@@ -3161,17 +3181,21 @@ two'; ED_PANEL_ROWS=2
 	  exit 0 ) \
 		|| { echo "FAIL ref_card/ref_examples: budget, taught-only or example pick" >&2; bad=$((bad+1)); }
 
-	# an example line is painted the way a flag row is: the command name is a
-	# name, a flag or a redirection is what you type, an argument is neither.
-	# the colours are empty under NO_COLOR, so the test names them itself --
-	# what is asserted is which token got which, which is the whole claim.
-	( _p() { printf '%s\n' "$1" | awk -v C='<c>' -v N='<n>' -v W='<w>' "$_PAINT_AWK"'{ print paint($0) }'; }
-	  [ "$(_p 'ls -a')" = "<w>ls<n> <c>-a<n>" ] || exit 1
+	# an example line is painted the way lib/ui splits every other line of
+	# prose: the command, its flags and its operators are what you TYPE, and an
+	# argument -- what they are pointed at -- stays plain. the colours are empty
+	# under NO_COLOR, so the test names them itself; what is asserted is which
+	# token got which, which is the whole claim. the head still has to be found
+	# even though it now shares a colour with the flags, which is what the
+	# redirection and assignment rows below are for: a filename that got painted
+	# would be a head-detection bug this gate is blind to if it only read colour.
+	( _p() { printf '%s\n' "$1" | awk -v C='<c>' -v N='<n>' "$_PAINT_AWK"'{ print paint($0) }'; }
+	  [ "$(_p 'ls -a')" = "<c>ls<n> <c>-a<n>" ] || exit 1
 	  # after a pipe the next word is a command again; after > it is a file
-	  [ "$(_p 'ls | wc -l')" = "<w>ls<n> <c>|<n> <w>wc<n> <c>-l<n>" ] || exit 1
-	  [ "$(_p 'ls src > all.txt 2>&1')" = "<w>ls<n> src <c>><n> all.txt <c>2>&1<n>" ] || exit 1
+	  [ "$(_p 'ls | wc -l')" = "<c>ls<n> <c>|<n> <c>wc<n> <c>-l<n>" ] || exit 1
+	  [ "$(_p 'ls src > all.txt 2>&1')" = "<c>ls<n> src <c>><n> all.txt <c>2>&1<n>" ] || exit 1
 	  # an assignment is not a command name, and a quoted program is not painted
-	  [ "$(_p "f=x awk NR f")" = "f=x <w>awk<n> NR f" ] || exit 1
+	  [ "$(_p "f=x awk NR f")" = "f=x <c>awk<n> NR f" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL paint: an example line names the wrong token as the command" >&2; bad=$((bad+1)); }
 
@@ -3340,7 +3364,7 @@ session_summary() {
 	echo
 	rule
 	printf '  %ssession%s  %s%d correct%s  %s%d wrong%s  best streak %s%d%s' \
-		"$B" "$N" "$G" "$S_RIGHT" "$N" "$R" "$S_WRONG" "$N" "$Y" "$S_BEST" "$N"
+		"$B" "$N" "$G" "$S_RIGHT" "$N" "$R" "$S_WRONG" "$N" "$G" "$S_BEST" "$N"
 	[ "$mins" -gt 0 ] && printf '  %s%dm%s' "$D" "$mins" "$N"
 	echo
 	# a line of encouragement scaled to how it went -- flavour, not a grade
@@ -3532,7 +3556,7 @@ resume() {
 new_game() {
 	local k
 	printf '\n  %sa new game wipes every level, card and saved place%s\n' "$Y" "$N"
-	printf '  %sthere is no undo -- y to wipe%s ' "$W" "$N"
+	printf '  %sthere is no undo -- y to wipe%s ' "$Y" "$N"
 	IFS= read -rsn1 k 2>/dev/null || return 1
 	echo
 	case "$k" in y|Y) : ;; *) return 1 ;; esac
@@ -3723,7 +3747,7 @@ case "${1:-}" in
 	          # slip of the finger: it is one letter from `review`.
 	          if [ "${1:-}" = --yes ]; then _ok=1
 	          elif [ -t 0 ]; then
-	          	printf '  %serase all progress -- cards, passed levels, answer history? [y/N]%s ' "$W" "$N"
+	          	printf '  %serase all progress -- cards, passed levels, answer history? [y/N]%s ' "$Y" "$N"
 	          	IFS= read -r _ok 2>/dev/null; case "$_ok" in y|Y|yes) _ok=1 ;; *) _ok=0 ;; esac
 	          else _ok=0; fi
 	          if [ "$_ok" = 1 ]; then
