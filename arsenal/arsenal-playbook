@@ -147,6 +147,7 @@ minisign	minisign -V -p key.pub -m file                    # verify a signed fil
 age	age -e -p -o out.age file                            # passphrase-encrypt
 age	age -d -o file out.age                                # decrypt (prompts for passphrase)
 dvtm	dvtm                                                  # ctrl-g then c=new pane, o=next, x=close
+dvtm	ctrl-\                                                # detach the whole session (abduco, not dvtm) -- reattach: abduco -a work
 rsync	rsync -avz src/ user@HOST:dest/                       # push, delta transfer
 rsync	rsync -avz --delete user@HOST:src/ dest/              # pull, mirror exactly
 rsync	rsync -avzP src dest                                  # resumable, show progress
