@@ -10,8 +10,8 @@ populate() {
   install -m 0755 "${SELF:-$(dirname "$0")}/arsenal" "$H/tools/arsenal"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-catalog" "$H/tools/arsenal-catalog"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-playbook" "$H/tools/arsenal-playbook"  # the how-to
-  install -m 0755 "${SELF:-$(dirname "$0")}/tour" "$H/tools/tour"                          # the guided walkthrough
-  install -m 0644 "${SELF:-$(dirname "$0")}/tour-lessons" "$H/tools/tour-lessons"          # its curriculum (data)
+  install -m 0755 "${SELF:-$(dirname "$0")}/range" "$H/tools/range"                          # the guided walkthrough
+  install -m 0644 "${SELF:-$(dirname "$0")}/range-lessons" "$H/tools/range-lessons"          # its curriculum (data)
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
     for f in "$ARSENAL"/*; do
       b=$(basename "$f")

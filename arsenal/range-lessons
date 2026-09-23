@@ -1,5 +1,5 @@
-# tour-lessons -- the curriculum for `arsenal tour`, kept as DATA so the copy can
-# change without touching the engine. read by ~/tools/tour.
+# range-lessons -- the curriculum for `arsenal range`, kept as DATA so the copy can
+# change without touching the engine. read by ~/tools/range.
 #
 # FORMAT
 #   :id  title            opens a mission (id = one lowercase word, the jump name)
@@ -10,7 +10,7 @@
 #     run:   the command. tokens the engine fills in:
 #              @x   -> sh ~/tools/xexec            (run one carried tool)
 #              @py  -> the carried python3          (run a python one-liner/script)
-#              @t   -> the tour's scratch folder    (safe, wiped on exit)
+#              @t   -> the range's scratch folder    (safe, wiped on exit)
 #              @port @url  -> the practice website (http://127.0.0.1:PORT)
 #              @ap  -> the practice login page      (needs a password)
 #              @w   -> a tiny practice wordlist
@@ -19,22 +19,22 @@
 #     note:  (mode show) why it is not run here, and the rule that protects you
 #
 # modes: note = a screen to read, no command.  run = the engine runs it against the
-# tour's own safe practice targets on 127.0.0.1.  show = printed, never run here,
+# range's own safe practice targets on 127.0.0.1.  show = printed, never run here,
 # because it needs a real target you own (there is no safe local stand-in).
 #
 # THE ONE RULE, repeated so it is never far away: only ever point these tools at a
-# machine you own or have written permission to test. everything the tour runs is
+# machine you own or have written permission to test. everything the range runs is
 # aimed at itself, on 127.0.0.1, and cleans up after itself.
 
 :start   what this is, and how to touch it safely
 >safety  note
 	what: this stick carries 42 tools. some read a file, some fix a broken disk, some knock on a computer to find open doors.
 	why: the tools are sharp. pointed at a stranger's machine that is a crime; pointed at your own it is how you learn and how you defend.
-	note: the whole rest of this tour aims every tool at THIS computer, on the address 127.0.0.1 that only means "me". never change that address to someone else's.
+	note: the whole rest of this range aims every tool at THIS computer, on the address 127.0.0.1 that only means "me". never change that address to someone else's.
 >xexec   note
 	what: the tools live on the encrypted part of the stick, which on purpose cannot run a program directly -- that is what keeps the stick safe.
 	why: `xexec` is the doorway: it copies one tool into a tiny scratch space that CAN run, runs it, then tears that space down. nothing runnable is ever left lying around.
-	note: you never type xexec by hand in this tour -- the tour adds it for you. outside the tour: sh ~/tools/xexec <tool> [options].
+	note: you never type xexec by hand in this range -- the range adds it for you. outside the range: sh ~/tools/xexec <tool> [options].
 >python  run
 	what: python is a whole programming language on the stick -- a pocket calculator, a web server, and glue between the other tools.
 	why: half of what you will ever want to automate is three lines of python.
@@ -49,7 +49,7 @@
 	what: dvtm splits one screen into several panes, so you can watch a server in one and attack it in another.
 	why: no mouse, no server, no config -- panes on a terminal that has nothing else.
 	run: dvtm    (then ctrl-g c = new pane, ctrl-g o = next, ctrl-g x = close)
-	note: dvtm takes over the whole screen, so the tour describes it instead of launching it. try it after the tour: sh ~/tools/xexec dvtm .
+	note: dvtm takes over the whole screen, so the range describes it instead of launching it. try it after the range: sh ~/tools/xexec dvtm .
 
 :files   read a file nobody told you what it is
 >file    run
@@ -98,7 +98,7 @@
 	what: testdisk rebuilds a partition table -- the disk's table of contents -- when it has been wiped or corrupted, making a "dead" disk mountable again.
 	why: most "the drive is gone" panics are just a lost table, and this brings it back.
 	run: testdisk image.img
-	note: testdisk is a full-screen menu program, so the tour describes it. run it on a real image with: sh ~/tools/xexec testdisk image.img .
+	note: testdisk is a full-screen menu program, so the range describes it. run it on a real image with: sh ~/tools/xexec testdisk image.img .
 >photorec show
 	what: photorec ignores the table entirely and carves files straight off the raw disk by recognising their shapes -- last resort recovery.
 	why: when even testdisk cannot help, photorec still pulls your photos and documents back.
@@ -108,14 +108,14 @@
 	what: smartctl reads a drive's own built-in health report -- temperature, error counts, hours run -- to tell you if it is about to die.
 	why: check BEFORE you trust a drive with data, or before you wipe one to reuse it.
 	run: smartctl -H /dev/sda
-	note: this reads real hardware, so the tour does not pick a disk for you. on a live machine: sh ~/tools/xexec smartctl -H /dev/sda .
+	note: this reads real hardware, so the range does not pick a disk for you. on a live machine: sh ~/tools/xexec smartctl -H /dev/sda .
 
 :web     look at a website that is only yours
 >httpx   run
 	what: httpx knocks on a web address and reports back: is anything there, what is its title, what is it built with.
 	why: given a pile of addresses, this is how you find the handful that actually answer.
 	run: @x httpx -u @url -title -sc -silent
-	see: httpx reached the practice website the tour started for you and reported its status and title.
+	see: httpx reached the practice website the range started for you and reported its status and title.
 >nmap    run
 	what: nmap scans a machine for open doors (ports) and asks each one what it is -- a web server, ssh, a database.
 	why: you cannot test what you cannot see; nmap draws the map first.
@@ -125,7 +125,7 @@
 	what: gobuster guesses hidden pages on a website by trying a list of common names very fast.
 	why: the interesting pages -- /admin, /backup -- are never linked. you have to guess them, quickly.
 	run: @x gobuster dir -q -u @url -w @w
-	see: gobuster tried each name and found the hidden /secret page the tour planted.
+	see: gobuster tried each name and found the hidden /secret page the range planted.
 >ffuf    run
 	what: ffuf does the same guessing as gobuster but is a swiss-army fuzzer -- it can hammer pages, form fields, or hostnames.
 	why: when you need to try thousands of guesses in one spot, ffuf is the workhorse.
@@ -145,7 +145,7 @@
 :passwords  break into a login you set up yourself
 >hydra   run
 	what: hydra tries a login over and over with different passwords until one works -- against ssh, websites, and more.
-	why: it proves whether a real password is weak. here it attacks a login the tour created, on 127.0.0.1, with a made-up password.
+	why: it proves whether a real password is weak. here it attacks a login the range created, on 127.0.0.1, with a made-up password.
 	run: @x hydra -l demo -P @w -s @ap 127.0.0.1 http-get / 2>&1 | grep -iE 'login:|password:' || true
 	see: hydra tried each word against the practice login and announced the one that worked (the throwaway demo password).
 >john    run
@@ -176,12 +176,12 @@
 	what: minisign puts an unforgeable signature on a file, so anyone with your public key can prove it is really yours and unchanged.
 	why: before you trust a downloaded file, you check its signature. this is how you make and check one.
 	run: @x minisign -G -W -p @t/key.pub -s @t/key.sec >/dev/null 2>&1 && @x minisign -S -s @t/key.sec -m @t/note.txt >/dev/null 2>&1 && @x minisign -V -p @t/key.pub -m @t/note.txt
-	see: the tour made a key pair, signed a file, then verified it -- "Signature and comment signature verified" means it is genuine and untouched.
+	see: the range made a key pair, signed a file, then verified it -- "Signature and comment signature verified" means it is genuine and untouched.
 >age     show
 	what: age locks a file so only the right person (or the right password) can open it -- modern, simple encryption.
 	why: to carry loot or secrets safely; if the stick is lost, the locked files are useless to a finder.
 	run: age -e -p -o loot.age loot.tar      (lock)      age -d -o loot.tar loot.age   (unlock)
-	note: age asks you to type a passphrase, which a guided tour cannot do for you. try it after the tour on a file of your own.
+	note: age asks you to type a passphrase, which a guided range cannot do for you. try it after the range on a file of your own.
 >rsync   run
 	what: rsync copies a folder to another place and, next time, only sends what changed -- and can pick up where it left off.
 	why: backups and moving loot over a slow or dropping link without starting over each time.
@@ -191,9 +191,9 @@
 	what: tcpdump watches the actual network traffic going past and can save it to a file to study later.
 	why: to see what a machine is really saying on the wire -- debugging, or catching something suspicious.
 	run: ( ping -c 3 127.0.0.1 >/dev/null 2>&1 & ) ; timeout 4 @x tcpdump -c 3 -n -i lo 2>&1 | tail -5 || true
-	see: the tour sent three pings to itself; tcpdump captured them and printed the packets it saw on the loopback interface.
+	see: the range sent three pings to itself; tcpdump captured them and printed the packets it saw on the loopback interface.
 
-:pro     the professional tools (read-only tour)
+:pro     the professional tools (read-only range)
 >sqlmap  show
 	what: sqlmap automatically finds and exploits a database bug (sql injection) in a website, and can pull the whole database out.
 	why: it is the standard tool for one of the most common serious web flaws.
@@ -228,7 +228,7 @@
 	what: masscan scans huge ranges of the internet for open ports incredibly fast -- millions of addresses.
 	why: when the target is a whole network you own, masscan finds the live ports, then you point nmap at those.
 	run: masscan -p1-65535 10.0.0.0/8 --rate 10000
-	note: firing at scale is only ever ok on ranges you own -- so the tour does not launch it. use nmap on the website step to see a scan safely.
+	note: firing at scale is only ever ok on ranges you own -- so the range does not launch it. use nmap on the website step to see a scan safely.
 >subfinder show
 	what: subfinder finds a company's hidden sub-addresses (mail.x, dev.x, vpn.x) by asking public records, quietly, never touching the target.
 	why: the forgotten dev server is often the way in; first you have to know it exists.
@@ -248,7 +248,7 @@
 	what: mutool reads a pdf and can turn it into plain text or html -- pulling the words out of a document.
 	why: to search or extract from pdfs the stick carries, or ones you recover.
 	run: mutool draw -F txt file.pdf | less
-	note: it needs a pdf to read; the tour ships none. run it on any pdf: sh ~/tools/xexec mutool draw -F txt file.pdf .
+	note: it needs a pdf to read; the range ships none. run it on any pdf: sh ~/tools/xexec mutool draw -F txt file.pdf .
 >frotz   show
 	what: frotz plays old text-adventure games -- the kind you type "go north" into. pure fun, and tiny.
 	why: because a survival stick is allowed one toy, and these stories fit in kilobytes.

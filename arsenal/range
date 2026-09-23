@@ -1,18 +1,18 @@
 #!/bin/sh
-# tour -- a guided, from-zero walk through the whole arsenal, for someone who has
+# range -- a guided, from-zero walk through the whole arsenal, for someone who has
 # never touched a shell. it TEACHES by running each tool live against safe practice
-# targets the tour stands up on 127.0.0.1 (its own website, its own login), then
+# targets the range stands up on 127.0.0.1 (its own website, its own login), then
 # tears them down. it remembers where you got to, so you can learn over days.
 #
-# rides p3 (noexec), so run it as `sh ~/tools/tour` -- the shell only READS this
+# rides p3 (noexec), so run it as `sh ~/tools/range` -- the shell only READS this
 # file; the tools it demos go through xexec exactly as the launcher shows. NOT part
 # of the signed image: it is capability, a file on p3, changed without a rebuild.
 #
-#   sh ~/tools/tour              resume where you left off (or start at the top)
-#   sh ~/tools/tour <mission>    jump to a mission (start, files, web, ...)
-#   sh ~/tools/tour --list       list the missions
-#   sh ~/tools/tour --reset      forget all progress and start over
-#   sh ~/tools/tour --selfcheck  prove the curriculum is well-formed (runs nothing)
+#   sh ~/tools/range              resume where you left off (or start at the top)
+#   sh ~/tools/range <mission>    jump to a mission (start, files, web, ...)
+#   sh ~/tools/range --list       list the missions
+#   sh ~/tools/range --reset      forget all progress and start over
+#   sh ~/tools/range --selfcheck  prove the curriculum is well-formed (runs nothing)
 #
 # WHY THIS EXISTS: a tool you cannot find or dare not try is a tool you do not have.
 # `arsenal` is the index and `arsenal chains` the recipes; this is the hand that
@@ -23,24 +23,53 @@ set -u
 T="${XOS_TOOLS:-$HOME/tools}"
 [ -d "$T" ] || T=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 CAT="$T/arsenal-catalog"
-LESSONS="$T/tour-lessons"
-[ -f "$LESSONS" ] || LESSONS="$(dirname -- "$0")/tour-lessons"
-STATE="${XDG_STATE_HOME:-$HOME/.local/state}/tour"
+LESSONS="$T/range-lessons"
+[ -f "$LESSONS" ] || LESSONS="$(dirname -- "$0")/range-lessons"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/range"
 LEDGER="$STATE/progress"
 US=$(printf '\037')          # field separator for the parsed step stream
 ROOT=0; [ "$(id -u)" = 0 ] && ROOT=1
 
-# ---- colours: ansi-256, semantic, no motion ---------------------------------
-if [ -t 1 ]; then
-  C_H=$(printf '\033[38;5;208m')   # orange  -- headings / tool name (heatsync)
-  C_D=$(printf '\033[38;5;244m')   # grey    -- meta / dim
-  C_OK=$(printf '\033[38;5;46m')   # green   -- success / it worked
-  C_R=$(printf '\033[38;5;196m')   # red     -- the rule / danger
-  C_RV=$(printf '\033[7m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
+# ---- terminal tier: full VT ladder, ansi 0-7 floor, no motion ---------------
+# the console xos boots is either the linux framebuffer (colour, 8 colours) or a
+# vt320 serial line (mono: attributes, no colour); over vt52/dumb links there is
+# no CSI at all. so colour is NEVER assumed -- it degrades 8-colour -> vt320
+# attributes -> nothing, and every screen-addressing sequence gates on _csi. this
+# mirrors learn/lib/ui; ported here because p3 tools cannot source the signed fort.
+# the vt52 arm is written out (never `vt52*`, which would demote vt520/vt525), and
+# the colour DECs are pulled out before the catch-all mono arm.
+_ui_tier() {
+  _csi=1
+  case "$1" in
+    vt50|vt50h|vt52|vt50-*|vt50h-*|vt52-*) _tier=none; _csi=0 ;;  # pre-ANSI: no CSI
+    dumb|'')                               _tier=none; _csi=0 ;;
+    vt241*|vt340*|vt525*)                  _tier=colour ;;        # the DEC colours
+    vt*|*-m|*-mono|*-nc)                   _tier=mono ;;          # the rest of DEC
+    *)                                     _tier=colour ;;
+  esac
+}
+_ui_tier "${TERM:-dumb}"
+[ -z "${NO_COLOR:-}" ] || _tier=none
+[ -t 1 ] || _tier=none
+# semantic slots. colour = the terminal's own 8; mono = reverse for the loud slot
+# (the rule), bold for the accents, dim simply absent; none = empty everything.
+if [ "$_tier" = none ]; then
+  C_H=; C_OK=; C_R=; C_D=; C_RV=; C_B=; C_0=
 else
-  C_H=; C_D=; C_OK=; C_R=; C_RV=; C_B=; C_0=
+  C_RV=$(printf '\033[7m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
+  if [ "$_tier" = colour ]; then
+    C_H=$(printf '\033[36m')    # cyan   -- headings / tool name
+    C_OK=$(printf '\033[32m')   # green  -- success / it worked
+    C_R=$(printf '\033[31m')    # red    -- the rule / danger
+    C_D=$(printf '\033[90m')    # grey   -- meta / dim
+  else
+    C_H=$C_B; C_OK=$C_B         # vt320: accents bold
+    C_R=$C_RV                   # the rule reverses (bold marks nothing on DEC glass)
+    C_D=                        # no faint on a vt-series -- quiet is simply not bold
+  fi
 fi
-cls()  { printf '\033[2J\033[H'; }
+# clear+home, and only where CSI is understood; a vt52/dumb would print it as text.
+cls()  { [ -t 1 ] && [ "$_csi" = 1 ] && printf '\033[H\033[2J\033[3J'; return 0; }
 rule() { printf '%s%s%s\n' "$C_D" "------------------------------------------------------------" "$C_0"; }
 
 # ---- parse the lessons into one US-delimited line per step ------------------
@@ -87,7 +116,7 @@ free_port() {  # first free loopback port at/above $1
 }
 lab_make() {
   [ -n "$LAB" ] && return 0
-  LAB=$(mktemp -d "${TMPDIR:-/tmp}/.tourlab.XXXXXX") || { echo "no scratch space"; exit 1; }
+  LAB=$(mktemp -d "${TMPDIR:-/tmp}/.rangelab.XXXXXX") || { echo "no scratch space"; exit 1; }
   # a private tmpfs so the compiled-C demo has somewhere it is allowed to run, and
   # so teardown is a single umount. only root may mount; unprivileged falls back to
   # the plain dir (live steps need root anyway, via xexec).
@@ -185,7 +214,7 @@ $2
 prompt_key() { printf '%s%s%s ' "$C_D" "$1" "$C_0"; IFS= read -r REPLY 2>/dev/null || REPLY=q; }
 show_step() {  # positional fields already split by caller into these globals
   cls
-  printf '%s%s %s·%s %s%s%s   %s%s/%s%s\n' "$C_RV" " $S_MTITLE " "$C_0$C_D" "$C_0" \
+  printf '%s%s %s-%s %s%s%s   %s%s/%s%s\n' "$C_RV" " $S_MTITLE " "$C_0$C_D" "$C_0" \
     "$C_H$C_B" "$S_TOOL" "$C_0" "$C_D" "$S_N" "$S_TOTAL" "$C_0"
   rule
   printf '%swhat%s  %s\n' "$C_H" "$C_0" "$S_WHAT"
@@ -193,18 +222,18 @@ show_step() {  # positional fields already split by caller into these globals
   case "$S_MODE" in
     note)
       [ -n "$S_NOTE" ] && { printf '\n%s\n' "$S_NOTE"; }
-      rule; prompt_key "[enter] next  ·  [q] quit"
+      rule; prompt_key "[enter] next  -  [q] quit"
       case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
     show)
       printf '\n%show you run it%s\n  %s%s%s\n' "$C_H" "$C_0" "$C_B" "$S_RUN" "$C_0"
       printf '\n%s! %s%s\n' "$C_R" "$S_NOTE" "$C_0"
-      rule; prompt_key "[enter] next  ·  [q] quit"
+      rule; prompt_key "[enter] next  -  [q] quit"
       case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
     run)
       lab_seed                       # scratch dir + practice fixtures (idempotent)
       cmd=$(subst "$S_RUN")
       printf '\n%sthe command%s\n  %s%s%s\n' "$C_H" "$C_0" "$C_B" "$cmd" "$C_0"
-      rule; prompt_key "[enter] run it  ·  [s] skip  ·  [q] quit"
+      rule; prompt_key "[enter] run it  -  [s] skip  -  [q] quit"
       case "$REPLY" in
         q|Q) return 2 ;;
         s|S) return 0 ;;
@@ -212,11 +241,11 @@ show_step() {  # positional fields already split by caller into these globals
           lab_ensure "$S_MID"
           printf '\n%s$ %s%s\n\n' "$C_D" "$cmd" "$C_0"
           if sh -c "$cmd"; then
-            printf '\n%s\xe2\x9c\x93 %s%s\n' "$C_OK" "$S_SEE" "$C_0"
+            printf '\n%sok  %s%s\n' "$C_OK" "$S_SEE" "$C_0"
           else
             printf '\n%s(that did not run here -- it needs the built stick and root. the command above is real.)%s\n' "$C_D" "$C_0"
           fi
-          rule; prompt_key "[enter] next  ·  [q] quit"
+          rule; prompt_key "[enter] next  -  [q] quit"
           case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
       esac ;;
   esac
@@ -257,12 +286,12 @@ walk() {  # $1 = start index
       j=$((j+1))
     done
     show_step; rc=$?
-    [ "$rc" = 2 ] && { printf '\n%sprogress saved. come back with: sh ~/tools/tour%s\n' "$C_D" "$C_0"; return 0; }
+    [ "$rc" = 2 ] && { printf '\n%sprogress saved. come back with: sh ~/tools/range%s\n' "$C_D" "$C_0"; return 0; }
     ledger_mark "$S_MID/$S_TOOL"
     i=$((i+1))
   done
   cls
-  printf '%s\xe2\x9c\x93 that is the whole arsenal. %s\n\n' "$C_OK$C_B" "$C_0"
+  printf '%sok -- that is the whole arsenal. %s\n\n' "$C_OK$C_B" "$C_0"
   printf 'from here:\n  %ssh ~/tools/arsenal%s         every tool, one line each\n' "$C_B" "$C_0"
   printf '  %ssh ~/tools/arsenal chains%s   the mission recipes, end to end\n' "$C_B" "$C_0"
   printf '  %ssh ~/tools/arsenal <tool>%s   one tool in depth\n\n' "$C_B" "$C_0"
@@ -300,10 +329,10 @@ main() {
     --selfcheck) selfcheck ;;
     --list) list_missions ;;
     --reset)
-      # guarded wipe: only ever an absolute, tour-owned state path
-      case "$STATE" in /*/tour) rm -f "$LEDGER" 2>/dev/null; echo "progress cleared." ;; *) echo "refused: state path looks wrong ($STATE)"; exit 1 ;; esac ;;
+      # guarded wipe: only ever an absolute, range-owned state path
+      case "$STATE" in /*/range) rm -f "$LEDGER" 2>/dev/null; echo "progress cleared." ;; *) echo "refused: state path looks wrong ($STATE)"; exit 1 ;; esac ;;
     -h|--help)
-      printf 'usage: sh ~/tools/tour [mission|--list|--reset|--selfcheck]\n'; list_missions ;;
+      printf 'usage: sh ~/tools/range [mission|--list|--reset|--selfcheck]\n'; list_missions ;;
     "")
       load_steps; done_ids=$(ledger_load)
       # resume at first unseen step
@@ -317,7 +346,7 @@ main() {
         rec=$(nth "$start"); rmid=${rec%%"$US"*}
         cls
         printf '%swelcome back.%s you left off in %s%s%s.\n\n' "$C_H$C_B" "$C_0" "$C_H" "$rmid" "$C_0"
-        prompt_key "[enter] resume  ·  [b] begin at the start  ·  [q] quit"
+        prompt_key "[enter] resume  -  [b] begin at the start  -  [q] quit"
         case "$REPLY" in q|Q) exit 0 ;; b|B) start=1 ;; esac
       elif [ "$start" -gt "$total" ]; then start=1; fi
       walk "$start" ;;
