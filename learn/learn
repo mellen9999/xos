@@ -170,6 +170,11 @@ blocks_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$1" 2>/dev/null; } # FI
 
 level_field() { blk_field "$(level_path "$1")" "$2"; }
 level_nq()    { blocks_nq "$(level_path "$1")"; }
+# the human-facing level number: files are zero-padded (00-hello, 01-...) so they
+# sort, but a learner reads "level 0", "level 1", not "level 00". 00-hello is
+# level 0 on purpose -- the rung before level 1, where you are not doing the shell
+# yet, just meeting it. one leading zero off; 10-30 keep both digits.
+level_no() { local n=${1%%-*}; echo "${n#0}"; }
 
 # blk_index DIR CACHE -- "<id>\t<after>\t<nq>\t<name>", one row per file in
 # DIR, one pass, built once per run.
@@ -701,7 +706,7 @@ run_level() {
 	nq=$(level_nq "$id")
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
 	lname=$(level_field "$id" name)
-	lsub="level ${id%%-*}"
+	lsub="level $(level_no "$id")"
 	fp=$(level_fp "$id")
 
 	# crossing into a new act gets its own screen, once, before that act's first
@@ -722,7 +727,7 @@ run_level() {
 	# a resume is the questions, not the lecture. `learn brief <n>` reprints it.
 	if ! level_is_briefed "$id"; then
 		cls
-		hdr "$lname" "level ${id%%-*}  ${nq} questions"
+		hdr "$lname" "level $(level_no "$id")  ${nq} questions"
 		level_field "$id" brief | say
 		level_briefed "$id"
 		pause_card || return 2
@@ -3743,7 +3748,7 @@ new_game() {
 # into a level mid-card, and a mid-level place can only be left by finishing
 # or quitting it. it names the level and the place first now, and offers the
 # one thing the menu had no way to do -- throw the whole run away and start
-# over at level 1 (n).
+# over at level 0 (n).
 resume_confirm() {
 	local id k n nq fp lname held=0 fresh=0
 	id=$(resume_target) || { resume; return 0; }
@@ -3811,7 +3816,7 @@ menu() {
 		printf ' %s%s/%s held%s  %s(%s beaten)%s\n\n' "$D" "$h" "$t" "$N" "$D" "$p" "$N"
 
 		if progress_any; then _mi c continue "where you left off"
-		else _mi c "new game" "start at level 1"; fi
+		else _mi c "new game" "start at level 0"; fi
 		_mi p practice  "any level by number"
 		_mi r review    "$([ "$due" -gt 0 ] && echo "$due due" || echo "weakest cards first")"
 		_mi d daily     "one hard card, same for all"
@@ -3835,7 +3840,7 @@ menu() {
 		echo
 		case "$k" in
 			c) resume_confirm ;;
-			p) cls; printf '  %spractice which level? (1-%s)%s ' "$W" "$t" "$N"
+			p) cls; printf '  %spractice which level? (0-%s)%s ' "$W" "$((t - 1))" "$N"
 			   IFS= read -r k 2>/dev/null || continue
 			   id=$(level_ids | grep "^0*$k-" | head -1)
 			   if [ -n "$id" ]; then run_level "$id"; else no "no level $k"; pause_card; fi ;;
@@ -3865,7 +3870,7 @@ case "${1:-}" in
 	ref)      shift; ref "$@" ;;
 	brief)    shift; _id=$(level_ids | grep "^0*${1:-}-" | head -1)
 	          [ -n "$_id" ] || die "usage: learn brief N"
-	          hdr "$(level_field "$_id" name)" "level ${_id%%-*}"
+	          hdr "$(level_field "$_id" name)" "level $(level_no "$_id")"
 	          level_field "$_id" brief | say ;;
 	-k)       shift; search "$@" ;;
 	list)     surface ;;
