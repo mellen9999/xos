@@ -17,6 +17,10 @@ populate() {
   install -m 0755 "${SELF:-$(dirname "$0")}/atlas" "$H/tools/atlas"
   install -m 0755 "${SELF:-$(dirname "$0")}/view" "$H/tools/view"
   install -m 0644 "${SELF:-$(dirname "$0")}/xrender.py" "$H/tools/xrender.py"
+  # qr: plain ash, ships the same way -- qrencode itself is a build-arsenal-c.sh
+  # artifact and lands beside it through the $ARSENAL loop below, same as any
+  # other flat static binary.
+  install -m 0755 "${SELF:-$(dirname "$0")}/qr" "$H/tools/qr"
   # the graded school (arsenal learn): the engine + its libs, pools, phrases and
   # levels. reads them relative to its own dir, so all under $H/tools.
   S="${SELF:-$(dirname "$0")}"

@@ -30,6 +30,7 @@ runform() {
     cc)       echo "sh ~/tools/xexec -t ~/tools/cc cc" ;;
     atlas)    echo "sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/atlas" ;;
     view)     echo "sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/view" ;;
+    qr)       echo "sh ~/tools/qr" ;;   # wraps qrencode through xexec itself -- no tree, no manual wrap
     *)        echo "sh ~/tools/xexec $1" ;;
   esac
 }
@@ -73,7 +74,7 @@ present=""
 for f in "$T"/*; do
   [ -e "$f" ] || continue
   b=$(basename "$f")
-  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas|view|xrender.py) continue ;; esac
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas|view|xrender.py|qr) continue ;; esac
   present="$present $b "
   d=$(desc "$b")
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"

@@ -410,6 +410,7 @@ is the post-build attestation, source + sha256:
 | rsync | sync/backup over ssh -- delta transfer, resumable |
 | atlas | offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal |
 | view | image/pdf viewer -- renders any picture or pdf page as characters (braille to ascii), via mutool |
+| qr | show data as a scannable qr -- move a key/config to a phone with no network |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | impacket | windows/ad attack suite -- secretsdump, ntlmrelayx, psexec, kerberos (70 tools, pure-python) |
@@ -603,7 +604,8 @@ toggle, or vault mode is fiction -- that is why a stick with a real one is named
 
 playbook: attest (clean boot, prove it -- learn 29 / scenario 10), unlock p3, reach
 disks over usb only (the host's internal nvme/sata never enumerates, by design), run
-tools through xexec, phone home over the wireguard tunnel and ssh back down it.
+tools through xexec, phone home over the wireguard tunnel and ssh back down it. no
+network at all: `qr` shows a key or config as a scannable code, read off by a phone.
 
 two things never rebuild from source: your p3 secrets and your signing keys. back
 both up offline, apart from the stick and each other -- a fireproof metal plate,

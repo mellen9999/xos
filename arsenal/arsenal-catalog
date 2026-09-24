@@ -43,5 +43,7 @@ minisign	sign/verify a file -- ed25519, one binary, no gpg trust model
 age	encrypt/decrypt a file -- modern, no gpg keyring, passphrase or keypair
 dvtm	suckless terminal multiplexer -- split panes, no server, no config
 rsync	sync/backup over ssh -- delta transfer, resumable
+qrencode	renders text/a file as a qr code -- `qr` is the tier-aware wrapper, use that
 atlas	offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal
 view	image/pdf viewer -- renders any picture or pdf page as characters, braille to ascii, via mutool
+qr	show data as a scannable qr code -- move a key or config to a phone with no network

@@ -450,6 +450,29 @@ clone_pinned() {
   strip rsync
   cp rsync /out/rsync ) || log "rsync FAILED"
 
+# qrencode 4.1.1 -- airgap egress: a wg config, a pubkey or any small file as a
+# scannable QR on the console, read off by a phone camera with NO network
+# between the two machines at all -- the one transfer path xos can offer when
+# even a usb stick is a bridge you do not want to cross. `arsenal/qr` is the
+# wrapper (plain busybox ash, not python -- this binary needs no interpreter
+# tree, so requiring one would be a self-inflicted dependency).
+# --without-png, NOT --without-tools: xos only ever renders to a terminal
+# (-t UTF8/ANSIUTF8/ASCII), so the PNG encoder and its libpng dependency are
+# dead weight -- but --without-tools disables BUILD_TOOLS entirely, which is
+# the qrencode CLI itself; passing it would build a static libqrencode.a and
+# no qrencode binary at all. read configure.ac before trusting a flag's name.
+( set -e; log qrencode
+  clone_pinned qrencode /s/qrencode
+  cd /s/qrencode
+  ./autogen.sh >/s/qrencode.log 2>&1
+  ./configure --disable-shared --enable-static --without-png \
+    CFLAGS="-O2" LDFLAGS="-static" >>/s/qrencode.log 2>&1
+  make -j"$(nproc)" LDFLAGS="-all-static" >>/s/qrencode.log 2>&1
+  file qrencode | grep -q "statically linked" || { echo "not static"; tail -40 /s/qrencode.log; exit 1; }
+  ./qrencode -t ASCII "xos" | grep -q '#' || { echo "qrencode renders nothing"; exit 1; }
+  strip qrencode
+  cp qrencode /out/qrencode ) || log "qrencode FAILED"
+
 # binwalk 3.1.0 -- firmware carving: scan a blob for embedded filesystems,
 # bootloaders, compressed streams and keys, and map where each begins. the v3
 # rewrite is rust. two knots, both handled here:

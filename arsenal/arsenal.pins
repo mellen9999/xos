@@ -49,3 +49,4 @@ mandoc        url   https://mandoc.bsd.lv/snapshots/mandoc-1.14.6.tar.gz        
 minisign      git   https://github.com/jedisct1/minisign                                   b85e15d45ac9eab34e44596fd309f5b07db9545c
 dvtm          git   https://github.com/martanne/dvtm                                       7e39b34896f7e1832f0138afc35fcde2377ee198
 rsync         url   https://download.samba.org/pub/rsync/src/rsync-3.5.1.tar.gz             c55f9c9dc10fb8bec397b399a0fdded53cc9a2d8e30891bb0d63724d25c37bef
+qrencode      git   https://github.com/fukuchi/libqrencode                                  715e29fd4cd71b6e452ae0f4e36d917b43122ce8

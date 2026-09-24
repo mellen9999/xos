@@ -158,3 +158,6 @@ atlas	/ then a name, n/N next/prev match, g lon,lat, ? help, q quit
 view	view photo.jpg                                        # tier-aware, braille to ascii
 view	view report.pdf 3                                     # page 3, via mutool
 view	view photo.jpg --half                                 # colour tier: half-block, near-photo
+qr	qr "$(cat wg0.conf)"                                  # scan with a phone, no network needed
+qr	qr -f wg0.conf                                        # same, straight from the file
+qr	wg genkey | qr                                        # a key never touches a stick or a wire

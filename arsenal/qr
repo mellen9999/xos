@@ -1,0 +1,101 @@
+#!/bin/sh
+# qr -- show data as a scannable qr code on the console. airgap egress: move
+# a wg config, a pubkey or any small file to a phone with no network between
+# the two machines at all -- the one transfer path xos can offer when even a
+# usb stick is a bridge you do not want to cross.
+#
+# plain busybox ash, not python: qrencode is a direct C binary and needs no
+# interpreter tree, so wrapping it in one would be a self-inflicted dependency
+# (see arsenal/atlas + arsenal/view, which DO need xexec's python tree, for
+# the contrast). this is the shell tier of the arsenal, same as arsenal/xexec.
+#
+# tier mirrors learn/lib/ui's _ui_tier: a pre-ansi terminal (vt50/vt52/dumb),
+# NO_COLOR or a non-tty gets qrencode -t ASCII (zero escape bytes -- the vt52/
+# vt320-safe floor); a real utf8 locale on anything past that gets -t ANSIUTF8
+# (half-block, half the height, still scannable). utf8 detection is the same
+# LC_ALL/LC_CTYPE/LANG check atlas and view use, because it is a separate
+# question from the tier one -- a colour xterm with LANG=C still wants ASCII.
+set -eu
+
+usage() { echo "usage: qr TEXT...   |   qr -f FILE   |   DATA | qr" >&2; exit 1; }
+
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+QR=
+for d in "$HERE" "$HOME/tools"; do
+  [ -f "$d/qrencode" ] && { QR="$d/qrencode"; break; }
+done
+[ -n "$QR" ] || QR=$(command -v qrencode 2>/dev/null || true)
+[ -n "$QR" ] || { echo "no qrencode -- carried in the arsenal; run build-arsenal-c.sh" >&2; exit 1; }
+
+# p3 is mounted noexec, so a carried binary cannot exec() off it directly --
+# xexec is the tmpfs-exec workaround (see its own header). a qrencode found
+# via a plain PATH lookup (a dev host, or this script run standalone) is on
+# an ordinary exec filesystem and needs none of that; a qrencode found beside
+# this script, with xexec its sibling, is the carried-arsenal case and always
+# needs it. that sibling check is the signal, not a guess about where we are.
+XEXEC="$(dirname -- "$QR")/xexec"
+run_qrencode() {
+  if [ -x "$XEXEC" ]; then sh "$XEXEC" "$QR" "$@"
+  else "$QR" "$@"; fi
+}
+
+# qrencode's own hard ceiling in 8-bit byte mode at -l M, version 40 (the
+# largest symbol it will ever produce): measured against the real binary,
+# not read off a spec table that might not match this build. a bigger code
+# is not "denser", it is unreadable by a phone camera -- refuse loud instead
+# of emitting one.
+CAP=2331
+LEVEL=M
+
+file=
+case "${1:-}" in
+  -h|--help) usage ;;
+  -f)
+    [ -n "${2:-}" ] || usage
+    file="$2"
+    [ -f "$file" ] || { echo "qr: no such file: $file" >&2; exit 1; }
+    ;;
+esac
+
+if [ -n "$file" ]; then
+  size=$(wc -c < "$file")
+elif [ "$#" -gt 0 ]; then
+  data="$*"
+  size=${#data}
+else
+  data=$(cat)
+  size=${#data}
+fi
+
+[ "${size:-0}" -gt 0 ] || { echo "qr: nothing to encode" >&2; exit 1; }
+[ "$size" -le "$CAP" ] || {
+  echo "qr: input is $size bytes, the cap at -l $LEVEL is $CAP -- refusing to emit an unscannable code" >&2
+  exit 1
+}
+
+# --- tier: mirrors learn/lib/ui's _ui_tier, written out for the same reason
+# the comment there gives -- vt52* also matches vt520 (full sgr) and vt525
+# (colour), so the colour arm has to be checked first.
+term="${TERM:-dumb}"
+case "$term" in
+  vt50|vt50h|vt52|vt50-*|vt50h-*|vt52-*) tier=none ;;
+  dumb|'')                               tier=none ;;
+  vt241*|vt340*|vt525*)                  tier=colour ;;
+  vt*|*-m|*-mono|*-nc)                   tier=mono ;;
+  *)                                     tier=colour ;;
+esac
+[ -z "${NO_COLOR:-}" ] || tier=none
+[ -t 1 ] || tier=none
+
+locale=$(printf '%s %s %s' "${LC_ALL:-}" "${LC_CTYPE:-}" "${LANG:-}" | tr 'A-Z' 'a-z')
+utf8=0
+case "$locale" in *utf-8*|*utf8*) utf8=1 ;; esac
+
+mode=ASCII
+[ "$tier" = none ] || [ "$utf8" -eq 0 ] || mode=ANSIUTF8
+
+if [ -n "$file" ]; then
+  run_qrencode -t "$mode" -l "$LEVEL" -r "$file"
+else
+  printf '%s' "$data" | run_qrencode -t "$mode" -l "$LEVEL"
+fi
