@@ -1,0 +1,91 @@
+# lab -- safe practice targets on 127.0.0.1 for the network tools. a graded card
+# for httpx/gobuster/ffuf/hydra needs something to point AT; the lab stands up a
+# tiny web server and an auth server on loopback, seeds a target tree with a
+# planted secret page and a wordlist, and hands the card the live address through
+# the @url@/@port@/@aurl@/@aport@ tokens (blk_load injects them after render).
+#
+# the servers run OUTSIDE the jail (they only listen on loopback); the jailed
+# nobody answer connects to them -- the jail isolates the filesystem and the uid,
+# not the loopback network, so this composes cleanly with lib/jail.
+#
+# targets are ALWAYS 127.0.0.1. the whole arsenal rule is one line: only ever aim
+# these at a machine you own; here the only machine in range is this one.
+#
+# python: on a dev host the carried python runs directly; on the stick p3 is
+# noexec so it goes through xexec (LAB_PY can override with the xexec form).
+LAB_DIR=""; LAB_PORT=""; LAB_APORT=""; LAB_URL=""; LAB_AURL=""; LAB_WEB_PG=""; LAB_AUTH_PG=""
+LAB_PY="${LAB_PY:-}"
+_lab_py() {
+	[ -n "$LAB_PY" ] && { printf '%s' "$LAB_PY"; return; }
+	for c in "$HOME/.local/share/xos-arsenal/python/bin/python3" python3 python; do
+		command -v "$c" >/dev/null 2>&1 && { printf '%s' "$c"; return; }
+		[ -x "$c" ] && { printf '%s' "$c"; return; }
+	done
+}
+
+_lab_freeport() { p=$1; while netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$p "; do p=$((p + 1)); done; printf '%s' "$p"; }
+_lab_wait()     { i=0; while [ $i -lt 6 ]; do netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$1 " && return 0; sleep 1; i=$((i + 1)); done; return 1; }
+
+# lab_seed -- the target tree the web server serves. planted so cards can assert
+# on real findings (a hidden /secret page, known words, a title).
+lab_seed() {
+	[ -n "$LAB_DIR" ] && return 0
+	LAB_DIR=$(mktemp -d "${TMPDIR:-/tmp}/arslab.XXXXXX") || return 1
+	printf '<title>practice site</title><h1>practice site</h1>\n' > "$LAB_DIR/index.html"
+	printf 'you found the hidden page\n'                          > "$LAB_DIR/secret"
+	printf 'admin\nbackup\nsecret\nlogin\nhello\ndemo\n'          > "$LAB_DIR/words.txt"
+	cat > "$LAB_DIR/authserver.py" <<'PY'
+import sys, base64
+from http.server import BaseHTTPRequestHandler, HTTPServer
+USER, PW = b'demo', b'letmein'
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        a = self.headers.get('Authorization', '')
+        ok = a.startswith('Basic ') and (lambda d: d == USER + b':' + PW)(base64.b64decode(a[6:]) if a[6:] else b'')
+        if ok:
+            self.send_response(200); self.end_headers(); self.wfile.write(b'welcome demo\n')
+        else:
+            self.send_response(401); self.send_header('WWW-Authenticate', 'Basic realm=x'); self.end_headers()
+    def log_message(self, *a): pass
+HTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
+PY
+}
+
+lab_web() {
+	[ -n "$LAB_WEB_PG" ] && return 0
+	lab_seed || return 1
+	local py; py=$(_lab_py); [ -n "$py" ] || return 1
+	LAB_PORT=$(_lab_freeport 8000)
+	setsid sh -c "cd '$LAB_DIR' && exec '$py' -m http.server $LAB_PORT --bind 127.0.0.1" >/dev/null 2>&1 &
+	LAB_WEB_PG=$!
+	LAB_URL="http://127.0.0.1:$LAB_PORT"
+	_lab_wait "$LAB_PORT" || return 1
+}
+
+lab_auth() {
+	[ -n "$LAB_AUTH_PG" ] && return 0
+	lab_seed || return 1
+	local py; py=$(_lab_py); [ -n "$py" ] || return 1
+	LAB_APORT=$(_lab_freeport 8100)
+	setsid sh -c "exec '$py' '$LAB_DIR/authserver.py' $LAB_APORT" >/dev/null 2>&1 &
+	LAB_AUTH_PG=$!
+	LAB_AURL="http://127.0.0.1:$LAB_APORT"
+	_lab_wait "$LAB_APORT" || return 1
+}
+
+# lab_ensure KIND... -- stand up only the targets a level asks for.
+lab_ensure() {
+	for _k in "$@"; do
+		case "$_k" in
+			web)  lab_web  || return 1 ;;
+			auth) lab_auth || return 1 ;;
+		esac
+	done
+}
+
+lab_down() {
+	for pg in $LAB_WEB_PG $LAB_AUTH_PG; do kill -TERM "-$pg" 2>/dev/null; kill -TERM "$pg" 2>/dev/null; done
+	[ -n "$LAB_PORT" ]  && pkill -f "http.server $LAB_PORT" 2>/dev/null
+	[ -n "$LAB_DIR" ]   && rm -rf "$LAB_DIR" 2>/dev/null
+	LAB_DIR=""; LAB_WEB_PG=""; LAB_AUTH_PG=""; LAB_PORT=""; LAB_APORT=""; LAB_URL=""; LAB_AURL=""
+}
