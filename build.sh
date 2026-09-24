@@ -110,7 +110,7 @@ XCF="-fPIE -Os -isystem $PWD/sysroot/include -ffile-prefix-map=$PWD=xos"
 # the binaries that are not busybox applets. this used to be written out at
 # every site that needed it, so adding one meant editing each and forgetting
 # any of them failed confusingly. one list, read everywhere.
-EXTRA_BINS="ii tlstunnel learn abduco cryptsetup wg dropbear dbclient dropbearkey"
+EXTRA_BINS="ii tlstunnel learn tutorial abduco cryptsetup wg dropbear dbclient dropbearkey"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
 # shared across every checkout and worktree a user has open, so a bare per-uid
@@ -1036,6 +1036,7 @@ rootfs() {
   # read-only root the filesystem IS the lookup table, so it needs no shell
   # data structures -- which is what lets the one shell be ash.
   [ -x learn/learn ] || { echo "FAIL: learn/learn missing or not executable" >&2; return 1; }
+  [ -x tutorial ]    || { echo "FAIL: tutorial missing or not executable" >&2; return 1; }
   local part
   for part in ref lib pools levels scenarios projects; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
@@ -1044,6 +1045,9 @@ rootfs() {
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
+  # the front door: the first-boot tutorial. it sources the corpus UI below, so
+  # it ships beside learn and is greeted from /etc/shrc on the first shell.
+  install -m 0755 tutorial root/bin/tutorial
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
   cp learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains \
@@ -1304,16 +1308,19 @@ irc() {
 	echo "  send:  echo hi      > $dir/#chan/in"
 	echo "  read:  tail -f $dir/#chan/out"
 }
-# start here. a booted stranger has a prompt and no way to know the curriculum
-# and the reference even exist -- this is the one line that says so. printed
-# once per boot, not per shell: /tmp is the tmpfs init creates, so the flag is
-# gone at the next boot and back for exactly one session. only on a real
-# terminal (a pipe or a non-interactive shell gets nothing), and never twice,
-# because the console respawns and every subshell re-sources this file.
+# start here. a booted stranger has a prompt and no way to know the tutorial,
+# the curriculum or the reference exist -- so the first shell of the boot runs
+# the tutorial: three short pages, then it points at learn. printed once per
+# boot, not per shell: /tmp is the tmpfs init creates, so the flag is gone at
+# the next boot and back for exactly one session. only on a real terminal (a
+# pipe or a non-interactive shell gets nothing), and never twice, because the
+# console respawns and every subshell re-sources this file. if tutorial is
+# somehow absent, fall back to the one line that at least names learn.
 case "$-" in
 	*i*) if [ -t 1 ] && [ ! -e /tmp/.xos-greeted ]; then
 		: > /tmp/.xos-greeted 2>/dev/null
-		echo "xos -- run learn to start, or learn ref ls for every command"
+		if command -v tutorial >/dev/null 2>&1; then tutorial
+		else echo "xos -- run learn to start, or learn ref ls for every command"; fi
 	fi ;;
 esac
 SHRC

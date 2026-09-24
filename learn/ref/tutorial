@@ -1,0 +1,19 @@
+tutorial
+Usage: tutorial
+
+The first screen xos shows you, and where to start.
+
+Three short pages -- where you are, how to run more than one thing at
+once, and where to start -- then it points you at learn and gets out of
+the way.
+
+It runs by itself once per boot, on the first terminal you open. Type it
+again anytime:
+
+	tutorial
+
+Press Enter for the next page; press q to leave early. It changes nothing
+and asks nothing -- it only points.
+
+Next: learn teaches every command from nothing, and once the encrypted
+side of the stick is set up, arsenal learn teaches the field toolkit.

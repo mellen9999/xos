@@ -576,6 +576,7 @@ cttyhack *      # absent -- allocates a controlling tty, and the grader has none
 halt     *      # alias -- halt, poweroff and reboot are one applet; poweroff is the one taught
 history  *      # absent -- prints nothing outside an interactive shell
 times    *      # verbose -- all-zero cpu time in a one-shot answer; it asserts nothing
+tutorial *      # the greeter -- three pages that point at learn; nothing to drill, it is the on-ramp to the curriculum, not part of it
 
 poweroff *      # danger -- banned by the answer fence; a drill that runs your answer cannot ask for it
 reboot   *      # danger -- same fence; halt is retired above as its alias

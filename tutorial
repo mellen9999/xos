@@ -1,0 +1,70 @@
+#!/bin/sh
+# tutorial -- xos's first thing. a booted stranger has a prompt and no way to
+# know learn, the reference, or the arsenal exist. this is the front door: three
+# short pages -- where you are, how to run more than one thing at once, and where
+# to start -- then it points at `learn` and gets out of the way.
+#
+# it lives in the SIGNED FORT so it is there on the very first boot, before any
+# encrypted side of the stick is set up. it sources the base UI so it looks like
+# learn and degrades down the same VT ladder (ANSI 0-7 -> 256 -> vt320 -> vt52 ->
+# plain). if that corpus is ever missing it still runs in plain text: a greeter
+# that could break the login shell is worse than a plain one.
+#
+# /etc/shrc runs this once per boot on the first interactive shell (the tmpfs
+# marker /tmp/.xos-greeted). type `tutorial` to see it again whenever you like.
+
+ROOT="${LEARN_ROOT:-/usr/share/learn}"
+if [ -f "$ROOT/lib/ui" ]; then
+	. "$ROOT/lib/ui"
+else
+	# plain fallback -- no colour, no screen clear, just legible text.
+	hdr()        { printf '\n%s\n-- %s\n\n' "$1" "$2"; }
+	say()        { sed -e 's/`//g' -e 's/^/  /'; }
+	cls()        { :; }
+	pause_card() { [ -t 0 ] || return 0; printf '\n  [enter] '; read -r _ 2>/dev/null || return 2; }
+fi
+
+page() {  # $1 subtitle ; body on stdin
+	cls
+	hdr "welcome to xos" "$1"
+	say
+	pause_card
+}
+
+page '1 of 3 -- where you are' <<'EOF' || exit 0
+This is a computer you talk to by typing. You type a word -- a command --
+and press Enter. It does the thing, then shows you the answer. That is the
+whole idea.
+
+You cannot break it by trying. The disk is read-only, so nothing you type
+changes the system itself -- explore freely. If a command does not work the
+screen tells you, and you just type another one.
+EOF
+
+page '2 of 3 -- more than one thing at once' <<'EOF' || exit 0
+`abduco` keeps a program running even when your screen goes away -- unplug,
+walk off, come back, and it is still there.
+
+  `abduco -c work`    start a session called work
+  `ctrl-\`            step away; it keeps running
+  `abduco`            list what is running
+  `abduco -a work`    step back into it
+
+That is all you need at the start. Splitting one screen into panes comes
+later, with the toolkit.
+EOF
+
+page '3 of 3 -- where to start' <<'EOF' || exit 0
+Type `learn`.
+
+It teaches every command on this system, in order, from nothing at all, and
+checks you by running what you type. It starts at level 0 and takes you the
+whole way to fluent.
+
+Once you have set up the encrypted side of the stick, `arsenal learn` teaches
+the field toolkit the same way.
+
+You can see this again anytime -- just type `tutorial`.
+EOF
+
+exit 0
