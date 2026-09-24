@@ -47,3 +47,4 @@ qrencode	renders text/a file as a qr code -- `qr` is the tier-aware wrapper, use
 atlas	offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal
 view	image/pdf viewer -- renders any picture or pdf page as characters, braille to ascii, via mutool
 qr	show data as a scannable qr code -- move a key or config to a phone with no network
+chart	ascii/braille bars + sparklines -- see learn stats, smart health, any numbers on a text box

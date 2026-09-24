@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+# chart -- tier-aware ascii/braille bars and sparklines for numbers already on
+# the screen: `learn stats | chart`, `smartctl -A /dev/sdX | chart`, anything
+# that prints a label and a number per line. no plotting library, no image --
+# same ladder as atlas/view (canvas.py), but bars are FILLS, not lines, so
+# this reuses only the tier detection and the palette, not the subpixel
+# Canvas -- a bar is a run of characters, never a bresenham line.
+#
+# tier mirrors learn/lib/ui's _ui_tier exactly, same as every other tool
+# here: colour gets ANSI + unicode block glyphs, mono gets bold with no
+# colour, none (a real vt320, NO_COLOR, or a non-tty) gets plain ascii and
+# literally zero escape bytes -- Pal's tier="none" branch is all empty
+# strings, so every f"{pal.X}...{pal.N}" span degenerates to bare text.
+import argparse, os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from canvas import detect_tier, detect_utf8, Pal
+
+# label + trailing number, OR label + a/b (value/max) fraction, OR a bare
+# number alone on the line. the number is always the LAST match on the line,
+# so "sort  3/5" and smartctl's "  5 Reallocated_Sector_Ct  ...  100  100  10"
+# both give the last token, which is what both tools mean by "the value".
+# the (?:^|\s) is load-bearing: without a boundary in front of the digits,
+# "Model: ST1000" reads as label "Model: ST" and value 1000, which is a
+# corrupted split, not a number this line was ever offering.
+NUM = re.compile(r"(?:^|\s)(-?\d+(?:\.\d+)?)(?:/(-?\d+(?:\.\d+)?))?\s*$")
+
+def parse_line(line):
+    m = NUM.search(line.rstrip("\n"))
+    if not m:
+        return None
+    value = float(m.group(1))
+    line_max = float(m.group(2)) if m.group(2) is not None else None
+    label = line[: m.start(1)].rstrip()
+    return label, value, line_max
+
+def read_series(f):
+    rows = []
+    for line in f:
+        parsed = parse_line(line)
+        if parsed:
+            rows.append(parsed)
+    return rows
+
+# --------------------------------------------------------------- bars -----
+PARTIALS = "▏▎▍▌▋▊▉"  # eighths, 1/8..7/8
+FULL = "█"
+
+def bar_glyphs(ratio, width, utf8):
+    ratio = max(0.0, min(1.0, ratio))
+    units = ratio * width
+    full = int(units)
+    if utf8:
+        rem = units - full
+        idx = int(rem * 8)  # 0..7 eighths; 8 would already be a full cell
+        partial = PARTIALS[idx - 1] if idx > 0 else ""
+        return FULL * full + partial + " " * (width - full - len(partial))
+    rem = units - full
+    partial = "=" if rem >= 0.5 else ""
+    return "#" * full + partial + " " * (width - full - len(partial))
+
+def fmt_value(value, line_max):
+    v = f"{value:g}"
+    return f"{v}/{line_max:g}" if line_max is not None else v
+
+def span(colour, text, reset):
+    # an unconditional reset after an empty open colours nothing but still
+    # spends a byte -- harmless on a real terminal, but tier none promises
+    # ZERO escapes, and mono/colour should not carry one for no reason either.
+    return f"{colour}{text}{reset}" if colour else text
+
+def render_bars(rows, cols, utf8, pal, cli_max):
+    labelled = [r for r in rows if r[0]]
+    label_w = max((len(r[0]) for r in labelled), default=0)
+    values_texts = [fmt_value(v, m) for _, v, m in rows]
+    value_w = max((len(t) for t in values_texts), default=1)
+    bar_w = max(1, cols - label_w - value_w - (2 if label_w else 0) - 1)
+
+    shared_max = cli_max
+    if shared_max is None:
+        bare = [v for _, v, m in rows if m is None]
+        shared_max = max(bare) if bare else 1.0
+    if shared_max <= 0:
+        shared_max = 1.0
+
+    lines = []
+    for label, value, line_max in rows:
+        ratio = (value / line_max) if line_max not in (None, 0) else (value / shared_max)
+        bar = bar_glyphs(ratio, bar_w, utf8)
+        vt = fmt_value(value, line_max)
+        left = f"{label:<{label_w}} " if label_w else ""
+        lines.append(f"{left}{span(pal.WATER, bar, pal.N)}  {span(pal.CITY, f'{vt:>{value_w}}', pal.N)}")
+    return "\n".join(lines), shared_max if not any(m is not None for _, _, m in rows) else None
+
+# -------------------------------------------------------------- spark -----
+LEVELS_UTF8 = "▁▂▃▄▅▆▇█"
+LEVELS_ASCII = "0123456789"
+
+def render_spark(rows, utf8, pal):
+    points = [(v / m) if m not in (None, 0) else v for _, v, m in rows]
+    lo, hi = min(points), max(points)
+    rng = (hi - lo) or 1.0
+    levels = LEVELS_UTF8 if utf8 else LEVELS_ASCII
+    n = len(levels)
+    chars = []
+    for p in points:
+        idx = int(round((p - lo) / rng * (n - 1)))
+        chars.append(levels[max(0, min(n - 1, idx))])
+    return span(pal.CITY, "".join(chars), pal.N)
+
+# ------------------------------------------------------------------ main --
+def main():
+    ap = argparse.ArgumentParser(prog="chart", description="ascii/braille bars and sparklines")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--bars", action="store_true", help="horizontal bars (the default)")
+    mode.add_argument("--spark", action="store_true", help="one-line sparkline instead of bars")
+    ap.add_argument("--max", type=float, default=None, help="scale bars against this instead of auto")
+    ap.add_argument("--cols", type=int, default=None)
+    ap.add_argument("--tier", choices=["auto", "none", "mono", "colour"], default="auto")
+    grp = ap.add_mutually_exclusive_group()
+    grp.add_argument("--utf8", dest="utf8", action="store_true", default=None)
+    grp.add_argument("--no-utf8", dest="utf8", action="store_false")
+    args = ap.parse_args()
+
+    is_tty = sys.stdout.isatty()
+    if args.tier == "auto":
+        tier, _csi = detect_tier(os.environ.get("TERM", "dumb"), bool(os.environ.get("NO_COLOR")), is_tty)
+    else:
+        tier = args.tier
+    utf8 = args.utf8 if args.utf8 is not None else detect_utf8(os.environ)
+    pal = Pal(tier)
+    # fancy glyphs are a tier-above-none perk, same rule atlas/view use for
+    # braille: tier none (pre-ansi, NO_COLOR, or -- the common case -- stdout
+    # not a tty) means plain ascii even on a genuinely utf8 locale.
+    glyph_utf8 = utf8 and tier != "none"
+
+    cols = args.cols
+    if cols is None:
+        try:
+            cols = os.get_terminal_size().columns if is_tty else 78
+        except OSError:
+            cols = 78
+    cols = min(cols, 80)
+
+    rows = read_series(sys.stdin)
+    if not rows:
+        print("chart: no numbers on stdin", file=sys.stderr)
+        return 1
+
+    if args.spark:
+        body = render_spark(rows, glyph_utf8, pal)
+        header = f"chart  {len(rows)} points"
+    else:
+        body, auto_max = render_bars(rows, cols, glyph_utf8, pal, args.max)
+        header = f"chart  {len(rows)} series"
+        shown_max = args.max if args.max is not None else auto_max
+        if shown_max is not None:
+            header += f"  max {shown_max:g}"
+
+    print(header)
+    print(body)
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

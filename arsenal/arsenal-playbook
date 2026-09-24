@@ -161,3 +161,6 @@ view	view photo.jpg --half                                 # colour tier: half-b
 qr	qr "$(cat wg0.conf)"                                  # scan with a phone, no network needed
 qr	qr -f wg0.conf                                        # same, straight from the file
 qr	wg genkey | qr                                        # a key never touches a stick or a wire
+chart	learn stats | chart                                   # mastery bars, one line per skill
+chart	smartctl -A /dev/sdX | chart                          # attribute values as bars
+chart	seq 20 | shuf | chart --spark                         # one-line sparkline, any number series

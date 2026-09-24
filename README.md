@@ -411,6 +411,7 @@ is the post-build attestation, source + sha256:
 | atlas | offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal |
 | view | image/pdf viewer -- renders any picture or pdf page as characters (braille to ascii), via mutool |
 | qr | show data as a scannable qr -- move a key/config to a phone with no network |
+| chart | ascii/braille bars + sparklines -- see learn stats, smart health, any numbers on a text box |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | impacket | windows/ad attack suite -- secretsdump, ntlmrelayx, psexec, kerberos (70 tools, pure-python) |
@@ -574,7 +575,9 @@ not free to CARRY -- k&r, ostep, crafting interpreters -- are yours to add by ha
 the same rule as zork. 36 MB fetched, ~50 MB on the stick once the python text tree
 is expanded. the console has no pdf renderer, so read them with the arsenal's
 mutool: `mutool draw -F txt books/modern-c.pdf | less`. a figure or photo the
-text extraction drops is still viewable -- `view` renders it as characters too.
+text extraction drops is still viewable -- `view` renders it as characters too,
+and `links` opens one inline (via `.links/links.cfg`) while reading a served
+zim -- work mode only, since vault mode's tmpfs $HOME shadows the p3 copy.
 
 and the vector atlas, because xos is text-first behind a serial vt320 -- zero
 pixels, pre-unicode on the bottom tier -- and a raster map tile is dead weight

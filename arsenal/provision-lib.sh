@@ -17,6 +17,7 @@ populate() {
   install -m 0755 "${SELF:-$(dirname "$0")}/atlas" "$H/tools/atlas"
   install -m 0755 "${SELF:-$(dirname "$0")}/view" "$H/tools/view"
   install -m 0644 "${SELF:-$(dirname "$0")}/canvas.py" "$H/tools/canvas.py"
+  install -m 0755 "${SELF:-$(dirname "$0")}/chart" "$H/tools/chart"
   # qr: plain ash, ships the same way -- qrencode itself is a build-arsenal-c.sh
   # artifact and lands beside it through the $ARSENAL loop below, same as any
   # other flat static binary.
@@ -40,6 +41,18 @@ populate() {
       if [ "$b" = file.mgc ]; then
         install -m 0644 "$f" "$H/.magic.mgc"             # libmagic auto-discovers $HOME/.magic.mgc
         continue
+      fi
+      if [ "$b" = links ]; then
+        # the association that opens a picture in the served zim/html as
+        # characters instead of a dead link -- checked against links 2.30's
+        # own config parser (default.c type_rd/parse_config_file), see
+        # arsenal/links.cfg. the directory really is .links, not .links2 --
+        # confirmed against get_home() in the same source, and against a
+        # real build: it loaded this file and wrote the association back out
+        # byte-identical. falls through below to install the binary itself,
+        # same as any other flat static tool.
+        mkdir -p "$H/.links"
+        install -m 0644 "${SELF:-$(dirname "$0")}/links.cfg" "$H/.links/links.cfg"
       fi
       if [ -d "$f" ]; then
         rm -rf "$H/tools/$b"; cp -a "$f" "$H/tools/$b"   # a tree: python/, sqlmap/
