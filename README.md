@@ -587,9 +587,10 @@ layers into `maps/` -- coastlines, country borders, rivers, lakes and named plac
 at two zoom resolutions (1:110m and 1:50m) -- each pinned by sha256 and recorded in
 `arsenal/maps.lock`. Natural Earth is public domain, so unlike books.lock there is
 only one licence in the column, and gate G65 still checks it is that one. 11 MB
-fetched, 3 MB staged (gzipped). `atlas` reads it: braille dots where the terminal
-is utf8, plain `#` where it is not, colour on top of either where the terminal has
-it, zero escape bytes at all on the pre-ANSI floor. `atlas` alone opens the whole
+fetched, 3 MB staged (gzipped). `atlas` reads it at whatever the terminal has:
+braille dots where it is utf8, connected DEC line-art (`─│┌┐`) on a real vt320,
+plain ascii on a pre-ANSI vt52 with zero escape bytes at all -- colour on top of
+any of them where the terminal has it. `atlas` alone opens the whole
 world, interactive, vim keys to pan and zoom; `atlas paris` opens centred on a
 match; `atlas --render --bbox=-10,35,40,60` renders once and exits, for a pager or
 a slow line.
