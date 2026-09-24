@@ -45,17 +45,37 @@ done
 ctx_init
 cards_init
 
-# the jail: no tools staged yet (the sample level uses plain busybox applets
-# already on PATH, not carried arsenal binaries). a real-tool level passes its
-# binaries here -- jail_init "$T1" "$T2" ... -- once, before the run starts.
-jail_init || die "jail_init failed"
-# lib/grade's check_state reads $SANDBOX (base learn's name for the tree it
-# grades against); lib/jail calls the same tree $JAIL_SCRATCH. the two libs
-# were ported from different sides of the same seam and never introduced to
-# each other -- this line is the introduction. the path itself does not
-# change again: jail_run wipes and reseeds its CONTENTS every call, not the
-# path, so binding it once here is enough for the whole session.
-SANDBOX=$(jail_scratch)
+# where carried tool binaries live: on the stick they are in ~/tools (installed
+# by provision), on a dev host they are staged in ~/.local/share/xos-arsenal.
+# ARSENAL_BIN overrides. tool_path resolves a tool name to a binary, searching
+# those and finally $PATH (so a busybox stand-in resolves in the sample level).
+ARSENAL_BIN="${ARSENAL_BIN:-$HOME/tools:$HOME/.local/share/xos-arsenal}"
+tool_path() {
+	local d
+	IFS=:
+	for d in $ARSENAL_BIN; do
+		[ -x "$d/$1" ] && { printf '%s\n' "$d/$1"; unset IFS; return 0; }
+	done
+	unset IFS
+	command -v "$1" 2>/dev/null
+}
+
+# level_jail ID -- (re)build the jail for a level: tear the previous one down,
+# resolve the level's `tools:` names to binaries, stage them onto the read-only
+# exec tmpfs, and rebind SANDBOX to the fresh scratch. a level with no tools:
+# stages nothing (busybox applets on PATH still work). lib/grade's check_state
+# reads $SANDBOX; lib/jail calls the same tree $JAIL_SCRATCH -- binding here is
+# the one introduction the two ported-apart libs need.
+level_jail() {
+	local t paths=""
+	jail_teardown 2>/dev/null
+	for t in $(level_field "$1" tools); do
+		p=$(tool_path "$t") && [ -n "$p" ] && paths="$paths $p"
+	done
+	# shellcheck disable=SC2086
+	jail_init $paths || die "jail_init failed for $1"
+	SANDBOX=$(jail_scratch)
+}
 
 MODE=learn
 
@@ -253,6 +273,7 @@ run_level() {
 	nq=$(level_nq "$id")
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
 	lname=$(level_field "$id" name)
+	level_jail "$id"
 
 	cls
 	hdr "$lname" "level $(level_no "$id")  ${nq} questions"
@@ -279,8 +300,64 @@ run_level() {
 	boss_round "$id"
 }
 
+# selftest -- the authoring net. for every card: it renders, it has an answer
+# and a hint, and its OWN first listed answer grades correct (so a broken
+# out:/state:/seed/ref is caught the moment it is written). bosses are unique and
+# a bossed level has >=5 questions. tier-2 cards run their answer -- as nobody on
+# the stick (root), as the current user on a dev host (JAIL_DROP=""); either way
+# the output/state is judged, so a card that cannot pass itself fails the build.
+# runs nothing interactive.
+selftest_graded() {
+	local id nq i first bad=0 b bosses="" total
+	for id in $(level_ids); do
+		nq=$(level_nq "$id")
+		[ "$nq" -gt 0 ] || { echo "FAIL $id: no questions"; bad=$((bad + 1)); continue; }
+		b=$(level_field "$id" boss)
+		[ -n "$b" ] || { echo "FAIL $id: no boss"; bad=$((bad + 1)); }
+		case " $bosses " in *" $b "*) echo "FAIL $id: duplicate boss '$b'"; bad=$((bad + 1)) ;; esac
+		bosses="$bosses $b"
+		[ "$nq" -ge 5 ] || echo "note $id: $nq question(s) -- a boss needs 5"
+		level_jail "$id"
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			if ! blk_load "$(level_path "$id")" "$i"; then
+				echo "FAIL $id/$i: blk_load"; bad=$((bad + 1)); i=$((i + 1)); continue
+			fi
+			[ -n "$Q_ANSWERS" ] || { echo "FAIL $id/$i: no answer"; bad=$((bad + 1)); }
+			[ -n "$Q_HINT" ]    || { echo "FAIL $id/$i: no hint"; bad=$((bad + 1)); }
+			first=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+			# self-consistency: the listed answer must grade correct (tier 1 path
+			# + the anti-cheat: proves ref: names a command the answer invokes).
+			if [ -n "$first" ] && ! correct "$first"; then
+				echo "FAIL $id/$i: own answer does not grade correct -- '$first'"; bad=$((bad + 1))
+			fi
+			# tier-2 TRUTH: a listed answer matches tier 1 by text alone, so that
+			# never exercises out:/state:/tools. run the answer for real and hold
+			# its observable against the assertion -- this is what proves the
+			# fixture seed, the staged tool and the regex are actually right.
+			if [ -n "${Q_OUT:-}${Q_STATE:-}${Q_STATUS:-}" ] && [ -n "$first" ]; then
+				_g=$(run_answer "$first"); _rc=$?
+				[ -z "${Q_OUT:-}" ]    || printf '%s\n' "$_g" | grep -qE -- "$Q_OUT" \
+					|| { echo "FAIL $id/$i: out:/$Q_OUT/ does not match what '$first' prints"; bad=$((bad + 1)); }
+				[ -z "${Q_STATE:-}" ]  || check_state "$Q_STATE" "$_g" \
+					|| { echo "FAIL $id/$i: state:$Q_STATE not true after '$first'"; bad=$((bad + 1)); }
+				[ -z "${Q_STATUS:-}" ] || [ "$_rc" = "$Q_STATUS" ] \
+					|| { echo "FAIL $id/$i: status:$Q_STATUS but '$first' exited $_rc"; bad=$((bad + 1)); }
+			fi
+			i=$((i + 1))
+		done
+	done
+	total=$(level_ids | grep -c .)
+	echo "selftest: $total level(s), $bad problem(s)"
+	[ "$bad" = 0 ]
+}
+
 main() {
 	local arg=${1:-} lvl
+	case "$arg" in
+		selftest) selftest_graded; exit $? ;;
+		list)     level_ids; exit 0 ;;
+	esac
 	if [ -z "$arg" ]; then
 		lvl=$(level_ids | head -1)
 	else
