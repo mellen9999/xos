@@ -1470,6 +1470,32 @@ lock() {
   echo "  locked -- plaintext keys wiped from RAM"
 }
 
+# sign an arbitrary EFI binary in place with the db key. once xos owns secure
+# boot, db is an allowlist that no longer trusts the Microsoft/shim chain, so a
+# second OS on the same stick (e.g. an alpine live UKI) will not boot unless it
+# carries a db signature too. this is the guarded one-shot for that -- same key,
+# same unlock path as uki(), never hand-rolled sbsign against the sealed key.
+# see docs/carrier.md. does NOT touch the enrolled varstore; it only signs.
+sign() {
+  local efi="${1:-}"
+  [ -n "$efi" ] && [ -f "$efi" ] || { echo "usage: ./build.sh sign IMAGE.efi  (signs in place with keys/db.key)" >&2; return 1; }
+  say "signing $efi with the db key"
+  [ -f keys/db.crt ] || { echo "FAIL: keys/db.crt missing -- run ./build.sh keys first" >&2; return 1; }
+  # already carrying our signature? re-signing would stack a second one; nothing
+  # breaks, but say so rather than silently no-op into a confusing double-sig.
+  if sbverify --cert keys/db.crt "$efi" >/dev/null 2>&1; then
+    echo "  already signed by this db key -- nothing to do"; return 0
+  fi
+  unlock || return 1
+  local out="$efi.signed.$$"
+  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output "$out" "$efi" >/dev/null \
+    || { echo "FAIL: signing failed" >&2; rm -f "$out"; return 1; }
+  sbverify --cert keys/db.crt "$out" >/dev/null 2>&1 \
+    || { echo "FAIL: signature does not verify against keys/db.crt" >&2; rm -f "$out"; return 1; }
+  mv "$out" "$efi"
+  printf '  signed: %s (%d bytes) -- boots under the same enrolled db as xos\n' "$efi" "$(stat -c%s "$efi")"
+}
+
 uki() {
   say "building + signing unified kernel image"
   [ -f cmdline.txt ] || { echo "FAIL: run verity first" >&2; return 1; }
@@ -4883,7 +4909,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac

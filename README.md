@@ -545,6 +545,15 @@ read-only. xos builds the
 readers, never the content: kiwix (serve + search) and frotz ship from source, but
 the zims are reference payload you populate yourself.
 
+one-stick option: the 256 GB stick can also carry xos itself plus a
+general-purpose alpine live daily-driver (dwl + emulators) alongside the
+reference payload -- one pocketable device, ~99% read-only with a small ext4
+slice for saves so it lasts. it costs the hardware vault: without a whole-disk
+write-protect switch, xos there runs stateless RAM-only, not true vault, so
+**keep the FlashBlu30 as the fort** for high-stakes work. `docs/carrier.md` has
+the layout, the threat-model note, and the `build.sh sign` step that lets the
+second os boot under xos's own secure boot.
+
 | payload | what | source |
 |---|---|---|
 | wikipedia | offline zim -- `kiwix-search` from the cli, or `kiwix-serve` + `links` | you supply |
