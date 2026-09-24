@@ -1,0 +1,71 @@
+name: pro
+boss: operator
+flavor: The kit real engagements run -- described here, never launched, because none of it has a safe stand-in.
+brief: The one rule, always, said one more time because these are the
+brief: sharpest tools on the stick: only ever aim them at a machine you own
+brief: or have written permission to test. Every example here names
+brief: ``127.0.0.1`` -- yourself -- as the target, even though on a real
+brief: engagement the target is someone else's network. `sqlmap` and
+brief: `impacket` attack a web app and a Windows network; `chisel`, `socat`,
+brief: and `ligolo` tunnel through a firewall; `masscan` scans a whole range
+brief: fast; `whois` looks up who owns an address. None of them run here --
+brief: there is no safe local stand-in -- so know the invocation, and never
+brief: point it anywhere but home.
+---
+q: find and dump the databases behind a sql injection at ``127.0.0.1``, with `sqlmap`
+a: sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/sqlmap/sqlmap.py -u 'http://127.0.0.1/item?id=1' --batch --dbs
+a: python3 ~/tools/sqlmap/sqlmap.py -u 'http://127.0.0.1/item?id=1' --batch --dbs
+ref: sqlmap
+teach: sqlmap
+hint: -u the vulnerable url, --batch answers every prompt itself, --dbs lists the databases it finds
+---
+q: dump the password hashes from a Windows host at ``127.0.0.1`` you already have creds for, with `impacket`'s `secretsdump.py`
+a: sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/impacket/secretsdump.py DOMAIN/user:pass@127.0.0.1
+a: python3 ~/tools/impacket/secretsdump.py DOMAIN/user:pass@127.0.0.1
+ref: impacket
+teach: impacket
+hint: secretsdump.py, then domain/user:pass@host -- 70 more scripts live in the same folder
+---
+q: stand up a `chisel` reverse-tunnel server on your own box, port 8080
+a: chisel server -p 8080 --reverse
+a: sh ~/tools/xexec chisel server -p 8080 --reverse
+ref: chisel
+teach: chisel
+hint: server mode, -p the port it listens on, --reverse lets a client dial in from the far side
+---
+q: forward a `socat` listener on port 9000 to port 445 on ``127.0.0.1``
+a: socat TCP-LISTEN:9000,fork TCP:127.0.0.1:445
+a: socat TCP-LISTEN:9000,fork,reuseaddr TCP:127.0.0.1:445
+a: sh ~/tools/xexec socat TCP-LISTEN:9000,fork TCP:127.0.0.1:445
+ref: socat
+teach: socat
+hint: TCP-LISTEN with fork accepts more than one connection, then the destination host:port
+---
+q: start `ligolo-proxy`'s operator side with a self-signed cert
+a: ligolo-proxy -selfcert
+a: sh ~/tools/xexec ligolo-proxy -selfcert
+ref: ligolo-proxy
+teach: ligolo-proxy
+hint: -selfcert skips needing a real certificate for the tunnel
+---
+q: connect `ligolo-agent` back to a proxy waiting on ``127.0.0.1``, port 11601
+a: ligolo-agent -connect 127.0.0.1:11601
+a: ligolo-agent -connect 127.0.0.1:11601 -ignore-cert
+a: sh ~/tools/xexec ligolo-agent -connect 127.0.0.1:11601
+ref: ligolo-agent
+teach: ligolo-agent
+hint: -connect host:port of the proxy; -ignore-cert matches its -selfcert
+---
+q: scan every port on ``127.0.0.1`` fast, with `masscan`
+a: masscan -p1-65535 127.0.0.1 --rate 10000
+a: sh ~/tools/xexec masscan -p1-65535 127.0.0.1 --rate 10000
+ref: masscan
+teach: masscan
+hint: -p the port range, the address (or range) last, --rate packets per second
+---
+q: ask the public registry who owns ``127.0.0.1``, with `whois`
+a: whois 127.0.0.1
+a: sh ~/tools/xexec whois 127.0.0.1
+ref: whois
+teach: whois
+hint: whois takes just the address (or domain) -- no flags needed

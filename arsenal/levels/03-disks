@@ -1,0 +1,52 @@
+name: disks
+boss: coroner
+flavor: A drive that might already be dead, and the tools that find out.
+brief: `pspy` watches every process that starts, and `strace` follows one
+brief: program's system calls -- both restated here against a live fixture.
+brief: `ddrescue` copies a failing source once, carefully, logging what it
+brief: could not read; that also runs here, against a small file standing
+brief: in for a dying disk. `testdisk`, `photorec` and `smartctl` are
+brief: full-screen or read real hardware, so on the stick they run through
+brief: `xexec`; here you are graded on knowing the right invocation, not
+brief: on running it.
+tools: pspy strace ddrescue testdisk photorec smartctl
+---
+q: watch every process that starts, for 3 seconds, with `pspy`
+a: timeout 3 pspy 2>/dev/null || true
+out: [Pp]spy
+ref: pspy
+teach: pspy
+hint: timeout caps the watch at 3s, pspy needs no root, `|| true` swallows a nonzero exit
+---
+q: trace every `open`/`openat` call `busybox true` makes, showing the first 8 lines, with `strace`
+a: strace -f -e trace=open,openat busybox true 2>&1 | head -8
+out: exited with 0
+ref: strace
+teach: strace
+hint: -f follows forks, -e trace= filters to the syscalls named, 2>&1 carries strace's own stderr into the pipe
+---
+q: rescue ``mystery.bin`` into ``rescued.img``, logging the bad spots to ``rescue.map``, with `ddrescue`
+a: ddrescue -f mystery.bin rescued.img rescue.map 2>&1 | tail -4
+out: Finished
+ref: ddrescue
+teach: ddrescue
+hint: -f forces the output file, then source, destination image, then the map that survives a retry
+seed: dd if=/dev/zero of=mystery.bin bs=1k count=4 2>/dev/null
+---
+q: rebuild the wiped partition table on ``image.img``, with `testdisk`
+a: testdisk image.img
+ref: testdisk
+teach: testdisk
+hint: one argument, the image -- full-screen after that, so this is graded on the invocation alone
+---
+q: carve files straight off ``image.img`` by their shape, ignoring the partition table, with `photorec`
+a: photorec image.img
+ref: photorec
+teach: photorec
+hint: same one argument as testdisk -- the last resort when the table itself is unrecoverable
+---
+q: check whether ``/dev/sda`` is dying, with `smartctl`
+a: smartctl -H /dev/sda
+ref: smartctl
+teach: smartctl
+hint: -H asks for the overall pass/fail health verdict, before you trust or wipe the drive

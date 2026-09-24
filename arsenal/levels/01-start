@@ -1,0 +1,55 @@
+name: start
+boss: firstlight
+flavor: Before you touch anything, you learn how to touch it safely.
+brief: This stick carries dozens of tools. Some read a file, some fix a broken
+brief: disk, some knock on a computer to find open doors. They are sharp:
+brief: pointed at a stranger's machine that is a crime; pointed at your own it
+brief: is how you learn and how you defend.
+brief:
+brief: The whole rest of this school aims every tool at THIS computer, on the
+brief: address ``127.0.0.1`` -- which only ever means "me". Never change it to
+brief: someone else's.
+brief:
+brief: The tools live on the encrypted side, which cannot run a program
+brief: directly -- that is what keeps the stick safe. `xexec` is the doorway:
+brief: it copies one tool into a tiny space that can run, runs it, and tears
+brief: that space down. In here the school runs the tools for you; outside,
+brief: you type `xexec` yourself.
+---
+q: {the one safe address to aim every tool at, in this school|what address means "only this machine"|the loopback address the school uses for every target}
+a: 127.0.0.1
+ref: xexec
+teach: xexec
+hint: four numbers -- it always means "me", never someone else
+---
+q: outside the school, run a carried tool by hand -- the `xexec` doorway, running ``httpx``
+a: sh ~/tools/xexec httpx
+a: xexec httpx
+ref: xexec
+teach: xexec
+hint: sh ~/tools/xexec then the tool name
+---
+q: list your live `abduco` sessions
+a: abduco
+ref: abduco
+teach: abduco
+hint: abduco with no arguments prints the session list
+---
+q: start an `abduco` session named ``work`` running a shell
+a: abduco -n work /bin/sh
+a: abduco -c work /bin/sh
+ref: abduco
+teach: abduco
+hint: -n (or -c) names a new session, then the program to run
+---
+q: in `dvtm`, the keys to open a new pane
+a: ctrl-g c
+ref: dvtm
+teach: dvtm
+hint: the dvtm mod key is ctrl-g, then c for a new pane
+---
+q: detach from an `abduco` session without killing it
+a: ctrl-\
+ref: abduco
+teach: abduco
+hint: ctrl and backslash steps away; abduco -a work returns

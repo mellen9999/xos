@@ -1,0 +1,90 @@
+name: files
+boss: magic
+flavor: A blob with no story -- what is it, and what does it hold.
+brief: Nothing here trusts a filename. `file` reads the bytes and says what a
+brief: blob actually is. `jq` pulls one answer out of a wall of json. `rg`
+brief: finds a word across a whole tree of files, fast. `zstd` opens the
+brief: compressed data almost everything arrives in. `mandoc` turns a raw
+brief: manual page into something you can read. Five small tools, one habit:
+brief: look inside before you trust a name or an extension.
+tools: file jq rg zstd mandoc
+---
+q: {a file just showed up named|you found a blob called} @bin@ -- find out what it actually is, with `file`
+a: file @bin@
+out: gzip compressed data
+ref: file
+teach: file
+hint: file, then the path -- it reads the bytes, not the name
+seed: mkdir -p "$(dirname @bin@)"
+seed: printf '\037\213\010\000\000\000\000\000\000\003garbagepayloadbytes' > @bin@
+---
+q: @bin@'s name suggests one thing -- confirm what `file` actually says it holds
+a: file @bin@
+out: ASCII text
+ref: file
+teach: file
+hint: same command -- file never trusts the extension it was given
+seed: mkdir -p "$(dirname @bin@)"
+seed: printf 'this file is not what its name claims to be\n' > @bin@
+---
+q: pull just the ``tools`` array out of ``sample.json``, one value per line, with `jq`
+a: jq -r '.tools[]' sample.json
+out: ^jq$
+ref: jq
+teach: jq
+hint: -r for raw strings, ``.tools[]`` walks the array
+seed: printf '{"host":"scanhost","tools":["file","jq","rg","zstd","mandoc"],"count":5}\n' > sample.json
+---
+q: pull just the ``count`` field out of ``sample.json``, with `jq`
+a: jq -r '.count' sample.json
+out: ^5$
+ref: jq
+teach: jq
+hint: -r again, this time a plain field instead of an array
+seed: printf '{"host":"scanhost","tools":["file","jq","rg","zstd","mandoc"],"count":5}\n' > sample.json
+---
+q: search @dir@ recursively for the word ``secret``, showing line numbers, with `rg`
+a: rg -n secret @dir@
+out: creds.txt:2:secret=hunter2
+ref: rg
+teach: rg
+hint: rg -n, the word, then the directory
+seed: mkdir -p @dir@
+seed: printf 'user: admin\npass: hidden\n' > @dir@/notes.txt
+seed: printf 'line one\nsecret=hunter2\nline three\n' > @dir@/creds.txt
+seed: printf 'nothing here\n' > @dir@/readme.txt
+---
+q: list only the {filenames|paths} under @dir@ that mention ``secret``, with `rg`
+a: rg -l secret @dir@
+out: creds.txt
+ref: rg
+teach: rg
+hint: -l instead of -n -- names only, no line numbers or text
+seed: mkdir -p @dir@
+seed: printf 'user: admin\npass: hidden\n' > @dir@/notes.txt
+seed: printf 'line one\nsecret=hunter2\nline three\n' > @dir@/creds.txt
+seed: printf 'nothing here\n' > @dir@/readme.txt
+---
+q: `note.txt.zst` is compressed -- print its original contents to the screen, with `zstd`
+a: zstd -d -c note.txt.zst
+out: hello from the stick
+ref: zstd
+teach: zstd
+hint: -d to decompress, -c to write to stdout instead of a file
+seed: printf '%s' 'KLUv/SQlKQEAdGhlIG5vdGUgcmVhZHM6IGhlbGxvIGZyb20gdGhlIHN0aWNrCna2YjI=' | base64 -d > note.txt.zst
+---
+q: decompress `note.txt.zst` in place -- no ``-c`` -- leaving the plain file behind, with `zstd`
+a: zstd -d note.txt.zst
+state: exists:note.txt
+ref: zstd
+teach: zstd
+hint: -d alone writes the decompressed file next to the .zst
+seed: printf '%s' 'KLUv/SQlKQEAdGhlIG5vdGUgcmVhZHM6IGhlbGxvIGZyb20gdGhlIHN0aWNrCna2YjI=' | base64 -d > note.txt.zst
+---
+q: render the raw manual source `demo.1` into a readable page, with `mandoc`
+a: mandoc demo.1
+out: DEMO\(1\)
+ref: mandoc
+teach: mandoc
+hint: mandoc and the path -- no flags needed just to read it
+seed: printf '.TH DEMO 1\n.SH NAME\ndemo \\- a stand-in manual page\n.SH DESCRIPTION\nThis is a rendered page for the walk.\n' > demo.1

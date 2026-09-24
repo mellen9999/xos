@@ -1,0 +1,56 @@
+name: apart
+boss: dissector
+flavor: A file that won't say what it is until you make it.
+brief: A blob nobody labeled -- firmware, a mystery file, something you found. Take it apart
+brief: without ever running it. `binwalk` carves the pieces packed inside a blob; `radare2`
+brief: reads a program's shape -- what it is, how it was built -- safely, unexecuted.
+brief: `cc` turns text into a real program, so you can build your own tools here too.
+tools: binwalk radare2 cc
+---
+q: scan ``mystery.bin`` for what is packed inside it, with `binwalk`
+a: binwalk mystery.bin
+out: gzip compressed data
+ref: binwalk
+teach: binwalk
+hint: binwalk takes just the file -- no flags needed to scan it
+seed: printf 'plain header padding, nothing to see here' > mystery.bin
+seed: printf 'a hidden payload' | gzip >> mystery.bin
+---
+q: pull the pieces `binwalk` found out of ``mystery.bin``
+a: binwalk -e mystery.bin
+state: exists:extractions
+ref: binwalk
+teach: binwalk
+hint: -e extracts every piece it recognised into its own folder
+seed: printf 'plain header padding, nothing to see here' > mystery.bin
+seed: printf 'a hidden payload' | gzip >> mystery.bin
+---
+q: find out what kind of program ``hello`` is, without running it, with `radare2`
+a: rabin2 -I hello
+out: [Ee][Ll][Ff]
+ref: radare2
+teach: radare2
+hint: rabin2 -I prints the binary's info -- type, arch, os -- unexecuted
+seed: cp /bin/busybox hello
+---
+q: open ``hello`` to read it, without executing it, with `radare2`
+a: r2 hello
+ref: radare2
+teach: radare2
+hint: r2 drops you into radare2's own prompt to explore the binary
+---
+q: turn ``hello.c`` into a program and run it, with `cc`
+a: cc hello.c -o hello.out && ./hello.out
+out: hello from xos
+ref: cc
+teach: cc
+hint: cc the source, -o names the output, then run what it built
+seed: printf '#include <stdio.h>\nint main(void) { printf("hello from xos\\n"); return 0; }\n' > hello.c
+---
+q: compile ``hello.c`` into a program named ``hello.out``, with `cc`, without running it
+a: cc hello.c -o hello.out
+state: exists:hello.out
+ref: cc
+teach: cc
+hint: cc takes the source file, -o the name for the program it builds
+seed: printf '#include <stdio.h>\nint main(void) { printf("hello from xos\\n"); return 0; }\n' > hello.c

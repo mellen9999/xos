@@ -1,0 +1,66 @@
+name: loot
+boss: smuggler
+flavor: Loot you made yourself -- locked, signed, and carried without a trace.
+brief: These four keep loot yours, prove it is untouched, and move it
+brief: without leaking a copy. `minisign` signs a file so anyone with your
+brief: public key can tell it is genuine. `age` locks a file so only
+brief: the right passphrase opens it; `rsync` copies a folder and, next time,
+brief: sends only what changed. `tcpdump` watches what a machine says on the wire.
+tools: minisign age rsync tcpdump
+---
+q: generate a minisign keypair -- public ``key.pub``, secret ``key.sec`` -- with `minisign`, no password
+a: minisign -G -W -p key.pub -s key.sec
+ref: minisign
+teach: minisign
+hint: -G generates a pair, -W skips the passphrase, -p/-s name the two halves
+state: exists:key.pub
+---
+q: sign ``note.txt`` with a fresh `minisign` keypair
+a: minisign -G -W -p key.pub -s key.sec >/dev/null 2>&1 && minisign -S -s key.sec -m note.txt
+seed: printf 'loot manifest\n' > note.txt
+ref: minisign
+teach: minisign
+hint: -G -W -p/-s makes the key first, then -S -s key.sec -m the file signs it
+state: exists:note.txt.minisig
+---
+q: sign then verify ``note.txt`` with `minisign`, all with one fresh keypair
+a: minisign -G -W -p key.pub -s key.sec >/dev/null 2>&1 && minisign -S -s key.sec -m note.txt >/dev/null 2>&1 && minisign -V -p key.pub -m note.txt
+seed: printf 'loot manifest\n' > note.txt
+ref: minisign
+teach: minisign
+hint: -V -p the public key, -m the file -- prints "verified" when it is genuine
+out: [Vv]erified
+---
+q: lock ``loot.tar`` into ``loot.age`` with a passphrase, using `age`
+a: age -e -p -o loot.age loot.tar
+ref: age
+teach: age
+hint: -e encrypts, -p asks you to type a passphrase, -o names the output
+---
+q: unlock ``loot.age`` back into ``loot.tar`` with `age`
+a: age -d -o loot.tar loot.age
+ref: age
+teach: age
+hint: -d decrypts, -o names where the plaintext lands
+---
+q: copy ``loot/`` into ``backup/`` with `rsync`, archive mode
+a: rsync -a loot/ backup/
+seed: mkdir -p loot && printf 'x\n' > loot/a.txt
+ref: rsync
+teach: rsync
+hint: -a is archive mode -- recursive, permissions, times, the works
+state: exists:backup/a.txt
+---
+q: sync ``loot/`` onto ``backup/`` with `rsync`, deleting backup files loot no longer has
+a: rsync -a --delete loot/ backup/
+seed: mkdir -p loot backup && printf 'x\n' > loot/a.txt && printf 'x\n' > backup/a.txt && printf 'y\n' > backup/stale.txt
+ref: rsync
+teach: rsync
+hint: --delete removes anything in the destination the source doesn't have anymore
+state: gone:backup/stale.txt
+---
+q: capture 3 packets on loopback with `tcpdump`, skipping DNS lookups
+a: tcpdump -c 3 -n -i lo
+ref: tcpdump
+teach: tcpdump
+hint: -c 3 stops after three packets, -n skips DNS lookups, -i lo is loopback
