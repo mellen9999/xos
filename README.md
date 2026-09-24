@@ -408,7 +408,7 @@ is the post-build attestation, source + sha256:
 | age | encrypt/decrypt a file -- modern, no gpg keyring, passphrase or keypair |
 | dvtm | suckless terminal multiplexer -- split panes atop abduco, no server |
 | rsync | sync/backup over ssh -- delta transfer, resumable |
-| atlas | offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal |
+| atlas | offline vector atlas -- natural-earth maps as characters: braille, dec line-art on a vt320, or plain ascii |
 | view | image/pdf viewer -- renders any picture or pdf page as characters (braille to ascii), via mutool |
 | qr | show data as a scannable qr -- move a key/config to a phone with no network |
 | chart | ascii/braille bars + sparklines -- see learn stats, smart health, any numbers on a text box |
