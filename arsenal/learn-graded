@@ -1,0 +1,293 @@
+#!/bin/sh
+# learn-graded -- the graded arsenal curriculum: SRS cards, three-tier grading
+# (text match / run-and-judge / state), answers run inside the jail (lib/jail)
+# instead of base learn's nobody-sandbox. reuses base learn's engine verbatim
+# where the shape is identical (blk_load, ask, run_level, boss_round -- see
+# learn/learn) and simplifies where arsenal has no equivalent yet: no vi-mode
+# line editor is ported (lib/edit stays fort-only), so input is a plain read;
+# a miss is graded and revealed on the first wrong line rather than held open
+# for retries. the menu, gauntlet, scenarios and projects are not here either
+# -- this is stage 1b, the loop proven end to end on one level, not the whole
+# walk. `arsenal learn` (the mission walk) is untouched by any of this.
+#
+#   arsenal-learn-graded              the first level
+#   arsenal-learn-graded 01-recon     that level by name
+#   arsenal-learn-graded 1            that level by number
+set -u
+
+AROOT="${ARSENAL_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
+ROOT="$AROOT"                 # lib/ctx reads pools/phrases off $ROOT, not $AROOT
+REF="$AROOT/ref"              # may not exist yet -- flagnorm degrades gracefully
+LEVELS="$AROOT/levels"
+SHELLBIN=/bin/sh
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/arsenal-learn"
+CARDS="$STATE/cards"
+
+die() { echo "learn-graded: $*" >&2; exit 1; }
+
+mkdir -p "$STATE" 2>/dev/null || die "cannot create $STATE"
+mkdir -p "$LEVELS" 2>/dev/null || die "cannot create $LEVELS"
+
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/arslearn.XXXXXX") || die "cannot create tmp"
+cleanup() {
+	jail_teardown 2>/dev/null
+	rm -rf "$TMP" 2>/dev/null
+}
+trap cleanup EXIT
+trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
+trap 'cleanup; trap - EXIT; exit 143' TERM
+
+for _l in ui ctx cards coach jail grade; do
+	[ -f "$AROOT/lib/$_l" ] || die "missing lib/$_l"
+	. "$AROOT/lib/$_l"
+done
+
+ctx_init
+cards_init
+
+# the jail: no tools staged yet (the sample level uses plain busybox applets
+# already on PATH, not carried arsenal binaries). a real-tool level passes its
+# binaries here -- jail_init "$T1" "$T2" ... -- once, before the run starts.
+jail_init || die "jail_init failed"
+# lib/grade's check_state reads $SANDBOX (base learn's name for the tree it
+# grades against); lib/jail calls the same tree $JAIL_SCRATCH. the two libs
+# were ported from different sides of the same seam and never introduced to
+# each other -- this line is the introduction. the path itself does not
+# change again: jail_run wipes and reseeds its CONTENTS every call, not the
+# path, so binding it once here is enough for the whole session.
+SANDBOX=$(jail_scratch)
+
+MODE=learn
+
+# ---- levels -----------------------------------------------------------------
+# the same header + `---`-block grammar as learn/levels/*, minus the fields
+# only base learn's projects/scenarios ever used.
+level_path()  { echo "$LEVELS/$1"; }
+level_ids()   { ls -1 "$LEVELS" 2>/dev/null | sort; }
+blk_field()   { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$1" 2>/dev/null; }   # FILE KEY
+blocks_nq()   { awk '/^---$/ { c++ } END { print c + 0 }' "$1" 2>/dev/null; }
+level_field() { blk_field "$(level_path "$1")" "$2"; }
+level_nq()    { blocks_nq "$(level_path "$1")"; }
+level_no()    { _n=${1%%-*}; echo "${_n#0}"; }
+
+# resolve_level ARG -- a level id as typed ("01-recon"), or a bare number
+# ("1") matched against the zero-padded prefix. echoes the id, or nothing.
+resolve_level() {
+	[ -f "$LEVELS/$1" ] && { printf '%s\n' "$1"; return 0; }
+	case "$1" in ''|*[!0-9]*) return 1 ;; esac
+	level_ids | grep "^$(printf '%02d' "$1")-" | head -1
+}
+
+# blk_load FILE INDEX -- ported from learn/learn:405 (blk_load). fills
+# Q_ANSWERS/Q_OUT/Q_STATE/Q_STATUS/Q_REF/Q_CMP/Q_HINT/Q_PROMPT the same way;
+# Q_TPL/Q_PROMPT_HI are the unrendered template and the marked-up render,
+# same roles as the fort. dropped: Q_REFS/Q_SETUP/Q_PREDICT and every
+# project: field -- nothing here uses them yet.
+#
+# added: Q_SEED and the SEEDFN wiring (not in base learn -- base learn's
+# fixtures build one generic pool-driven tree for every question; arsenal's
+# jail has no such tree, so a card that needs one describes it itself). a
+# `seed:` line is shell code, rendered with render_tokens (no {a|b|c} pick,
+# no HI marks -- it is never shown, only run), and every seed: line in a
+# block joins into one script, same way multiple brief: lines join into one
+# paragraph. blk_load wraps that script in a shell function and points the
+# global SEEDFN at it; jail_run (lib/jail) already knows how to call SEEDFN
+# -- runs it as root, before the drop, cwd = the scratch -- so this is pure
+# wiring, no change to jail or grade. a card with no seed: sets SEEDFN empty,
+# which jail_run also already treats as "nothing to seed".
+blk_load() {
+	local blk seed
+	roll
+	seed=$(( RANDOM + $2 ))
+
+	blk="$TMP/blk"
+	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$1" > "$blk"
+
+	Q_TPL=$(sed -n 's/^q: \{0,1\}//p' "$blk")
+	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | fence | render_named "$seed")
+	Q_PROMPT=$(printf '%s\n' "$Q_PROMPT_HI" | hi_strip | lit_strip)
+	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
+	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_STATUS=$(sed -n 's/^status: \{0,1\}//p' "$blk" | head -1)
+	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
+	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
+	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render_named "$seed" | head -1)
+
+	Q_SEED=$(sed -n 's/^seed: \{0,1\}//p' "$blk" | render_tokens)
+	if [ -n "$Q_SEED" ]; then
+		eval "_card_seed() {
+$Q_SEED
+}"
+		SEEDFN=_card_seed
+	else
+		SEEDFN=
+	fi
+
+	[ -n "$Q_PROMPT" ]
+}
+
+# ---- the question loop --------------------------------------------------
+# ported from learn/learn:481 (ask), cut down to one attempt per card: no vi
+# editor here (lib/edit is fort-only), so there is no in-place "wipe the wrong
+# line and try again" -- a miss is graded, diagnosed and revealed immediately,
+# same as base learn's boss/daily modes already do on a miss. `?`/`hint`
+# before answering still opens the hint line; there is no reference panel
+# (REF may not exist for arsenal yet).
+ask() {   # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
+	local key input rc _m
+	blk_load "$(level_path "$1")" "$2" || return 1
+	key=$(card_key "$1" "$2" "$Q_TPL")
+
+	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand | lit_expand)"
+	[ "$MODE" = learn ] && note "? hint"
+
+	while :; do
+		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
+		if [ "$MODE" = boss ]; then
+			IFS= read -r -t "$BOSS_LIMIT" input; rc=$?
+			if [ "$rc" != 0 ]; then
+				echo
+				no "out of time."
+				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+				card_grade "$key" 0
+				return 1
+			fi
+		else
+			IFS= read -r input || return 2
+		fi
+
+		case "$input" in
+			quit) return 2 ;;
+			'')   continue ;;
+			'?'|hint)
+				if [ "$MODE" != learn ]; then
+					note "no hints under the clock."
+				elif [ -n "${Q_HINT:-}" ]; then
+					note "$(printf '%s' "$Q_HINT" | hi_expand "$D")"
+				else
+					note "no hint for this one."
+				fi
+				continue ;;
+		esac
+		break
+	done
+
+	if correct "$input"; then
+		card_grade "$key" 1
+		# the card's SRS mastery after this pass -- NOT which grading tier it took.
+		# 2 = mastered (held), 1 = learning, 0/unseen = just start.
+		case $(card_tier "$key") in
+			2) _m="  ${D}mastered${N}" ;;
+			1) _m="  ${D}learning${N}" ;;
+			*) _m= ;;
+		esac
+		ok "correct${_m}"
+		[ "$MODE" = learn ] && coach_right "$input" 2>/dev/null
+		return 0
+	fi
+
+	card_grade "$key" 0
+	no "wrong"
+	[ "$MODE" = learn ] && coach_miss "$input" 2>/dev/null
+	reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+	return 1
+}
+
+# pick COUNT distinct numbers from 1..MAX, in random order -- verbatim from
+# learn/learn:642.
+shuffle_n() {
+	seq 1 "$1" | awk -v s="$RANDOM" 'BEGIN { srand(s) } { print rand() "\t" $0 }' |
+		sort -n | cut -f2 | head -n "$2"
+}
+
+boss_limit() { echo $(( 30 + $(level_no "$1") / 3 )); }
+
+# boss_round ID -- five questions from the level just finished, no hints,
+# four of five to pass. ported from learn/learn:651, cut down the same way
+# ask() was: no splash-screen clock ticker (that lives in lib/edit), just a
+# plain timed read per question via ask()'s own boss branch.
+boss_round() {
+	local id=$1 bname nq n right=0 asked=0 rc k=0
+	bname=$(level_field "$id" boss)
+	nq=$(level_nq "$id")
+	[ -n "$bname" ] || { note "level $id has no boss -- skipping"; return 0; }
+	[ "$nq" -ge 5 ] || { note "level $id has $nq questions -- a boss needs 5"; return 0; }
+
+	BOSS_LIMIT=$(boss_limit "$id")
+	cls
+	hdr "BOSS: $bname" "no hints  ${BOSS_LIMIT}s each  pass: 4 of 5"
+	level_field "$id" flavor | say
+	pause_card || return 2
+
+	MODE=boss
+	for n in $(shuffle_n "$nq" 5); do
+		k=$((k + 1))
+		cls
+		statusbar "BOSS: $bname" "no hints" "$k" 5 "$right"
+		ask "$id" "$n"; rc=$?
+		[ "$rc" = 2 ] && { MODE=learn; return 2; }
+		[ "$rc" = 0 ] && right=$((right + 1))
+		asked=$((asked + 1))
+		pause_card || { MODE=learn; return 2; }
+	done
+	MODE=learn
+
+	cls
+	if [ "$right" -ge 4 ]; then
+		statusbar "BOSS: $bname" "defeated" "$right" 5 ""
+		printf '\n  %s%s falls.%s  %s of %s.\n' "$G$B" "$bname" "$N" "$right" "$asked"
+		return 0
+	fi
+	statusbar "BOSS: $bname" "held" "$right" 5 ""
+	no "$bname holds. $right of 5 -- need 4."
+	return 1
+}
+
+# run_level ID -- ported from learn/learn:704, cut down: no in-progress
+# resume ledger, no act overlay, no repeat-brief suppression -- every run
+# shows the brief and asks every card in a fresh shuffle. those all read
+# state this stage does not need to prove yet.
+run_level() {
+	local id=$1 nq i right=0 total=0 rc lname order
+	nq=$(level_nq "$id")
+	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
+	lname=$(level_field "$id" name)
+
+	cls
+	hdr "$lname" "level $(level_no "$id")  ${nq} questions"
+	level_field "$id" brief | say
+	pause_card || return 2
+
+	order=$(shuffle_n "$nq" "$nq")
+	set -f; set -- $order; set +f
+	for i; do
+		total=$((total + 1))
+		cls
+		statusbar "$lname" "card $total/$nq" "$total" "$nq" "$right"
+		ask "$id" "$i"; rc=$?
+		[ "$rc" = 2 ] && return 2
+		[ "$rc" = 0 ] && right=$((right + 1))
+		pause_card || return 2
+	done
+
+	cls
+	statusbar "$lname" "done" "$total" "$nq" "$right"
+	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
+	echo
+
+	boss_round "$id"
+}
+
+main() {
+	local arg=${1:-} lvl
+	if [ -z "$arg" ]; then
+		lvl=$(level_ids | head -1)
+	else
+		lvl=$(resolve_level "$arg")
+	fi
+	[ -n "$lvl" ] && [ -f "$LEVELS/$lvl" ] || die "no such level: ${arg:-<none, and none found under $LEVELS>}"
+	run_level "$lvl"
+}
+
+main "$@"
