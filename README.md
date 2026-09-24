@@ -54,20 +54,18 @@ one is attached.
 one key at the top, complete coverage at the bottom.
 
 a signature says who signed an image, never when -- so an old release stays
-bootable forever unless something says otherwise. `revoked` is that something:
-the authenticode digest of every image that must never boot again. `revoke`
-won't add a digest it can't confirm -- it reads the number sbsign signed out of
-the one field that holds it and demands its own match. a digest merely *present*
-somewhere in the blob doesn't count: everything past the signed content is the
-image's own unsigned space, so that would let an image revoke itself in name only.
+bootable forever unless something says otherwise. `revoked` is that something: the
+authenticode digest of every image that must never boot again. `revoke` reads the
+digest sbsign actually signed out of the one field that holds it and demands its own
+match, so an image can't revoke itself by planting a digest in its own unsigned space.
 
-`./build.sh dbx` writes it two ways -- into the qemu varstore for the self-test,
-and as `/xos-keys/dbx.auth` on the stick, the form real firmware takes. enroll it
-in setup mode with the keys, **before** `PK.der` (enrolling PK turns enforcement
-on); firmware then refuses the old image exactly where it refuses an unsigned one.
-adding a revocation to a machine already enforcing means re-entering setup mode:
-the shipped `dbx.auth` carries no KEK signature, and user mode only accepts signed
-variable updates. entries are permanent.
+`./build.sh dbx` writes it two ways -- the qemu varstore for the self-test, and
+`/xos-keys/dbx.auth` on the stick, the form real firmware takes. enroll it in setup
+mode with the keys, **before** `PK.der` (enrolling PK turns enforcement on); firmware
+then refuses the old image exactly where it refuses an unsigned one. adding a
+revocation to a machine already enforcing means re-entering setup mode -- the shipped
+`dbx.auth` carries no KEK signature, and user mode accepts only signed updates.
+entries are permanent.
 
 ## the stick
 
@@ -201,14 +199,12 @@ first:
     ./build.sh verify      docker+git+gpg -- signed claim, then a rebuild that must match
     ./selftest.sh          your own keyset, qemu -- every tamper must be refused
 
-`crepro` reproduces the `image.sha256` bytes from source you can read, on your
-machine, with no signing key involved anywhere -- so the digest a signature
-attests to is the digest this source makes. but reproducibility has no opinion
-about *whose* source it is: whoever takes the publishing account can push a tree
-that reproduces perfectly. `vouch` is the other half -- every commit since the
-epoch carries an ssh signature from one key, pinned by fingerprint in `build.sh`
-and by public key in `signers`, and G52 checks it on every gate run. run it
-first; it is the cheapest rung and the only one that answers *who*.
+reproducibility (above) proves the bytes match the source; it has no opinion about
+*whose* source it is -- whoever takes the publishing account can push a tree that
+reproduces perfectly. `vouch` is the other half: every commit since the epoch carries
+an ssh signature from one key, pinned by fingerprint in `build.sh` and by public key
+in `signers`, and G52 checks it on every gate run. run it first -- it is the cheapest
+rung and the only one that answers *who*.
 
 by hand, if you would rather not have `build.sh` vouch for `build.sh`:
 
@@ -219,24 +215,21 @@ the fingerprint `vouch` prints is worth something only against a copy you did
 not get from this clone. what it buys and what it does not is in `SOURCES.md`,
 "this tree's own commits".
 
-`vouch` covers every commit; `attest/` covers each *release* -- one signed
-manifest per release, chained so that rewriting any entry breaks every link
-after it, and `./build.sh verify` is the one command that checks the whole
-thing end to end:
+`vouch` covers every commit; `attest/` covers each *release* -- one signed manifest
+per release, chained so rewriting any entry breaks every link after it. `./build.sh
+verify` checks the whole thing end to end:
 
 ```sh
 git clone https://github.com/mellen9999/xos && cd xos
 ./build.sh verify
 ```
 
-docker, git and gpg. no signing key, no qemu, no root, no KVM, no Arch, no host
-toolchain. it walks the chain, checks every manifest against a release key
-pinned in `build.sh`, re-derives every digest in the manifest for that commit,
-then rebuilds that commit inside the pinned container and compares all four
-artifact digests. the rebuild takes **20-40 minutes** and pulls about a
-gigabyte the first time -- it is compiling a kernel, and it is meant to be
-quiet. `./build.sh verify_log` and `./build.sh verify_sigs` do the first two
-steps alone, in a second, without docker.
+docker, git and gpg -- no signing key, qemu, root, KVM, Arch or host toolchain. it
+walks the chain, checks every manifest against a release key pinned in `build.sh`,
+re-derives each digest for that commit, then rebuilds it in the pinned container and
+compares all four artifact digests. the rebuild takes **20-40 minutes** and pulls
+~1 GB the first time -- it is compiling a kernel. `verify_log` and `verify_sigs` do
+the first two steps alone, in a second, without docker.
 
 each release announcement carries the chain **head**. pin it and a history
 rewritten for you alone stops working:
@@ -257,10 +250,6 @@ perfectly can still be malicious. reading the source is still your job.
 `selftest.sh` generates its own keys and boots the real chain in a vm before
 attacking it, so it proves the chain without trusting the keys that ship. the
 signed-image gates in between are `./build.sh gates`.
-
-what all of it is *for* is written down in `docs/threat-model.md` -- what xos
-defends against, what it does not, and what the attacker is assumed to be able to
-do. a claim not measured against that file is not a claim this tree makes.
 
 ## what the build enforces
 
@@ -349,101 +338,12 @@ in, and none of them can bind a disk.
 
 ## when it refuses
 
-every alarm below is a designed refusal, not a malfunction: xos fails loud and
-stops rather than continue quietly, so a message here means the check worked. what
-to do, worst first.
-
-**panic: `dm-verity device corrupted`.** a verity-covered byte didn't match the
-signed root hash -- the root was altered, or the medium is failing. never safe to
-boot this stick again as-is. reflash from source on a machine you trust
-(`./build.sh install /dev/sdX`); your p3 survives it. if a fresh flash still panics,
-the medium is dying -- replace it. `scrub` reads every covered byte on demand rather
-than waiting to hit the bad one.
-
-**the banner speaks the wrong fingerprint words.** different words mean a different
-or superseded image; no words at all mean a tampered one that won't verify. don't
-unlock p3. compare against the words you wrote down -- if they're wrong this isn't
-your current stick, so set it aside and boot the one whose words match.
-
-**`recon: MACHINE ... CHANGED since your last visit`.** the dmi/pci/usb/cpu
-inventory differs from your last unlock on this machine -- new hardware, a firmware
-change, or a different host wearing the same identity. read the `gone:`/`new:` diff.
-expected it (new machine, added a dongle)? run `recon_accept` to make the current
-inventory the baseline. didn't? treat the host as suspect and don't unlock p3 -- the
-alarm repeats every boot until accepted, so it never clears itself.
-
-**the boot ledger reads lower than you left it** (`boot 44` when you left 47). p3
-was rolled back to an older snapshot -- someone restored a previous state partition,
-erasing whatever you did since. the current bytes are kept beside the count, not
-overwritten. assume p3 isn't what you left; anything written since the rolled-back
-boot is gone.
-
-**the machine powers off within seconds of unplugging.** the dead-man switch,
-working as designed -- the boot device left the usb bus. plug it back in and boot
-again. to run without it (a machine that renumbers usb under load), boot
-`xos.notether`.
-
-**LUKS keeps rejecting the passphrase.** three tries, then it gives up. the
-passphrase is only ever what you set at `addstate` time -- no recovery and no
-backdoor, by design. if it's genuinely lost the state is unrecoverable; reflash and
-`addstate` a fresh p3. check you're unlocking the boot stick and not another
-encrypted disk that happens to be attached (init prefers the boot stick, but names
-what it found).
-
-**wireguard/ssh never come up after unlock.** they start only when p3 holds
-`wg0.conf` and an `authorized_keys` (or a baked-in key); a missing or malformed
-`wg0.conf` is silent by design -- an attacker holding the stick mustn't learn the
-tunnel exists. check the two files at the root of p3 (`/tmp/home`), then re-unlock.
-auth attempts land in `/tmp/ssh.log` (tmpfs, gone at reboot).
-
-**a build gate prints `FAIL` / `GATES FAILED`.** the message names the gate and the
-mismatch; nothing was flashed. common ones: `G13 ... image matches committed digest
-FAIL` after an intentional change means the pin is stale -- `./build.sh pin` if this
-build is the one you meant. `G13 reproducible (needs the pinned toolchain) SKIP`
-(yellow, not a failure) means this gcc/systemd isn't the one the pin was taken with,
-so reproducibility couldn't be checked here.
-
-**the self-test prints `RESTORE FAILED -- the tree may still hold a TEST
-uki/stick`.** a `selftest.sh` run was interrupted before it put the production
-artifacts back, leaving test-flavoured signed images in the tree. rebuild before
-shipping anything: `./build.sh unlock && ./build.sh verity && ./build.sh uki &&
-./build.sh stick && ./build.sh lock`. G31 refuses a production cmdline carrying a
-test flag, so a real build catches it too.
-
-**`./build.sh repro` says `NOT REPRODUCIBLE`.** a clean clone of HEAD built
-different bytes than `image.sha256` on the *same* toolchain -- source and pin
-disagree. changed the source? re-pin. didn't? something in the tree isn't what was
-committed. `unverified` (yellow) instead means the toolchain differs and nothing was
-checked -- run `./build.sh crepro`, which rebuilds inside the pinned toolchain
-container where the fingerprint matches by construction, so the comparison actually
-fires. if crepro itself says `NOT REPRODUCIBLE`, the committed source and pin
-genuinely disagree -- re-pin with `./build.sh cpin` only if you meant to change the
-source.
-
-**the arsenal build refuses a source** (`sha256 mismatch` / `commit ... not checked
-out`). a pinned tarball or repo no longer matches `arsenal/arsenal.pins` -- upstream
-moved a tag, replaced a tarball, or the download was tampered. don't loosen the pin
-to make it build. confirm the new artifact is legitimate, then update the pin in
-`arsenal/arsenal.pins` in a visible diff.
-
-**`clone` refuses, or its readback fails.** `clone` will not write if the target
-is not a whole removable disk, is smaller than the source, or if the source is
-not an xos stick (no xos root + state partitions) -- a mistyped source must not
-image an unrelated disk onto your spare. after the copy it reads every byte back
-under direct i/o; `clone readback mismatch` means the write did not land, so the
-spare is not trustworthy -- retry on a different stick or port before relying on
-it. the source is only ever read, so it is never at risk.
-
-**an operational failure, not a security alarm.** a few boot messages mean p3 or
-its bookkeeping had a problem, not that anything was tampered with, and none stop
-the boot: `ledger CORRUPT -- kept as evidence, count restarts` (the boot-count file
-didn't parse -- the count resets, the old one is kept to inspect), `ledger FAILED`
-and `recon FAILED: could not record the baseline` (a write to p3 didn't land --
-the medium is full, failing, or was pulled), `recon FAILED: empty inventory` (the
-hardware probe returned nothing), and `note: boot device unknown` (init couldn't
-tell which disk it booted, so it won't prefer any for state). each says the state
-partition is unreliable this boot -- treat what it holds as suspect until a clean
-boot writes it again.
+every alarm xos raises is a designed refusal, not a malfunction: it fails loud and
+stops rather than continue quietly, so a message means the check worked. what each
+one means and what to do, worst first, is in `docs/refusals.md` -- verity panics,
+wrong fingerprint words, recon and ledger alarms, the dead-man switch, luks, the
+tunnel, build gates, repro, the arsenal pins, clone, and the operational (non-security)
+notes.
 
 ## the parts
 
@@ -628,13 +528,16 @@ directions are build gates, not intentions.
 
 ## carrying it
 
-rough split of a 16 GB stick: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
+the reference boot stick is a **Kanguru FlashBlu30 (16 GB)** -- its hardware
+write-protect switch is what makes vault/work a per-boot mode (below). rough split of
+that 16 GB: ~1 GB tools, 1-2 GB wordlists (a SecLists subset --
 Discovery/Fuzzing/Passwords -- plus rockyou.txt flat at `~/wordlists/`), 1-2 GB docs
 (exploit-db mirror, man-pages read with the arsenal's mandoc, gtfobins, an rfc
 text bundle), the rest loot.
 
-the knowledge payload is bigger and never needs exec, so it rides a separate exFAT
-stick labelled `XOS-KNOW` instead of p3, everything read-only. xos builds the
+the knowledge payload is bigger and never needs exec, so it rides a second stick --
+**any 256 GB stick**, exFAT, labelled `XOS-KNOW` -- instead of p3, everything
+read-only. xos builds the
 readers, never the content: kiwix (serve + search) and frotz ship from source, but
 the zims are reference payload you populate yourself.
 
@@ -675,9 +578,10 @@ read-only, torn down on exit. `xexec -t dir entry` stages a whole interpreter tr
 instead of one binary -- how carried python runs, since its `.so` extensions need a
 dlopen that noexec p3 can't give directly.
 
-a hardware write-protect switch is a per-boot mode: on is vault (stick unalterable,
-runs in ram, zero trace, nothing persists), off is work (p3 unlocks read-write, loot
-persists).
+the FlashBlu30's hardware write-protect switch is a per-boot mode: on is vault (stick
+unalterable, runs in ram, zero trace, nothing persists), off is work (p3 unlocks
+read-write, loot persists). it has to be a confirmed hardware switch, not a firmware
+toggle, or vault mode is fiction -- that is why a stick with a real one is named.
 
 playbook: attest (clean boot, prove it -- learn 29 / scenario 10), unlock p3, reach
 disks over usb only (the host's internal nvme/sata never enumerates, by design), run
@@ -690,10 +594,9 @@ the whole stick at once -- p3 included -- `./build.sh clone /dev/SRC /dev/DST` w
 a verified spare: it reads the source read-only, guards the target like a flash
 (whole, removable, model typed back), copies the LUKS state as ciphertext so the
 spare unlocks with the same passphrase, and reads every byte back under direct i/o
-before it calls the copy good. a
-write-protect switch has to be confirmed hardware, not a firmware toggle, or vault
-mode is fiction. gear beyond the stick: a passive usb<->sata/nvme adapter (reach a
-host's internal disk), a usb-a<->usb-c adapter, a second cloned stick stored apart.
+before it calls the copy good. gear beyond the boot stick: the 256 GB XOS-KNOW stick,
+a passive usb<->sata/nvme adapter (reach a host's internal disk), a usb-a<->usb-c
+adapter, and a second cloned FlashBlu30 stored apart.
 
 provisioning: `build.sh usb /dev/sdX`, then `build.sh addstate /dev/sdX` for the
 luks p3. the arsenal is built into `$XOS_ARSENAL` (default `~/.local/share/xos-arsenal`)
