@@ -41,7 +41,6 @@ hint: r2 drops you into radare2's own prompt to explore the binary
 ---
 q: turn ``hello.c`` into a program and run it, with `cc`
 a: cc hello.c -o hello.out && ./hello.out
-out: hello from xos
 ref: cc
 teach: cc
 hint: cc the source, -o names the output, then run what it built
@@ -49,7 +48,6 @@ seed: printf '#include <stdio.h>\nint main(void) { printf("hello from xos\\n"); 
 ---
 q: compile ``hello.c`` into a program named ``hello.out``, with `cc`, without running it
 a: cc hello.c -o hello.out
-state: exists:hello.out
 ref: cc
 teach: cc
 hint: cc takes the source file, -o the name for the program it builds
