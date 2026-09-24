@@ -10,12 +10,10 @@ populate() {
   install -m 0755 "${SELF:-$(dirname "$0")}/arsenal" "$H/tools/arsenal"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-catalog" "$H/tools/arsenal-catalog"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-playbook" "$H/tools/arsenal-playbook"  # the how-to
-  install -m 0755 "${SELF:-$(dirname "$0")}/learn" "$H/tools/learn"                          # the guided walkthrough (arsenal walk)
-  install -m 0644 "${SELF:-$(dirname "$0")}/learn-lessons" "$H/tools/learn-lessons"          # its curriculum (data)
   # the graded school (arsenal learn): the engine + its libs, pools, phrases and
   # levels. reads them relative to its own dir, so all under $H/tools.
   S="${SELF:-$(dirname "$0")}"
-  install -m 0755 "$S/learn-graded" "$H/tools/learn-graded"
+  install -m 0755 "$S/learn" "$H/tools/learn"                                                # the graded, from-zero school
   install -m 0644 "$S/phrases" "$H/tools/phrases"
   mkdir -p "$H/tools/lib" "$H/tools/pools" "$H/tools/levels"
   for f in "$S"/lib/*;    do install -m 0644 "$f" "$H/tools/lib/$(basename "$f")"; done

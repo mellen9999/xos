@@ -1,359 +1,387 @@
 #!/bin/sh
-# learn (arsenal) -- a guided, from-zero walk through the whole arsenal, for someone who has
-# never touched a shell. it TEACHES by running each tool live against safe practice
-# targets the range stands up on 127.0.0.1 (its own website, its own login), then
-# tears them down. it remembers where you got to, so you can learn over days.
+# learn -- the graded arsenal school: SRS cards, three-tier grading (text match /
+# run-and-judge / state), answers run inside the jail (lib/jail) instead of base
+# learn's nobody-sandbox. reuses base learn's engine where the shape is identical
+# (blk_load, ask, run_level, boss_round -- see the fort's learn/learn) and drops
+# what the fort has and p3 does not: no vi-mode line editor (lib/edit is fort-only)
+# so input is a plain read, and a miss is graded and revealed at once rather than
+# held open for retries -- as base learn's boss mode already does.
 #
-# rides p3 (noexec), so run it as `sh ~/tools/learn` -- the shell only READS this
-# file; the tools it demos go through xexec exactly as the launcher shows. NOT part
-# of the signed image: it is capability, a file on p3, changed without a rebuild.
-#
-#   sh ~/tools/learn              resume where you left off (or start at the top)
-#   sh ~/tools/learn <mission>    jump to a mission (start, files, web, ...)
-#   sh ~/tools/learn --list       list the missions
-#   sh ~/tools/learn --reset      forget all progress and start over
-#   sh ~/tools/learn --selfcheck  prove the curriculum is well-formed (runs nothing)
-#
-# WHY THIS EXISTS: a tool you cannot find or dare not try is a tool you do not have.
-# `arsenal` is the index and `arsenal chains` the recipes; this is the hand that
-# walks a beginner through actually doing it, safely, once.
+#   arsenal learn              the first mission
+#   arsenal learn 04-web       that mission by name
+#   arsenal learn 4            that mission by number
+#   arsenal learn selftest     prove every card (runs each answer)
 set -u
 
-# ---- where things live (mirror the launcher's resolution) -------------------
-T="${XOS_TOOLS:-$HOME/tools}"
-[ -d "$T" ] || T=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-CAT="$T/arsenal-catalog"
-LESSONS="$T/learn-lessons"
-[ -f "$LESSONS" ] || LESSONS="$(dirname -- "$0")/learn-lessons"
-STATE="${XDG_STATE_HOME:-$HOME/.local/state}/learn"
-LEDGER="$STATE/progress"
-US=$(printf '\037')          # field separator for the parsed step stream
-ROOT=0; [ "$(id -u)" = 0 ] && ROOT=1
+AROOT="${ARSENAL_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
+ROOT="$AROOT"                 # lib/ctx reads pools/phrases off $ROOT, not $AROOT
+REF="$AROOT/ref"              # may not exist yet -- flagnorm degrades gracefully
+LEVELS="$AROOT/levels"
+SHELLBIN=/bin/sh
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/arsenal-learn"
+CARDS="$STATE/cards"
 
-# ---- terminal tier: full VT ladder, ansi 0-7 floor, no motion ---------------
-# the console xos boots is either the linux framebuffer (colour, 8 colours) or a
-# vt320 serial line (mono: attributes, no colour); over vt52/dumb links there is
-# no CSI at all. so colour is NEVER assumed -- it degrades 8-colour -> vt320
-# attributes -> nothing, and every screen-addressing sequence gates on _csi. this
-# mirrors learn/lib/ui; ported here because p3 tools cannot source the signed fort.
-# the vt52 arm is written out (never `vt52*`, which would demote vt520/vt525), and
-# the colour DECs are pulled out before the catch-all mono arm.
-_ui_tier() {
-  _csi=1
-  case "$1" in
-    vt50|vt50h|vt52|vt50-*|vt50h-*|vt52-*) _tier=none; _csi=0 ;;  # pre-ANSI: no CSI
-    dumb|'')                               _tier=none; _csi=0 ;;
-    vt241*|vt340*|vt525*)                  _tier=colour ;;        # the DEC colours
-    vt*|*-m|*-mono|*-nc)                   _tier=mono ;;          # the rest of DEC
-    *)                                     _tier=colour ;;
-  esac
-}
-_ui_tier "${TERM:-dumb}"
-[ -z "${NO_COLOR:-}" ] || _tier=none
-[ -t 1 ] || _tier=none
-# semantic slots. colour = the terminal's own 8; mono = reverse for the loud slot
-# (the rule), bold for the accents, dim simply absent; none = empty everything.
-if [ "$_tier" = none ]; then
-  C_H=; C_OK=; C_R=; C_D=; C_RV=; C_B=; C_0=
-else
-  C_RV=$(printf '\033[7m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
-  if [ "$_tier" = colour ]; then
-    C_H=$(printf '\033[36m')    # cyan   -- headings / tool name
-    C_OK=$(printf '\033[32m')   # green  -- success / it worked
-    C_R=$(printf '\033[31m')    # red    -- the rule / danger
-    C_D=$(printf '\033[90m')    # grey   -- meta / dim
-  else
-    C_H=$C_B; C_OK=$C_B         # vt320: accents bold
-    C_R=$C_RV                   # the rule reverses (bold marks nothing on DEC glass)
-    C_D=                        # no faint on a vt-series -- quiet is simply not bold
-  fi
-fi
-# clear+home, and only where CSI is understood; a vt52/dumb would print it as text.
-cls()  { [ -t 1 ] && [ "$_csi" = 1 ] && printf '\033[H\033[2J\033[3J'; return 0; }
-rule() { printf '%s%s%s\n' "$C_D" "------------------------------------------------------------" "$C_0"; }
+die() { echo "learn: $*" >&2; exit 1; }
 
-# ---- parse the lessons into one US-delimited line per step ------------------
-# fields: mission_id, mission_title, tool, mode, what, why, run, see, note
-parse() {
-  awk -v US="$US" '
-    function flush(){ if(tool!=""){ printf "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
-        mid,US,mtitle,US,tool,US,mode,US,what,US,why,US,run,US,see,US,note }
-      tool="";mode="";what="";why="";run="";see="";note="" }
-    /^#/  { next }
-    /^[[:space:]]*$/ { next }
-    /^:/  { flush(); l=$0; sub(/^:/,"",l); mid=l; sub(/[ \t].*/,"",mid);
-            mtitle=l; sub(/^[^ \t]+[ \t]+/,"",mtitle); next }
-    /^>/  { flush(); l=$0; sub(/^>/,"",l); tool=l; sub(/[ \t].*/,"",tool);
-            mode=l; sub(/^[^ \t]+[ \t]*/,"",mode); if(mode==tool) mode=""; next }
-    /^[ \t]/ { l=$0; sub(/^[ \t]+/,"",l); k=l; sub(/:.*/,"",k);
-            v=l; sub(/^[^:]*:[ \t]?/,"",v)
-            if(k=="what")what=v; else if(k=="why")why=v; else if(k=="run")run=v;
-            else if(k=="see")see=v; else if(k=="note")note=v; next }
-    END{ flush() }
-  ' "$LESSONS"
-}
+mkdir -p "$STATE" 2>/dev/null || die "cannot create $STATE"
+mkdir -p "$LEVELS" 2>/dev/null || die "cannot create $LEVELS"
 
-# ---- token substitution: fill a run: line with the live lab's real paths ----
-subst() {
-  printf '%s' "$1" | sed \
-    -e "s#@py#sh $T/xexec -t $T/python bin/python3#g" \
-    -e "s#@ap#${APORT:-0}#g" \
-    -e "s#@url#http://127.0.0.1:${WPORT:-0}#g" \
-    -e "s#@port#${WPORT:-0}#g" \
-    -e "s#@hash#$LAB/pw.hash#g" \
-    -e "s#@w#$LAB/words.txt#g" \
-    -e "s#@T#$T#g" \
-    -e "s#@t#$LAB#g" \
-    -e "s#@x#sh $T/xexec#g"
-}
-
-# ---- the safe practice lab: a scratch tmpfs + loopback targets --------------
-LAB=""; WEB_PID=""; AUTH_PID=""; WPORT=""; APORT=""; SEEDED=""
-free_port() {  # first free loopback port at/above $1
-  p=$1
-  while netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$p "; do p=$((p+1)); done
-  echo "$p"
-}
-lab_make() {
-  [ -n "$LAB" ] && return 0
-  LAB=$(mktemp -d "${TMPDIR:-/tmp}/.learnlab.XXXXXX") || { echo "no scratch space"; exit 1; }
-  # a private tmpfs so the compiled-C demo has somewhere it is allowed to run, and
-  # so teardown is a single umount. only root may mount; unprivileged falls back to
-  # the plain dir (live steps need root anyway, via xexec).
-  [ "$ROOT" = 1 ] && mount -t tmpfs -o nosuid,nodev,size=64m tmpfs "$LAB" 2>/dev/null || true
-}
-lab_seed() {
-  [ -n "$SEEDED" ] && return 0; SEEDED=1; lab_make
-  printf '{"tools":["file","jq","rg"]}\n' > "$LAB/sample.json"
-  mkdir -p "$LAB/loot" "$LAB/backup"
-  printf 'nothing to see here\nthe secret is 42\n' > "$LAB/loot/diary.txt"
-  printf 'more notes here\n' > "$LAB/loot/notes.txt"
-  printf 'this is a practice note.\n' > "$LAB/note.txt"
-  printf 'admin\nbackup\nsecret\nletmein\npassword\ndemo\nhello\n' > "$LAB/words.txt"
-  printf '<h1>practice site</h1>\n' > "$LAB/index.html"
-  printf 'you found the hidden page!\n' > "$LAB/secret"
-  { printf 'JUNKHEADER'; printf 'hidden payload\n' | gzip 2>/dev/null; } > "$LAB/mystery.bin" 2>/dev/null
-  printf '.TH DEMO 1\n.SH NAME\ndemo \\- a practice manual page\n.SH DESCRIPTION\nyou are reading a rendered man page.\n' > "$LAB/demo.1"
-  printf '#include <stdio.h>\nint main(void){ printf("hello from a program you just built\\n"); return 0; }\n' > "$LAB/hello.c"
-  cp "$(command -v busybox 2>/dev/null || command -v sh)" "$LAB/hello" 2>/dev/null || cp /bin/sh "$LAB/hello" 2>/dev/null
-  h=$(printf 'letmein' | md5sum 2>/dev/null | cut -d' ' -f1); printf 'demo:%s\n' "$h" > "$LAB/pw.hash"
-  [ "$ROOT" = 1 ] && sh "$T/xexec" zstd -q -o "$LAB/note.txt.zst" "$LAB/note.txt" 2>/dev/null || true
-  cat > "$LAB/authserver.py" <<'PY'
-import sys, base64
-from http.server import BaseHTTPRequestHandler, HTTPServer
-USER, PW = b'demo', b'letmein'
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        a = self.headers.get('Authorization', '')
-        ok = False
-        if a.startswith('Basic '):
-            try:
-                u, p = base64.b64decode(a[6:]).split(b':', 1); ok = (u == USER and p == PW)
-            except Exception:
-                ok = False
-        if ok:
-            self.send_response(200); self.end_headers(); self.wfile.write(b'welcome demo\n')
-        else:
-            self.send_response(401); self.send_header('WWW-Authenticate', 'Basic realm=x'); self.end_headers()
-    def log_message(self, *a):
-        pass
-HTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
-PY
-}
-wait_port() { p=$1; i=0; while [ $i -lt 6 ]; do netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$p " && return 0; sleep 1; i=$((i+1)); done; return 1; }
-lab_web() {
-  [ -n "$WEB_PID" ] && return 0; lab_seed; WPORT=$(free_port 8000)
-  setsid sh -c "cd '$LAB' && exec sh '$T/xexec' -t '$T/python' bin/python3 -m http.server $WPORT --bind 127.0.0.1" >/dev/null 2>&1 &
-  WEB_PID=$!; wait_port "$WPORT" || true
-}
-lab_auth() {
-  [ -n "$AUTH_PID" ] && return 0; lab_seed; APORT=$(free_port 8100)
-  setsid sh -c "exec sh '$T/xexec' -t '$T/python' bin/python3 '$LAB/authserver.py' $APORT" >/dev/null 2>&1 &
-  AUTH_PID=$!; wait_port "$APORT" || true
-}
-lab_ensure() {  # start only the target a mission needs
-  case "$1" in
-    web) lab_web ;;
-    passwords) lab_auth ;;
-  esac
-}
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/arslearn.XXXXXX") || die "cannot create tmp"
 cleanup() {
-  for pg in $WEB_PID $AUTH_PID; do kill -TERM "-$pg" 2>/dev/null; done
-  [ -n "$WPORT" ] && pkill -f "http.server $WPORT" 2>/dev/null
-  if [ -n "$LAB" ]; then umount -l "$LAB" 2>/dev/null; rm -rf "$LAB" 2>/dev/null; fi
-  for m in "${TMPDIR:-/tmp}"/.xexec.*; do [ -d "$m" ] && { umount -l "$m" 2>/dev/null; rmdir "$m" 2>/dev/null; }; done
+	jail_teardown 2>/dev/null
+	lab_down 2>/dev/null
+	rm -rf "$TMP" 2>/dev/null
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
+trap 'cleanup; trap - EXIT; exit 143' TERM
 
-# ---- progress ledger: atomic, keyed on the lesson content -------------------
-fp() { md5sum "$LESSONS" 2>/dev/null | cut -d' ' -f1; }
-ledger_load() {   # echoes done ids if the fingerprint still matches, else nothing
-  [ -f "$LEDGER" ] || return 0
-  read -r tag val < "$LEDGER" 2>/dev/null || return 0
-  [ "$tag" = "fp" ] && [ "$val" = "$(fp)" ] || return 0
-  sed -n '2,$p' "$LEDGER"
-}
-ledger_mark() {   # $1 = step id; append once, atomically
-  mkdir -p "$STATE" 2>/dev/null
-  cur=$(ledger_load)
-  case "
-$cur
-" in *"
-$1
-"*) return 0 ;; esac
-  { printf 'fp %s\n' "$(fp)"; printf '%s\n' "$cur" | sed '/^$/d'; printf '%s\n' "$1"; } \
-    > "$LEDGER.tmp.$$" 2>/dev/null && mv "$LEDGER.tmp.$$" "$LEDGER" 2>/dev/null || rm -f "$LEDGER.tmp.$$"
-}
-is_done() { case "
-$1
-" in *"
-$2
-"*) return 0 ;; *) return 1 ;; esac; }
+for _l in ui ctx cards coach jail grade lab; do
+	[ -f "$AROOT/lib/$_l" ] || die "missing lib/$_l"
+	. "$AROOT/lib/$_l"
+done
 
-# ---- one step on screen -----------------------------------------------------
-prompt_key() { printf '%s%s%s ' "$C_D" "$1" "$C_0"; IFS= read -r REPLY 2>/dev/null || REPLY=q; }
-show_step() {  # positional fields already split by caller into these globals
-  cls
-  printf '%s%s %s-%s %s%s%s   %s%s/%s%s\n' "$C_RV" " $S_MTITLE " "$C_0$C_D" "$C_0" \
-    "$C_H$C_B" "$S_TOOL" "$C_0" "$C_D" "$S_N" "$S_TOTAL" "$C_0"
-  rule
-  printf '%swhat%s  %s\n' "$C_H" "$C_0" "$S_WHAT"
-  printf '%swhy%s   %s\n' "$C_H" "$C_0" "$S_WHY"
-  case "$S_MODE" in
-    note)
-      [ -n "$S_NOTE" ] && { printf '\n%s\n' "$S_NOTE"; }
-      rule; prompt_key "[enter] next  -  [q] quit"
-      case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
-    show)
-      printf '\n%show you run it%s\n  %s%s%s\n' "$C_H" "$C_0" "$C_B" "$S_RUN" "$C_0"
-      printf '\n%s! %s%s\n' "$C_R" "$S_NOTE" "$C_0"
-      rule; prompt_key "[enter] next  -  [q] quit"
-      case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
-    run)
-      lab_seed                       # scratch dir + practice fixtures (idempotent)
-      cmd=$(subst "$S_RUN")
-      printf '\n%sthe command%s\n  %s%s%s\n' "$C_H" "$C_0" "$C_B" "$cmd" "$C_0"
-      rule; prompt_key "[enter] run it  -  [s] skip  -  [q] quit"
-      case "$REPLY" in
-        q|Q) return 2 ;;
-        s|S) return 0 ;;
-        *)
-          lab_ensure "$S_MID"
-          printf '\n%s$ %s%s\n\n' "$C_D" "$cmd" "$C_0"
-          if sh -c "$cmd"; then
-            printf '\n%sok  %s%s\n' "$C_OK" "$S_SEE" "$C_0"
-          else
-            printf '\n%s(that did not run here -- it needs the built stick and root. the command above is real.)%s\n' "$C_D" "$C_0"
-          fi
-          rule; prompt_key "[enter] next  -  [q] quit"
-          case "$REPLY" in q|Q) return 2 ;; *) return 0 ;; esac ;;
-      esac ;;
-  esac
+ctx_init
+cards_init
+
+# where carried tool binaries live: on the stick they are in ~/tools (installed
+# by provision), on a dev host they are staged in ~/.local/share/xos-arsenal.
+# ARSENAL_BIN overrides. tool_path resolves a tool name to a binary, searching
+# those and finally $PATH (so a busybox stand-in resolves in the sample level).
+ARSENAL_BIN="${ARSENAL_BIN:-$HOME/tools:$HOME/.local/share/xos-arsenal}"
+tool_path() {
+	local d
+	IFS=:
+	for d in $ARSENAL_BIN; do
+		[ -x "$d/$1" ] && { printf '%s\n' "$d/$1"; unset IFS; return 0; }
+	done
+	unset IFS
+	command -v "$1" 2>/dev/null
 }
 
-# ---- walk the steps from a starting index -----------------------------------
-STEPS=""    # the parsed stream, cached
-load_steps() { [ -n "$STEPS" ] || STEPS=$(parse); }
-step_count() { load_steps; printf '%s\n' "$STEPS" | grep -c . ; }
-nth() { load_steps; printf '%s\n' "$STEPS" | sed -n "${1}p"; }
-
-split_step() {  # $1 = one US-delimited record -> S_* globals
-  oldIFS=$IFS; IFS=$US
-  # shellcheck disable=SC2086
-  set -- $1
-  IFS=$oldIFS
-  S_MID=$1; S_MTITLE=$2; S_TOOL=$3; S_MODE=${4:-note}
-  S_WHAT=$5; S_WHY=$6; S_RUN=$7; S_SEE=${8:-}; S_NOTE=${9:-}
+# level_jail ID -- (re)build the jail for a level: tear the previous one down,
+# resolve the level's `tools:` names to binaries, stage them onto the read-only
+# exec tmpfs, and rebind SANDBOX to the fresh scratch. a level with no tools:
+# stages nothing (busybox applets on PATH still work). lib/grade's check_state
+# reads $SANDBOX; lib/jail calls the same tree $JAIL_SCRATCH -- binding here is
+# the one introduction the two ported-apart libs need.
+level_jail() {
+	local t paths=""
+	jail_teardown 2>/dev/null
+	lab_down 2>/dev/null
+	for t in $(level_field "$1" tools); do
+		p=$(tool_path "$t") && [ -n "$p" ] && paths="$paths $p"
+	done
+	# shellcheck disable=SC2086
+	jail_init $paths || die "jail_init failed for $1"
+	SANDBOX=$(jail_scratch)
+	# stand up the loopback targets this level asks for (lab: web auth).
+	# shellcheck disable=SC2086
+	lab_ensure $(level_field "$1" lab) || note "lab: a target for $1 did not come up"
 }
 
-mission_first_index() {  # $1 = mission id -> line number of its first step, or ""
-  load_steps; n=0
-  printf '%s\n' "$STEPS" | while IFS=$US read -r mid _rest; do
-    n=$((n+1)); [ "$mid" = "$1" ] && { echo "$n"; break; }
-  done
+MODE=learn
+
+# ---- levels -----------------------------------------------------------------
+# the same header + `---`-block grammar as learn/levels/*, minus the fields
+# only base learn's projects/scenarios ever used.
+level_path()  { echo "$LEVELS/$1"; }
+level_ids()   { ls -1 "$LEVELS" 2>/dev/null | sort; }
+blk_field()   { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$1" 2>/dev/null; }   # FILE KEY
+blocks_nq()   { awk '/^---$/ { c++ } END { print c + 0 }' "$1" 2>/dev/null; }
+level_field() { blk_field "$(level_path "$1")" "$2"; }
+level_nq()    { blocks_nq "$(level_path "$1")"; }
+level_no()    { _n=${1%%-*}; echo "${_n#0}"; }
+
+# resolve_level ARG -- a level id as typed ("01-recon"), or a bare number
+# ("1") matched against the zero-padded prefix. echoes the id, or nothing.
+resolve_level() {
+	[ -f "$LEVELS/$1" ] && { printf '%s\n' "$1"; return 0; }
+	case "$1" in ''|*[!0-9]*) return 1 ;; esac
+	level_ids | grep "^$(printf '%02d' "$1")-" | head -1
 }
 
-walk() {  # $1 = start index
-  total=$(step_count); i=$1
-  # per-mission counters for the header (n/total-in-mission)
-  while [ "$i" -le "$total" ]; do
-    rec=$(nth "$i"); split_step "$rec"
-    # count position within this mission
-    S_N=0; S_TOTAL=0; j=1
-    while [ "$j" -le "$total" ]; do
-      r=$(nth "$j"); m=${r%%"$US"*}
-      [ "$m" = "$S_MID" ] && { S_TOTAL=$((S_TOTAL+1)); [ "$j" -le "$i" ] && S_N=$((S_N+1)); }
-      j=$((j+1))
-    done
-    show_step; rc=$?
-    [ "$rc" = 2 ] && { printf '\n%sprogress saved. come back with: sh ~/tools/learn%s\n' "$C_D" "$C_0"; return 0; }
-    ledger_mark "$S_MID/$S_TOOL"
-    i=$((i+1))
-  done
-  cls
-  printf '%sok -- that is the whole arsenal. %s\n\n' "$C_OK$C_B" "$C_0"
-  printf 'from here:\n  %ssh ~/tools/arsenal%s         every tool, one line each\n' "$C_B" "$C_0"
-  printf '  %ssh ~/tools/arsenal chains%s   the mission recipes, end to end\n' "$C_B" "$C_0"
-  printf '  %ssh ~/tools/arsenal <tool>%s   one tool in depth\n\n' "$C_B" "$C_0"
-  printf '%sand remember the one rule: only ever aim these at a machine you own.%s\n' "$C_R" "$C_0"
+# blk_load FILE INDEX -- ported from learn/learn:405 (blk_load). fills
+# Q_ANSWERS/Q_OUT/Q_STATE/Q_STATUS/Q_REF/Q_CMP/Q_HINT/Q_PROMPT the same way;
+# Q_TPL/Q_PROMPT_HI are the unrendered template and the marked-up render,
+# same roles as the fort. dropped: Q_REFS/Q_SETUP/Q_PREDICT and every
+# project: field -- nothing here uses them yet.
+#
+# added: Q_SEED and the SEEDFN wiring (not in base learn -- base learn's
+# fixtures build one generic pool-driven tree for every question; arsenal's
+# jail has no such tree, so a card that needs one describes it itself). a
+# `seed:` line is shell code, rendered with render_tokens (no {a|b|c} pick,
+# no HI marks -- it is never shown, only run), and every seed: line in a
+# block joins into one script, same way multiple brief: lines join into one
+# paragraph. blk_load wraps that script in a shell function and points the
+# global SEEDFN at it; jail_run (lib/jail) already knows how to call SEEDFN
+# -- runs it as root, before the drop, cwd = the scratch -- so this is pure
+# wiring, no change to jail or grade. a card with no seed: sets SEEDFN empty,
+# which jail_run also already treats as "nothing to seed".
+blk_load() {
+	local blk seed
+	roll
+	seed=$(( RANDOM + $2 ))
+
+	blk="$TMP/blk"
+	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$1" > "$blk"
+
+	Q_TPL=$(sed -n 's/^q: \{0,1\}//p' "$blk")
+	Q_PROMPT_HI=$(printf '%s\n' "$Q_TPL" | fence | render_named "$seed")
+	Q_PROMPT=$(printf '%s\n' "$Q_PROMPT_HI" | hi_strip | lit_strip)
+	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
+	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_STATUS=$(sed -n 's/^status: \{0,1\}//p' "$blk" | head -1)
+	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
+	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
+	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render_named "$seed" | head -1)
+
+	Q_SEED=$(sed -n 's/^seed: \{0,1\}//p' "$blk" | render_tokens)
+
+	# inject the live lab address. the servers get a fresh loopback port each
+	# run, so the target can only be a token the card carries -- @url@/@port@ for
+	# the web target, @aurl@/@aport@ for the auth target -- filled here from the
+	# lab vars (empty when no lab is up; a non-lab card has no such token, so
+	# this is a no-op for it). # is the sed delimiter: a url has slashes.
+	_ls="s#@weburl@#${LAB_URL}#g;s#@authurl@#${LAB_AURL}#g;s#@webport@#${LAB_PORT}#g;s#@authport@#${LAB_APORT}#g"
+	Q_PROMPT_HI=$(printf '%s' "$Q_PROMPT_HI" | sed "$_ls")
+	Q_PROMPT=$(printf '%s' "$Q_PROMPT" | sed "$_ls")
+	Q_ANSWERS=$(printf '%s\n' "$Q_ANSWERS" | sed "$_ls")
+	Q_OUT=$(printf '%s' "$Q_OUT" | sed "$_ls")
+	Q_HINT=$(printf '%s' "$Q_HINT" | sed "$_ls")
+	Q_SEED=$(printf '%s' "$Q_SEED" | sed "$_ls")
+
+	if [ -n "$Q_SEED" ]; then
+		eval "_card_seed() {
+$Q_SEED
+}"
+		SEEDFN=_card_seed
+	else
+		SEEDFN=
+	fi
+
+	[ -n "$Q_PROMPT" ]
 }
 
-# ---- entry points -----------------------------------------------------------
-list_missions() {
-  load_steps; printf 'missions:\n'
-  printf '%s\n' "$STEPS" | awk -F"$US" '!seen[$1]++{ printf "  %-11s %s\n",$1,$2 }'
+# ---- the question loop --------------------------------------------------
+# ported from learn/learn:481 (ask), cut down to one attempt per card: no vi
+# editor here (lib/edit is fort-only), so there is no in-place "wipe the wrong
+# line and try again" -- a miss is graded, diagnosed and revealed immediately,
+# same as base learn's boss/daily modes already do on a miss. `?`/`hint`
+# before answering still opens the hint line; there is no reference panel
+# (REF may not exist for arsenal yet).
+ask() {   # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
+	local key input rc _m
+	blk_load "$(level_path "$1")" "$2" || return 1
+	key=$(card_key "$1" "$2" "$Q_TPL")
+
+	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand | lit_expand)"
+	[ "$MODE" = learn ] && note "? hint"
+
+	while :; do
+		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
+		if [ "$MODE" = boss ]; then
+			IFS= read -r -t "$BOSS_LIMIT" input; rc=$?
+			if [ "$rc" != 0 ]; then
+				echo
+				no "out of time."
+				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+				card_grade "$key" 0
+				return 1
+			fi
+		else
+			IFS= read -r input || return 2
+		fi
+
+		case "$input" in
+			quit) return 2 ;;
+			'')   continue ;;
+			'?'|hint)
+				if [ "$MODE" != learn ]; then
+					note "no hints under the clock."
+				elif [ -n "${Q_HINT:-}" ]; then
+					note "$(printf '%s' "$Q_HINT" | hi_expand "$D")"
+				else
+					note "no hint for this one."
+				fi
+				continue ;;
+		esac
+		break
+	done
+
+	if correct "$input"; then
+		card_grade "$key" 1
+		# the card's SRS mastery after this pass -- NOT which grading tier it took.
+		# 2 = mastered (held), 1 = learning, 0/unseen = just start.
+		case $(card_tier "$key") in
+			2) _m="  ${D}mastered${N}" ;;
+			1) _m="  ${D}learning${N}" ;;
+			*) _m= ;;
+		esac
+		ok "correct${_m}"
+		[ "$MODE" = learn ] && coach_right "$input" 2>/dev/null
+		return 0
+	fi
+
+	card_grade "$key" 0
+	no "wrong"
+	[ "$MODE" = learn ] && coach_miss "$input" 2>/dev/null
+	reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+	return 1
 }
-selfcheck() {
-  load_steps; fail=0; n=0
-  cats=$(awk -F"$(printf '\t')" 'NF>1{print $1}' "$CAT" 2>/dev/null | tr '\n' ' ')
-  fort_ok=" abduco "
-  printf '%s\n' "$STEPS" | { while IFS=$US read -r mid _mt tool mode what why run see note; do
-      n=$((n+1))
-      [ -n "$mid" ] && [ -n "$tool" ] || { echo "FAIL: step $n missing id/tool"; fail=1; }
-      [ -n "$what" ] && [ -n "$why" ] || { echo "FAIL: $mid/$tool missing what/why"; fail=1; }
-      case "$mode" in
-        note) : ;;
-        run)  [ -n "$run" ] && [ -n "$see" ] || { echo "FAIL: $mid/$tool run needs run+see"; fail=1; }
-              case " $cats $fort_ok" in *" $tool "*) : ;; *) echo "FAIL: $mid/$tool not in catalog"; fail=1 ;; esac ;;
-        show) [ -n "$run" ] && [ -n "$note" ] || { echo "FAIL: $mid/$tool show needs run+note"; fail=1; }
-              case " $cats $fort_ok" in *" $tool "*) : ;; *) echo "FAIL: $mid/$tool not in catalog"; fail=1 ;; esac ;;
-        *)    echo "FAIL: $mid/$tool unknown mode '$mode'"; fail=1 ;;
-      esac
-    done
-    if [ "$fail" = 0 ]; then printf 'selfcheck: %s steps, all well-formed\n' "$n"; exit 0
-    else exit 1; fi; }
+
+# pick COUNT distinct numbers from 1..MAX, in random order -- verbatim from
+# learn/learn:642.
+shuffle_n() {
+	seq 1 "$1" | awk -v s="$RANDOM" 'BEGIN { srand(s) } { print rand() "\t" $0 }' |
+		sort -n | cut -f2 | head -n "$2"
+}
+
+boss_limit() { echo $(( 30 + $(level_no "$1") / 3 )); }
+
+# boss_round ID -- five questions from the level just finished, no hints,
+# four of five to pass. ported from learn/learn:651, cut down the same way
+# ask() was: no splash-screen clock ticker (that lives in lib/edit), just a
+# plain timed read per question via ask()'s own boss branch.
+boss_round() {
+	local id=$1 bname nq n right=0 asked=0 rc k=0
+	bname=$(level_field "$id" boss)
+	nq=$(level_nq "$id")
+	[ -n "$bname" ] || { note "level $id has no boss -- skipping"; return 0; }
+	[ "$nq" -ge 5 ] || { note "level $id has $nq questions -- a boss needs 5"; return 0; }
+
+	BOSS_LIMIT=$(boss_limit "$id")
+	cls
+	hdr "BOSS: $bname" "no hints  ${BOSS_LIMIT}s each  pass: 4 of 5"
+	level_field "$id" flavor | say
+	pause_card || return 2
+
+	MODE=boss
+	for n in $(shuffle_n "$nq" 5); do
+		k=$((k + 1))
+		cls
+		statusbar "BOSS: $bname" "no hints" "$k" 5 "$right"
+		ask "$id" "$n"; rc=$?
+		[ "$rc" = 2 ] && { MODE=learn; return 2; }
+		[ "$rc" = 0 ] && right=$((right + 1))
+		asked=$((asked + 1))
+		pause_card || { MODE=learn; return 2; }
+	done
+	MODE=learn
+
+	cls
+	if [ "$right" -ge 4 ]; then
+		statusbar "BOSS: $bname" "defeated" "$right" 5 ""
+		printf '\n  %s%s falls.%s  %s of %s.\n' "$G$B" "$bname" "$N" "$right" "$asked"
+		return 0
+	fi
+	statusbar "BOSS: $bname" "held" "$right" 5 ""
+	no "$bname holds. $right of 5 -- need 4."
+	return 1
+}
+
+# run_level ID -- ported from learn/learn:704, cut down: no in-progress
+# resume ledger, no act overlay, no repeat-brief suppression -- every run
+# shows the brief and asks every card in a fresh shuffle. those all read
+# state this stage does not need to prove yet.
+run_level() {
+	local id=$1 nq i right=0 total=0 rc lname order
+	nq=$(level_nq "$id")
+	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
+	lname=$(level_field "$id" name)
+	level_jail "$id"
+
+	cls
+	hdr "$lname" "level $(level_no "$id")  ${nq} questions"
+	level_field "$id" brief | say
+	pause_card || return 2
+
+	order=$(shuffle_n "$nq" "$nq")
+	set -f; set -- $order; set +f
+	for i; do
+		total=$((total + 1))
+		cls
+		statusbar "$lname" "card $total/$nq" "$total" "$nq" "$right"
+		ask "$id" "$i"; rc=$?
+		[ "$rc" = 2 ] && return 2
+		[ "$rc" = 0 ] && right=$((right + 1))
+		pause_card || return 2
+	done
+
+	cls
+	statusbar "$lname" "done" "$total" "$nq" "$right"
+	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
+	echo
+
+	boss_round "$id"
+}
+
+# selftest -- the authoring net. for every card: it renders, it has an answer
+# and a hint, and its OWN first listed answer grades correct (so a broken
+# out:/state:/seed/ref is caught the moment it is written). bosses are unique and
+# a bossed level has >=5 questions. tier-2 cards run their answer -- as nobody on
+# the stick (root), as the current user on a dev host (JAIL_DROP=""); either way
+# the output/state is judged, so a card that cannot pass itself fails the build.
+# runs nothing interactive.
+selftest_graded() {
+	local id nq i first bad=0 b bosses="" total
+	for id in $(level_ids); do
+		nq=$(level_nq "$id")
+		[ "$nq" -gt 0 ] || { echo "FAIL $id: no questions"; bad=$((bad + 1)); continue; }
+		b=$(level_field "$id" boss)
+		[ -n "$b" ] || { echo "FAIL $id: no boss"; bad=$((bad + 1)); }
+		case " $bosses " in *" $b "*) echo "FAIL $id: duplicate boss '$b'"; bad=$((bad + 1)) ;; esac
+		bosses="$bosses $b"
+		[ "$nq" -ge 5 ] || echo "note $id: $nq question(s) -- a boss needs 5"
+		level_jail "$id"
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			if ! blk_load "$(level_path "$id")" "$i"; then
+				echo "FAIL $id/$i: blk_load"; bad=$((bad + 1)); i=$((i + 1)); continue
+			fi
+			[ -n "$Q_ANSWERS" ] || { echo "FAIL $id/$i: no answer"; bad=$((bad + 1)); }
+			[ -n "$Q_HINT" ]    || { echo "FAIL $id/$i: no hint"; bad=$((bad + 1)); }
+			first=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+			# self-consistency: the listed answer must grade correct (tier 1 path
+			# + the anti-cheat: proves ref: names a command the answer invokes).
+			if [ -n "$first" ] && ! correct "$first"; then
+				echo "FAIL $id/$i: own answer does not grade correct -- '$first'"; bad=$((bad + 1))
+			fi
+			# tier-2 TRUTH: a listed answer matches tier 1 by text alone, so that
+			# never exercises out:/state:/tools. run the answer for real and hold
+			# its observable against the assertion -- this is what proves the
+			# fixture seed, the staged tool and the regex are actually right.
+			if [ -n "${Q_OUT:-}${Q_STATE:-}${Q_STATUS:-}" ] && [ -n "$first" ]; then
+				_g=$(run_answer "$first"); _rc=$?
+				[ -z "${Q_OUT:-}" ]    || printf '%s\n' "$_g" | grep -qE -- "$Q_OUT" \
+					|| { echo "FAIL $id/$i: out:/$Q_OUT/ does not match what '$first' prints"; bad=$((bad + 1)); }
+				[ -z "${Q_STATE:-}" ]  || check_state "$Q_STATE" "$_g" \
+					|| { echo "FAIL $id/$i: state:$Q_STATE not true after '$first'"; bad=$((bad + 1)); }
+				[ -z "${Q_STATUS:-}" ] || [ "$_rc" = "$Q_STATUS" ] \
+					|| { echo "FAIL $id/$i: status:$Q_STATUS but '$first' exited $_rc"; bad=$((bad + 1)); }
+			fi
+			i=$((i + 1))
+		done
+	done
+	total=$(level_ids | grep -c .)
+	echo "selftest: $total level(s), $bad problem(s)"
+	[ "$bad" = 0 ]
 }
 
 main() {
-  case "${1:-}" in
-    --selfcheck) selfcheck ;;
-    --list) list_missions ;;
-    --reset)
-      # guarded wipe: only ever an absolute, range-owned state path
-      case "$STATE" in /*/learn) rm -f "$LEDGER" 2>/dev/null; echo "progress cleared." ;; *) echo "refused: state path looks wrong ($STATE)"; exit 1 ;; esac ;;
-    -h|--help)
-      printf 'usage: sh ~/tools/learn [mission|--list|--reset|--selfcheck]\n'; list_missions ;;
-    "")
-      load_steps; done_ids=$(ledger_load)
-      # resume at first unseen step
-      total=$(step_count); start=1; i=1
-      while [ "$i" -le "$total" ]; do
-        rec=$(nth "$i"); mid=${rec%%"$US"*}; tool=$(printf '%s' "$rec" | cut -d"$US" -f3)
-        is_done "$done_ids" "$mid/$tool" || { start=$i; break; }
-        i=$((i+1)); start=$i
-      done
-      if [ -n "$done_ids" ] && [ "$start" -gt 1 ] && [ "$start" -le "$total" ]; then
-        rec=$(nth "$start"); rmid=${rec%%"$US"*}
-        cls
-        printf '%swelcome back.%s you left off in %s%s%s.\n\n' "$C_H$C_B" "$C_0" "$C_H" "$rmid" "$C_0"
-        prompt_key "[enter] resume  -  [b] begin at the start  -  [q] quit"
-        case "$REPLY" in q|Q) exit 0 ;; b|B) start=1 ;; esac
-      elif [ "$start" -gt "$total" ]; then start=1; fi
-      walk "$start" ;;
-    *)
-      idx=$(mission_first_index "$1")
-      [ -n "$idx" ] || { echo "no such mission: $1"; list_missions; exit 1; }
-      walk "$idx" ;;
-  esac
+	local arg=${1:-} lvl
+	case "$arg" in
+		selftest) selftest_graded; exit $? ;;
+		list)     level_ids; exit 0 ;;
+	esac
+	if [ -z "$arg" ]; then
+		lvl=$(level_ids | head -1)
+	else
+		lvl=$(resolve_level "$arg")
+	fi
+	[ -n "$lvl" ] && [ -f "$LEVELS/$lvl" ] || die "no such level: ${arg:-<none, and none found under $LEVELS>}"
+	run_level "$lvl"
 }
+
 main "$@"

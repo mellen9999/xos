@@ -555,8 +555,7 @@ loot, the professional tools and the rest of the kit -- every carried tool drill
 and graded by *running* what you type, with the same spaced-repetition cards. The
 answers run jailed: each tool is staged onto a throwaway exec tmpfs and the answer
 runs as `nobody` against practice targets the school stands up on `127.0.0.1`, so a
-live tool can touch nothing real. `arsenal walk` is the older one-command guided
-tour, kept for a quick look.
+live tool can touch nothing real.
 
 ## learn
 

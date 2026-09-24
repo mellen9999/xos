@@ -87,4 +87,4 @@ out: DEMO\(1\)
 ref: mandoc
 teach: mandoc
 hint: mandoc and the path -- no flags needed just to read it
-seed: printf '.TH DEMO 1\n.SH NAME\ndemo \\- a stand-in manual page\n.SH DESCRIPTION\nThis is a rendered page for the walk.\n' > demo.1
+seed: printf '.TH DEMO 1\n.SH NAME\ndemo \\- a stand-in manual page\n.SH DESCRIPTION\nThis is a rendered manual page.\n' > demo.1
