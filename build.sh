@@ -2830,7 +2830,7 @@ G44EOF
   # on a busy box does not keep a day. each script is parsed under the shell its
   # shebang names: bash for the hook, the shipped ash for the rest (a stricter
   # POSIX check that also catches a bashism smuggled into a #!/bin/sh file).
-  local g48=ok f48 e48 chk48
+  local g48=ok f48 e48 chk48 f48py
   for f48 in githooks/pre-commit learn/install.sh learn/push learn/wrapper \
              arsenal/*.sh arsenal/arsenal arsenal/xexec \
              ci/lib.sh ci/xos-repro ci/xos-ci-full; do
@@ -2846,14 +2846,16 @@ G44EOF
           | "$bb35" ash -n /dev/stdin 2>&1) \
       || { g48=FAIL; printf '    build-arsenal-c.sh INNER block does not parse: %s\n' "$e48" >&2; }
   fi
-  # arsenal/atlas is the one first-party script in this list that is not
-  # shell -- ash -n on a python file would reject it for the wrong reason
-  # (a bashism check on a language it does not even apply to), so it gets
-  # the interpreter's own syntax check instead.
-  if [ -f arsenal/atlas ]; then
-    e48=$(python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" arsenal/atlas 2>&1) \
-      || { g48=FAIL; printf '    arsenal/atlas does not parse: %s\n' "$e48" >&2; }
-  fi
+  # arsenal/atlas, arsenal/view and the xrender.py engine they both import
+  # are the first-party scripts in this list that are not shell -- ash -n on
+  # a python file would reject it for the wrong reason (a bashism check on a
+  # language it does not even apply to), so they get the interpreter's own
+  # syntax check instead.
+  for f48py in arsenal/atlas arsenal/view arsenal/xrender.py; do
+    [ -f "$f48py" ] || continue
+    e48=$(python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" "$f48py" 2>&1) \
+      || { g48=FAIL; printf '    %s does not parse: %s\n' "$f48py" "$e48" >&2; }
+  done
   g "G48 remaining first-party scripts parse" "$g48"
 
   # G39 -- the only two functions here that write to a raw block device must
@@ -4511,7 +4513,7 @@ ci() {
   # this is the cheap-to-run, expensive-to-inherit half: a script that will not
   # parse, a shellcheck error, a corpus authoring defect. no network, no root.
   say "ci -- buildless checks (no key, no image)"
-  local rc=0 f chk bb
+  local rc=0 f chk bb f48py
   # provenance first: it is the cheapest check here and the one that says
   # whose tree this is. unverified is not a failure -- a stranger on a shallow
   # clone, or the repro container with no openssh, must still be able to run ci.
@@ -4548,12 +4550,14 @@ ci() {
     $chk "$f" 2>/dev/null || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f" >&2; rc=1; }
   done
   [ "$rc" -eq 0 ] && printf '  every script parses\n'
-  # arsenal/atlas is python, not shell -- ash -n would reject it for the wrong
-  # reason, so it gets the interpreter's own syntax check, same as gates() G48.
-  if [ -f arsenal/atlas ]; then
-    python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" arsenal/atlas \
-      || { printf '  \033[1;31mparse FAIL\033[0m arsenal/atlas\n' >&2; rc=1; }
-  fi
+  # atlas, view and the xrender.py engine are python, not shell -- ash -n
+  # would reject them for the wrong reason, so they get the interpreter's
+  # own syntax check, same as gates() G48.
+  for f48py in arsenal/atlas arsenal/view arsenal/xrender.py; do
+    [ -f "$f48py" ] || continue
+    python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" "$f48py" \
+      || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f48py" >&2; rc=1; }
+  done
   # the reproducible-build toolchain is only reproducible if repro/Dockerfile
   # pins its inputs by content: a base image by digest (never a moving tag) and
   # a frozen Arch archive day (never the live mirror). crepro rests on both, so

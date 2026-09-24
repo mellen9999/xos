@@ -13,52 +13,13 @@
 #
 # data: $XOS_MAPS (default the XOS-KNOW stick's maps/), staged + pinned by
 # arsenal/build-maps.sh. see arsenal/maps.lock for what is on the stick.
-import argparse, glob, gzip, json, math, os, sys
-
-# ---------------------------------------------------------------- tier ----
-def detect_tier(term, no_color, is_tty):
-    if term in ("vt50", "vt50h", "vt52") or term.startswith(("vt50-", "vt50h-", "vt52-")):
-        tier, csi = "none", False
-    elif term in ("dumb", ""):
-        tier, csi = "none", False
-    elif term.startswith(("vt241", "vt340", "vt525")):
-        tier, csi = "colour", True
-    elif term.startswith("vt") or term.endswith(("-m", "-mono", "-nc")):
-        tier, csi = "mono", True
-    else:
-        tier, csi = "colour", True
-    if no_color:
-        tier, csi = "none", False
-    if not is_tty:
-        tier = "none"
-    return tier, csi
-
-def detect_utf8(env):
-    for k in ("LC_ALL", "LC_CTYPE", "LANG"):
-        v = env.get(k, "")
-        if "utf-8" in v.lower() or "utf8" in v.lower():
-            return True
-    return False
-
-# one meaning per colour, the terminal's own eight, never a 256 ramp -- same
-# doctrine as learn/lib/ui: those always exist and arrive in the reader's own
-# scheme. LAND is the quiet frame (D, 90), BORDER rides with it (dimmer still
-# matters less than coast), WATER is the one slot ui never uses (blue, 34),
-# CITY is live text (W), MARK is a city's own dot (bold on top of CITY on
-# colour; mono has nothing bold to stack on, so it just reuses CITY), SEL is
-# the one mark every attribute tier has (reverse).
-class Pal:
-    def __init__(self, tier):
-        if tier == "colour":
-            self.N, self.LAND, self.BORDER, self.WATER, self.CITY, self.MARK, self.SEL = (
-                "\033[0m", "\033[90m", "\033[90m", "\033[34m", "\033[37m", "\033[1;37m", "\033[7m")
-        elif tier == "mono":
-            # a vt320 has bold/underline/reverse and nothing else -- no colour
-            # channel to lose, so every slot above collapses onto those three.
-            self.N, self.LAND, self.BORDER, self.WATER, self.CITY, self.MARK, self.SEL = (
-                "\033[0m", "", "", "", "\033[1m", "\033[1m", "\033[7m")
-        else:
-            self.N = self.LAND = self.BORDER = self.WATER = self.CITY = self.MARK = self.SEL = ""
+#
+# tier detection, the palette and the subpixel canvas are the shared engine
+# in xrender.py (also used by `view`) -- this file is geojson, projection,
+# layers, cities/labels and the interactive loop, all of it map-specific.
+import argparse, glob, gzip, json, os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from xrender import detect_tier, detect_utf8, Pal, Canvas
 
 # --------------------------------------------------------------- data -----
 def maps_dir():
@@ -139,89 +100,37 @@ def pick_res(bbox):
 # ------------------------------------------------------------ rendering ---
 # priority, low to high -- a subpixel touched by two layers is coloured/typed
 # by the more important one, but its BIT is set either way (braille shape is
-# never lost to priority, only the character/colour choice is).
-LAYER_PRI = {"border": 0, "water": 1, "coast": 2}
-ASCII_CH  = {"border": ".", "water": "~", "coast": "#"}
-
-DOTS = [[0x01, 0x08], [0x02, 0x10], [0x04, 0x20], [0x40, 0x80]]  # braille bit order
+# never lost to priority, only the character/colour choice is). keys are
+# 1-based: 0 is Canvas's own "untouched" sentinel.
+LAYER_KEY = {"border": 1, "water": 2, "coast": 3}
+ASCII_CH  = {1: ".", 2: "~", 3: "#"}
 
 def render(data_dir, cols, rows, bbox, tier, utf8):
     w0, s0, e0, n0 = bbox
     braille = utf8 and tier in ("mono", "colour")
-    sx, sy = (2, 4) if braille else (1, 1)
-    W, H = cols * sx, rows * sy
-    bits = bytearray(W * H)
-    owner = bytearray(W * H)  # LAYER_PRI value + 1, 0 = untouched
-    owner[:] = bytes(W * H)
+    canvas = Canvas(cols, rows, braille)
 
     def project(lon, lat):
-        x = (lon - w0) / (e0 - w0) * (W - 1)
-        y = (n0 - lat) / (n0 - s0) * (H - 1)
+        x = (lon - w0) / (e0 - w0) * (canvas.W - 1)
+        y = (n0 - lat) / (n0 - s0) * (canvas.H - 1)
         return x, y
 
-    def plot(x, y, pri):
-        if 0 <= x < W and 0 <= y < H:
-            i = y * W + x
-            bits[i] = 1
-            if pri + 1 > owner[i]:
-                owner[i] = pri + 1
-
-    def line(x0, y0, x1, y1, pri):
-        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-        dx, dy = abs(x1 - x0), -abs(y1 - y0)
-        sxx = 1 if x0 < x1 else -1
-        syy = 1 if y0 < y1 else -1
-        err = dx + dy
-        while True:
-            plot(x0, y0, pri)
-            if x0 == x1 and y0 == y1:
-                break
-            e2 = 2 * err
-            if e2 >= dy:
-                err += dy; x0 += sxx
-            if e2 <= dx:
-                err += dx; y0 += syy
-
-    def draw_lines(coord_lists, pri):
+    def draw_lines(coord_lists, key):
         for coords in coord_lists:
             for a, b in zip(coords, coords[1:]):
                 (x0, y0), (x1, y1) = project(*a), project(*b)
-                line(x0, y0, x1, y1, pri)
+                canvas.line(x0, y0, x1, y1, key)
 
     res = pick_res(bbox)
-    draw_lines(rings_of(load_layer(data_dir, res, "countries")), LAYER_PRI["border"])
-    draw_lines(lines_of(load_layer(data_dir, res, "rivers")), LAYER_PRI["water"])
-    draw_lines(rings_of(load_layer(data_dir, res, "lakes")), LAYER_PRI["water"])
-    draw_lines(lines_of(load_layer(data_dir, res, "coastline")), LAYER_PRI["coast"])
+    draw_lines(rings_of(load_layer(data_dir, res, "countries")), LAYER_KEY["border"])
+    draw_lines(lines_of(load_layer(data_dir, res, "rivers")), LAYER_KEY["water"])
+    draw_lines(rings_of(load_layer(data_dir, res, "lakes")), LAYER_KEY["water"])
+    draw_lines(lines_of(load_layer(data_dir, res, "coastline")), LAYER_KEY["coast"])
 
     pal = Pal(tier)
-    layer_colour = {0: pal.BORDER, 1: pal.WATER, 2: pal.LAND}
-    layer_name = {0: "border", 1: "water", 2: "coast"}
-
-    grid = [[" "] * cols for _ in range(rows)]  # plain glyph, no colour, per cell
-    cell_colour = [[""] * cols for _ in range(rows)]
-
-    if braille:
-        for cy in range(rows):
-            for cx in range(cols):
-                b = 0
-                own = 0
-                for dyi in range(4):
-                    for dxi in range(2):
-                        i = (cy * 4 + dyi) * W + (cx * 2 + dxi)
-                        if bits[i]:
-                            b |= DOTS[dyi][dxi]
-                            own = max(own, owner[i])
-                if b:
-                    grid[cy][cx] = chr(0x2800 + b)
-                    cell_colour[cy][cx] = layer_colour.get(own - 1, "")
-    else:
-        for cy in range(rows):
-            for cx in range(cols):
-                i = cy * W + cx
-                if bits[i]:
-                    grid[cy][cx] = ASCII_CH[layer_name[owner[i] - 1]]
-                    cell_colour[cy][cx] = layer_colour.get(owner[i] - 1, "")
+    layer_colour = {LAYER_KEY["border"]: pal.BORDER, LAYER_KEY["water"]: pal.WATER, LAYER_KEY["coast"]: pal.LAND}
+    canvas.pack(ASCII_CH, layer_colour)
+    grid, cell_colour = canvas.grid, canvas.cell_colour
 
     # cities: a final overlay pass, own glyph, never mixed into the line grid.
     span = max(e0 - w0, n0 - s0)
@@ -259,25 +168,7 @@ def render(data_dir, cols, rows, bbox, tier, utf8):
             cell_colour[cy][start + k] = pal.CITY
             written.add((cy, start + k))
 
-    lines = []
-    for cy in range(rows):
-        if tier == "none":
-            lines.append("".join(grid[cy]).rstrip())
-        else:
-            out, cur = [], ""
-            for cx in range(cols):
-                c = cell_colour[cy][cx]
-                if c != cur:
-                    if cur:
-                        out.append(pal.N)
-                    if c:
-                        out.append(c)
-                    cur = c
-                out.append(grid[cy][cx])
-            if cur:
-                out.append(pal.N)
-            lines.append("".join(out).rstrip())
-    return "\n".join(lines)
+    return canvas.to_text(tier, pal.N)
 
 # --------------------------------------------------------------- status ---
 def status_line(center, span, tier, utf8, cols):

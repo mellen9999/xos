@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+# view -- tier-aware image/pdf viewer. any picture or pdf page as characters:
+# braille dither where the terminal is utf8, an ascii ramp where it is not,
+# zero escapes on the pre-ANSI floor -- same ladder as `atlas`, same engine
+# (xrender.py). a pdf/png/jpeg goes through the carried mutool first; a raw
+# PNM (what mutool itself emits) is read directly, which is also the offline
+# test path -- no mutool needed to prove the renderer works.
+#
+# the one exception to xos's semantic-8-colour doctrine: --half, a half-block
+# (glyph U+2580, fg=top pixel/bg=bottom pixel) mode for near-photographic
+# colour. a photo is not a small set of named features the way a map's
+# coastline/border/water are, so a categorical 8-colour palette has nothing
+# useful to say about it -- an ANSI-256 nearest-colour lookup is the one place
+# in this codebase where that ramp is the right tool, not a shortcut around
+# the doctrine. off by default; only reachable on the colour tier.
+import argparse, os, shutil, subprocess, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from xrender import detect_tier, detect_utf8, Pal, Canvas
+
+# ------------------------------------------------------------------ pnm ---
+def _tokens(d, i):
+    while True:
+        while i < len(d) and d[i:i + 1] in b" \t\r\n":
+            i += 1
+        if i < len(d) and d[i:i + 1] == b"#":
+            while i < len(d) and d[i:i + 1] != b"\n":
+                i += 1
+            continue
+        break
+    j = i
+    while j < len(d) and d[j:j + 1] not in b" \t\r\n":
+        j += 1
+    return d[i:j], j
+
+def read_pnm_bytes(d):
+    """P1-P6 -> (w, h, lum(x,y), rgb(x,y)). stdlib only, no PIL: this family
+    is simple enough (and is exactly what mutool -F pnm emits) that a small
+    hand parser beats a dependency."""
+    magic = d[:2]
+    if magic not in (b"P1", b"P2", b"P3", b"P4", b"P5", b"P6"):
+        raise ValueError("not a PNM (P1-P6) file")
+    i = 2
+    tw, i = _tokens(d, i); w = int(tw)
+    th, i = _tokens(d, i); h = int(th)
+    maxval = 1
+    if magic not in (b"P1", b"P4"):
+        tm, i = _tokens(d, i); maxval = int(tm)
+    i += 1  # the single mandatory whitespace byte closing the header
+    body = d[i:]
+
+    if magic == b"P4":  # binary bitmap, msb-first, rows padded to a byte
+        rowbytes = (w + 7) // 8
+        def lum(x, y):
+            byte = body[y * rowbytes + x // 8]
+            return 0 if (byte >> (7 - x % 8)) & 1 else 255
+        rgb = lambda x, y: ((v := lum(x, y)), v, v)
+    elif magic == b"P1":  # ascii bitmap
+        bits = [int(t) for t in body.split()]
+        def lum(x, y):
+            return 0 if bits[y * w + x] else 255
+        rgb = lambda x, y: ((v := lum(x, y)), v, v)
+    elif magic in (b"P2", b"P5"):  # grayscale
+        if magic == b"P5":
+            depth = 1 if maxval < 256 else 2
+            def sample(k):
+                o = k * depth
+                return body[o] if depth == 1 else (body[o] << 8) | body[o + 1]
+        else:
+            vals = [int(t) for t in body.split()]
+            sample = vals.__getitem__
+        def lum(x, y):
+            return sample(y * w + x) * 255 // maxval
+        rgb = lambda x, y: ((v := lum(x, y)), v, v)
+    else:  # P3/P6, rgb
+        if magic == b"P6":
+            depth = 1 if maxval < 256 else 2
+            def px(k):
+                o = k * 3 * depth
+                if depth == 1:
+                    return body[o], body[o + 1], body[o + 2]
+                s = lambda j: (body[o + 2 * j] << 8) | body[o + 2 * j + 1]
+                return s(0), s(1), s(2)
+        else:
+            vals = [int(t) for t in body.split()]
+            def px(k):
+                o = k * 3
+                return vals[o], vals[o + 1], vals[o + 2]
+        def rgb(x, y):
+            r, g, b = px(y * w + x)
+            return r * 255 // maxval, g * 255 // maxval, b * 255 // maxval
+        def lum(x, y):
+            r, g, b = rgb(x, y)
+            return (r * 299 + g * 587 + b * 114) // 1000
+    return w, h, lum, rgb
+
+def load_source(path, page, dpi):
+    if not os.path.exists(path):
+        print(f"view: no such file: {path}", file=sys.stderr)
+        sys.exit(1)
+    with open(path, "rb") as f:
+        head = f.read(2)
+    if head in (b"P1", b"P2", b"P3", b"P4", b"P5", b"P6"):
+        with open(path, "rb") as f:
+            return read_pnm_bytes(f.read())
+    mutool = shutil.which("mutool")
+    if not mutool:
+        print("no mutool -- carried in the arsenal; run build-arsenal-c.sh", file=sys.stderr)
+        sys.exit(1)
+    cmd = [mutool, "draw", "-F", "pnm", "-r", str(dpi), "-o", "-", path]
+    if page:
+        cmd.append(str(page))
+    try:
+        proc = subprocess.run(cmd, capture_output=True, check=True)
+    except subprocess.CalledProcessError as e:
+        msg = e.stderr.decode(errors="ignore").strip() or f"exit {e.returncode}"
+        print(f"view: mutool failed: {msg}", file=sys.stderr)
+        sys.exit(1)
+    return read_pnm_bytes(proc.stdout)
+
+# ------------------------------------------------------------- sampling ---
+def _ranges(n_src, n_dst):
+    """n_dst (x0, x1) windows box-averaging n_src source samples onto them."""
+    return [(n_src * i // n_dst, max(n_src * i // n_dst + 1, n_src * (i + 1) // n_dst))
+            for i in range(n_dst)]
+
+def box_avg(lum, x0, x1, y0, y1):
+    s = n = 0
+    for yy in range(y0, y1):
+        for xx in range(x0, x1):
+            s += lum(xx, yy); n += 1
+    return s // n if n else 0
+
+def avg_rgb(rgb, x0, x1, y0, y1):
+    rs = gs = bs = n = 0
+    for yy in range(y0, y1):
+        for xx in range(x0, x1):
+            r, g, b = rgb(xx, yy); rs += r; gs += g; bs += b; n += 1
+    return (rs // n, gs // n, bs // n) if n else (0, 0, 0)
+
+# --------------------------------------------------------------- ascii ----
+RAMP = " .:-=+*#%@"  # dark -> bright
+
+def ascii_render(w, h, lum, cols, rows):
+    xr, yr = _ranges(w, cols), _ranges(h, rows)
+    lines = []
+    for cy in range(rows):
+        y0, y1 = yr[cy]
+        row = [RAMP[box_avg(lum, x0, x1, y0, y1) * (len(RAMP) - 1) // 255] for x0, x1 in xr]
+        lines.append("".join(row).rstrip())
+    return "\n".join(lines)
+
+# -------------------------------------------------------------- braille ---
+# a flat threshold makes every gradient band; an ordered (bayer) dither
+# breaks the bands up into a texture the eye reads as shading instead --
+# the same trick a 1-bit printer or an old fax machine used.
+BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+
+def braille_render(w, h, lum, cols, rows, tier, pal):
+    canvas = Canvas(cols, rows, braille=True)
+    xr, yr = _ranges(w, canvas.W), _ranges(h, canvas.H)
+    for y in range(canvas.H):
+        y0, y1 = yr[y]
+        thresh_row = BAYER4[y % 4]
+        for x in range(canvas.W):
+            x0, x1 = xr[x]
+            v = box_avg(lum, x0, x1, y0, y1)
+            thresh = (thresh_row[x % 4] + 0.5) * 255 / 16
+            if v > thresh:
+                canvas.plot(x, y, 1)
+    canvas.pack({}, {1: pal.CITY})  # ascii_glyphs unused in braille mode
+    return canvas.to_text(tier, pal.N)
+
+# ---------------------------------------------------------------- half ----
+CUBE = (0, 95, 135, 175, 215, 255)
+
+def _nearest(v, choices):
+    return min(range(len(choices)), key=lambda i: abs(choices[i] - v))
+
+def rgb_to_256(r, g, b):
+    ri, gi, bi = _nearest(r, CUBE), _nearest(g, CUBE), _nearest(b, CUBE)
+    cube = (CUBE[ri], CUBE[gi], CUBE[bi])
+    cube_err = sum((a - b_) ** 2 for a, b_ in zip(cube, (r, g, b)))
+    gray = (r + g + b) // 3
+    gi2 = max(0, min(23, (gray - 8 + 5) // 10))
+    gray_val = 8 + 10 * gi2
+    gray_err = 3 * (gray_val - gray) ** 2
+    return (232 + gi2) if gray_err < cube_err else (16 + 36 * ri + 6 * gi + bi)
+
+def half_render(w, h, rgb, cols, rows):
+    xr = _ranges(w, cols)
+    yr2 = _ranges(h, rows * 2)  # two half-rows (top/bottom) per output row
+    lines = []
+    for cy in range(rows):
+        ty0, ty1 = yr2[cy * 2]
+        by0, by1 = yr2[cy * 2 + 1]
+        out, cur = [], None
+        for x0, x1 in xr:
+            fg = rgb_to_256(*avg_rgb(rgb, x0, x1, ty0, ty1))
+            bg = rgb_to_256(*avg_rgb(rgb, x0, x1, by0, by1))
+            if (fg, bg) != cur:
+                out.append(f"\033[38;5;{fg}m\033[48;5;{bg}m")
+                cur = (fg, bg)
+            out.append("▀")
+        out.append("\033[0m")
+        lines.append("".join(out))
+    return "\n".join(lines)
+
+# --------------------------------------------------------------- status ---
+def status_line(name, w, h, tier, utf8, half, cols):
+    glyphs = "half" if half else "braille" if utf8 and tier in ("mono", "colour") else "ascii"
+    s = f"view  {name}  {w}x{h}  tier {tier}/{glyphs}"
+    return s[:cols]
+
+# ------------------------------------------------------------------ main --
+def main():
+    ap = argparse.ArgumentParser(prog="view", description="tier-aware image/pdf viewer")
+    ap.add_argument("file")
+    ap.add_argument("page", nargs="?", type=int, help="pdf page number")
+    ap.add_argument("--render", action="store_true", help="ignore the real terminal size")
+    ap.add_argument("--cols", type=int, default=78)
+    ap.add_argument("--rows", type=int, default=22)
+    ap.add_argument("--dpi", type=int, default=150, help="mutool render resolution")
+    ap.add_argument("--tier", choices=["auto", "none", "mono", "colour"], default="auto")
+    ap.add_argument("--half", action="store_true", help="colour tier only: half-block, ansi-256")
+    grp = ap.add_mutually_exclusive_group()
+    grp.add_argument("--utf8", dest="utf8", action="store_true", default=None)
+    grp.add_argument("--no-utf8", dest="utf8", action="store_false")
+    args = ap.parse_args()
+
+    is_tty = sys.stdout.isatty()
+    if args.tier == "auto":
+        tier, csi = detect_tier(os.environ.get("TERM", "dumb"), bool(os.environ.get("NO_COLOR")), is_tty)
+    else:
+        tier, csi = args.tier, args.tier != "none"
+    utf8 = args.utf8 if args.utf8 is not None else detect_utf8(os.environ)
+
+    cols, rows = args.cols, args.rows
+    if is_tty and not args.render and args.cols == 78 and args.rows == 22:
+        try:
+            sz = os.get_terminal_size()
+            cols, rows = min(sz.columns, 80), min(sz.lines - 1, 23)
+        except OSError:
+            pass
+    cols, rows = min(cols, 80), min(rows, 24)
+
+    w, h, lum, rgb = load_source(args.file, args.page, args.dpi)
+    pal = Pal(tier)
+    use_half = args.half and tier == "colour"
+
+    if use_half:
+        body = half_render(w, h, rgb, cols, rows)
+    elif utf8 and tier in ("mono", "colour"):
+        body = braille_render(w, h, lum, cols, rows, tier, pal)
+    else:
+        body = ascii_render(w, h, lum, cols, rows)
+
+    print(body)
+    print(status_line(os.path.basename(args.file), w, h, tier, utf8, use_half, cols))
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
