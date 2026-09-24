@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# xrender -- the shared engine behind every character renderer in the
+# canvas -- the shared engine behind every character renderer in the
 # arsenal (atlas, view): tier detection, the semantic 8-colour palette, and
 # a subpixel Canvas that packs braille (utf8) or plain ascii (not), down to
 # a real vt320 with zero CSI escapes. no third-party library, stdlib only.
@@ -60,6 +60,28 @@ class Pal:
 # --------------------------------------------------------------- canvas ---
 DOTS = [[0x01, 0x08], [0x02, 0x10], [0x04, 0x20], [0x40, 0x80]]  # braille bit order
 
+# DEC Special Graphics line glyphs, picked by which of a cell's 4 sides
+# connect to another line cell. the charset is entered with ESC(0, so these
+# ASCII letters print as box-drawing: q=horizontal, x=vertical, l/k/m/j the
+# four corners, t/u/v/w the tees, n the cross, ~ a lone centred dot. this is
+# the pre-unicode way a real vt320 draws a line -- the whole reason the tier
+# exists, instead of a field of '#'. see pack_dec / to_text's SCS path.
+def _dec_glyph(n, e, s, w):
+    if n and e and s and w: return "n"   # ┼
+    if n and s and e:       return "t"   # ├
+    if n and s and w:       return "u"   # ┤
+    if e and w and n:       return "v"   # ┴
+    if e and w and s:       return "w"   # ┬
+    if n and s:             return "x"   # │
+    if e and w:             return "q"   # ─
+    if s and e:             return "l"   # ┌
+    if s and w:             return "k"   # ┐
+    if n and e:             return "m"   # └
+    if n and w:             return "j"   # ┘
+    if n or s:              return "x"   # │ stub
+    if e or w:              return "q"   # ─ stub
+    return "~"                           # · lone cell
+
 class Canvas:
     """a cols x rows character grid backed by a subpixel bit/owner plane --
     2x4 subpixels per cell for braille (utf8), 1x1 (i.e. no subpixels at all)
@@ -78,6 +100,10 @@ class Canvas:
         self.owner = bytearray(self.W * self.H)  # 0 = untouched, else caller's key
         self.grid = [[" "] * cols for _ in range(rows)]
         self.cell_colour = [[""] * cols for _ in range(rows)]
+        # a cell rendered as a DEC Special Graphics line glyph (pack_dec) is
+        # marked here so to_text wraps it in the SCS charset; everything else
+        # (braille, ascii, an overlaid label) stays False and normal-charset.
+        self.cell_scs = [[False] * cols for _ in range(rows)]
 
     def plot(self, x, y, key):
         if 0 <= x < self.W and 0 <= y < self.H:
@@ -130,17 +156,44 @@ class Canvas:
                         self.grid[cy][cx] = ascii_glyphs[own]
                         self.cell_colour[cy][cx] = colours.get(own, "")
 
+    def pack_dec(self, colours):
+        """pack the 1x1 plane into DEC line glyphs, each chosen by its 4-
+        neighbour connectivity, and mark cell_scs so to_text wraps it in the
+        SCS charset. the real-vt320 path (mono/colour, csi, NOT utf8): braille
+        needs utf8 and the pre-ANSI floor has no SCS, so this sits exactly
+        between them. assumes braille is off (a 1x1 plane); a caller overlaying
+        an ascii label afterwards must clear cell_scs for that cell itself."""
+        cols, rows, W, b = self.cols, self.rows, self.W, self.bits
+        def on(cx, cy):
+            return 0 <= cx < cols and 0 <= cy < rows and b[cy * W + cx]
+        for cy in range(rows):
+            for cx in range(cols):
+                if not b[cy * W + cx]:
+                    continue
+                self.grid[cy][cx] = _dec_glyph(
+                    on(cx, cy - 1), on(cx + 1, cy), on(cx, cy + 1), on(cx - 1, cy))
+                self.cell_scs[cy][cx] = True
+                self.cell_colour[cy][cx] = colours.get(self.owner[cy * W + cx], "")
+
     def to_text(self, tier, reset):
         """the final row assembly: plain and rstripped on tier none (zero
-        escapes, ever), colour-run-length-encoded otherwise -- one reset/
-        set pair per colour change, not per cell."""
+        escapes, ever), otherwise colour-run-length-encoded -- one reset/set
+        pair per colour change, not per cell -- plus, for any cell pack_dec
+        marked, a matching ESC(0/ESC(B charset run so DEC line glyphs print as
+        line-draw while labels stay normal text. the charset tracking is inert
+        when nothing set cell_scs, so braille/ascii output is unchanged."""
+        SO, SI = "\033(0", "\033(B"  # into / out of DEC Special Graphics
         lines = []
         for cy in range(self.rows):
             if tier == "none":
                 lines.append("".join(self.grid[cy]).rstrip())
                 continue
-            out, cur = [], ""
+            out, cur, scs = [], "", False
             for cx in range(self.cols):
+                want_scs = self.cell_scs[cy][cx]
+                if want_scs != scs:
+                    out.append(SO if want_scs else SI)
+                    scs = want_scs
                 c = self.cell_colour[cy][cx]
                 if c != cur:
                     if cur:
@@ -151,5 +204,7 @@ class Canvas:
                 out.append(self.grid[cy][cx])
             if cur:
                 out.append(reset)
+            if scs:
+                out.append(SI)  # never leak the charset past the row
             lines.append("".join(out).rstrip())
         return "\n".join(lines)

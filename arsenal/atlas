@@ -15,11 +15,11 @@
 # arsenal/build-maps.sh. see arsenal/maps.lock for what is on the stick.
 #
 # tier detection, the palette and the subpixel canvas are the shared engine
-# in xrender.py (also used by `view`) -- this file is geojson, projection,
+# in canvas.py (also used by `view`) -- this file is geojson, projection,
 # layers, cities/labels and the interactive loop, all of it map-specific.
 import argparse, glob, gzip, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from xrender import detect_tier, detect_utf8, Pal, Canvas
+from canvas import detect_tier, detect_utf8, Pal, Canvas
 
 # --------------------------------------------------------------- data -----
 def maps_dir():
@@ -129,8 +129,13 @@ def render(data_dir, cols, rows, bbox, tier, utf8):
 
     pal = Pal(tier)
     layer_colour = {LAYER_KEY["border"]: pal.BORDER, LAYER_KEY["water"]: pal.WATER, LAYER_KEY["coast"]: pal.LAND}
-    canvas.pack(ASCII_CH, layer_colour)
-    grid, cell_colour = canvas.grid, canvas.cell_colour
+    # a real vt320 (mono/colour, but not utf8) gets connected DEC line-draw;
+    # braille needs utf8, the pre-ANSI floor (tier none) has no SCS -> ascii.
+    if not braille and tier != "none":
+        canvas.pack_dec(layer_colour)
+    else:
+        canvas.pack(ASCII_CH, layer_colour)
+    grid, cell_colour, cell_scs = canvas.grid, canvas.cell_colour, canvas.cell_scs
 
     # cities: a final overlay pass, own glyph, never mixed into the line grid.
     span = max(e0 - w0, n0 - s0)
@@ -149,6 +154,7 @@ def render(data_dir, cols, rows, bbox, tier, utf8):
         seen_cells.add((cy, cx))
         grid[cy][cx] = "+"
         cell_colour[cy][cx] = pal.MARK
+        cell_scs[cy][cx] = False  # a marker is normal text, not a DEC line glyph
         marks.append((cy, cx, name))
 
     # labels, budgeted: one to the right of its marker, only if it fits and
@@ -166,6 +172,7 @@ def render(data_dir, cols, rows, bbox, tier, utf8):
         for k, ch in enumerate(text):
             grid[cy][start + k] = ch
             cell_colour[cy][start + k] = pal.CITY
+            cell_scs[cy][start + k] = False  # label text stays normal charset
             written.add((cy, start + k))
 
     return canvas.to_text(tier, pal.N)
@@ -173,7 +180,8 @@ def render(data_dir, cols, rows, bbox, tier, utf8):
 # --------------------------------------------------------------- status ---
 def status_line(center, span, tier, utf8, cols):
     lon, lat = center
-    glyphs = "braille" if utf8 and tier in ("mono", "colour") else "ascii"
+    glyphs = ("braille" if utf8 and tier in ("mono", "colour")
+              else "ascii" if tier == "none" else "dec-line")
     s = f"atlas  {lon:.1f},{lat:.1f}  span {span:.0f}d  tier {tier}/{glyphs}"
     return s[:cols]
 

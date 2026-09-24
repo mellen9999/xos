@@ -2846,12 +2846,12 @@ G44EOF
           | "$bb35" ash -n /dev/stdin 2>&1) \
       || { g48=FAIL; printf '    build-arsenal-c.sh INNER block does not parse: %s\n' "$e48" >&2; }
   fi
-  # arsenal/atlas, arsenal/view and the xrender.py engine they both import
+  # arsenal/atlas, arsenal/view and the canvas.py engine they both import
   # are the first-party scripts in this list that are not shell -- ash -n on
   # a python file would reject it for the wrong reason (a bashism check on a
   # language it does not even apply to), so they get the interpreter's own
   # syntax check instead.
-  for f48py in arsenal/atlas arsenal/view arsenal/xrender.py; do
+  for f48py in arsenal/atlas arsenal/view arsenal/canvas.py; do
     [ -f "$f48py" ] || continue
     e48=$(python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" "$f48py" 2>&1) \
       || { g48=FAIL; printf '    %s does not parse: %s\n' "$f48py" "$e48" >&2; }
@@ -4550,10 +4550,10 @@ ci() {
     $chk "$f" 2>/dev/null || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f" >&2; rc=1; }
   done
   [ "$rc" -eq 0 ] && printf '  every script parses\n'
-  # atlas, view and the xrender.py engine are python, not shell -- ash -n
+  # atlas, view and the canvas.py engine are python, not shell -- ash -n
   # would reject them for the wrong reason, so they get the interpreter's
   # own syntax check, same as gates() G48.
-  for f48py in arsenal/atlas arsenal/view arsenal/xrender.py; do
+  for f48py in arsenal/atlas arsenal/view arsenal/canvas.py; do
     [ -f "$f48py" ] || continue
     python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" "$f48py" \
       || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f48py" >&2; rc=1; }

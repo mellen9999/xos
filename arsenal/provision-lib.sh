@@ -12,11 +12,11 @@ populate() {
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-playbook" "$H/tools/arsenal-playbook"  # the how-to
   # the character renderers: first-party python, ship like arsenal/xexec/learn
   # do -- source, not a build-arsenal.sh artifact -- so they are installed
-  # here, not pulled from $ARSENAL below. xrender.py is the shared engine
+  # here, not pulled from $ARSENAL below. canvas.py is the shared engine
   # atlas and view both import; it has to land beside them or neither runs.
   install -m 0755 "${SELF:-$(dirname "$0")}/atlas" "$H/tools/atlas"
   install -m 0755 "${SELF:-$(dirname "$0")}/view" "$H/tools/view"
-  install -m 0644 "${SELF:-$(dirname "$0")}/xrender.py" "$H/tools/xrender.py"
+  install -m 0644 "${SELF:-$(dirname "$0")}/canvas.py" "$H/tools/canvas.py"
   # qr: plain ash, ships the same way -- qrencode itself is a build-arsenal-c.sh
   # artifact and lands beside it through the $ARSENAL loop below, same as any
   # other flat static binary.

@@ -74,7 +74,7 @@ present=""
 for f in "$T"/*; do
   [ -e "$f" ] || continue
   b=$(basename "$f")
-  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas|view|xrender.py|qr) continue ;; esac
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas|view|canvas.py|qr) continue ;; esac
   present="$present $b "
   d=$(desc "$b")
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"

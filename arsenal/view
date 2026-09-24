@@ -2,7 +2,7 @@
 # view -- tier-aware image/pdf viewer. any picture or pdf page as characters:
 # braille dither where the terminal is utf8, an ascii ramp where it is not,
 # zero escapes on the pre-ANSI floor -- same ladder as `atlas`, same engine
-# (xrender.py). a pdf/png/jpeg goes through the carried mutool first; a raw
+# (canvas.py). a pdf/png/jpeg goes through the carried mutool first; a raw
 # PNM (what mutool itself emits) is read directly, which is also the offline
 # test path -- no mutool needed to prove the renderer works.
 #
@@ -15,7 +15,7 @@
 # the doctrine. off by default; only reachable on the colour tier.
 import argparse, os, shutil, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from xrender import detect_tier, detect_utf8, Pal, Canvas
+from canvas import detect_tier, detect_utf8, Pal, Canvas
 
 # ------------------------------------------------------------------ pnm ---
 def _tokens(d, i):
