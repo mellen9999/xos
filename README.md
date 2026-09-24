@@ -43,6 +43,7 @@ one is attached.
     ./build.sh repro              rebuild a clean clone, compare to the pin
     ./build.sh crepro             the same, inside the pinned toolchain (docker)
     ./build.sh reseal             change the signing-key passphrase
+    ./build.sh sign EFI          db-sign a second os's efi (see docs/carrier.md)
 
 ## the chain
 
