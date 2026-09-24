@@ -2395,6 +2395,7 @@ TODO: write this entry by hand.
 #   G62 every row of learn/bashisms is a construct this shell really lacks
 #   G63 the levels ask you to put two commands together, and keep asking
 #   G64 clone is guarded and proves the spare is a faithful copy
+#   G65 every carried map layer is pinned by sha256 and licensed public-domain
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2844,6 +2845,14 @@ G44EOF
     e48=$(awk "/<<'INNER'/{f=1;next} /^INNER\$/{f=0} f" arsenal/build-arsenal-c.sh \
           | "$bb35" ash -n /dev/stdin 2>&1) \
       || { g48=FAIL; printf '    build-arsenal-c.sh INNER block does not parse: %s\n' "$e48" >&2; }
+  fi
+  # arsenal/atlas is the one first-party script in this list that is not
+  # shell -- ash -n on a python file would reject it for the wrong reason
+  # (a bashism check on a language it does not even apply to), so it gets
+  # the interpreter's own syntax check instead.
+  if [ -f arsenal/atlas ]; then
+    e48=$(python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" arsenal/atlas 2>&1) \
+      || { g48=FAIL; printf '    arsenal/atlas does not parse: %s\n' "$e48" >&2; }
   fi
   g "G48 remaining first-party scripts parse" "$g48"
 
@@ -3782,6 +3791,45 @@ G51
   fi
   g "G61 carried books pinned and licensed" "$g61"
 
+  # G65 -- the same shape as G61, one gate later: the vector atlas is the
+  # second payload on the XOS-KNOW stick with a provenance claim to check,
+  # even though every layer here carries the same licence. a closed set of
+  # one is still a closed set -- the day a non-public-domain layer gets added
+  # by habit (copy a books.sh row, change five fields, forget the licence is
+  # different this time) is exactly the day this earns its keep.
+  local g65=ok mps=arsenal/build-maps.sh mlk=arsenal/maps.lock m_raw m_body m_bad
+  if [ -f "$mps" ]; then
+    m_body=$(awk '/^MAPS="$/{s=1;next} s&&/^"$/{s=0} s' "$mps" | grep -v '^$' || true)
+    m_raw=$(awk '/^fetch\(\) \{/{s=1} s&&/^}/{s=0;next} !s' "$mps" \
+            | grep -vE '^[[:space:]]*#' \
+            | grep -nE '(^[[:space:]]*|[;&|(][[:space:]]*)(wget|curl)[[:space:]]|git[[:space:]]+clone' || true)
+    [ -z "$m_raw" ] || { g65=FAIL; printf '    map layer fetched outside the pinned helper:\n%s\n' "$m_raw" >&2; }
+    m_bad=$(printf '%s\n' "$m_body" | awk -F'\t' '
+      BEGIN { ok["public-domain"] = 1; rows = 0 }
+      { rows++ }
+      NF != 6 { printf "    %s: %d tab-separated fields, want 6\n", $1, NF; next }
+      $4 !~ /^[0-9a-f][0-9a-f]*$/ || length($4) != 64 {
+        printf "    %s: sha256 is not 64 hex digits\n", $1 }
+      !($5 in ok) {
+        printf "    %s: licence %s is not in the reviewed set\n", $1, ($5 == "" ? "<empty>" : $5) }
+      END { if (rows < 1) print "    build-maps.sh lists no layers" }')
+    [ -z "$m_bad" ] || { g65=FAIL; printf '%s\n' "$m_bad" >&2; }
+    # the lock is an attestation of a staging run, so it may be OLDER than the
+    # script and shorter than it. it may never be newer in content.
+    if [ -f "$mlk" ]; then
+      m_bad=$(awk -v mps="$mps" '
+        BEGIN { while ((getline l < mps) > 0) if (match(l, /\t[0-9a-f]{64}\t/))
+                  pinned[substr(l, RSTART + 1, 64)] = 1 }
+        /^#/ || /^$/ { next }
+        !($3 in pinned) { printf "    maps.lock claims %s at a sha build-maps.sh does not pin\n", $1 }
+      ' "$mlk")
+      [ -z "$m_bad" ] || { g65=FAIL; printf '%s\n' "$m_bad" >&2; }
+    fi
+  else
+    g65=FAIL; printf '    %s is missing\n' "$mps" >&2
+  fi
+  g "G65 carried maps pinned and licensed" "$g65"
+
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are
   # the ones the roster names. the count catches a truncated run and a gate
@@ -4500,6 +4548,12 @@ ci() {
     $chk "$f" 2>/dev/null || { printf '  \033[1;31mparse FAIL\033[0m %s\n' "$f" >&2; rc=1; }
   done
   [ "$rc" -eq 0 ] && printf '  every script parses\n'
+  # arsenal/atlas is python, not shell -- ash -n would reject it for the wrong
+  # reason, so it gets the interpreter's own syntax check, same as gates() G48.
+  if [ -f arsenal/atlas ]; then
+    python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" arsenal/atlas \
+      || { printf '  \033[1;31mparse FAIL\033[0m arsenal/atlas\n' >&2; rc=1; }
+  fi
   # the reproducible-build toolchain is only reproducible if repro/Dockerfile
   # pins its inputs by content: a base image by digest (never a moving tag) and
   # a frozen Arch archive day (never the live mirror). crepro rests on both, so

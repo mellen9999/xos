@@ -10,6 +10,10 @@ populate() {
   install -m 0755 "${SELF:-$(dirname "$0")}/arsenal" "$H/tools/arsenal"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-catalog" "$H/tools/arsenal-catalog"
   install -m 0644 "${SELF:-$(dirname "$0")}/arsenal-playbook" "$H/tools/arsenal-playbook"  # the how-to
+  # the map reader: first-party python, ships like arsenal/xexec/learn do --
+  # source, not a build-arsenal.sh artifact -- so it is installed here, not
+  # pulled from $ARSENAL below. the data it reads rides XOS-KNOW, not p3.
+  install -m 0755 "${SELF:-$(dirname "$0")}/atlas" "$H/tools/atlas"
   # the graded school (arsenal learn): the engine + its libs, pools, phrases and
   # levels. reads them relative to its own dir, so all under $H/tools.
   S="${SELF:-$(dirname "$0")}"

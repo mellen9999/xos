@@ -408,6 +408,7 @@ is the post-build attestation, source + sha256:
 | age | encrypt/decrypt a file -- modern, no gpg keyring, passphrase or keypair |
 | dvtm | suckless terminal multiplexer -- split panes atop abduco, no server |
 | rsync | sync/backup over ssh -- delta transfer, resumable |
+| atlas | offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal |
 | python | full cpython 3.12 -- scripting, a repl, `http.server` |
 | sqlmap | automated sql-injection detection and exploitation |
 | impacket | windows/ad attack suite -- secretsdump, ntlmrelayx, psexec, kerberos (70 tools, pure-python) |
@@ -546,11 +547,11 @@ the zims are reference payload you populate yourself.
 | wikipedia | offline zim -- `kiwix-search` from the cli, or `kiwix-serve` + `links` | you supply |
 | where-there-is-no-doctor | field medicine when there's no signal and no clinic | you supply |
 | ifixit | hardware repair guides for the field | you supply |
-| maps | offline map zims | you supply |
+| `maps` | natural earth vector coastlines/borders/rivers/places, rendered by `atlas` | staged + pinned |
 | `games/if` | the interactive fiction frotz plays | staged + pinned |
 | `books` | the reference shelf -- c, python, the shell, sockets, git, sicp | staged + pinned |
 
-xos stages two of these. the game library, because morale is a supply and interactive
+xos stages three of these. the game library, because morale is a supply and interactive
 fiction is the one genre a text-only box runs natively. `arsenal/build-games.sh`
 fetches the freeware stories from the IF Archive, verifies each against a sha256 pin
 and writes `arsenal/games.lock` -- infocom's zork is still copyright, so you drop
@@ -571,6 +572,21 @@ not free to CARRY -- k&r, ostep, crafting interpreters -- are yours to add by ha
 the same rule as zork. 36 MB fetched, ~50 MB on the stick once the python text tree
 is expanded. the console has no pdf renderer, so read them with the arsenal's
 mutool: `mutool draw -F txt books/modern-c.pdf | less`.
+
+and the vector atlas, because xos is text-first behind a serial vt320 -- zero
+pixels, pre-unicode on the bottom tier -- and a raster map tile is dead weight
+there. a vector line is not, because `atlas` rasterizes it itself, onto a
+character grid, at whatever tier the terminal actually has. `arsenal/build-maps.sh` stages ten Natural Earth
+layers into `maps/` -- coastlines, country borders, rivers, lakes and named places,
+at two zoom resolutions (1:110m and 1:50m) -- each pinned by sha256 and recorded in
+`arsenal/maps.lock`. Natural Earth is public domain, so unlike books.lock there is
+only one licence in the column, and gate G65 still checks it is that one. 11 MB
+fetched, 3 MB staged (gzipped). `atlas` reads it: braille dots where the terminal
+is utf8, plain `#` where it is not, colour on top of either where the terminal has
+it, zero escape bytes at all on the pre-ANSI floor. `atlas` alone opens the whole
+world, interactive, vim keys to pan and zoom; `atlas paris` opens centred on a
+match; `atlas --render --bbox=-10,35,40,60` renders once and exits, for a pager or
+a slow line.
 
 carried binaries can't run from noexec p3 directly -- `arsenal/xexec` opens a
 single-use exec surface: tmpfs mounted exec, the tool copied in, the mount flipped
@@ -606,8 +622,9 @@ gobuster, chisel, ligolo), `arsenal/build-arsenal-c.sh` (the static-musl C tools
 masscan, tcpdump, socat, nmap, hydra, john, and the rest), `arsenal/build-python.sh`
 (carried python + sqlmap + impacket). the knowledge: `arsenal/build-wordlists.sh`,
 `arsenal/build-docs.sh`, `arsenal/build-kiwix.sh`, and `arsenal/build-games.sh` +
-`arsenal/build-books.sh` for the if library and the reference shelf onto the
-XOS-KNOW stick. each is optional and pinned; run whichever you carry. then
+`arsenal/build-books.sh` + `arsenal/build-maps.sh` for the if library, the
+reference shelf and the vector atlas onto the XOS-KNOW stick. each is optional
+and pinned; run whichever you carry. then
 `arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the arsenal
 (it prints `no arsenal ... run build-arsenal.sh first` if you skipped the builds) --
 write-protect off (work mode) first, since p3 has to be writable. idempotent --

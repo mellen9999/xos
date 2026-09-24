@@ -28,6 +28,7 @@ runform() {
     sqlmap)   echo "sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/sqlmap/sqlmap.py" ;;
     python)   echo "sh ~/tools/xexec -t ~/tools/python bin/python3" ;;
     cc)       echo "sh ~/tools/xexec -t ~/tools/cc cc" ;;
+    atlas)    echo "sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/atlas" ;;
     *)        echo "sh ~/tools/xexec $1" ;;
   esac
 }
@@ -71,7 +72,7 @@ present=""
 for f in "$T"/*; do
   [ -e "$f" ] || continue
   b=$(basename "$f")
-  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases) continue ;; esac
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas) continue ;; esac
   present="$present $b "
   d=$(desc "$b")
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"
@@ -107,6 +108,7 @@ printf '  kiwix-serve  serve zims:  ~/tools/xexec kiwix-serve --port 8080 /run/m
 printf '  mutool       read a pdf:  ~/tools/xexec mutool draw -F txt FILE.pdf | less\n'
 printf '  links        browse the served zim or any html/http\n'
 printf '  frotz        play interactive fiction:  ~/tools/xexec frotz /run/media/*/XOS-KNOW/games/if/spider-and-web.z5\n'
+printf '  atlas        the world in characters:  ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/atlas\n'
 
 # wordlists/ and docs/ ride beside tools/ on p3, staged by build-wordlists.sh
 # and build-docs.sh (never auto-populated like tools/ is from a lock, since

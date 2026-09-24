@@ -151,3 +151,7 @@ dvtm	ctrl-\                                                # detach the whole se
 rsync	rsync -avz src/ user@HOST:dest/                       # push, delta transfer
 rsync	rsync -avz --delete user@HOST:src/ dest/              # pull, mirror exactly
 rsync	rsync -avzP src dest                                  # resumable, show progress
+atlas	atlas                                                 # interactive world map, tier auto-detected
+atlas	atlas paris                                           # interactive, centred on a place
+atlas	atlas --render --bbox=-10,35,40,60                    # one static render, e.g. for a pager
+atlas	/ then a name, n/N next/prev match, g lon,lat, ? help, q quit

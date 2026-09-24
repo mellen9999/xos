@@ -43,3 +43,4 @@ minisign	sign/verify a file -- ed25519, one binary, no gpg trust model
 age	encrypt/decrypt a file -- modern, no gpg keyring, passphrase or keypair
 dvtm	suckless terminal multiplexer -- split panes, no server, no config
 rsync	sync/backup over ssh -- delta transfer, resumable
+atlas	offline vector atlas -- renders natural-earth maps as characters, braille to ascii, on any terminal
