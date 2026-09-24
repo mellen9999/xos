@@ -1,0 +1,291 @@
+# cards -- what you know, and when you have to prove it again.
+#
+# every distinct prompt is a card. it carries a REPS count -- how many times
+# running you have got it right -- and the ladder below turns that into the
+# interval before it comes back: 1 day, 7, 16, 35, 75, then half again each
+# rung to a 180-day ceiling. answer it right and the interval grows; miss it
+# and a rep goes and the interval collapses back down the ladder. a card is
+# DUE when its due stamp has passed, and `learn review` asks the due ones.
+#
+# that is the difference between a campaign and a skill. the old model was
+# three tiers and a flat thirty-day trapdoor: finish the levels and nothing
+# was ever scheduled again, and a card you had proved fifty times sat under
+# the same clock as one you saw yesterday.
+#
+# tier is kept, derived from reps: 0 unseen, 1 learning, 2 mastered. it is
+# what `held` and the gauntlet gate read, and it stays field 2 so every
+# reader of this file that only wants "do they have it" is untouched.
+#
+# a card promotes at most once per session, so mastery costs two sittings and
+# cannot be farmed in one -- and the first interval is a day, so it could not
+# come back today even without that rule.
+#
+# the number still goes down when you stop. a card left more than GRACE_DAYS
+# past its own due date loses a rep, once, and is re-stamped. a fragile card
+# erodes in a fortnight; one proved to 180 days has most of a year of runway.
+# the skill decays, so the number does too -- but each at its own rate.
+#
+# storage is one line per card, tab-separated, in a file on p3 when p3 is
+# unlocked and in tmpfs when it is not:
+#
+#   key  tier  stamp  due  ivl  reps  lapses
+#
+# no arrays: awk owns the file. the separator is a tab and not a space
+# because the key is a whole question template -- it is full of spaces, and
+# splitting on them silently truncated every lookup to the first word.
+# a three-field row written by an older build is normalised in place on the
+# next launch (norm(), below), resuming its clock from when it was last
+# proved rather than arriving overdue.
+
+CARDS="$STATE/cards"
+# not $TMP/seen -- order() owns that name for its introduced-commands ledger,
+# and a long-lived process (review, challenge) runs both code paths.
+SESSION_SEEN="$TMP/session"
+GRACE_DAYS=14
+
+cards_init() {
+	mkdir -p "$STATE" 2>/dev/null || :
+	: > "$SESSION_SEEN"
+	[ -f "$CARDS" ] || : > "$CARDS" 2>/dev/null || :
+}
+
+# every rewrite of the card file goes through a same-directory rename (a cp
+# or a cross-device mv is a truncate followed by a write, and the tether can
+# cut power between the two) and under a lock (two consoles each running
+# learn used to rewrite the whole file from their own copy, last one wins).
+# flock is a shipped applet; where it is missing the rename alone still holds.
+#
+# the braces are load-bearing: a redirection on a bare `exec` applies to the
+# SHELL, permanently. `exec 8>>f 2>/dev/null` sent this process's stderr to
+# /dev/null for the rest of its life -- every die, every selftest FAIL line,
+# gone from the first lock onward, leaving a bad count with no reason beside
+# it. inside a group the redirection lasts only as long as the group.
+_cards_lock()   { { exec 8>>"$CARDS.lock"; } 2>/dev/null && flock -x 8 2>/dev/null; :; }
+_cards_unlock() { flock -u 8 2>/dev/null; { exec 8>&-; } 2>/dev/null; :; }
+
+# a card is keyed by the TEMPLATE, not the rendered prompt. the roll changes
+# the filenames every time; what you are learning is the shape of the question,
+# so `list %dir% in long format` is one card however it renders.
+# the backtick is struck off with the tab: it is markup, not wording. a card
+# whose prompt gains a `mktemp` is the same card it was the day before, and
+# keying on the raw line would have orphaned every SRS row in the ledger the
+# moment the corpus was marked up.
+card_key() { printf '%s/%s#%s' "$1" "$2" "$3" | tr -d '\t`'; }
+
+card_tier() {
+	[ -f "$CARDS" ] || { echo 0; return; }
+	awk -F'\t' -v k="$1" '$1 == k { print $2; found = 1; exit } END { if (!found) print 0 }' "$CARDS"
+}
+
+now() { date +%s 2>/dev/null || echo 0; }
+
+# the ladder, written once. the grade path and the erosion path must agree on
+# what a rep is worth, and two copies of a table is two tables -- so both awk
+# programs below are handed this same text.
+#
+# the growth is integer all the way: 23/10 with int() is the 2.3x that takes
+# 75 days to 172 to the 180-day ceiling, without ash ever seeing a fraction
+# ($(( )) has no floats; awk does, and every field written back is int()).
+_CARD_FNS='
+	function ivl_for(r,   v, i) {
+		if (r <= 0) return 0
+		if (r == 1) return 1
+		if (r == 2) return 7
+		if (r == 3) return 16
+		if (r == 4) return 35
+		if (r == 5) return 75
+		v = 75; i = 5
+		while (i < r) { v = int(v * 23 / 10); if (v > 180) v = 180; i++ }
+		return v
+	}
+	function tier_for(r) { return r <= 0 ? 0 : (r == 1 ? 1 : 2) }
+	# norm -- read the current row into due/ivl/reps/lap, whichever build
+	# wrote it. a three-field row predates the schedule: it resumes its clock
+	# from the last time it was PROVED, so a card mastered last week is due
+	# next week and not the moment the new build first runs.
+	function norm() {
+		if ($4 == "") {
+			reps = ($2 + 0 >= 2 ? 2 : $2 + 0)
+			ivl  = ivl_for(reps)
+			due  = $3 + ivl * 86400
+			# the new terms start NOW, never backdated. the old rule gave any
+			# card thirty days from its last proof; this one gives it its own
+			# interval plus a fortnight, which for a learning card is fifteen
+			# days rather than thirty. reading a stamp from before the
+			# schedule through the shorter window would take a tier -- or
+			# drop the row outright, which is not recoverable -- for time
+			# that was free when it was spent. so a migrated row arrives DUE,
+			# which it honestly is, and never arrives already eroded.
+			if (due < n) due = n
+			lap  = 0
+		} else {
+			due = $4 + 0; ivl = $5 + 0; reps = $6 + 0; lap = $7 + 0
+		}
+	}
+'
+
+# card_grade KEY RIGHT -- climb or fall one rung, at most one climb per
+# session. one awk pass under one lock: reading the row and writing it back
+# through two separate lock cycles is the race the lock was taken for.
+card_grade() {
+	local k=$1 right=$2 tmp="$CARDS.tmp.$$" n
+	[ -f "$CARDS" ] || : > "$CARDS"
+	if [ "$right" = 1 ]; then
+		grep -qxF -- "$k" "$SESSION_SEEN" 2>/dev/null && return 0
+		echo "$k" >> "$SESSION_SEEN"
+	fi
+	n=$(now)
+	_cards_lock
+	awk -F'\t' -v OFS='\t' -v k="$k" -v right="$right" -v n="$n" "$_CARD_FNS"'
+		$1 == k {
+			found = 1
+			norm()
+			if (right == 1) reps++
+			else { if (reps > 0) reps--; lap++ }
+			ivl = ivl_for(reps)
+			# reps 0 is forgotten: the row leaves the file entirely, which is
+			# what tier 0 has always meant.
+			if (tier_for(reps) > 0) print k, tier_for(reps), n, n + ivl * 86400, ivl, reps, lap
+			next
+		}
+		{ print }
+		# a card missed the first time it is ever seen stays unseen -- that is
+		# what the old model did, and a row at tier 0 is a row about nothing.
+		END { if (!found && right == 1) print k, 1, n, n + 86400, 1, 1, 0 }
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	_cards_unlock
+}
+
+# cards_decay -- run once at startup. two jobs, one pass, because both are
+# "bring every row up to date with the calendar":
+#
+#   normalise a row an older build wrote, resuming its clock from its stamp
+#   erode a row left more than GRACE_DAYS past its own due date
+#
+# the erosion re-stamps the due date. without that, the same staleness took
+# another rep at every launch -- the bug the old flat decay had and fixed the
+# same way, and the reason this rewrites `due` rather than reading `stamp`.
+cards_decay() {
+	[ -s "$CARDS" ] || return 0
+	local tmp="$CARDS.tmp.$$" n
+	n=$(now)
+	_cards_lock
+	awk -F'\t' -v OFS='\t' -v n="$n" -v grace="$(( GRACE_DAYS * 86400 ))" "$_CARD_FNS"'
+		{
+			norm()
+			stamp = $3
+			if (n - due > grace) {
+				if (reps > 0) reps--
+				ivl = ivl_for(reps)
+				due = n
+				stamp = n
+			}
+			if (tier_for(reps) > 0) print $1, tier_for(reps), stamp, due, ivl, reps, lap
+		}
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+	_cards_unlock
+}
+
+# cards_due -- the rows whose due stamp has passed, soonest-due first. this is
+# the queue: what the schedule says you owe today, in the order it fell due.
+cards_due() {
+	[ -s "$CARDS" ] || return 0
+	awk -F'\t' -v n="$(now)" "$_CARD_FNS"'
+		{ norm(); if (due <= n) print }
+	' "$CARDS" 2>/dev/null | sort -t "$(printf '\t')" -k4,4n
+}
+
+# the count alone, without building and sorting the queue to throw it away --
+# the menu redraws this on every keypress.
+cards_ndue() {
+	[ -s "$CARDS" ] || { echo 0; return 0; }
+	awk -F'\t' -v n="$(now)" "$_CARD_FNS"'
+		{ norm(); if (due <= n) c++ }
+		END { print c + 0 }
+	' "$CARDS" 2>/dev/null
+}
+
+# cards_leeches MIN -- the cards that keep getting away, worst first, as
+# "lapses<TAB>key".
+#
+# a lapse is a card answered wrong AFTER having been right, and it is the one
+# thing a tier cannot tell you: two cards both sitting at tier 1 are not the
+# same card if one of them has fallen back six times and the other once. the
+# tier says where you are, the lapse count says what keeps taking you back
+# there.
+#
+# erosion is deliberately not a lapse. letting a card rot is not getting it
+# wrong, and counting it would fill this list with everything you simply have
+# not seen lately -- which is what the due queue is already for.
+#
+# it reads on the questions as much as on the learner: a card a lot of people
+# lapse is usually not a fact nobody can hold, it is a distinction the corpus
+# is drawing badly.
+cards_leeches() {
+	[ -s "$CARDS" ] || return 0
+	awk -F'\t' -v OFS='\t' -v m="$1" '$7 + 0 >= m + 0 { print $7 + 0, $1 }' "$CARDS" 2>/dev/null \
+		| sort -t "$(printf '\t')" -k1,1nr
+}
+
+# weakest first: lowest tier, then longest unproved. the tier is already
+# field 2 of every line -- sorting on it directly beats a card_tier lookup
+# per line (that early version forked an awk for every card).
+cards_sort_weak() {
+	sort -t "$(printf '\t')" -k2,2n -k3,3n
+}
+
+# ---- held: mastery that is current, not remembered ------------------------
+#
+# a level is PASSED the moment its boss falls, once, for good. that is a
+# record of something you did and it is never taken back. HELD is the other
+# question -- do you still have it -- and it is the one "completed the
+# curriculum" should have been asking all along: beat thirty bosses once,
+# let every card rot to tier 0, and the banner still called you done.
+#
+# held_scan -- "<level-id> <mastered> <cards>" per level, one pass.
+#
+# the card key is <level-id>/<block-index>#<raw q: template> (card_key), and
+# the block index is positional. a q: reworded, or a card inserted rather
+# than appended, leaves a key no block answers to. those orphans are skipped
+# at read but stats counted them by key PREFIX, which is how a level could
+# report 35/33 -- and why a prefix count can never decide held. so the key is
+# rebuilt from the level file and joined against the ledger. an orphan then
+# contributes to neither side, which is the only reading under which
+# mastered == cards means what it says.
+# the key list is the corpus half of that join, and the corpus cannot change
+# while learn runs: built once, it turns every later scan from thirty-one file
+# opens and 300k of level text into one file the size of the questions alone.
+# the menu redraws held on every keypress, and on a stick those opens are what
+# you were waiting for.
+KEYS="$TMP/keys"
+held_keys() {
+	[ -s "$KEYS" ] || awk -v OFS='\t' '
+		function flush() {
+			if (blk > 0) { k = id "/" blk "#" q; gsub(/[\t`]/, "", k); print id, k }
+			q = ""
+		}
+		FNR == 1 { flush(); n = split(FILENAME, p, "/"); id = p[n]; blk = 0 }
+		/^---$/  { flush(); blk++; next }
+		/^q:/    { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
+		END      { flush() }
+	' "$LEVELS"/* > "$KEYS" 2>/dev/null
+	return 0
+}
+
+held_scan() {
+	held_keys
+	# which file a row came from is asked by name, not by NR == FNR: the ledger
+	# is empty on a fresh install, and that idiom reads the next file's rows as
+	# the empty one's.
+	awk -F'\t' -v cf="$CARDS" '
+		FILENAME == cf { tier[$1] = $2; next }
+		{ nq[$1]++; if (tier[$2] == 2) m[$1]++ }
+		END { for (i in nq) print i, m[i] + 0, nq[i] }
+	' "$CARDS" "$KEYS" 2>/dev/null
+}
+
+# held_ids -- the levels whose every card is at tier 2 right now. cards_decay
+# has already run at startup, so the tiers this reads are current by the time
+# anything asks.
+held_ids()      { held_scan | awk '$3 > 0 && $2 == $3 { print $1 }' | sort; }
+level_is_held() { held_ids | grep -qxF -- "$1"; }

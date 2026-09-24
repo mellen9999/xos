@@ -1,0 +1,469 @@
+# grade -- decide whether an answer is correct.
+#
+# three tiers, cheapest first:
+#
+#   1. text match against the listed answers, after normalisation
+#   2. RUN IT. the answer executes in the sandbox and is judged on its output.
+#
+# tier 2 is the one that matters. a listed-answer quiz can only accept the
+# phrasings its author happened to think of, which teaches you to guess the
+# author instead of the machine. running the answer means `sort -u` and
+# `sort | uniq` both pass because both are correct, and it means a question
+# has no wrong-but-unlisted answers to apologise for.
+#
+# xos is the reason this is safe to do at all. root is a read-only squashfs,
+# the sandbox is a directory in tmpfs, and on the image the answer runs as
+# `nobody` (see fixtures: DROP), so the worst it can reach is a tree learn
+# rebuilds on demand. upstream needs bubblewrap for this; here the isolation
+# is the operating system.
+
+# ---- normalisation --------------------------------------------------------
+#
+# upstream folds --ignore-case to -i, because GNU coreutils accepts both. this
+# build does not: busybox rejects --ignore-case, --lines and --all outright.
+# porting that table would accept answers that do not run on the machine the
+# lesson is teaching, so there is no long-flag fold here. the 31 long options
+# the corpus does document (--spider, --strip-components) are long-ONLY -- they
+# have no short form to fold to.
+
+# uncat -- `cat F | filter` is graded as the direct form the lesson teaches.
+# two folds, by how the filter names its input:
+#   filters that take a trailing filename (grep, sort, cut) -> `filter ... F`
+#   filters that only read stdin, or that decorate output with the filename
+#   (tr, wc) -> `filter ... < F`. wc from an argument prints "N file" but from
+#   stdin prints "N", so the redirect form is the one that matches.
+# and the other way for wc alone: `wc -l F` is graded as `wc -l < F`. the
+# two differ only in the trailing filename wc prints, which is decoration;
+# folding it lets a count question be reference-graded (cmp: ref) with one
+# canonical output, while the form everyone actually types still passes.
+uncat() {
+	# # delimits these, not |: the pattern needs a literal pipe AND ERE
+	# alternation, and | cannot be all three at once.
+	sed -E '
+	  s#^cat[[:space:]]+([^ |<>&;]+)[[:space:]]*[|][[:space:]]*(wc|tr)([[:space:]].*)?$#\2\3 < \1#
+	  s#^cat[[:space:]]+([^ |<>&;]+)[[:space:]]*[|][[:space:]]*([a-z]+)([[:space:]].*)?$#\2\3 \1#
+	  s#^wc((( |\t)-[a-zA-Z]+)*)( |\t)+([^ |<>&;-][^ |<>&;]*)$#wc\1 < \5#
+	'
+}
+
+# flagnorm -- one command, several spellings, one canonical form.
+#
+# `tar xzf a.tgz`, `tar -zxf a.tgz` and `tar -xzf a.tgz` are the same command.
+# so are `cmp -n10` and `cmp -n 10`, `ls -lh` and `ls -l -h`. before this, each
+# spelling an author failed to list was simply wrong -- and 371 of the corpus's
+# 892 cards never run, so for those the listed strings ARE the definition of
+# correct. hand-listing every variant only ever covers the ones someone thought
+# of; folding them covers the ones nobody did.
+#
+# the fold: split every bundle into single flags, join every flag to its value,
+# and stable-sort the flag run by letter. it runs over the typed answer and the
+# listed answers alike, so it cannot make a wrong answer right -- only two
+# spellings of the SAME command can meet.
+#
+# which letters bundle, and which take a value, comes from the command's own
+# ref page, which is busybox's --help verbatim: `-n NUM` takes a value, `-l`
+# does not. that is what keeps `find . -name '*.log'` alone -- find documents
+# no -n, -a, -m or -e, so -name is not a bundle and is passed through
+# untouched. a command with no page, or one letter unaccounted for, folds
+# nothing. (learn's flags_of asks a different question of the same pages --
+# every spelling a flag has, for coverage -- and needs no value arity.)
+#
+# tar is the one command whose subcommand is a bare operand in the usage line
+# (`tar c|x|t [-zJjahmvokO]`), so its c/x/t are seeded as flags by hand.
+flagnorm() {
+	awk -v ref="$REF" '
+		function loadref(c,   f, l) {
+			if (c in seen) return
+			seen[c] = 1
+			f = ref "/" (c == "." ? "dot" : c)
+			while ((getline l < f) > 0) {
+				if (l ~ /^\t-[A-Za-z] [A-Z]+[ \t]/)  val[c substr(l, 3, 1)] = 1
+				else if (l ~ /^\t-[A-Za-z][ \t]/)   bool[c substr(l, 3, 1)] = 1
+			}
+			close(f)
+			if (c == "tar") { bool["tarc"] = 1; bool["tarx"] = 1; bool["tart"] = 1 }
+		}
+		# flush -- emit the flag run collected so far, sorted by letter. the
+		# sort is a stable insertion sort: two -e keep the order they were
+		# typed in, which is the order sed applies them in.
+		function flush(   i, j, t) {
+			for (i = 2; i <= fn; i++) {
+				t = fu[i]
+				for (j = i - 1; j >= 1 && substr(fu[j], 2, 1) > substr(t, 2, 1); j--) fu[j + 1] = fu[j]
+				fu[j + 1] = t
+			}
+			for (i = 1; i <= fn; i++) out = out " " fu[i]
+			fn = 0
+		}
+		{
+			n = split($0, t, " "); cmd = ""; out = ""; fn = 0
+			for (i = 1; i <= n; i++) {
+				tok = t[i]
+				if (tok == "|" || tok == ";" || tok == "&&" || tok == "||") {
+					flush(); cmd = ""; out = out " " tok; continue
+				}
+				if (cmd == "") { cmd = tok; loadref(cmd); out = (out == "" ? tok : out " " tok); continue }
+				body = ""
+				if (tok ~ /^-[A-Za-z][A-Za-z0-9,.:=+-]*$/ && tok !~ /^--/) body = substr(tok, 2)
+				else if (cmd == "tar" && fn == 0 && tok ~ /^[cxt][A-Za-z]*$/) body = tok
+				if (body != "") {
+					ok = 1; un = 0; delete u
+					for (j = 1; j <= length(body); j++) {
+						ch = substr(body, j, 1)
+						if (cmd ch in val) {
+							rest = substr(body, j + 1)
+							if (rest == "" && i < n) { rest = t[i + 1]; i++ }
+							# \001 joins a flag to its value. no answer can
+							# contain it, and unlike a space or a tab it cannot
+							# be confused with a field separator downstream, so
+							# a reader always knows which token is a value and
+							# which is the next argument along.
+							u[++un] = "-" ch "\001" rest
+							break
+						}
+						if (cmd ch in bool) { u[++un] = "-" ch; continue }
+						ok = 0; break
+					}
+					if (ok && un > 0) { for (j = 1; j <= un; j++) fu[++fn] = u[j]; continue }
+				}
+				flush(); out = out " " tok
+			}
+			flush(); print out
+		}
+	'
+}
+
+norm() {
+	tr -s ' \t' ' ' | sed 's/^ //; s/ $//' | uncat |
+		tr -s ' ' ' ' | sed 's/^ //; s/ $//'
+}
+
+# ---- running the answer ---------------------------------------------------
+
+# unsafe -- should this answer be graded on its text instead of by running it?
+#
+# the first cut of this blacklisted rm/mv/dd, which was wrong: those are what
+# the file lessons TEACH, and refusing to run them means the one command whose
+# whole effect is a mutation is the one never judged on its mutation.
+#
+# the second cut refused every absolute path, which was also wrong: reading
+# /proc/cmdline is most of what makes this xos's curriculum and not a generic
+# shell quiz. reading out is harmless.
+#
+# what is actually unsafe is WRITING out. the answer runs with cwd inside a
+# disposable tmpfs tree, so scribbling there is free; the rule is that nothing
+# may modify anything outside it. reads go anywhere, writes stay home.
+#
+# this is a fence, not the wall. it is a token scan over a full shell language
+# and can be talked past (a loop, a here-doc, a command name in a variable);
+# what it buys is a fast, explained "no" for the shapes a learner types by
+# accident. the wall is the privilege drop in fixtures: on the image the
+# answer runs as nobody, and file permissions do the refusing.
+unsafe() {
+	awk '
+		BEGIN {
+			split("rm mv cp ln chmod chown tee touch mkdir rmdir dd shred truncate", w, " ")
+			for (i in w) writer[w[i]] = 1
+			# these run whatever follows them: the command they wrap is the
+			# one to judge (xargs rm /x, sh -c "rm /x", timeout 5 rm /x)
+			# exec and eval belong here too: exec rm -rf /x and eval rm /x both
+			# reach the real command, and the fence judged exec/eval instead.
+			split("xargs env timeout nohup setsid sh ash nice exec eval", wr, " ")
+			for (i in wr) wrapper[wr[i]] = 1
+			split("mkfs mke2fs mkdosfs mkswap swapon swapoff cryptsetup fdisk losetup" \
+			      " umount blockdev sync halt reboot poweroff udhcpc dropbearkey", b, " ")
+			for (i in b) banned[b[i]] = 1
+			# signal senders reach live processes; only their -l listing form
+			# (read-only: names and numbers) may run
+			split("kill pkill killall", s, " ")
+			for (i in s) sig[s[i]] = 1
+		}
+		# a path that leaves the sandbox, however it is dressed: absolute,
+		# home-relative, or through a variable that expands to home. the
+		# sandbox exports no HOME of its own, so $HOME is the real one.
+		function esc(t) {
+			sub(/^["\047]/, "", t)
+			if (t ~ /^[\/~]/)           return 1
+			if (t ~ /^\$HOME(\/|"|$)/)  return 1
+			if (t ~ /^\$\{HOME\}/)      return 1
+			return 0
+		}
+		{
+			cmd = ""; n = split($0, t, /[ \t]+/)
+			for (i = 1; i <= n; i++) {
+				tok = t[i]
+				if (tok == "|" || tok == ";" || tok == "&&" || tok == "||") { cmd = ""; continue }
+				if (cmd == "") {
+					cmd = tok
+					if (banned[cmd])                    { print "y"; exit }
+					# `find` deletes only with -delete, `sed` writes only with -i;
+					# either makes the command a writer for this line
+					if (cmd == "find" && index($0, "-delete")) writer["find"] = 1
+					if (cmd == "sed"  && $0 ~ /(^|[ \t])-i/)  writer["sed"] = 1
+					if (sig[cmd] && t[i+1] != "-l")     { print "y"; exit }
+					# bare mount only lists; give it any argument and it
+					# rearranges the live tree
+					if (cmd == "mount" && t[i+1] != "" && t[i+1] !~ /^(\||;|&&|\|\|)$/) \
+						{ print "y"; exit }
+					continue
+				}
+
+				# a wrapped command becomes the command
+				if (wrapper[cmd]) { w2 = tok; sub(/^["\047]/, "", w2)
+				                    if (writer[w2] || banned[w2] || sig[w2]) { cmd = w2; if (banned[cmd]) { print "y"; exit } ; continue } }
+				# cd out of the tree, and everything after it is out too
+				if (cmd == "cd" && esc(tok))        { print "y"; exit }
+
+				# ip reads freely (addr, route, -o link); its mutating verbs
+				# reconfigure the live machine and must never run
+				if (cmd == "ip" && tok ~ /^(add|del|delete|set|flush|replace|change)$/) \
+					{ print "y"; exit }
+
+				# a redirect target outside the tree, however it is spelled
+				if (tok ~ /^>>?$/) { if (esc(t[i+1])) { print "y"; exit } ; continue }
+				if (tok ~ /^>>?./) { rest = tok; sub(/^>>?/, "", rest)
+				                     if (esc(rest)) { print "y"; exit } ; continue }
+
+				# dd names its output with an operand, not an argument, so a
+				# path check that only looks at bare tokens misses of=/dev/sda
+				if (cmd == "dd" && tok ~ /^of=./) { rest = tok; sub(/^of=/, "", rest)
+				                                    if (esc(rest)) { print "y"; exit } }
+
+				# an escaping path handed to something that writes
+				if (writer[cmd] && esc(tok))  { print "y"; exit }
+				if (tok ~ /(^|\/)\.\.(\/|$)/) { print "y"; exit }
+			}
+		}
+	' | grep -q y
+}
+
+# run ANSWER -- stdout+stderr of the answer, executed in a fresh sandbox.
+# HOME and TMPDIR point INTO the tree: ~ and mktemp land where the answer
+# lives, and under the drop the real home is not the answer's to touch anyway.
+# arsenal substrate: the jail (lib/jail) replaces fixtures' nobody-sandbox --
+# it stages carried tools on a read-only exec tmpfs and runs the answer as
+# nobody in its scratch. SANDBOX = the jail scratch (check_state reads it);
+# SEEDFN (set per card by the engine) fills it before the drop; sandbox_reset
+# is a no-op because jail_run resets the scratch every call.
+run_answer() { jail_run "$1" "${SEEDFN:-}"; }
+sandbox_reset() { return 0; }
+
+# ---- the verdict ----------------------------------------------------------
+
+# check_state SPEC [OUTPUT] -- did the answer leave the tree in the right
+# shape? OUTPUT is what it printed, which only made: needs -- passed in rather
+# than read out of a caller's variable, because two callers grade state (the
+# lesson and the build) and a name one of them happened to use is not an
+# interface.
+# `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
+# point. seven forms, which between them cover every mutating command xos has:
+#   exists:PATH        the path is there afterwards
+#   gone:PATH          the path is not
+#   link:PATH          the path is there and is a symbolic link
+#   gz:PATH            the path is there and is valid gzip data
+#   bz:PATH            the path is there and is valid bzip2 data
+#   match:PATH:ERE     the path is there and its contents match
+#   mode:PATH:OCTAL    the path is there and carries exactly these bits
+#   same:A:B           both are there and hold the same bytes
+#   differs:A:B        both are there and do not
+#   stamp:PATH:DATE    the path's mtime falls on that YYYY-MM-DD
+#   sametime:A:B       both are there and carry the same mtime
+#   made:file|dir|none what the answer PRINTED is now a file, a directory,
+#                      or nothing -- the only way to judge a command whose
+#                      whole output is a name it invented (mktemp)
+check_state() {
+	case "$1" in
+		exists:*) [ -e "$SANDBOX/${1#exists:}" ] ;;
+		gone:*)   [ ! -e "$SANDBOX/${1#gone:}" ] ;;
+		# a symlink specifically -- exists: cannot tell `ln -s` from a hard link,
+		# since both leave a name that -e finds
+		link:*)   [ -L "$SANDBOX/${1#link:}" ] ;;
+		# actually gzip/bzip2 compressed, not just present under that name --
+		# exists: cannot tell `tar -czf x.tgz` from a plain `tar -cf x.tgz`
+		gz:*)     gzip  -t "$SANDBOX/${1#gz:}" 2>/dev/null ;;
+		bz:*)     bzip2 -t "$SANDBOX/${1#bz:}" 2>/dev/null ;;
+		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
+		          [ -e "$SANDBOX/$_p" ] && grep -qE -- "$_e" "$SANDBOX/$_p" 2>/dev/null ;;
+		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _m=${_r#*:}
+		          [ "$(stat -c %a "$SANDBOX/$_p" 2>/dev/null)" = "$_m" ] ;;
+		# the two halves of "did it refuse to overwrite". cp -n and cp leave
+		# the same NAME behind, so exists: cannot tell them apart at all --
+		# what separates them is whether the destination still holds what it
+		# held, which is a comparison and not a test on one path.
+		same:*)   _r=${1#same:}; _p=${_r%%:*}; _q=${_r#*:}
+		          cmp -s "$SANDBOX/$_p" "$SANDBOX/$_q" 2>/dev/null ;;
+		differs:*) _r=${1#differs:}; _p=${_r%%:*}; _q=${_r#*:}
+		          [ -e "$SANDBOX/$_p" ] && [ -e "$SANDBOX/$_q" ] \
+		          && ! cmp -s "$SANDBOX/$_p" "$SANDBOX/$_q" 2>/dev/null ;;
+		# a timestamp is the whole lesson of touch -d and touch -r, and it is
+		# the one thing about a file that no other check can see: both leave
+		# the file exactly as it was in every other respect.
+		stamp:*)  _r=${1#stamp:}; _p=${_r%%:*}; _d=${_r#*:}
+		          [ "$(stat -c %y "$SANDBOX/$_p" 2>/dev/null | cut -c1-10)" = "$_d" ] ;;
+		sametime:*) _r=${1#sametime:}; _p=${_r%%:*}; _q=${_r#*:}
+		          _t=$(stat -c %Y "$SANDBOX/$_p" 2>/dev/null)
+		          [ -n "$_t" ] && [ "$_t" = "$(stat -c %Y "$SANDBOX/$_q" 2>/dev/null)" ] ;;
+		# mktemp's answer IS a name nothing else knows, so there is no fixed
+		# path to check -- the path is whatever it printed. the fence is that
+		# it must lie inside the sandbox: a line that names anything else is
+		# not a temporary this answer made.
+		made:*)   _p=$(printf '%s\n' "${2:-}" | head -1)
+		          case "$_p" in "$SANDBOX"/*) ;; *) return 1 ;; esac
+		          case "${1#made:}" in
+		          	file) [ -f "$_p" ] ;;
+		          	dir)  [ -d "$_p" ] ;;
+		          	none) [ ! -e "$_p" ] ;;
+		          	*)    return 1 ;;
+		          esac ;;
+		*)        return 1 ;;
+	esac
+}
+
+# correct GIVEN -- $Q_ANSWERS holds the listed answers, one per line.
+# $Q_OUT, when set, is an ERE the answer's real output must match.
+# $Q_STATE, when set, is what the tree must look like afterwards.
+# $Q_STATUS, when set, is the exit code the answer must leave behind.
+correct() {
+	_given=$(printf '%s\n' "$1" | norm)
+	[ -n "$_given" ] || return 1
+	# the spelling-insensitive key. only tier 1 compares it -- what tier 2
+	# RUNS is $_given, the answer as typed, so a fold can never change the
+	# meaning of a command, only decide whether two texts are the same one.
+	_key=$(printf '%s\n' "$_given" | flagnorm)
+
+	# tier 1: does it match something we listed?
+	printf '%s\n' "$Q_ANSWERS" | while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		[ "$(printf '%s\n' "$_a" | norm | flagnorm)" = "$_key" ] && exit 9
+	done
+	[ $? -eq 9 ] && return 0
+
+	# tier 2: it is not one we listed. run it and see if it is right anyway --
+	# but do not accept an answer that produces the right output by a route that
+	# is not what the question teaches. `echo 10` prints 10, but it is not
+	# counting lines, so it must not pass a wc question. requiring the taught
+	# command kills that cheat while still accepting every honest form:
+	# `wc -l f`, `wc -l < f`, `cat f | wc -l` all use wc. grammar questions
+	# (Q_REF is the shell itself) have no single command to require, so they
+	# fall back to their listed forms.
+	#
+	# the demand is paid for on the card: selftest's unnamed_cmd gate (lib/lint)
+	# fails the build unless the prompt or its setup names this command, so a
+	# rejected route is always the learner reaching for another tool, never a
+	# requirement they had no way to read.
+	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || [ -n "${Q_STATUS:-}" ] \
+		|| [ "${Q_CMP:-}" = ref ] || return 1
+	# build the tree if this process has not yet. this used to test a flag
+	# only selftest ever set, so in a real session tier 2 never ran: every
+	# unlisted-but-correct answer was wrong until the coach happened to build
+	# the sandbox on a miss, and the boss, daily and gauntlet never did.
+	sandbox_reset || return 1
+	printf '%s\n' "$1" | unsafe && return 1
+	case "${Q_REF:-}" in
+		''|sh|ash) : ;;   # grammar/builtin question: no one command to demand
+		# [ and test are one builtin under two spellings, and a prompt cannot
+		# name a bracket the way it names a command -- so a card demanding
+		# either accepts either, and the choice is never a trap.
+		'['|test)  printf '%s\n' "$1" | answer_cmds | grep -qxE '\[|test' || return 1 ;;
+		*) printf '%s\n' "$1" | answer_cmds | grep -qxF -- "$Q_REF" || return 1 ;;
+	esac
+
+	_got=$(run_answer "$_given"); _rc=$?; SANDBOX_DIRTY=1
+	[ -z "${Q_OUT:-}" ]    || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1
+	[ -z "${Q_STATE:-}" ]  || check_state "$Q_STATE" "$_got" || return 1
+	# status: judges the exit code -- the only observable a bare [ ... ] or
+	# grep -q has. run_answer surfaces the answer's own status because the
+	# subshell ends with it.
+	[ -z "${Q_STATUS:-}" ] || [ "$_rc" = "$Q_STATUS" ] || return 1
+
+	# cmp: ref -- the strictest tier, for questions whose out: shape alone is
+	# gameable: `grep -c WARN` prints the same ^[0-9]+$ shape as the
+	# `grep -c ERROR` the question asked for, and both invoke grep. deriving
+	# the wanted output by running the question's own first answer against the
+	# same seeded tree closes that: only the right computation prints it.
+	if [ "${Q_CMP:-}" = ref ]; then
+		_want=$(run_answer "$(printf '%s\n' "$Q_ANSWERS" | head -1 | norm)"); SANDBOX_DIRTY=1
+		[ "$_got" = "$_want" ] || return 1
+	fi
+	return 0
+}
+
+# ---- command extraction (ported verbatim from learn/learn) ----
+# every command an answer invokes, so tier 2 can require the taught one.
+# needs $REF (arsenal ref dir, may be empty) and $TMP (scratch).
+_answer_walk() {
+	ls -1 "$REF" > "$TMP/cmds" 2>/dev/null
+	sed "s/['\"]//g" | awk -v cl="$TMP/cmds" -v mode="$1" '
+		function popn() { while (nclose-- > 0 && depth > 0) cmd = stack[depth--]; nclose = 0 }
+		# endtok -- close the token. a separator glued to the end of a word ends
+		# the command too, and it ends the INNER one: in $(date;) the ; belongs to
+		# date, so clear before popn restores the command outside.
+		function endtok() { if (nsep) { cmd = ""; nsep = 0 } popn() }
+		BEGIN {
+			while ((getline c < cl) > 0) known[c] = 1
+			split("env timeout xargs nohup setsid watch flock sh ash chroot exec eval", w, " ")
+			for (i in w) wrapper[w[i]] = 1
+		}
+		{
+			# $(( )) is arithmetic, not a command substitution -- the $( rule
+			# below would open a command on it and leave + or 1 standing in
+			# command position. take the spans out before the split.
+			ln = $0
+			while (sub(/\$\(\([^()]*\)\)/, " ", ln)) ;
+			cmd = ""; depth = 0; nclose = 0; nsep = 0; forvar = 0; rtarget = 0; endopt = 0
+			n = split(ln, t, /[ \t]+/)
+			for (i = 1; i <= n; i++) {
+				tok = t[i]
+
+				# $(cmd ...) opens a fresh command; ) closes it again.
+				while (sub(/^[("`]*\$\(/, "", tok) || sub(/^[("`]*`/, "", tok)) {
+					stack[++depth] = cmd; cmd = ""
+				}
+				# a function definition is not a call: f() { ...; } and f(){ ...; }
+				# both define, and the first word of the body is the command to attribute.
+				if (tok ~ /^[A-Za-z_][A-Za-z_0-9]*\(\)\{?$/)      { cmd = ""; endtok(); continue }
+				# count the closers now, but do NOT pop until this token has been
+				# attributed. popping first blamed the -f1 in
+				# "$(sha256sum x | cut -d -f1)" on printf, the command outside.
+				# "set -- a b c; shift" must attribute shift, not swallow it.
+				# stripped on both sides of the closer count: "$(seq 1 5);" ends
+				# in ; so the ) goes uncounted, and the substitution never pops.
+				nsep   = sub(/[;&]+$/, "", tok)
+				nclose = gsub(/[)`]+$/, "", tok)
+				nsep  += sub(/[;&]+$/, "", tok)
+				gsub(/^["]+|["]+$/, "", tok)
+
+				if (tok == "")                                      { endtok(); continue }
+				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; endtok(); continue }
+				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in|while|until|if)$/) { cmd = ""; endtok(); continue }
+				# -- ends the options: everything after it is a literal
+				# argument, even one that starts with a dash. without this
+				# `set -- -n x` reported -n as an undocumented flag of set.
+				if (tok == "--")                                    { endopt = 1; endtok(); continue }
+				if (tok == "-exec" || tok == "-ok")   { if (mode == "flags") print cmd, tok; cmd = ""; endtok(); continue }
+				if (tok == "for")                                   { cmd = ""; forvar = 1; endtok(); continue }
+				if (forvar)                                         { forvar = 0; endtok(); continue }
+				# the word after a bare redirect is the file it reads or writes
+				if (tok ~ /^[0-9]?[<>]+$/)                          { rtarget = 1; endtok(); continue }
+				if (rtarget)                                        { rtarget = 0; endtok(); continue }
+				if (cmd == "") {
+					endopt = 0
+					if (tok !~ /^[A-Za-z_][A-Za-z_0-9]*=/) { cmd = tok; if (mode == "cmds") print tok }
+					endtok(); continue
+				}
+				if (tok !~ /^-./) {
+					if (wrapper[cmd] && known[tok]) { cmd = tok; if (mode == "cmds") print tok }
+					endtok(); continue
+				}
+				if (mode == "cmds")                                 { endtok(); continue }
+				if (endopt)                                         { endtok(); continue }
+				if (tok ~ /^-[0-9]+$/)                              { endtok(); continue }
+				# chmod takes a symbolic MODE beginning with a dash: chmod -x f
+				if (cmd == "chmod" && tok ~ /^-[rwxXstugoa]+$/)     { endtok(); continue }
+				print cmd, tok
+				endtok()
+			}
+		}'
+}
+answer_cmds()  { _answer_walk cmds; }
+answer_flags() { _answer_walk flags | sort -u; }

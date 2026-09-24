@@ -1,0 +1,697 @@
+# ui -- terminal output. square, dense, no motion.
+#
+# colour is a courtesy, never information: every state it marks is also marked
+# by a character, so NO_COLOR and a dumb terminal lose nothing.
+#
+# ONE SLOT PER LINE, and the selftest reads this block: it is the only place a
+# colour's meaning is written down, and a comment nothing checks is not a rule.
+#
+#   R  wrong
+#   G  correct, and every count going the right way
+#   Y  the miss -- the answer you did not give, the habit worth dropping, and
+#      the warning before something is wiped
+#   U  a section heading inside a screen; the screen's own title is hdr(), bold
+#   M  contrast -- the vs row, and nothing else
+#   C  what you type: a command, a flag, an operator, an expansion, a key
+#   W  live text -- a label, a prompt, a value: what is being said to you now
+#   D  the frame, and everything quiet
+#   V  reverse video -- the one MARK, the same on every terminal that has it
+#   B  bold -- the one title style: hdr(), the status bar, a ref page, a card
+#   BL blink -- two digits counting down, and nothing else
+#   N  reset, which every mark above closes with
+#
+# one meaning per colour, and the selftest holds the three marks apart. a slot
+# that grows a second meaning is a slot that says nothing: yellow meant the
+# answer AND a streak AND a row label AND "this erases your save" -- a colour
+# that is celebration and destruction at once is worse than no colour, since
+# only one of those can be undone. streaks are counts going the right way and
+# went to green with every other such count; the row label went to W.
+#
+# ON MONO those twelve slots become FOUR appearances, because four is what the
+# hardware has. this is the other half of the doctrine and it was never written
+# down, so read it before adding a meaning:
+#
+#   reverse    R wrong, M contrast, V/HI_ON a name
+#   bold       G correct, Y the miss, C what you type, W live text, B a title
+#   underline  LIT_ON a literal, U a heading (bold on top)
+#   nothing    D
+#
+# five meanings on bold and three on reverse. that is only survivable because
+# each one is ALSO carried by something that is not a colour, which is the rule
+# at the top of this file doing its work: ok()'s +, no()'s -, reveal()'s prompt
+# character, the vs row's leading "vs", a flag's leftmost column, a title's
+# rule. a new bold meaning with no such marker is invisible on a vt320 even
+# though the code looks right, and nothing but this paragraph will tell you.
+#
+# three tiers, because xos is driven from a linux console, over ssh from
+# whatever the far end runs, and down a serial line from whatever is bolted to
+# the other end of that. COLOUR is the terminal's own eight rather than a
+# 256-colour ramp: those always exist, and they arrive in the reader's scheme
+# instead of fighting it -- 1..7 above, 0 only ever through V, which swaps
+# foreground and back, and 8 only as D, for the reason written at D itself.
+# MONO is a vt320: no colour, and it drops every colour escape without a
+# word, so the whole channel would vanish silently -- bold, underline and
+# reverse carry the same distinctions. NONE is NO_COLOR, TERM=dumb, or
+# output that is not a terminal.
+
+# _ui_tier TERM -- sets _tier AND _csi. a function so the choice can be tested;
+# nothing below this line can be, since all of it needs a real terminal. colour
+# is the default and the list names only what is known to lack it: a terminal
+# that drops a colour it has not got loses nothing, one wrongly denied the
+# palette loses all of it. the list is closed rather than merely current --
+# DEC's line ended in the nineties.
+#
+# _csi is the SECOND question, and it is not the same question. every tier above
+# none assumes the terminal parses CSI -- ESC [ -- and DEC's line did not always.
+# the vt50 and vt52 predate ANSI entirely: their cursor move is ESC Y, their
+# clear is ESC H ESC J, and terminfo gives them no bold, no underline, no blink,
+# no reverse and no sgr0, because they have none. ESC [ is not a command they
+# know, so the bytes AFTER it print as text -- every marked name in the
+# curriculum spraying `0;7m` into the prose, and cls() writing `H2J3J` across
+# the screen before the first question. they were matched by vt* and handed the
+# mono tier, which is the one classification in this file that was simply wrong.
+#
+# written out rather than globbed, and this is the whole reason: `vt52*` also
+# matches vt520 (mono, full SGR) and vt525 (colour), so the obvious pattern
+# demotes two terminals that have everything. the arm goes FIRST so nothing
+# below can claim them.
+_ui_tier() {
+	_csi=1
+	case "$1" in
+		vt50|vt50h|vt52|vt50-*|vt50h-*|vt52-*)
+		                      _tier=none; _csi=0 ;;   # pre-ANSI: no CSI at all
+		# dumb has no CSI either -- terminfo gives it cr, bel and a line feed
+		# and nothing else -- so it joins them, and _csi becomes the ONE owner
+		# of this question. the checks below used to ask `TERM != dumb`
+		# separately, which is how the pre-ANSI terminals slipped past them.
+		dumb|'')              _tier=none; _csi=0 ;;
+		vt241*|vt340*|vt525*) _tier=colour ;;   # the DEC terminals with colour
+		vt*|*-m|*-mono|*-nc)  _tier=mono ;;     # and the rest of that line
+		*)                    _tier=colour ;;
+	esac
+}
+_ui_tier "${TERM:-dumb}"
+[ -z "${NO_COLOR:-}" ] || _tier=none
+[ -t 1 ] || _tier=none
+
+# _ui_colours TIER -- the whole palette, and a function for the same reason the
+# three marks are: a value set inline with the tier cannot be asserted without a
+# terminal, and the build runs the selftest under NO_COLOR, where every one of
+# these is the empty string. that is precisely how the doctrine block above went
+# unwatched while three of its slots drifted. now the selftest reads the block
+# back and holds it against what this function produces.
+_ui_colours() {
+	if [ "$1" = none ]; then
+		N= B= V= BL= R= G= Y= M= C= W= D=
+		return 0
+	fi
+	N=$(printf '\033[0m')  B=$(printf '\033[1m')  V=$(printf '\033[7m')
+	# the fourth attribute a vt320 has, and the only one nothing wanted. it
+	# is unreadable under anything you have to read, which is exactly what
+	# makes it right for two digits counting down and nothing else.
+	#
+	# it is also NOTHING on the machine's own screen. xos boots an EFI
+	# framebuffer console -- FB_EFI and FRAMEBUFFER_CONSOLE, no VGA_CONSOLE --
+	# and fbcon has no blink timer, because blinking was a VGA text-mode
+	# attribute. so blink is real on a vt320 and on foot, and a no-op on the
+	# display in front of you. it may therefore only ever be ADDITIVE: the
+	# clock's last five seconds are red AND blinking AND two digits counting
+	# down, and the red and the digits are what carry it locally. blink alone
+	# would be a signal that does not exist where it matters most.
+	BL=$(printf '\033[5m')
+	if [ "$1" = colour ]; then
+		R=$(printf '\033[31m')
+		G=$(printf '\033[32m')
+		Y=$(printf '\033[33m')
+		M=$(printf '\033[35m')
+		C=$(printf '\033[36m')
+		W=$(printf '\033[37m')
+		# dim has to name a colour. a bare \033[2m keeps the terminal's DEFAULT
+		# foreground, which under most schemes is brighter than the 37 live text
+		# uses -- the quiet rows then read as the loudest thing on the screen.
+		D=$(printf '\033[90m')
+	else
+		# the loud half reverses, the quiet half bolds. dim is the exception: a
+		# vt-series terminal has no faint, so quiet text is simply NOT bold --
+		# the same idea by the only means the hardware has. headings: _ui_head.
+		R=$V  M=$V
+		G=$B  Y=$B  C=$B  W=$B  D=
+	fi
+}
+_ui_colours "$_tier"
+
+# _ui_head TIER -- the mark on a section heading, and a function for the same
+# reason the other two marks are: a heading has to be ONE shape on every tier
+# that has attributes, and only a function can be asserted without a terminal.
+# it used to be set inline with the colours -- 1;34 here, a bare 4 on mono --
+# which is how it came to be byte-for-byte the literal mark on the vt320, with
+# nothing in the build watching.
+#
+# be honest about what the 1 buys, though: this file argues two paragraphs down
+# that a vt320 renders bold as a shade more phosphor, and that is why the name
+# mark is reverse. the same argument applies here -- 1;4 against the literal's
+# 0;4 differs only in the part that barely shows. what actually separates them
+# on DEC glass is STRUCTURAL: a heading owns its row, a literal is a word inside
+# a sentence, and the two never share a line. the selftest holds that.
+# the bold is the courtesy for xterm-mono, linux-nc and screen.vt320, which is
+# most of this tier in practice; the blue rides on top where there is colour.
+_ui_head() {
+	case "$1" in
+		none) U= ;;
+		mono) U=$(printf '\033[1;4m') ;;
+		*)    U=$(printf '\033[1;4;34m') ;;
+	esac
+}
+_ui_head "$_tier"
+
+# a rolled name inside a question: the file, the directory, the word the answer
+# has to type back letter for letter. it is the one thing in a sentence that is
+# not English, and until it was marked "make build the directory you're standing
+# in" opened with what read as the command `make`.
+#
+# reverse video, and the SAME reverse video on every tier that has attributes --
+# one look down a serial line and on a modern terminal, because a mark that
+# changes with the terminal is two marks to learn. it was bold, which a vt320
+# renders as a shade more phosphor: invisible on the hardware the tier exists
+# for, which put the name back into the prose. where there are no attributes at
+# all -- NO_COLOR, dumb, a pipe -- the mark becomes the quotes a person would
+# have typed, because the distinction is the sentence and it cannot be dropped.
+#
+# 0 before the 7: the mark must not inherit what it sits in. a name in the dim
+# hint panel would otherwise swap DIM against the background and come out a grey
+# smear; reset first and the swap is always the terminal's own two colours.
+# one sequence either way, and SGR 0 has existed since the vt100.
+#
+# the fence itself. the two bytes are chosen for what they are not: \001 and
+# \002 cannot be typed, appear in no pool and mean nothing to a terminal, so no
+# value can be mistaken for a fence and no fence can survive into a file or an
+# answer unnoticed. they live here, next to the mark they become and next to the
+# literal fence they must never collide with -- sub() in lib/ctx writes them.
+# a note on what is NOT here: no 22, 24, 25 or 27 -- the codes that turn one
+# attribute off and leave the others. a vt100 has none of them; only the vt200
+# line added them, and this file's floor is the vt100. so every mark closes with
+# a full SGR 0.
+#
+# that costs something real, and it is a deliberate trade: on mono there is no
+# way to return TO an attribute after an inner span. ok() opens bold and an
+# embedded ${D}...${N} inside its message closes that bold early, because the
+# only close available is "all off". the alternative is a reset the floor cannot
+# parse, so the span ends early and the line is still readable. if you ever
+# reach for 24m to fix a nested span, that is what you are trading away.
+HI1=$(printf '\001')
+HI2=$(printf '\002')
+
+# _ui_hi TIER -- a function for the same reason _ui_tier is one: so the one
+# thing that must be identical across tiers can be asserted without a terminal.
+_ui_hi() {
+	case "$1" in
+		none) HI_ON="'"                  HI_OFF="'" ;;
+		*)    HI_ON=$(printf '\033[0;7m') HI_OFF=    ;;
+	esac
+}
+_ui_hi "$_tier"
+
+# hi_expand BASE -- fences to marks, on stdin. BASE is the styling of the text
+# the name sits in, which the closing mark has to hand back: a name inside the
+# dim hint panel must leave the rest of that row dim, not reset to live text.
+hi_expand() { sed -e "s/$HI1/$HI_ON/g" -e "s/$HI2/$HI_OFF$N${1:-}/g"; }
+
+# hi_strip -- the same text with the fences gone: what gets measured, matched
+# and written down. every width, every grader and every ledger sees this one.
+hi_strip() { tr -d "$HI1$HI2"; }
+
+# ---- literal text inside prose --------------------------------------------
+#
+# the second mark, and the other half of the same problem: a teaching page is
+# English with commands buried in it. "pwd prints the directory you are standing
+# in" is a sentence until you already know pwd is a command -- the one word on
+# the line that is not English, unmarked. questions solve this for a rolled
+# name; briefs never went through that path and printed flat.
+#
+# TWO KINDS of not-English, and the split is what the word IS, not where it
+# came from (2026-09-22 -- it used to be rolled-by-the-question against
+# hardcoded-by-the-author, a distinction the reader cannot see and never asked
+# about). SYNTAX is what you type as a command: a command name, a flag, an
+# operator, a redirection, an expansion, a key you press. A NAME is everything
+# the syntax is pointed AT: a path, a filename, a glob, a value you type back,
+# a word you expect in the output. so
+#
+#   list src/main.c and src/util.c with ls src/[mu]*.c
+#        ------name-     ------name-      -syn ------name--
+#
+# reads as one command aimed at three names, which is the sentence. marking all
+# four the same made a nine-word question four-ninths block pattern and said
+# the glob and the command were the same kind of thing.
+#
+# the source markup is the backtick, because it already was: ref/* prose has
+# written `command -v` and `set -u` since it was written, and so does level 28's
+# brief. a NAME doubles it -- ``src/main.c`` -- which is the same markup saying
+# the same thing, only louder, and cannot collide with the single form. pairs
+# only, and inside one line -- a literal split across two brief: lines leaves a
+# lone backtick, which prints as itself rather than opening a mark that never
+# closes. the corpus gate catches it either way.
+#
+# UNDERLINE on every tier that has attributes, and cyan on top where there is
+# colour. the vt320 is the floor this is drawn for: it renders bold as a shade
+# more phosphor -- the reason the name mark is reverse -- so bold would put the
+# literal straight back into the prose on the one terminal that needs it most.
+# reverse is taken, and a page with ten reversed words is a block pattern, not a
+# sentence. underline carries the distinction, cyan is the courtesy on top of
+# it: NO_COLOR and a vt320 lose nothing, which is the rule the whole file keeps.
+# where there are no attributes at all the mark is the backtick the author
+# typed -- the same degradation the name mark makes to quotes.
+#
+# what to mark, when writing a brief: what you would TYPE. a command named as a
+# command (`pwd`, `ls -l`), a flag (`-i`), an operator (`>>`, `2>&1`, `&&`), an
+# expansion (`$HOME`, `${NAME:-WORD}`), a path, a value you would type back
+# (`755`, `rwxr-xr-x`). not English that happens to be a command name -- "it
+# walks a tree and tests every entry" is prose, "`find` searches FOR them" is
+# the command -- and not jargon: stdin, glob and regex are words, not literals.
+LIT1=$(printf '\005')
+LIT2=$(printf '\006')
+
+# _ui_lit TIER -- a function for the same reason _ui_hi is one: the two marks
+# must never converge, and that can only be asserted without a terminal.
+_ui_lit() {
+	case "$1" in
+		none) LIT_ON='`'                       LIT_OFF='`' ;;
+		mono) LIT_ON=$(printf '\033[0;4m')     LIT_OFF= ;;
+		*)    LIT_ON=$(printf '\033[0;4;36m')  LIT_OFF= ;;
+	esac
+}
+_ui_lit "$_tier"
+
+# fence -- backtick markup to fences, on stdin: ``name`` to the NAME fence a
+# rolled value gets, `syntax` to the literal one. one byte per mark, so the text
+# is still its own width: wrap() knows these bytes are zero-width and every line
+# lands where it landed before anything was marked.
+#
+# the doubled form goes first and consumes both of its pairs, so the single pass
+# behind it never sees the inner backticks. [^`] in the first pattern is what
+# keeps ``a`` `b` from fusing into one span across the gap.
+fence() {
+	sed -e 's/``\([^`]*\)``/'"$HI1"'\1'"$HI2"'/g' \
+	    -e 's/`\([^`]*\)`/'"$LIT1"'\1'"$LIT2"'/g'
+}
+
+# lit_strip -- the text with the fences gone: what gets measured or written down.
+lit_strip() { tr -d "$LIT1$LIT2"; }
+
+# lit_expand BASE -- fences to marks, on stdin, the mirror of hi_expand. BASE is
+# the styling of the text the literal sits in, which the closing mark hands back
+# for the same reason a name's does.
+lit_expand() { sed -e "s/$LIT1/$LIT_ON/g" -e "s/$LIT2/$LIT_OFF$N${1:-}/g"; }
+
+# expand BASE -- both marks at once, for the callers that print whole prose.
+# the two touch disjoint bytes, so the order between them does not matter.
+expand() { hi_expand "${1:-}" | lit_expand "${1:-}"; }
+
+# synchronised output: the editor reprints the whole answer line on every
+# keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
+# redraw in these markers tells the terminal to paint it in one frame. unknown
+# to older terminals THAT PARSE CSI, which ignore the private mode. a terminal
+# that does not parse CSI at all prints the parameters, so this asks _csi.
+if [ "$_csi" = 0 ] || [ ! -t 1 ]; then
+	SYNC_BEG= SYNC_END=
+else
+	SYNC_BEG=$(printf '\033[?2026h') SYNC_END=$(printf '\033[?2026l')
+fi
+
+# does this terminal speak UTF-8? no TERM name can answer that -- the encoding
+# belongs to the terminal, not to the system it is attached to -- so ask it.
+# print one character that is two bytes in UTF-8 and two PRINTABLE characters
+# in latin-1, then ask where the cursor landed: column 2 means it decoded the
+# character, anything further means it drew the bytes. it is erased either way.
+#
+# U+00B7 and not a block: every three-byte character has continuation bytes in
+# 0x80..0x9f, which an eight-bit terminal reads as C1 CONTROLS -- probing with
+# a block would set a tab stop on the very terminal the probe exists to find.
+# both bytes of this one print.
+#
+# an answer decides it; silence leaves the tier's own guess standing. a
+# terminal that replies is telling us something, one that does not (a slow
+# link, no cursor report) is telling us nothing, and a terminal old enough to
+# have no colour is old enough to have no UTF-8 either.
+case "$_tier" in
+	colour) UNI=1 ;;
+	*)      UNI=0 ;;
+esac
+if [ "$_tier" != none ] && [ -t 0 ]; then
+	_stty=$(stty -g 2>/dev/null) || _stty=
+	if [ -n "$_stty" ] && stty raw -echo 2>/dev/null; then
+		printf '\r·\033[6n'
+		# read -t, not the terminal's own min/time: busybox ash -- the shell
+		# this actually runs under -- ignores VMIN and VTIME and blocks for a
+		# newline the reply never sends. that hung learn before its first
+		# prompt on every terminal that stays quiet, and only the host's shell,
+		# which does honour them, made it look fine. a byte at a time, so an
+		# answer costs nothing and silence costs the timeout once.
+		_cpr=
+		while IFS= read -r -t 0.3 -n 1 _c 2>/dev/null; do
+			_cpr="$_cpr$_c"
+			case "$_c" in R) break ;; esac
+		done
+		stty "$_stty" 2>/dev/null
+		printf '\r\033[K'
+		case "$_cpr" in *';2R'*) UNI=1 ;; *R) UNI=0 ;; esac
+	fi
+	unset _stty _cpr _c
+fi
+unset _tier   # _csi stays: cls(), the clock and SYNC_* all ask it
+
+# progress-bar cells and the separator between two short labels. every ascii
+# substitute is exactly one display column, and the separator degrades to the
+# whitespace it already sits in: "|" and "." both read as something else in a
+# curriculum that teaches the pipe and the sentence.
+if [ "$UNI" = 1 ]; then
+	BAR_F='█' BAR_E='░' SEP=' · '
+else
+	BAR_F='#' BAR_E='-' SEP='  '
+fi
+
+# Ctrl-D. under -icanon the terminal stops turning it into end-of-file and
+# hands it over as a byte like any other, so the one place that reads a bare
+# keypress has to recognise it -- the help screen says Ctrl-D leaves.
+EOT=$(printf '\004')
+
+# a literal newline. $(printf '\n') cannot produce one -- command substitution
+# strips them -- so it is written out.
+NL='
+'
+
+# terminal width. ash does not export COLUMNS the way bash does, so trusting it
+# alone pinned every session to 80 and made the rules wrap on any other size.
+# ask the terminal itself, then fall back.
+COLS=${COLUMNS:-}
+[ -n "$COLS" ] || COLS=$(stty size 2>/dev/null | cut -d' ' -f2)
+[ "$COLS" -ge 40 ] 2>/dev/null || COLS=80
+# never draw past 100 columns -- a full-width rule on an ultrawide terminal is
+# noise, not structure.
+[ "$COLS" -le 100 ] 2>/dev/null || COLS=100
+
+# COLS above is a typography choice; the line editor needs the terminal's real
+# size. it has to know where the terminal ACTUALLY wraps -- assuming 100 on a
+# 160-column window made every climb-back land a row short and reprint the
+# answer over the question -- and how much room is left below the prompt.
+_sz=$(stty size 2>/dev/null)
+TERM_LINES=${_sz%% *} TERM_COLS=${_sz##* }
+[ "$TERM_COLS" -ge 20 ] 2>/dev/null || TERM_COLS=${COLUMNS:-80}
+[ "$TERM_LINES" -ge 8 ] 2>/dev/null || TERM_LINES=${LINES:-24}
+unset _sz
+
+# the two full-width bars, built once and in one pass: each is the same string
+# every time it is drawn, and building them where they are drawn was a fork per
+# header, per card, per panel open, and four per boss. neither exceeds the real
+# terminal -- the editor counts the rows its panel fills, and a bar that wrapped
+# would put that count out and climb back over the question. RULE carries its
+# own colour, since it is always dim; BANNER does not, since it is drawn in two.
+_bars=$(awk -v n="$(( COLS < TERM_COLS ? COLS : TERM_COLS ))" \
+	'BEGIN{while(n-->0){r=r"-";b=b"="}printf "%s\n%s", r, b}')
+RULE="$D${_bars%%"$NL"*}$N"
+BANNER=${_bars#*"$NL"}
+unset _bars
+
+rule() { printf '%s\n' "$RULE"; }
+
+# the character a shell puts at the front of its prompt: # for root, $ for
+# anyone else. xos boots as root and busybox prints "# " there, so a learner
+# drilling against a $ would be learning a prompt this machine never shows.
+# asked of the system rather than pinned, since learn also runs on a host where
+# the answer is the other one.
+PROMPT_CH='$'
+[ "$(id -u 2>/dev/null || echo 1)" = 0 ] && PROMPT_CH='#'
+
+# the answer prompt: a bare prompt character at the far left, white while you
+# type and reversed the moment you drop to vi normal mode -- the same mark a
+# name in the question wears, and the same one /etc/shrc puts on the shell's own
+# prompt. built here where the V/W globals are in scope -- inside the editor R
+# is the right-of-cursor buffer, so it cannot see them.
+#
+# the space sits OUTSIDE the reverse, or the mode reads as a two-cell block
+# instead of a character. either way the prompt is two columns wide, which the
+# editor hardcodes when it counts the rows the answer line spends. and the
+# reverse opens off a reset, like every other mark here: the row above it may
+# be a dim hint panel, and a mode marker that came out grey-on-grey once would
+# be a mode marker nobody trusts again.
+PROMPT_INS=$(printf '%s%s %s' "$W" "$PROMPT_CH" "$N")
+PROMPT_NORM=$(printf '%s%s%s%s ' "$N" "$V" "$PROMPT_CH" "$N")
+
+# the title is bold, not coloured, and it is the ONE title style: statusbar(),
+# the ref page and the ref card all draw their subject the same way. each of
+# 1-7 says one thing now, and magenta says contrast -- the vs line, the one
+# row on a card whose whole job is "not the other one". a title is not a
+# contrast. a heading INSIDE a screen is U; this is the screen.
+#
+# and what marks a title is not the bold -- on mono B, G, Y, C and W are all
+# \033[1m, so bold says "one of five things" there. it is the RULE BENEATH IT:
+# hdr() prints the title then rule(), statusbar() does the same, and the ref
+# page sets its name between two of them. that reads on every tier including
+# the one with no attributes at all, which is the only kind of mark this file
+# is allowed to rely on.
+hdr() {
+	printf '\n%s%s%s %s\n' "$B" "$1" "$N" "${D}$2$N"
+	rule
+}
+
+# say -- prose, wrapped to the terminal, never past 76 columns. blank lines
+# stay blank: indenting them left trailing-whitespace lines all through the text.
+# wrap W -- `fold -s -w W`, in awk, because fold is NOT a shipped applet.
+#
+# it was called anyway, in say() and in the reference panel, and on the build
+# host the GNU one on PATH answered -- so every gate passed while on the image
+# itself every level brief, every mission intro and every panel row printed
+# nothing at all. the teaching page of all thirty levels was blank and the
+# build could not see it. learn may only call what xos ships; that is the
+# whole premise of the corpus and it has to hold for learn's own code too.
+#
+# the break is fold -s's: the last blank at or before column W, kept at the
+# end of the line it ends, and a word longer than W cut at W rather than run
+# over. selftest holds this against the real fold wherever one exists, so the
+# brief-height gate keeps measuring what the image will actually draw.
+#
+# all FOUR fences are ZERO WIDTH here, and that is the whole reason the brief
+# can be marked at all: counting them would cost a marked line two columns of
+# its 76 for every mark on it, re-wrapping the paragraph for typography and
+# pushing the two briefs already at 20 rows past the screen G50 holds them to.
+# a mark changes how a line LOOKS, never which lines exist. text carrying no
+# fence takes the same path it always did, byte for byte -- selftest holds both
+# halves of that against the real fold.
+wrap() {
+	awk -v w="$1" -v f="$LIT1$LIT2$HI1$HI2" '
+		function vlen(s,   t) { t = s; gsub("[" f "]", "", t); return length(t) }
+		{
+			line = $0
+			while (vlen(line) > w) {
+				# the raw index of the w-th VISIBLE character: where an
+				# unmarked line would have been measured to.
+				vc = 0; rw = length(line)
+				for (i = 1; i <= length(line); i++) {
+					c = substr(line, i, 1)
+					if (index(f, c) == 0) vc++
+					if (vc == w) { rw = i; break }
+				}
+				cut = 0
+				for (i = rw; i >= 1; i--) {
+					c = substr(line, i, 1)
+					if (c == " " || c == "\t") { cut = i; break }
+				}
+				if (cut == 0) { print substr(line, 1, rw); line = substr(line, rw + 1) }
+				else          { print substr(line, 1, cut); line = substr(line, cut + 1) }
+			}
+			print line
+		}
+	'
+}
+
+# say -- fence first, wrap at the text's own width, indent, then expand: the
+# marks become escapes only once nothing is left to measure. handing wrap whole
+# escape sequences to count is what tears a paragraph.
+say() {
+	fence | wrap $(( COLS < 78 ? COLS - 2 : 76 )) \
+		| sed -e '/./s/^/  /' | expand
+}
+
+ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
+no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
+note() { printf '  %s%s%s\n' "$D" "$1" "$N"; }
+
+# the answer a miss or a skip reveals, shown the way you would have typed it:
+# a dim prompt at the far left, the command in yellow -- the same shape as the
+# live prompt, so the eye reads it as "this is what belonged on that line".
+reveal() { printf '%s%s %s%s%s%s\n' "$D" "$PROMPT_CH" "$N" "$Y" "$1" "$N"; }
+
+# ---- flashcard screen -----------------------------------------------------
+#
+# one card at a time: the screen clears, a status bar names where you are, the
+# question runs, and a pause lets you read the result before the next clear.
+# every one of these is a no-op when output is not a terminal, so the build's
+# probes and any piped run stay linear and never block.
+
+# clear the screen AND the scrollback, so you cannot scroll up to the last card
+# _csi, not TERM: a vt52 has no ED and no CUP, so this wrote H2J3J across the
+# screen -- before the first question, on every card.
+cls() { [ -t 1 ] && [ "$_csi" = 1 ] && printf '\033[H\033[2J\033[3J'; return 0; }
+
+# a green fill bar: $1 done, $2 total, $3 cells wide. filled cells green, the
+# rest dim -- the one moving element in the whole ui, and it does not animate,
+# it just reflects where you are.
+bar() {
+	local d=$1 t=$2 w=${3:-16} f i
+	[ "$t" -gt 0 ] 2>/dev/null || t=1
+	[ "$d" -ge 0 ] 2>/dev/null || d=0
+	f=$(( d * w / t )); [ "$f" -gt "$w" ] && f=$w
+	printf '%s' "$G"; i=0
+	while [ "$i" -lt "$f" ]; do printf '%s' "$BAR_F"; i=$((i + 1)); done
+	printf '%s' "$D"
+	while [ "$i" -lt "$w" ]; do printf '%s' "$BAR_E"; i=$((i + 1)); done
+	printf '%s' "$N"
+}
+
+# the top bar: bold title, dim subtitle, then a green progress bar with its
+# count and (optional) running score on the right, then a rule. every segment's
+# visible width is known here, so the coloured escapes never shear the layout.
+statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
+	[ -t 1 ] || return 0
+	# right is optional, and says so above: under set -u a caller that leaves it
+	# off -- daily did -- dies here rather than drawing a bar without a score.
+	local title="$1" sub="$2" done="$3" tot="$4" right="${5:-}" bw=16 lt rt padw
+	lt="  $title  $sub"
+	rt=" $done/$tot"
+	[ -n "$right" ] && rt="$rt  +$right"
+	padw=$(( COLS - ${#lt} - bw - ${#rt} ))
+	[ "$padw" -ge 1 ] 2>/dev/null || padw=1
+	# where a clock may tick: the gap this bar is about to pad, two columns past
+	# the subtitle. published rather than guessed at, because only this function
+	# knows the widths -- and zeroed when the gap is too narrow to hold one, so
+	# a clock never lands on top of the bar.
+	# and only where the terminal can be addressed at all: the clock is drawn by
+	# CUP between a DECSC/DECRC pair, none of which a pre-ANSI terminal has. one
+	# gate here covers the ticker, the cell and clock_stop, because all three
+	# already ask whether this column exists.
+	SB_CLOCK_COL=0
+	[ "$padw" -ge 6 ] && [ "$_csi" = 1 ] && SB_CLOCK_COL=$(( ${#lt} + 3 ))
+	printf '  %s%s%s  %s%s%s%*s' "$B" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
+	bar "$done" "$tot" "$bw"
+	printf ' %s%s/%s%s' "$D" "$done" "$tot" "$N"
+	[ -n "$right" ] && printf '  %s+%s%s' "$G" "$right" "$N"
+	printf '\n'
+	rule
+}
+
+# ---- the clock ------------------------------------------------------------
+#
+# a timed question used to print "30s" once and then sit silently on a blocking
+# read, so the one number the mode is built around never moved. it moves now: a
+# child redraws the seconds in the cell statusbar left for it, once a second,
+# with the cursor saved and restored around every tick so the line being typed
+# is never touched. it is killed the moment the read returns, and it never
+# starts where there is no terminal to draw on -- selftest runs a boss round,
+# and nothing automated may gain a child or a second of wall clock from this.
+#
+# the bar is always drawn onto a freshly cleared screen, so its row is 1.
+CLOCK_ROW=1
+SB_CLOCK_COL=0
+CLOCK_PID=
+CLOCK_LINE=
+
+_clock_cell() {  # LEFT -- the seconds, dim, and loud for the last five
+	local c=$D
+	[ "$1" -le 5 ] && c="$R$BL"
+	printf '%s\0337\033[%d;%dH%s%2ds%s\0338%s' "$SYNC_BEG" \
+		"$CLOCK_ROW" "$SB_CLOCK_COL" "$c" "$1" "$N" "$SYNC_END"
+}
+
+# clock_read SECS -- read one line under a visible clock. the line lands in
+# CLOCK_LINE. 0 a line, 1 out of time, 3 the learner left.
+#
+# it used to be a cooked-mode read -t: kernel erase and nothing else, no Esc,
+# no h l w b, no dw, and a prompt that looked exactly like the editor's. the
+# editor runs here now, with the question's deadline; what a boss withholds is
+# the hint and the reference, not the ability to fix a typo. the panels stay
+# refused (_ed_panel_load, and the Tab key itself) and so does history.
+clock_read() {
+	local secs=$1 rc dl left
+	CLOCK_PID=
+	dl=${ED_DEADLINE:-}
+	[ -n "$dl" ] || dl=$(( $(date +%s) + secs ))
+	# the ticker counts down what is LEFT of the question, not the limit it
+	# started with. handing it $secs on a re-entry drew :30 again over a
+	# deadline that had ten seconds on it -- a clock that lies the one way a
+	# clock must not.
+	left=$(( dl - $(date +%s) ))
+	[ "$left" -gt 0 ] 2>/dev/null || left=0
+	[ "$left" -le "$secs" ] || left=$secs
+	_clock_child "$left"
+	if [ -t 0 ]; then
+		read_line "$dl"; rc=$?
+		CLOCK_LINE="$REPLY_LINE"
+		case "$rc" in
+			0) rc=0 ;;
+			2) rc=1 ;;      # the deadline
+			*) rc=3 ;;      # q, Ctrl-D, EOF
+		esac
+	else
+		# the build's own probes, and any pipe: the editor is not there to
+		# draw its prompt, so this branch keeps the one it always had.
+		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
+		IFS= read -t "$secs" -r CLOCK_LINE; rc=$?
+		[ "$rc" = 0 ] || rc=1
+	fi
+	clock_stop
+	return $rc
+}
+
+# the ticker, in its own function so clock_read reads as one thing. it never
+# starts where there is no terminal to draw on: selftest runs a boss round,
+# and nothing automated may gain a child or a second of wall clock from this.
+_clock_child() {
+	local left=$1
+	[ -t 0 ] && [ -t 1 ] && [ "$SB_CLOCK_COL" -gt 0 ] || return 0
+	( while [ "$left" -gt 0 ]; do
+		_clock_cell "$left"; sleep 1; left=$((left - 1))
+	  done ) &
+	CLOCK_PID=$!
+	return 0
+}
+
+# stop the ticker and take the cell back. safe to call with no clock running,
+# which is what makes it safe on the interrupt path.
+clock_stop() {
+	[ -n "$CLOCK_PID" ] || return 0
+	kill "$CLOCK_PID" 2>/dev/null
+	wait "$CLOCK_PID" 2>/dev/null
+	CLOCK_PID=
+	# a child killed between its ?2026h and its ?2026l leaves the terminal in
+	# synchronised-output mode, which looks exactly like a frozen screen. one
+	# idempotent sequence of insurance, on the path the interrupt takes too.
+	printf '%s' "$SYNC_END"
+	# this had no terminal check at all -- not a tier, not a TERM, not a -t --
+	# so a ctrl-c down a pipe wrote cursor motion into whatever was reading it.
+	[ "$SB_CLOCK_COL" -gt 0 ] && [ "$_csi" = 1 ] && [ -t 1 ] \
+		&& printf '\0337\033[%d;%dH   \0338' "$CLOCK_ROW" "$SB_CLOCK_COL"
+	return 0
+}
+
+# between cards: one keypress moves on, q leaves. the prompt names only the
+# key you came here to press -- q is there for whoever reaches for it, and a
+# card screen is not the place to advertise the exit.
+#
+# -icanon rather than raw: it gives the single character without waiting for a
+# newline, and it KEEPS isig, so Ctrl-C still interrupts instead of arriving as
+# a byte that reads like any other key. the terminal is put back either way.
+# non-interactive returns at once so nothing automated ever hangs here.
+pause_card() {
+	[ -t 0 ] || return 0
+	printf '\n  %s[enter] next%s ' "$D" "$N"
+	_pc_tty=$(stty -g 2>/dev/null) || _pc_tty=
+	if [ -n "$_pc_tty" ] && stty -icanon -echo 2>/dev/null; then
+		IFS= read -r -n 1 _pc 2>/dev/null || _pc=q
+		stty "$_pc_tty" 2>/dev/null
+		echo
+	else
+		IFS= read -r _pc 2>/dev/null || _pc=q
+	fi
+	unset _pc_tty
+	case "$_pc" in q|Q|quit|"$EOT") return 2 ;; esac
+	return 0
+}

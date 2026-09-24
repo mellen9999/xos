@@ -1,0 +1,49 @@
+# phrase macros for question prompts: %name% expands to a random member at
+# render time. the point is not decoration -- it is that the SAME skill is
+# asked many different ways, so you read for intent instead of pattern-matching
+# the sentence. every member of a group must be grammatically interchangeable
+# wherever the macro is used.
+#
+# format:  %name% = one | two | three
+# keep members boringly interchangeable; cleverness that fits one sentence only
+# belongs inline as {a|b|c} in that one question.
+#
+# a macro carries the INTENT, never the tool: %show% can render print, show,
+# display or output, so it can never be what tells a learner the card wants
+# echo. naming the command is the card's own job -- selftest's unnamed_cmd
+# gate blanks every macro span before it looks, so a member that happens to
+# spell a command (find, in %find%) counts for nothing.
+
+# --- put something on the screen ---
+# "write out" and "print out" are gone on purpose: they mean writing to a file
+# or to paper, and every question here asks for something on the screen. they
+# read as an instruction to redirect -- exactly the wrong thing to teach.
+show = print | show | display | output
+
+# --- enumerate directory-ish contents ---
+list = list | show | show me
+
+# --- locate something ---
+find = find | locate | hunt down | track down | search for | dig out
+
+# --- produce a count ---
+count = count | tally | total up | add up
+
+# --- pull a piece out of something ---
+get = extract | pull out | grab | get | isolate | pick out | carve out
+
+# --- open an archive. its own group: "carve out site-backup.tar.gz into build"
+# is not something anyone would say, and %get% is for a field in a line ---
+unpack = extract | unpack
+
+# --- create ---
+make = make | create | set up | build | spin up
+
+# --- change something into something ---
+turn = turn | convert | change
+
+# --- polite openers (can prefix an instruction) ---
+give = give me | show me | get me | i want | i need | hand me
+
+# --- soft closers / flavor (optional, includes empty) ---
+now = | right now | here | for me | quickly

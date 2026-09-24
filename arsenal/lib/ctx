@@ -1,0 +1,241 @@
+# ctx -- roll a question context, then render a template against it.
+#
+# this is the part that makes a generated question read like a person wrote it.
+# two rules, both learned the hard way upstream:
+#
+#   1. one pool per SEMANTIC ROLE, never one shared pool. a single name pool
+#      makes half the rolls nonsense -- "store the word count of notes.txt in
+#      now". var.count holds count/num/total, var.time holds now/stamp. the
+#      role is the wording.
+#   2. roll ONCE per question and substitute the same roll into the prompt and
+#      every accepted answer. a second roll between them would ask about
+#      app.log and accept an answer about server.log.
+#
+# no arrays: the roll is emitted as a sed script, and rendering is one sed pass.
+# that is also what guarantees rule 2 -- prompt and answers share one script.
+
+POOLS="$ROOT/pools"
+SUBST=""            # path to the rolled sed script; set by ctx_init
+SUBST_HI=""         # the same roll, with every value fenced for display
+
+# the fence a rolled value is wrapped in is HI1/HI2, defined in lib/ui beside
+# the mark it becomes and the literal fence it must never collide with.
+
+ctx_init() {
+	SUBST="$TMP/subst"
+	SUBST_HI="$TMP/subst.hi"
+	: > "$SUBST"; : > "$SUBST_HI"
+}
+
+# token_pools -- "TOKEN POOL" for every substitution roll() makes, read out of
+# roll() itself. anything that needs to know what a @token@ can hold -- the
+# example lines on a reference card, the prompt-width gate -- reads this rather
+# than keeping a second copy of the list that drifts the day a token is added.
+token_pools() {
+	awk '
+		/pick2?[ \t]/ {
+			if (!match($0, /pick2?[ \t]+[A-Za-z0-9._]+/)) next
+			p = substr($0, RSTART, RLENGTH); sub(/pick2?[ \t]+/, "", p)
+			n = split($0, part, ";")
+			for (i = 1; i <= n; i++)
+				if (match(part[i], /sub[ \t]+[a-z0-9]+/)) {
+					t = substr(part[i], RSTART, RLENGTH); sub(/sub[ \t]+/, "", t)
+					print t, p
+				}
+		}' "$ROOT/lib/ctx"
+}
+
+# rnd MAX -> REPLY in 0..MAX-1
+rnd() { REPLY=$(( RANDOM % $1 )); }
+
+# pick POOL -> REPLY is a random line
+pick() {
+	_p="$POOLS/$1"
+	[ -f "$_p" ] || { echo "learn: no pool '$1'" >&2; REPLY=""; return 1; }
+	_n=$(grep -c . "$_p")
+	[ "$_n" -gt 0 ] 2>/dev/null || { echo "learn: empty pool '$1'" >&2; REPLY=""; return 1; }
+	rnd "$_n"
+	REPLY=$(grep . "$_p" | sed -n "$((REPLY + 1))p")
+}
+
+# pick2 POOL -> REPLY and REPLY2 differ whenever the pool has more than one entry
+pick2() {
+	pick "$1"; _a=$REPLY
+	_t=0
+	while :; do
+		pick "$1"; _b=$REPLY
+		[ "$_b" != "$_a" ] && break
+		_t=$((_t + 1)); [ "$_t" -ge 8 ] && break
+	done
+	REPLY=$_a; REPLY2=$_b
+}
+
+# sub NAME VALUE -- add one substitution to the rolled script.
+#
+# the delimiter is @name@, not %name%. % was the obvious choice and the wrong
+# one: strftime, printf and awk all use % constantly, so `date +%Y-%m-%d` read
+# as an unrendered placeholder and there was no way to tell a real one from a
+# format string. @ appears in almost no shell command.
+# | delimits the rule and & means 'the whole match' on the replacement side, so
+# a value carrying either would emit a rule that silently does the wrong thing.
+# no pool holds one; this refuses loudly rather than trusting that.
+sub() {
+	case "$2" in
+		*'|'*|*'&'*|*'\\'*)
+			echo "learn: pool value is not sed-safe: $2" >&2; return 1 ;;
+	esac
+	printf 's|@%s@|%s|g\n' "$1" "$2" >> "$SUBST"
+	printf 's|@%s@|%s%s%s|g\n' "$1" "$HI1" "$2" "$HI2" >> "$SUBST_HI"
+}
+
+# roll -- fresh context for one question.
+roll() {
+	: > "$SUBST"; : > "$SUBST_HI"
+
+	# the fixture seed rides along with the roll: the sandbox's file contents
+	# are generated from it, so every question runs against fresh data and the
+	# same question always sees the same bytes.
+	FX_SEED=$RANDOM
+
+	pick  logs;  sub log "$REPLY"
+	pick2 txts;  sub txt "$REPLY";  sub txt2 "$REPLY2"
+	pick2 cfgs;  sub cfg "$REPLY";  sub cfg2 "$REPLY2"
+	pick  csvs;  sub csv "$REPLY"
+	pick2 dirs;  sub dir "$REPLY";  sub dir2 "$REPLY2"
+	pick  scripts; sub script "$REPLY"
+	pick  bins;    sub bin "$REPLY"
+	pick  archives; sub archive "$REPLY"
+
+	pick  terms; sub term "$REPLY"
+	pick  sev;   sub sev "$REPLY"; _sev=$REPLY
+	# @needle@: @sev@ half the time, otherwise a severity the log fixture never
+	# writes. a found/missing question is only a question when both happen.
+	rnd 6; case $REPLY in 0|1|2) sub needle "$_sev" ;; 3) sub needle TRACE ;; 4) sub needle NOTICE ;; *) sub needle PANIC ;; esac
+	pick2 ips;    sub ip "$REPLY";  sub ip2 "$REPLY2"
+	pick  ports;  sub port "$REPLY"
+	pick  ifaces; sub iface "$REPLY"
+	pick  hosts;  sub host "$REPLY"
+	pick  users;  sub user "$REPLY"
+	pick  procs;  sub proc "$REPLY"
+	pick  old;    sub old "$REPLY"
+	pick  new;    sub new "$REPLY"
+	pick  words;  sub word "$REPLY"
+
+	pick var.value; sub var "$REPLY"
+	pick var.count; sub cvar "$REPLY"
+	pick var.time;  sub tvar "$REPLY"
+	pick var.mode;  sub mvar "$REPLY"
+
+	rnd 20; sub n  "$((REPLY + 1))"
+	rnd 8;  sub n3 "$((REPLY + 2))"
+}
+
+# render -- stdin through the rolled script, then collapse {a|b|c} alternations.
+# awk picks the branch; it is seeded per call so two renders of the same
+# template read differently, and so `learn daily` reproduces exactly.
+# PHRASES points at learn/phrases; loaded once, passed to render's awk.
+PHRASES="$ROOT/phrases"
+
+# render is the plain pass -- answers, expected output, the state a grader
+# checks -- and render_named the display one, where each rolled value comes out
+# fenced. one seed drives both, so the {a|b|c} branch a prompt shows is the
+# branch its stripped twin was measured on.
+render()       { _render "$SUBST"    "$1"; }
+render_named() { _render "$SUBST_HI" "$1" "$HI1" "$HI2"; }
+
+# render_tokens -- the roll's names only, no phrase macros and no {a|b|c}.
+# a program body is CODE: `{ grep x "$1" | wc -l; }` is a command group with a
+# pipe in it, and the alternation pass below would read it as a two-branch
+# choice and throw half the line away. the same goes for a printf format --
+# "%s" is not a macro, but a body is not prose and should not be read as any.
+render_tokens() { sed -f "$SUBST"; }
+
+_render() {
+	sed -f "$1" | awk -v seed="$2" -v pf="$PHRASES" -v hi1="${3:-}" -v hi2="${4:-}" '
+		BEGIN {
+			srand(seed)
+			# load %macro% -> alternatives from the phrases file. a macro asked
+			# for but not defined is left as-is, which shows up loudly.
+			while ((getline l < pf) > 0) {
+				if (l ~ /^[ \t]*#/ || l !~ /=/) continue
+				name = l; sub(/=.*/, "", name); gsub(/[ \t%]/, "", name)
+				body = l; sub(/^[^=]*=/, "", body); gsub(/^[ \t]+|[ \t]+$/, "", body)
+				macro["%" name "%"] = body
+			}
+			close(pf)
+		}
+		# fuse -- two rolled values with a slash between them are one path.
+		# "@dir@/@word@/deep" rolls backup and running, and marking them
+		# separately drew `backup` and `running` lit and `deep` flat: three
+		# pieces of one argument, which is not what the learner has to type.
+		# a closing fence, a slash and an opening fence collapse to the slash,
+		# so the pair becomes one span before widen ever looks at it. only a
+		# slash does this -- any other character between two values is english
+		# between two names ("@old@-to-@new@") and stays two marks.
+		function fuse(line,   out, p, q) {
+			out = ""
+			while ((p = index(line, hi2 "/" hi1)) > 0) {
+				out = out substr(line, 1, p - 1) "/"
+				line = substr(line, p + 3)
+			}
+			return out line
+		}
+		# widen -- a mark covers the whole name, not the rolled half of it.
+		# "@word@.fifo" rolls ping, and the card has to read ping.fifo as one
+		# word: a learner who types back the marked part alone runs
+		# `mkfifo ping` and makes the wrong file. so the closing fence slides
+		# right over whatever is glued to the value with no separator -- .txt,
+		# .gz, -missing, and the rest of a path -- and stops at a space, comma
+		# or quote, which begin a new word rather than continue this one. it
+		# never slides into a second value: "@old@-to-@new@" is english
+		# between two names, not one filename, and stays the two marks it is.
+		function widen(line,   out, p, rest, run) {
+			out = ""
+			while ((p = index(line, hi2)) > 0) {
+				out = out substr(line, 1, p - 1)
+				rest = substr(line, p + 1)
+				if (match(rest, /^[A-Za-z0-9_.\/-]+/) && substr(rest, RLENGTH + 1, 1) != hi1) {
+					# the whole glued run decides whether to widen; trailing
+					# punctuation ("ping.fifo." at the end of a clause) is
+					# then handed back outside the mark.
+					run = substr(rest, 1, RLENGTH)
+					sub(/[^A-Za-z0-9_]+$/, "", run)
+					out = out run hi2
+					line = substr(rest, length(run) + 1)
+					continue
+				}
+				out = out hi2
+				line = rest
+			}
+			return out line
+		}
+		# pick a random member of a pipe-separated list, trimming each
+		function pick(list,   n, a, i, r) {
+			n = split(list, a, "|")
+			r = a[int(rand() * n) + 1]
+			gsub(/^[ \t]+|[ \t]+$/, "", r)
+			return r
+		}
+		{
+			line = $0
+			# expand every %macro% first (longest names first is unnecessary --
+			# they are delimited by %). unknown macros are left untouched.
+			for (m in macro) {
+				while (index(line, m) > 0) {
+					p = index(line, m)
+					line = substr(line, 1, p - 1) pick(macro[m]) substr(line, p + length(m))
+				}
+			}
+			# then collapse inline {a|b|c} alternations
+			out = ""
+			while (match(line, /\{[^{}]*\|[^{}]*\}/)) {
+				out = out substr(line, 1, RSTART - 1) pick(substr(line, RSTART + 1, RLENGTH - 2))
+				line = substr(line, RSTART + RLENGTH)
+			}
+			# an empty macro member can leave a double space; tidy it
+			line = out line
+			gsub(/  +/, " ", line); sub(/^ +/, "", line)
+			if (hi1 != "") line = widen(fuse(line))
+			print line
+		}'
+}

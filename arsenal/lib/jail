@@ -1,0 +1,76 @@
+# jail -- containment for the graded arsenal. base learn grades by RUNNING what
+# you type and stays safe by dropping the answer to user `nobody` in a throwaway
+# tree: root owns everything the answer must not touch, so plain file permissions
+# refuse it. the xos stick console is root too, so the same wall works here -- the
+# one extra job is that arsenal answers invoke CARRIED tools, which live on noexec
+# p3. so the jail stages those tools onto an exec tmpfs, remounts it READ-ONLY
+# (write-once -- the level-29 W^X contract holds), and runs the typed answer as
+# nobody against a nobody-owned scratch. nobody can exec the staged tools and can
+# write only its own scratch; the real encrypted home, the keys and the loot are
+# root-owned and untouchable.
+#
+# on a normal-user dev host there is no root to drop from and no mount: the jail
+# degrades to a plain scratch dir run as the current user -- exactly the DROP=""
+# path base learn takes on its build host. real containment is proven on the
+# stick (root), and on any root host via the selftest.
+#
+# proven 2026-09-23 on real root: a destructive typed answer cannot read or
+# delete a root-owned secret, cannot write the read-only exec surface, and can
+# write only its scratch; a staged static binary executes as nobody.
+
+# the privilege-drop, chosen once. busybox ships setuidgid; util-linux setpriv
+# and runit chpst are the fallbacks a dev host is likely to have.
+JAIL_DROP=""
+if [ "$(id -u 2>/dev/null)" = 0 ] && id nobody >/dev/null 2>&1; then
+	if   command -v setuidgid >/dev/null 2>&1; then JAIL_DROP="setuidgid nobody"
+	elif command -v setpriv   >/dev/null 2>&1; then JAIL_DROP="setpriv --reuid nobody --regid nobody --clear-groups"
+	elif command -v chpst     >/dev/null 2>&1; then JAIL_DROP="chpst -u nobody"
+	fi
+fi
+
+JAIL_BASE=""; JAIL_EXEC=""; JAIL_SCRATCH=""; JAIL_MOUNTED=0
+
+# jail_init [TOOL_PATH...] -- stand the jail up once. stages each tool binary onto
+# an exec tmpfs (when root) and remounts it read-only; makes a nobody-owned
+# scratch. safe to call with no tools (a file-only lesson needs none).
+jail_init() {
+	JAIL_BASE=$(mktemp -d "${TMPDIR:-/tmp}/arsjail.XXXXXX") || return 1
+	chmod 755 "$JAIL_BASE"
+	JAIL_EXEC="$JAIL_BASE/bin"; JAIL_SCRATCH="$JAIL_BASE/work"
+	mkdir -p "$JAIL_EXEC" "$JAIL_SCRATCH"
+	if [ -n "$JAIL_DROP" ]; then
+		mount -t tmpfs -o nosuid,nodev,size=64m tmpfs "$JAIL_EXEC" 2>/dev/null && JAIL_MOUNTED=1
+	fi
+	for _t in "$@"; do
+		[ -f "$_t" ] || continue
+		cp "$_t" "$JAIL_EXEC/$(basename "$_t")" 2>/dev/null && chmod 755 "$JAIL_EXEC/$(basename "$_t")"
+	done
+	# write-once -> W^X: the exec surface is read-only for the rest of the session.
+	[ "$JAIL_MOUNTED" = 1 ] && mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$JAIL_EXEC" 2>/dev/null
+	[ -n "$JAIL_DROP" ] && chown nobody "$JAIL_SCRATCH" 2>/dev/null
+	return 0
+}
+
+# jail_run ANSWER [SEEDFN] -- reset the scratch, optionally seed it (SEEDFN runs
+# as root before the drop, cwd = the scratch), then run ANSWER as nobody inside
+# it with the staged tools on PATH. prints combined stdout+stderr. a wrong answer
+# that blocks on stdin can't hang the lesson (</dev/null, timeout).
+jail_run() {
+	_ans=$1; _seed=${2:-}
+	rm -rf "$JAIL_SCRATCH" 2>/dev/null; mkdir -p "$JAIL_SCRATCH"
+	[ -n "$_seed" ] && ( cd "$JAIL_SCRATCH" 2>/dev/null && "$_seed" )
+	[ -n "$JAIL_DROP" ] && chown -R nobody "$JAIL_SCRATCH" 2>/dev/null
+	( cd "$JAIL_SCRATCH" 2>/dev/null || exit 1
+	  # shellcheck disable=SC2086
+	  PATH="$JAIL_EXEC:$PATH" HOME="$JAIL_SCRATCH" TMPDIR="$JAIL_SCRATCH" \
+	    timeout 10 $JAIL_DROP "${SHELLBIN:-/bin/sh}" -c "$_ans" </dev/null 2>&1 )
+}
+
+# jail_scratch -- absolute path of the writable scratch, for state: assertions.
+jail_scratch() { printf '%s' "$JAIL_SCRATCH"; }
+
+jail_teardown() {
+	[ "$JAIL_MOUNTED" = 1 ] && umount -l "$JAIL_EXEC" 2>/dev/null
+	[ -n "$JAIL_BASE" ] && rm -rf "$JAIL_BASE" 2>/dev/null
+	JAIL_BASE=""; JAIL_MOUNTED=0
+}

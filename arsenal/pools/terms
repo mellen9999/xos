@@ -1,0 +1,12 @@
+ERROR
+WARN
+INFO
+DEBUG
+FATAL
+timeout
+refused
+connection
+retry
+slow
+memory
+disk

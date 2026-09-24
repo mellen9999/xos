@@ -1,0 +1,228 @@
+# coach -- what a miss teaches.
+#
+# 'wrong -- <answer>' tells you the answer; it does not tell you where YOUR
+# command died. on the final miss of a question (learn mode only -- the boss
+# stays terse) this shows up to seven rows, one label column wide:
+#
+#   yours/wanted   what your command actually printed vs what was wanted --
+#                  stderr included, so `grep: invalid option` is the first
+#                  thing you see
+#   not run        the answer was never executed at all -- it tried to write
+#                  outside the sandbox, so it is graded on text alone
+#   bashism        you reached for something bash has and this shell does not,
+#                  named with the portable form -- including the four that
+#                  fail silently rather than erroring
+#   stages         for a pipeline, the line count after every stage, so the
+#                  point where it died is visible
+#   wants          the answer never invoked the command the question is
+#                  actually testing
+#   closest        the listed answer nearest to what you typed, with the
+#                  tokens you were missing and the ones you added
+#   state          what the tree was supposed to look like afterwards, in
+#                  plain words
+#
+# and two rows on a correct answer: the shorter form, when yours was longer
+# than it had to be, and the other accepted spellings -- the point both times
+# is that there was never only one right answer.
+#
+# none of this may ever crash a lesson: every path tolerates hostile input,
+# and selftest feeds it some.
+
+# _c_row LABEL TEXT -- one dim-label row, every row the same width column.
+_c_row() { printf '  %s%-7s%s %s\n' "$D" "$1" "$N" "$2"; }
+
+# _c_state SPEC -- humanize a state: check into a sentence a miss can read.
+_c_state() {
+	case "$1" in
+		exists:*) printf 'afterwards %s should exist' "${1#exists:}" ;;
+		gone:*)   printf 'afterwards %s should be gone' "${1#gone:}" ;;
+		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should contain %s' "$_p" "$_e" ;;
+		mode:*)   _r=${1#mode:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should have mode %s' "$_p" "$_e" ;;
+		same:*)   _r=${1#same:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s and %s should hold the same bytes' "$_p" "$_e" ;;
+		differs:*) _r=${1#differs:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should still differ from %s' "$_p" "$_e" ;;
+		stamp:*)  _r=${1#stamp:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s should be dated %s' "$_p" "$_e" ;;
+		sametime:*) _r=${1#sametime:}; _p=${_r%%:*}; _e=${_r#*:}
+		          printf 'afterwards %s and %s should carry one timestamp' "$_p" "$_e" ;;
+		made:*)   printf 'the name it prints should be %s afterwards' \
+		            "$(case "${1#made:}" in file) echo 'a file';; dir) echo 'a directory';; *) echo 'nothing at all';; esac)" ;;
+		*)        printf '%s' "$1" ;;
+	esac
+}
+
+# _c_line OUTPUT -- "first line  (N lines)", or "(nothing)"
+_c_line() {
+	[ -n "$1" ] || { printf '(nothing)'; return; }
+	printf '%s' "$1" | awk 'NR == 1 { l = $0 } END {
+		if (length(l) > 48) l = substr(l, 1, 45) "..."
+		printf "%s  (%d line%s)", l, NR, NR == 1 ? "" : "s" }'
+}
+
+# _c_diff GIVEN ANSWER -- four lines: score, shared, missing, extra. token
+# multisets. score is how far apart they are; shared is how many tokens they
+# have in common (0 means a different approach entirely -- nothing to learn
+# from the comparison). four lines, not one delimited line: a tab-split in
+# sh drops empty fields, and "missing" is empty exactly when it matters.
+_c_diff() {
+	awk -v g="$1" -v a="$2" 'BEGIN {
+		ng = split(g, gt, /[ \t]+/); na = split(a, at, /[ \t]+/)
+		for (i = 1; i <= ng; i++) if (gt[i] != "|") G[gt[i]]++
+		for (i = 1; i <= na; i++) if (at[i] != "|") A[at[i]]++
+		miss = ""; extra = ""; shared = 0; score = 0
+		for (t in A) {
+			d = A[t] - G[t]
+			if (d > 0) { miss = miss " " t; score += d }
+			if (G[t] > 0) shared++
+		}
+		for (t in G) {
+			d = G[t] - A[t]
+			if (d > 0) { extra = extra " " t; score += d }
+		}
+		print score; print shared
+		print substr(miss, 2); print substr(extra, 2)
+	}'
+}
+
+# coach_miss INPUT -- the diagnosis rows. safe to call with anything.
+coach_miss() {
+	_ci=$1
+	_safe=1; printf '%s\n' "$_ci" | unsafe && _safe=0
+
+	# what yours printed vs what was wanted -- or, if it never ran at all,
+	# why not. an unsafe answer is graded on text alone (grade's tier 1
+	# only), so there is nothing to run and no output to show.
+	if [ "$_safe" = 0 ]; then
+		_c_row "not run" "writes outside the sandbox, graded on text alone"
+	elif [ -n "${Q_OUT:-}" ] || [ "${Q_CMP:-}" = ref ]; then
+		_got=$(run_answer "$_ci"); SANDBOX_DIRTY=1
+		_c_row yours "$(_c_line "$_got")"
+		if [ "${Q_CMP:-}" = ref ]; then
+			_want=$(run_answer "$(printf '%s\n' "$Q_ANSWERS" | head -1)"); SANDBOX_DIRTY=1
+			_c_row wanted "$(_c_line "$_want")"
+		else
+			_c_row wanted "matching /$Q_OUT/"
+		fi
+	fi
+
+	# a bash habit this shell does not have. it sits directly under `yours`
+	# because that is the row it explains -- ash answers a bashism with
+	# "[[: not found" or "bad substitution", and neither says the word bash.
+	# it sits above `wants` for the same reason: that row would report you
+	# never ran grep, when what happened is ash died on the [[ in front of it.
+	# four of the rows in learn/bashisms do not error at all; see that file.
+	while IFS="$(printf '\t')" read -r _bl _bg; do
+		[ -n "$_bl" ] || continue
+		_c_row bashism "$_bl -- $_bg"
+	done <<-EOF
+	$(bashism_scan "$_ci")
+	EOF
+
+	# the answer never invoked the command the question is actually testing
+	# (grade's tier 2 requires it) -- a real diagnosis, not a guess.
+	case "${Q_REF:-}" in
+		''|sh|ash) ;;
+		'['|test) printf '%s\n' "$_ci" | answer_cmds | grep -qxE '\[|test' \
+			|| _c_row wants "a test -- [ ] or test" ;;
+		*) printf '%s\n' "$_ci" | answer_cmds | grep -qxF -- "$Q_REF" \
+			|| _c_row wants "to run $Q_REF" ;;
+	esac
+
+	# for a pipeline: the line count after every stage. quoting can hide a
+	# pipe from a naive split, so any quote means no stage row at all rather
+	# than a wrong one.
+	case "$_ci" in
+	*\|*)
+		case "$_ci" in *\'*|*\"*) ;; *)
+			if [ "$_safe" = 1 ]; then
+				_row=""; _pfx=""
+				printf '%s\n' "$_ci" | tr '|' '\n' > "$TMP/coach.st"
+				while IFS= read -r _st; do
+					[ -n "$(printf '%s' "$_st" | tr -d ' \t')" ] || continue
+					_pfx="${_pfx:+$_pfx | }$_st"
+					_n=$(run_answer "$_pfx" | grep -c .); SANDBOX_DIRTY=1
+					_cmd=$(printf '%s\n' "$_st" | awk '{ print $1 }')
+					_row="${_row:+$_row  }$_cmd:$_n"
+				done < "$TMP/coach.st"
+				rm -f "$TMP/coach.st"
+				[ -z "$_row" ] || _c_row stages "${W}${_row}${N}"
+			fi ;;
+		esac ;;
+	esac
+
+	# the nearest listed answer, and the exact tokens between you and it
+	_giv=$(printf '%s\n' "$_ci" | norm)
+	_bs=999; _ba=""; _bm=""; _bx=""
+	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/coach.ans"
+	while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		_c_diff "$_giv" "$(printf '%s\n' "$_a" | norm)" > "$TMP/coach.d"
+		_sc=$(sed -n 1p "$TMP/coach.d"); _sh=$(sed -n 2p "$TMP/coach.d")
+		_mi=$(sed -n 3p "$TMP/coach.d"); _ex=$(sed -n 4p "$TMP/coach.d")
+		[ "$_sh" -gt 0 ] 2>/dev/null || continue
+		if [ "$_sc" -lt "$_bs" ] 2>/dev/null; then
+			_bs=$_sc; _ba=$_a; _bm=$_mi; _bx=$_ex
+		fi
+	done < "$TMP/coach.ans"
+	rm -f "$TMP/coach.ans" "$TMP/coach.d"
+	if [ -z "$_ba" ]; then
+		# not one listed answer shares a single token with what you typed --
+		# a different approach entirely, so the first listed answer is the
+		# only "closest" there is.
+		_c_row closest "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
+	elif [ "$_bs" -gt 0 ]; then
+		[ "$_ba" = "$(printf '%s\n' "$Q_ANSWERS" | head -1)" ] || _c_row closest "$_ba"
+		[ -z "$_bm" ] || _c_row missing "${R}${_bm}${N}"
+		[ -z "$_bx" ] || _c_row extra "$_bx"
+	fi
+
+	# afterwards: what the tree was supposed to look like, in plain words
+	[ -n "${Q_STATE:-}" ] && _c_row state "$(_c_state "$Q_STATE")"
+
+	return 0
+}
+
+# coach_right INPUT -- you got it. was there a shorter way (triggered by
+# character count, so `cat f | grep x` earns `grep x f`), and were there
+# other accepted spellings worth knowing?
+coach_right() {
+	_short=$(printf '%s\n' "${Q_ANSWERS:-}" | awk 'NF { if (!l || length($0) < l) { l = length($0); s = $0 } } END { print s }')
+	_gn=$(printf '%s\n' "$1" | norm)
+
+	# every spelling already on screen, one per line, normalised. the typed
+	# line is on it from the start; `shorter:` joins it if it prints. the
+	# `also:` scan used not to look -- so the shortest answer, which is
+	# usually the first one listed, printed twice in a row under two labels.
+	_seen="$_gn"
+	if [ -n "$_short" ] && [ "$_gn" != "$_short" ] \
+	   && [ $(( ${#_gn} - ${#_short} )) -gt 3 ] 2>/dev/null; then
+		note "shorter: $_short"
+		_seen="$_seen
+$(printf '%s\n' "$_short" | norm)"
+	fi
+
+	_also=""; _an=0
+	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/coach.also"
+	while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		_anorm=$(printf '%s\n' "$_a" | norm)
+		# and two `a:` lines that differ only in whitespace or a cat are the
+		# same line to the grader, so they are the same line here too.
+		case "
+$_seen
+" in *"
+$_anorm
+"*) continue ;; esac
+		_seen="$_seen
+$_anorm"
+		_also="${_also:+$_also$SEP}$_a"
+		_an=$((_an + 1))
+		[ "$_an" -ge 2 ] && break
+	done < "$TMP/coach.also"
+	rm -f "$TMP/coach.also"
+	[ -n "$_also" ] && note "also: $_also"
+	return 0
+}
