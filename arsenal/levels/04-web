@@ -63,6 +63,7 @@ teach: nmap
 hint: -sT is the unprivileged connect scan; -p names the port to check
 ---
 q: run `nuclei`'s default checks against @weburl@
+a: nuclei -u @weburl@ -silent
 a: nuclei -u @weburl@
 ref: nuclei
 teach: nuclei

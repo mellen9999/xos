@@ -548,6 +548,16 @@ and metasploit want drivers, hardware or a runtime xos won't carry, so they are
 never coming. **not built** is buildable static-musl but not yet done (gdb, tshark)
 -- the current toolset, not a promise of the next one.
 
+**learning it.** `arsenal learn` is the graded school for the toolkit -- the same
+engine as base `learn`, on the p3 side. Nine missions, from safety and the
+multiplexer through files, disks, the web, passwords, taking a thing apart, moving
+loot, the professional tools and the rest of the kit -- every carried tool drilled
+and graded by *running* what you type, with the same spaced-repetition cards. The
+answers run jailed: each tool is staged onto a throwaway exec tmpfs and the answer
+runs as `nobody` against practice targets the school stands up on `127.0.0.1`, so a
+live tool can touch nothing real. `arsenal walk` is the older one-command guided
+tour, kept for a quick look.
+
 ## learn
 
 the first boot greets you with `tutorial` -- three short pages that say where you
