@@ -5,42 +5,65 @@ brief: These probe a practice website the lab stands up on 127.0.0.1 -- your
 brief: own, and the only address in range. `httpx` asks a URL what it is;
 brief: `gobuster` guesses hidden paths from a wordlist. Same tools the pros
 brief: point at real targets, aimed here where it is safe to learn them.
-tools: httpx gobuster
+tools: httpx gobuster ffuf nmap nuclei
 lab: web
 ---
-q: probe @url@ and show its status code, with `httpx`
-a: httpx -u @url@ -sc -silent -nc
+q: probe @weburl@ and show its status code, with `httpx`
+a: httpx -u @weburl@ -sc -silent -nc
 out: 200
 ref: httpx
 teach: httpx
 hint: -u the url, -sc for the status code, -silent -nc for clean output
 ---
-q: get the page title of @url@ with `httpx`
-a: httpx -u @url@ -title -silent -nc
+q: get the page title of @weburl@ with `httpx`
+a: httpx -u @weburl@ -title -silent -nc
 out: practice site
 ref: httpx
 teach: httpx
 hint: -title asks for the <title> of the page
 ---
-q: probe @url@ and show the web server it runs, with `httpx`
-a: httpx -u @url@ -server -silent -nc
+q: probe @weburl@ and show the web server it runs, with `httpx`
+a: httpx -u @weburl@ -server -silent -nc
 out: [Ss]erver|[Pp]ython|http
 ref: httpx
 teach: httpx
 hint: -server reports the Server header
 ---
-q: find the hidden page on @url@ with `gobuster`, using ``words.txt``
-a: gobuster dir -u @url@ -w words.txt -q
+q: find the hidden page on @weburl@ with `gobuster`, using ``words.txt``
+a: gobuster dir -u @weburl@ -w words.txt -q
 out: secret
 ref: gobuster
 teach: gobuster
 hint: dir mode, -u the url, -w the wordlist, -q for quiet output
 seed: printf 'admin\nsecret\nlogin\nhello\n' > words.txt
 ---
-q: run `gobuster` dir on @url@ with ``words.txt``, showing each path's status
-a: gobuster dir -u @url@ -w words.txt
+q: run `gobuster` dir on @weburl@ with ``words.txt``, showing each path's status
+a: gobuster dir -u @weburl@ -w words.txt
 out: Status: 200
 ref: gobuster
 teach: gobuster
 hint: without -q, gobuster prints the status of every path it finds
 seed: printf 'admin\nsecret\nlogin\nhello\n' > words.txt
+---
+q: fuzz @weburl@ for hidden paths with `ffuf`, using ``words.txt``, keeping only 200s
+a: ffuf -u @weburl@/FUZZ -w words.txt -mc 200 -s
+out: secret
+ref: ffuf
+teach: ffuf
+hint: put ``FUZZ`` where the word goes in -u, -w the wordlist, -mc 200 keeps only hits, -s quiet
+seed: mkdir -p .config/ffuf
+seed: printf 'admin\nsecret\nlogin\nindex\n' > words.txt
+---
+q: scan the host of @weburl@ for its open port with `nmap`, a TCP connect scan
+a: nmap -sT -p @webport@ 127.0.0.1
+a: nmap -sT 127.0.0.1
+out: open
+ref: nmap
+teach: nmap
+hint: -sT is the unprivileged connect scan; -p names the port to check
+---
+q: run `nuclei`'s default checks against @weburl@
+a: nuclei -u @weburl@
+ref: nuclei
+teach: nuclei
+hint: -u the target url; nuclei runs its template checks against it

@@ -1,0 +1,61 @@
+name: the kit
+boss: quartermaster
+flavor: The rest of what you carry -- reach for the right one without looking.
+brief: The arsenal is not only weapons. A text browser, a PDF reader, offline
+brief: Wikipedia, a name-finder, a language to glue it all together, even a
+brief: game for the long nights. This level is knowing which tool is which and
+brief: how you reach for it -- most are things you run and use, not drills, so
+brief: here you name the invocation. As always, any target is ``127.0.0.1`` or
+brief: something you own.
+tools: links subfinder dnsx mutool kiwix-serve kiwix-search frotz python
+lab: web
+---
+q: read @weburl@ as plain text in the terminal, with `links`
+a: links -dump @weburl@
+out: practice site
+ref: links
+teach: links
+hint: -dump prints the page's text and exits, no interactive browser
+---
+q: with `python`, print the sum of 2 and 2
+a: python3 -c "print(2 + 2)"
+a: python -c "print(2 + 2)"
+ref: python
+teach: python
+hint: python3 -c runs a one-line program; print() shows the result
+---
+q: find a company's hidden sub-addresses for ``example.com`` with `subfinder`, quietly
+a: subfinder -d example.com -silent
+ref: subfinder
+teach: subfinder
+hint: -d the domain, -silent for just the names
+---
+q: resolve the names in ``names.txt`` to addresses with `dnsx`, showing the response
+a: dnsx -l names.txt -a -resp
+ref: dnsx
+teach: dnsx
+hint: -l the list, -a for A records, -resp to show the answer
+---
+q: pull the words out of ``file.pdf`` as plain text, with `mutool`
+a: mutool draw -F txt file.pdf
+ref: mutool
+teach: mutool
+hint: draw -F txt renders the pdf to text
+---
+q: serve the offline knowledge archives on port ``8080`` with `kiwix-serve`
+a: kiwix-serve --port 8080 archive.zim
+ref: kiwix-serve
+teach: kiwix-serve
+hint: --port then the .zim file to serve
+---
+q: search an offline archive ``wiki.zim`` for the phrase ``first aid`` with `kiwix-search`
+a: kiwix-search wiki.zim 'first aid'
+ref: kiwix-search
+teach: kiwix-search
+hint: the .zim file, then the phrase in quotes
+---
+q: play the text adventure ``story.z5`` with `frotz`
+a: frotz story.z5
+ref: frotz
+teach: frotz
+hint: frotz takes the story file; then you type where to go

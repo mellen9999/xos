@@ -146,7 +146,7 @@ blk_load() {
 	# the web target, @aurl@/@aport@ for the auth target -- filled here from the
 	# lab vars (empty when no lab is up; a non-lab card has no such token, so
 	# this is a no-op for it). # is the sed delimiter: a url has slashes.
-	_ls="s#@url@#${LAB_URL}#g;s#@aurl@#${LAB_AURL}#g;s#@port@#${LAB_PORT}#g;s#@aport@#${LAB_APORT}#g"
+	_ls="s#@weburl@#${LAB_URL}#g;s#@authurl@#${LAB_AURL}#g;s#@webport@#${LAB_PORT}#g;s#@authport@#${LAB_APORT}#g"
 	Q_PROMPT_HI=$(printf '%s' "$Q_PROMPT_HI" | sed "$_ls")
 	Q_PROMPT=$(printf '%s' "$Q_PROMPT" | sed "$_ls")
 	Q_ANSWERS=$(printf '%s\n' "$Q_ANSWERS" | sed "$_ls")

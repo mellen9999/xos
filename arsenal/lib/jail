@@ -38,12 +38,19 @@ jail_init() {
 	chmod 755 "$JAIL_BASE"
 	JAIL_EXEC="$JAIL_BASE/bin"; JAIL_SCRATCH="$JAIL_BASE/work"
 	mkdir -p "$JAIL_EXEC" "$JAIL_SCRATCH"
+	# size the exec tmpfs to the tools it must hold + margin: a single arsenal
+	# binary can be 130+MB (nuclei), and a fixed cap silently truncated the copy
+	# so a late tool never staged and its card failed. tmpfs size is a LIMIT, not
+	# a reservation -- only the bytes actually copied cost RAM. 32MB floor + margin.
+	_sz=32
+	for _t in "$@"; do [ -f "$_t" ] && _sz=$(( _sz + ( $(wc -c < "$_t" 2>/dev/null || echo 0) / 1048576 ) + 1 )); done
 	if [ -n "$JAIL_DROP" ]; then
-		mount -t tmpfs -o nosuid,nodev,size=64m tmpfs "$JAIL_EXEC" 2>/dev/null && JAIL_MOUNTED=1
+		mount -t tmpfs -o nosuid,nodev,size="${_sz}m" tmpfs "$JAIL_EXEC" 2>/dev/null && JAIL_MOUNTED=1
 	fi
 	for _t in "$@"; do
 		[ -f "$_t" ] || continue
-		cp "$_t" "$JAIL_EXEC/$(basename "$_t")" 2>/dev/null && chmod 755 "$JAIL_EXEC/$(basename "$_t")"
+		cp "$_t" "$JAIL_EXEC/$(basename "$_t")" 2>/dev/null && chmod 755 "$JAIL_EXEC/$(basename "$_t")" \
+			|| { echo "jail: failed to stage $(basename "$_t")" >&2; }
 	done
 	# write-once -> W^X: the exec surface is read-only for the rest of the session.
 	[ "$JAIL_MOUNTED" = 1 ] && mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$JAIL_EXEC" 2>/dev/null
