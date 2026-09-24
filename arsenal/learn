@@ -295,7 +295,6 @@ walk() {  # $1 = start index
   printf 'from here:\n  %ssh ~/tools/arsenal%s         every tool, one line each\n' "$C_B" "$C_0"
   printf '  %ssh ~/tools/arsenal chains%s   the mission recipes, end to end\n' "$C_B" "$C_0"
   printf '  %ssh ~/tools/arsenal <tool>%s   one tool in depth\n\n' "$C_B" "$C_0"
-  printf 'new to the shell itself? %slearn%s teaches the base -- ls, pipes, sed -- first.\n\n' "$C_B" "$C_0"
   printf '%sand remember the one rule: only ever aim these at a machine you own.%s\n' "$C_R" "$C_0"
 }
 
