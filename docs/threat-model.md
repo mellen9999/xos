@@ -65,7 +65,13 @@ naming these is the point -- it's what keeps the effort honest.
   key too. a key on a compromised host signs whatever it is told. a signature
   proves the key was present, never that the person was.
 - **hardware implants / evil-maid firmware below our chain.** recon catches a
-  *changed* host; it can't vouch for one that was hostile from the factory.
+  *changed* host; it can't vouch for one hostile from the factory, and nothing
+  running on borrowed silicon can hide from the layer beneath it. the
+  write-protect switch guards the stick, not the host: in work mode (switch off)
+  p3 is unlocked, so its plaintext and whatever loot you collect sit in RAM the
+  host can read. so the rule is operational, not a toggle -- don't unlock p3 on a
+  host you actually believe is hostile. vault mode (switch on) keeps the stick's
+  bytes safe from that host; it does not make the host safe to run on.
 
 ## what is actually being protected
 
