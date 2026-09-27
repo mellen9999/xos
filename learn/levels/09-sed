@@ -112,15 +112,6 @@ ref: sed
 teach: sed -E
 hint: \1 refers to whatever the first (group) matched
 ---
-setup: you're not sure this sed has the newer regex flag
-q: {pull the port from @cfg@ again with `sed`, using the older regex flag|repeat the port pull from @cfg@ with `sed`'s older flag|redo the port pull from @cfg@ with `sed`'s legacy flag}
-a: sed -r 's/^port = ([0-9]+)$/\1/' @cfg@
-out: 8080
-cmp: ref
-ref: sed
-teach: sed -r
-hint: -r and -E are the same flag; -E is the portable spelling
----
 setup: you want capture groups without backslash-escaping every paren
 q: {@csv@ is name,id,status,count -- with `sed`, swap name and id|@csv@ is name,id,status,count -- with `sed`, put id ahead of name|@csv@ has name,id,status,count -- use `sed` to lead with id}
 a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' @csv@

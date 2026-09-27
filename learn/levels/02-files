@@ -235,13 +235,6 @@ ref: mkfifo
 teach: mkfifo
 hint: a fifo connects a writer to a reader instead of storing data
 ---
-q: %make% a named pipe @word@.fifo with `mkfifo`, readable/writable by you only
-a: mkfifo -m 600 @word@.fifo
-state: mode:@word@.fifo:600
-ref: mkfifo
-teach: mkfifo -m
-hint: -m sets permissions at creation, same as mkdir -m
----
 q: %make% a temporary file with a name nothing else will collide with
 a: mktemp
 state: made:file
@@ -255,14 +248,6 @@ state: made:dir
 ref: mktemp
 teach: mktemp -d
 hint: d for directory instead of a file
----
-setup: the program you hand this to insists on creating the file itself
-q: {get a temporary name without actually creating anything|you want the name only -- nothing created on disk|hand back a temp name but don't reserve it}, with `mktemp`
-a: mktemp -u
-state: made:none
-ref: mktemp
-teach: mktemp -u
-hint: u for unsafe -- it hands you a name without reserving it
 ---
 q: {list every ``*.log`` file inside logs, with `ls`|match ``logs/*.log`` and list every hit, with `ls`}
 a: ls logs/*.log

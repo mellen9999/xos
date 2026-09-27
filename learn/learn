@@ -1407,11 +1407,20 @@ coverage() {
 
 	# grep -c prints 0 AND exits non-zero on no match, so `|| echo 0` fired as
 	# well and this held "0\n0" -- which every numeric test then choked on.
-	local holes; holes=$(awk 'END { print NR }' "$TMP/holes")
+	# a pair on both lists is a ruling the file contradicts: skip says the
+	# curriculum decided not to drill it, a teach: line drills it anyway.
+	# taught wins the count above, so without this the lie never surfaced.
+	grep -xFf "$TMP/taught" "$TMP/skipped" > "$TMP/both" || :
+	local holes both; holes=$(awk 'END { print NR }' "$TMP/holes")
+	both=$(awk 'END { print NR }' "$TMP/both")
 	hdr "coverage" "$total items across $(surface | grep -c .) commands"
 	printf '  %s%-8s%s %d\n' "$G" taught "$N" "$done_"
 	printf '  %s%-8s%s %d\n' "$D" skipped "$N" "$skipped"
 	printf '  %s%-8s%s %d\n' "$([ "$holes" -eq 0 ] && echo "$D" || echo "$R")" untaught "$N" "$holes"
+	if [ "$both" -gt 0 ]; then
+		printf '  %s%-8s%s %d\n' "$R" both "$N" "$both"
+		sed 's/^/    taught and in learn\/skip: /' "$TMP/both"
+	fi
 	if [ "$holes" -gt 0 ] && [ "${1:-}" = -v ]; then
 		rule
 		awk '{ a[$1] = a[$1] " " $2 } END { for (c in a) print "  " c a[c] }' "$TMP/holes" | sort
@@ -1419,7 +1428,7 @@ coverage() {
 	rule
 	note "learn coverage -v lists the holes. learn/skip is where a flag, or a"
 	note "whole command as '<cmd> *', is retired on purpose with the reason."
-	[ "$holes" -eq 0 ]
+	[ "$holes" -eq 0 ] && [ "$both" -eq 0 ]
 }
 
 # ---- selftest -------------------------------------------------------------
@@ -1532,6 +1541,25 @@ flag_ok() {
 		fi
 	done
 	return 0
+}
+
+# retired CMD TOKEN -- does this token use a flag learn/skip retires? walked
+# the way flag_ok walks a bundle: `-czf` is c, z and f, and the walk stops at
+# the first letter the page does not document, because what follows is a value
+# stuck to the flag (-d, -f1) and not more flags.
+retired() {
+	local cmd=$1 tok=$2 rest c
+	[ -s "$TMP/skip.all" ] || skip_set > "$TMP/skip.all"
+	grep -qxF -- "$cmd $tok" "$TMP/skip.all" && return 0
+	case "$tok" in --*|-) return 1 ;; -*) ;; *) return 1 ;; esac
+	rest=${tok#-}
+	while [ -n "$rest" ]; do
+		c=${rest%"${rest#?}"}
+		documented "$cmd" "-$c" || documented "$cmd" "$c" || return 1
+		grep -qxF -- "$cmd -$c" "$TMP/skip.all" && return 0
+		rest=${rest#?}
+	done
+	return 1
 }
 
 # answer_flags -- every "cmd flag" pair an answer actually uses, attributed to
@@ -1748,6 +1776,16 @@ st_block() {
 	done > "$TMP/fl.$$" 2>&1
 	if [ -s "$TMP/fl.$$" ]; then cat "$TMP/fl.$$" >&2; bad=$((bad + $(grep -c . "$TMP/fl.$$"))); fi
 	rm -f "$TMP/fl.$$"
+
+	# the first answer is the one the card stands behind: it is what the
+	# tab panel shows as an example and what the reveal prints. a flag
+	# learn/skip retired has no business there. later answers are the
+	# grader being generous -- `cp -R` is still right -- and may use one.
+	printf '%s\n' "$Q_ANSWERS" | head -1 | answer_flags | while read -r ac af; do
+		retired "$ac" "$af" && echo "FAIL $lbl: first answer uses $ac $af, retired in learn/skip"
+	done > "$TMP/rt.$$" 2>&1
+	if [ -s "$TMP/rt.$$" ]; then cat "$TMP/rt.$$" >&2; bad=$((bad + $(grep -c . "$TMP/rt.$$"))); fi
+	rm -f "$TMP/rt.$$"
 
 	# the coverage claim has to be true in both directions.
 	# a teach: line reads "<command> <flag>...". everything after the

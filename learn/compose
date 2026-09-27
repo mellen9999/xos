@@ -49,17 +49,22 @@
 10-awk               7
 11-variables         -  grammar
 12-exit-status       13
-13-test              11
+# 2026-09-27 cull lowered this: [ -a / [ -o cards cut; && and || between two [ ] carry it
+13-test              9
 14-control-flow      -  grammar
 15-scripts           -  grammar
 16-job-control       -  single-tool
 17-processes         -  single-tool
 18-permissions       3
-19-xargs             8
-20-archives          11
-21-integrity         15
+# 2026-09-27 cull lowered this: xargs -a card cut; the < redirect it duplicated is drilled
+19-xargs             7
+# 2026-09-27 cull lowered this: gunzip -c card cut; zcat is the applet
+20-archives          10
+# 2026-09-27 cull lowered this: md5sum/sha1sum/sha512sum -c/-s cards cut; sha256sum carries the save-then-check
+21-integrity         9
 22-bytes             4
-23-disks             5
+# 2026-09-27 cull lowered this: flock -x card cut; flock is still drilled composed
+23-disks             4
 24-the-machine       3
 25-interfaces        1
 26-reachability      -  single-tool

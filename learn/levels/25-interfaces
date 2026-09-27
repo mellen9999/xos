@@ -147,14 +147,6 @@ ref: route
 teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
-setup: the plain route table doesn't say enough to diagnose what's wrong
-q: %show% `route` table entries with extended fields
-a: route -e
-why: live-hw
-ref: route
-teach: route -e
-hint: -e adds the extra fields netstat-style output shows
----
 q: see which macs this machine already knows about -- %show% the `arp` cache
 a: arp
 out: \) at .*\[
@@ -189,14 +181,6 @@ why: live-hw
 ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface
----
-setup: a host lives on a different segment, and its neighbours need to think it's local
-q: {publish an `arp` entry for @ip@ on @iface@, on another's behalf|answer `arp` requests for @ip@ on @iface@, on another's behalf|publish a proxy `arp` entry for @ip@ out of @iface@}
-a: arp -Ds @ip@ @iface@ pub
-why: live-hw
-ref: arp
-teach: arp -D
-hint: -Ds publishes @ip@ using @iface@'s own MAC; the trailing pub makes it a proxy entry answered on another host's behalf
 ---
 setup: three probes, then stop
 q: {is anyone using @ip@ -- ask at the link layer, with `arping`|check at the link layer whether @ip@ is in use, with `arping`|find out, below ip, whether @ip@ has an owner, with `arping`}

@@ -90,14 +90,6 @@ ref: tar
 teach: tar --strip-components
 hint: --strip-components N removes that many leading path segments
 ---
-setup: your last extraction half-finished and left files behind
-q: %unpack% ``archive/site-backup.tar.gz`` overwriting anything in the way, with `tar`
-a: tar -xzf archive/site-backup.tar.gz --overwrite
-why: fixture-cost
-ref: tar
-teach: tar --overwrite
-hint: --overwrite lets extraction replace files already in the way
----
 q: %make% ``bundle.tar`` from the list of names held in ``names.txt``, with `tar`
 a: tar -cf bundle.tar -T names.txt
 state: exists:bundle.tar
@@ -112,14 +104,6 @@ state: exists:bundle.tar
 ref: tar
 teach: tar --no-recursion
 hint: --no-recursion archives a directory entry itself without descending into it
----
-setup: the archive comes from somewhere you don't trust and you don't want its recorded permissions honored
-q: %unpack% ``archive/site-backup.tar.gz``, ignoring recorded modes, with `tar`
-a: tar -xzf archive/site-backup.tar.gz --no-same-permissions
-why: fixture-cost
-ref: tar
-teach: tar --no-same-permissions
-hint: --no-same-permissions applies your umask instead of the recorded modes
 ---
 setup: the archive's uid and gid don't correspond to any user or group on this machine
 q: %unpack% ``archive/site-backup.tar.gz``, skipping owner lookups, with `tar`
@@ -178,13 +162,6 @@ state: exists:z.gz
 ref: gunzip
 teach: gunzip -t
 hint: -t verifies the archive's integrity without writing any output
----
-q: {`gzip` @txt@ to ``z.gz``, print its contents, ``z.gz`` stays, with `gunzip`|read ``z.gz``'s contents, from @txt@, without deleting it, with `gunzip`|stream ``z.gz``, gzipped from @txt@, to stdout, kept, with `gunzip`}
-a: gzip -c @txt@ > z.gz && gunzip -c z.gz
-out: rotate
-ref: gunzip
-teach: gunzip -c
-hint: -c decompresses to stdout, leaving the .gz file in place
 ---
 q: {compress @txt@ with `bzip2` rather than gzip|use `bzip2` instead of gzip on @txt@|run `bzip2` on @txt@ in place of gzip}
 a: bzip2 @txt@

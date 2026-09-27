@@ -43,13 +43,6 @@ ref: uname
 teach: uname -m
 hint: -m reports the cpu architecture uname was built for
 ---
-q: {the network node name, with `uname`|what is this machine's network node name, with `uname`|report the node name `uname` reports}
-a: uname -n
-cmp: ref
-ref: uname
-teach: uname -n
-hint: -n is the node's network hostname, same field hostname reports
----
 q: {this machine's `hostname`|what is this machine's `hostname`|report the current `hostname`}
 a: hostname
 why: live-hw
@@ -185,15 +178,6 @@ out: not a tty
 ref: tty
 teach: tty
 hint: tty with no arguments prints the path of your controlling terminal
----
-setup: a script needs to know if a human's even watching, without printing anything to find out
-q: {test whether this is a terminal at all, silently|silently check whether this session is attached to a terminal|find out, with no output, whether stdin is a terminal}, with `tty`
-a: tty -s
-status: 1
-cmp: ref
-ref: tty
-teach: tty -s
-hint: -s suppresses output, useful only for its exit status
 ---
 q: {`clear` the screen|wipe the terminal screen|blank the screen}
 a: clear

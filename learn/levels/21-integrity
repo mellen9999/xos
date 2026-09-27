@@ -69,42 +69,12 @@ ref: sha512sum
 teach: sha512sum
 hint: sha512 produces a longer, 128 hex character digest
 ---
-q: {save @txt@'s sha512 to ``s5.txt`` with `sha512sum`, then confirm|`sha512sum` @txt@ to ``s5.txt`` and check it back|record @txt@'s sha512 in ``s5.txt`` via `sha512sum`, then verify}
-a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
-out: : OK
-ref: sha512sum
-teach: sha512sum -c
-hint: -c checks a saved hash file the same way it does for sha256sum
----
-q: {save @txt@'s sha512 to ``s5.txt``, then `sha512sum` it quietly|`sha512sum` @txt@ to ``s5.txt`` and check it, silent unless wrong|record @txt@'s sha512 in ``s5.txt``, then `sha512sum` it silently}
-a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
-status: 0
-cmp: ref
-ref: sha512sum
-teach: sha512sum -s
-hint: -s keeps the successes quiet, same as with sha256sum
----
 q: {compute the sha1 of @txt@, for checking against an old published value|run `sha1sum` on @txt@ to compare against a value published elsewhere|hash @txt@ with the older sha1 algorithm}
 a: sha1sum @txt@
 out: ^[0-9a-f]{40}
 ref: sha1sum
 teach: sha1sum
 hint: sha1 is 40 hex characters, kept around only for matching old published hashes
----
-q: {save @txt@'s sha1 to ``s1.txt`` with `sha1sum`, then confirm|`sha1sum` @txt@ to ``s1.txt`` and check it back|record @txt@'s sha1 in ``s1.txt`` via `sha1sum`, then verify}
-a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
-out: : OK
-ref: sha1sum
-teach: sha1sum -c
-hint: -c verifies a sha1 hash file the same way as the other *sum tools
----
-q: {save @txt@'s sha1 to ``s1.txt``, then `sha1sum` it quietly|`sha1sum` @txt@ to ``s1.txt`` and check it, silent unless wrong|record @txt@'s sha1 in ``s1.txt``, then `sha1sum` it silently}
-a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
-status: 0
-cmp: ref
-ref: sha1sum
-teach: sha1sum -s
-hint: -s suppresses the OK lines, showing only failures
 ---
 setup: an old release page only lists an md5 checksum
 q: {compute the md5 of @txt@|run `md5sum` on @txt@|hash @txt@ with md5}
@@ -113,21 +83,6 @@ out: ^[0-9a-f]{32}
 ref: md5sum
 teach: md5sum
 hint: md5 is 32 hex characters, the oldest and weakest of these tools
----
-q: {save @txt@'s md5 to ``m.txt``, then confirm it still matches|write @txt@'s md5 to ``m.txt`` and check it back|record @txt@'s md5 in ``m.txt``, then verify against it}, with `md5sum`
-a: md5sum @txt@ > m.txt && md5sum -c m.txt
-out: : OK
-ref: md5sum
-teach: md5sum -c
-hint: -c verifies an md5 hash file the same way as the other *sum tools
----
-q: {save @txt@'s md5 to ``m.txt``, then `md5sum` it quietly|`md5sum` @txt@ to ``m.txt`` and check it, silent unless wrong|record @txt@'s md5 in ``m.txt``, then `md5sum` it silently}
-a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
-status: 0
-cmp: ref
-ref: md5sum
-teach: md5sum -s
-hint: -s keeps the successes quiet, printing failures only
 ---
 setup: an old tool or protocol still expects the legacy checksum, not a modern hash
 q: {compute the old unix checksum and byte count of @txt@|run `cksum` on @txt@ for its legacy checksum and size|get @txt@'s `cksum` value alongside its byte count}

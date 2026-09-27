@@ -51,14 +51,6 @@ teach: ii -p
 teach: ii -n
 hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
-setup: ii's files live under $HOME/irc, one directory per server.
-q: {start `ii` against @host@ with ``xos`` as the real name too|start `ii` on @host@, setting the real name to ``xos``|connect `ii` to @host@ supplying ``xos`` as the real name}
-a: ii -s @host@ -f xos -n xos -i $HOME/irc
-why: live-net
-ref: ii
-teach: ii -f
-hint: -f sets the real name shown alongside the nick
----
 setup: Your nick is xos.
 q: {start a second `ii` session on @host@ as ``xos``, its files in ``/tmp/irc``|run `ii` on @host@ as nick ``xos``, files in ``/tmp/irc``, not the default|point `ii` at @host@ as ``xos`` with ``/tmp/irc`` as its directory}
 a: ii -s @host@ -n xos -i /tmp/irc

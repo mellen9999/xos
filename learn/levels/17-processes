@@ -281,13 +281,6 @@ ref: killall
 teach: killall
 hint: killall matches by exact process name, unlike pkill's substring matching
 ---
-q: %list% the signal names `killall` knows
-a: killall -l
-out: KILL
-ref: killall
-teach: killall -l
-hint: -l lists the signal names killall recognizes
----
 setup: you want to poke around as root without any of it reaching the real filesystem or network
 q: {run a shell in new mount, net and pid namespaces|give a shell its own mounts, network and pids|a shell that sees its own mount, net and pid namespaces}, with `unshare`
 a: unshare -r -m -n -p sh

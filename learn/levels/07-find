@@ -156,7 +156,7 @@ q: {round up .log files here, skipping the ``logs`` directory|list .log files he
 a: find . -name logs -prune -o -name '*.log' -print
 cmp: ref
 ref: find
-teach: find -prune
+teach: find -prune -print
 hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
 q: {stop at the first .log file found, not the whole tree|`find` the first .log file and stop, not the rest of the tree|`find` one .log file and quit immediately, not the whole tree}, with `find`

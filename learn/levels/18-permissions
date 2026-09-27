@@ -99,13 +99,6 @@ ref: id
 teach: id -u
 hint: -u limits output to just the numeric uid
 ---
-q: %show% your username with `id`, instead of the raw uid number
-a: id -un
-out: ^[a-z_][a-z0-9_-]*$
-ref: id
-teach: id -n
-hint: -n added to -u prints the name instead of the number
----
 setup: a command wants your numeric gid, nothing else
 q: %show% just your numeric group `id`, nothing else
 a: id -g

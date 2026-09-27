@@ -147,20 +147,6 @@ ref: [
 teach: [
 hint: ! in front of a test negates its result
 ---
-q: {require ``both`` @txt@ and @dir@ to check out, printing ``both``|test that @txt@ exists AND @dir@ is a directory, printing ``both``|@txt@ and @dir@ ``both`` need to check out first, printing ``both``}
-a: [ -f @txt@ -a -d @dir@ ] && echo both
-out: ^both$
-ref: [
-teach: [ -a
-hint: -a inside [ ] means logical AND between two conditions
----
-q: {accept ``either`` @txt@ or @word@-nope.txt existing, printing ``either``|test that @txt@ exists OR @word@-nope.txt exists, printing ``either``|check for @txt@ or @word@-nope.txt, printing ``either`` if one exists}
-a: [ -f @txt@ -o -f @word@-nope.txt ] && echo either
-out: ^either$
-ref: [
-teach: [ -o
-hint: -o inside [ ] means logical OR between two conditions
----
 q: {what does this print?|call it -- what comes out?|read it: what does it print?}
 predict: x=; [ -n $x ] && echo yes || echo no
 a: yes

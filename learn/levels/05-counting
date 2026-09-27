@@ -130,13 +130,6 @@ ref: sort
 teach: sort -h
 hint: h understands suffixes like K and M when comparing, so 512 sorts before 64k
 ---
-q: {`sort` @txt@ ignoring any stray control characters|`sort` @txt@ as if the stray control characters weren't there|`sort` @txt@ so odd control characters don't throw off the order}
-a: sort -i @txt@
-cmp: ref
-ref: sort
-teach: sort -i
-hint: -i drops the bytes with no glyph before comparing -- case-blind sorting is -f's job
----
 setup: redirecting a command's output back onto the file it's reading from empties the file before anything gets read
 q: {`sort` @txt@ writing the result into ``sorted.txt``|`sort` @txt@ and write the sorted result into ``sorted.txt``|`sort` @txt@, saving the output into ``sorted.txt`` rather than printing it}
 a: sort -o sorted.txt @txt@

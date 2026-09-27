@@ -154,15 +154,6 @@ ref: awk
 teach: awk
 hint: NF is the field count for the current line
 ---
-setup: awk's next argument could be misread as a filename instead of the program
-q: {print @log@'s first field, giving `awk` its program via `-e`|pass `awk` its program with `-e` to print @log@'s first field|use `-e`, not positional, to have `awk` print @log@'s first field}
-a: awk -e '{print $1}' @log@
-out: 2024-03-01
-cmp: ref
-ref: awk
-teach: awk -e
-hint: -e names the program explicitly, the role the positional argument usually plays
----
 setup: the word might show up in the message text too, not just the severity field
 q: {@log@ may mention @sev@ -- match only the severity field|the severity field only -- @sev@ may also be in @log@|match @log@'s severity field -- not @sev@ in the text}, with `awk`
 a: awk '$3 ~ /@sev@/' @log@

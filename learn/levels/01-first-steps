@@ -188,13 +188,6 @@ ref: ls
 teach: ls -s
 hint: shows size in blocks, not bytes -- pair with -h for human units
 ---
-q: %list% this directory with `ls`, across the screen in columns
-a: ls -x
-cmp: ref
-ref: ls
-teach: ls -x
-hint: same columns as default, but fills across a row before dropping down
----
 q: %show% where you are standing, using `echo` rather than pwd
 a: echo $PWD
 cmp: ref

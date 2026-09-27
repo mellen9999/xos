@@ -68,13 +68,6 @@ ref: xargs
 teach: xargs -P
 hint: -P sets how many invocations run in parallel at once
 ---
-q: {@txt@ already holds the argument list -- `echo` it, no pipe|`echo` the arguments in @txt@, read straight out of the file|feed @txt@'s lines to `echo` without piping them in}, with `xargs`
-a: xargs -a @txt@ echo
-out: rotate
-ref: xargs
-teach: xargs -a
-hint: -a reads the argument list from a file instead of stdin
----
 q: {you only want the filename out of @dir@/@txt@, not the whole path|find handed you @dir@/@txt@ -- reduce it down to just the filename|drop everything but the filename from @dir@/@txt@}
 a: basename @dir@/@txt@
 out: ^@txt@$

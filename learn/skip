@@ -47,11 +47,9 @@ sha1sum -w      # verbose
 sha256sum -w    # verbose
 sha512sum -w    # verbose
 diff -s         # verbose
-cmp -s          # verbose, and -s is taught on grep where it matters
 
 # ── second spellings of something already drilled ──
 cp -R           # alias of -r
-cp -H           # alias behaviour of -L, rarely distinguishable
 cp -P           # the default; -L is the one worth knowing
 grep -R         # alias of -r
 grep -H         # the default when more than one file is named
@@ -64,7 +62,6 @@ ls -lc          # -l plus a sort key we teach separately
 ls -lu          # as above
 ls -tc          # as above
 ls -tu          # as above
-find -print     # the default
 find -H         # symlink-follow nuance; -L is the one to know
 find -follow    # alias of -L
 find -amin      # -mmin is the one that matters in triage
@@ -131,10 +128,9 @@ mount -O        # filters an -a mount by option; xos mounts one root, never fsta
 # ── test/[ ──
 # test and [ are the same command with a different closing token. the operators
 # are drilled on [ in the test level; listing them twice would double every
-# question to no purpose.
-test -e
+# question to no purpose. -d and -e are the exception, drilled on test itself:
+# the bracket-free spelling a portable script uses has to be met once.
 test -f
-test -d
 test -L
 test -n
 test -r
@@ -563,6 +559,54 @@ mountpoint -x           # print a device's major:minor instead of testing a dir
 # fallocate/truncate: -l and -s set the size; -o/-c are offset and a create-guard.
 fallocate -o            # offset of the range; -l sets its length
 truncate -c             # refuse to create a missing file; -s is the size itself
+
+# ── 2026-09-27 cull: a card for it taught nothing a sibling card does not ──
+# third pass, same bar as the 09-13 one: every flag below works, and every one
+# is either the default, a second spelling, or a knob you look up the day you
+# need it. the flag that carries the lesson is named in the reason.
+
+# the default, or a second spelling of it
+flock -x         # exclusive is flock's default lock
+sed -r           # alias of -E, which is drilled
+awk -e           # the program as a plain argument is the same thing
+cut -b           # the same bytes as -c in this build
+killall -l       # a second way to print kill -l
+gunzip -c        # zcat is the applet for this
+xargs -a         # a < redirect does it, and is drilled everywhere
+tar --overwrite  # already what extracting a file does
+tar --no-same-permissions  # already the default when not root
+netstat -r       # route -n prints the same table
+command -V       # type answers the same question
+id -n            # whoami
+uname -n         # hostname
+
+# one tool carries the lesson for its siblings
+md5sum -c        # sha256sum -c is the check; md5 and sha1 exist for old hashes
+sha1sum -c       # ditto
+sha512sum -c     # ditto
+md5sum -s        # sha256sum -s carries it
+sha1sum -s       # ditto
+sha512sum -s     # ditto
+[ -a             # obsolescent in POSIX; [ ] && [ ] is the portable spelling
+[ -o             # ditto, [ ] || [ ]
+
+# a knob you look up the day you need it
+command -p       # default-PATH lookup, a corner case
+mktemp -u        # names without creating -- the unsafe half of mktemp
+tty -s           # [ -t 0 ] is the idiom
+ls -x            # a column-layout knob, like ls -C
+sort -i          # ignore control characters, a curiosity
+split -a         # suffix width
+mkfifo -m        # mode at create, drilled on mkdir -m
+abduco -e        # the detach key is a preference
+wget -o          # 2> does it
+cryptsetup --verbose  # verbose
+ii -f            # the real-name field, cosmetic
+blockdev --getbsz  # fs block size; --getsize64 is what a disk card needs
+arp -D           # proxy-arp from the interface's own address
+route -e         # netstat-style columns; route -n is the table
+traceroute -i    # a knob on a tool where the tool is the lesson
+traceroute -s    # ditto
 
 # ── whole commands. the flag field is `*`. ──
 #

@@ -172,22 +172,6 @@ ref: unalias
 teach: unalias -a
 hint: -a clears every alias in one shot
 ---
-q: {check what `ls` actually is before you trust it in a script|find out in plain english what running `ls` would do|make sure `ls` isn't secretly an alias or function}, with `command`
-a: command -V ls
-cmp: ref
-ref: command
-teach: command -V
-hint: -V gives a full descriptive sentence rather than just a path
----
-setup: your `$PATH` might be hijacked or broken
-q: %list% @txt@ with `ls` run through `command`, standard $PATH not yours
-a: command -p ls @txt@
-out: @txt@
-cmp: ref
-ref: command
-teach: command -p
-hint: -p ignores your $PATH and uses the system's standard one instead
----
 setup: your `$PATH` might be hijacked or broken
 q: %show% every place in your $PATH with a command called `sh`, with `which`
 a: which -a sh

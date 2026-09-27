@@ -87,13 +87,6 @@ ref: wget
 teach: wget -T
 hint: -T caps how long wget waits for the server before giving up
 ---
-q: {with `wget`, log ``file.txt``'s fetch to ``wget.log``, from @host@|`wget` ``file.txt`` from @host@, its own messages into ``wget.log``|pull ``file.txt`` off @host@, keeping `wget`'s progress in ``wget.log``}
-a: wget -o wget.log http://@host@/file.txt
-why: live-net
-ref: wget
-teach: wget -o
-hint: -o redirects wget's log messages into a file
----
 setup: the cert can't be validated here -- no ca, maybe self-signed -- but you already know this is the right host
 q: {fetch https://@host@/file.txt uncertified with `wget` -- know why|skip cert checks with `wget` fetching https://@host@/file.txt|pull https://@host@/file.txt via `wget`, cert check off, risky}
 a: wget --no-check-certificate https://@host@/file.txt

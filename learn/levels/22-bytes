@@ -150,13 +150,6 @@ ref: split
 teach: split -b
 hint: -b counts bytes per piece instead of lines
 ---
-q: {@log@ `split` into so many pieces -- widen suffixes to 3|`split` @log@ with 3-character suffixes, not the default 2|widen @log@'s `split` suffixes from 2 to 3 characters}
-a: split -a 3 -l 2 @log@
-state: exists:xaaa
-ref: split
-teach: split -a
-hint: -a sets how many characters long the generated suffixes are
----
 q: {open @bin@ in a hex editor to change bytes, not read them|open @bin@ in something that edits bytes, not just views them|unlike hexdump, open @bin@ in a tool that writes bytes back}
 a: hexedit @bin@
 why: interactive

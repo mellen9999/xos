@@ -215,14 +215,6 @@ ref: fdisk
 teach: fdisk -l
 hint: -l just lists the partition table, no interactive prompt
 ---
-setup: a raw write has to be sized to the device's own block, or it won't land right
-q: {report the block size of ``/dev/sda``, with `blockdev`|with `blockdev`, what is the block size of ``/dev/sda``|find the block size of ``/dev/sda``, using `blockdev`}
-a: blockdev --getbsz /dev/sda
-why: root
-ref: blockdev
-teach: blockdev --getbsz
-hint: --getbsz reports the block size
----
 q: {you need ``/dev/sda``'s exact size before imaging -- `blockdev`, in bytes|with `blockdev`, what is the size of ``/dev/sda``, in bytes|find the exact byte size of ``/dev/sda``, with `blockdev`}
 a: blockdev --getsize64 /dev/sda
 why: root
@@ -257,15 +249,6 @@ why: primitive-cost
 ref: sync
 teach: sync -d
 hint: naming the file scopes the flush to it; -d skips syncing its metadata
----
-setup: two scripts could grab the same lock at once, and only one may hold it while it writes
-q: {hold an exclusive lock on ``lock.file``, with `flock`, echoing ``held``|with `flock`, lock ``lock.file`` exclusively, running `echo` ``held``|take ``lock.file``'s exclusive lock with `flock`, around `echo` ``held``}
-a: flock -x lock.file echo held
-out: held
-cmp: ref
-ref: flock
-teach: flock -x
-hint: -x takes an exclusive lock -- the default flock would use anyway
 ---
 q: {lock ``lock.file`` with `flock`, giving up at once if ``held``, `echo` ``held``|with `flock`, try ``lock.file``'s lock, failing fast, not waiting|take ``lock.file``'s lock with `flock`, bailing if someone has it}
 a: flock -n lock.file echo held
@@ -360,13 +343,6 @@ why: root
 ref: cryptsetup
 teach: cryptsetup --batch-mode
 hint: --batch-mode skips the are-you-sure prompt, for scripting
----
-q: {`open` ``/dev/sda3`` as ``state``, narrating what `cryptsetup` is doing|`open` ``/dev/sda3`` as ``state`` with `cryptsetup`, narrating each step|unlock ``/dev/sda3`` as ``state`` with `cryptsetup`, verbose each step}
-a: cryptsetup open --verbose /dev/sda3 state
-why: root
-ref: cryptsetup
-teach: cryptsetup --verbose
-hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
 setup: /state is yours, but nothing stored on it is ever meant to run
 q: {`mount` ``/dev/mapper/state`` at ``/state`` -- no setuid, no device nodes, no exec|`mount` the unlocked state device at ``/state``: nosuid, nodev, noexec|`mount` ``/dev/mapper/state`` at ``/state`` with nosuid, nodev and noexec}
