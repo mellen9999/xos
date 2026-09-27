@@ -119,7 +119,7 @@ ref: echo
 teach: echo
 hint: >&2 points stdout at wherever stderr goes -- short for 1>&2, since 1 is the default
 ---
-setup: a health-check script greps combined output for failures, but a missing-file error only lands on stderr
+setup: a health check runs "ls @dir@ @word@-missing" -- the missing one errors on stderr
 q: {run it with stderr merged in, then `grep` for "``such``"|run it, merging stderr with `2>&1`, then `grep` "``such``"|run it with output and errors merged, then `grep` "``such``"}
 a: ls @dir@ @word@-missing 2>&1 | grep such
 out: such
