@@ -91,7 +91,7 @@ ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
-setup: this step should pass only when the thing is NOT there -- a guard, not a search
+setup: a smoke test must pass only when @log@ is clean -- a match means it failed
 q: {`grep` @log@ for ``nonexistent``, succeed only if there's no match|flip `grep`'s status so no match for ``nonexistent`` in @log@ succeeds|with `grep`, make a missing ``nonexistent`` match in @log@ succeed}
 a: ! grep -q nonexistent @log@
 status: 0

@@ -144,7 +144,7 @@ ref: mount
 teach: mount -t
 hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
-setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {don't trust it -- `mount` ``/dev/sdb1`` at ``/mnt`` with nosuid, nodev, noexec|`mount` ``/dev/sdb1`` at ``/mnt``, disallowing setuid, device nodes, execution|`mount` ``/dev/sdb1`` at ``/mnt`` with the nosuid, nodev, noexec options}
 a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
 a: mount -o noexec,nodev,nosuid /dev/sdb1 /mnt
@@ -289,8 +289,8 @@ teach: flock -s
 hint: -s takes a shared lock, which can coexist with other shared locks
 ---
 setup: p3 is the state partition -- the only thing on this stick that survives
-setup: a reboot, and the only place a key can live. It is encrypted, and it is
-setup: also authenticated, which is a different property and the harder one.
+setup: a reboot, and the only place a key can live -- it is encrypted, and
+setup: also authenticated, which is a different property and the harder one
 q: {write a LUKS2 header on ``/dev/sda3`` with `cryptsetup`, ``hmac-sha256``|with `cryptsetup`, format ``/dev/sda3`` as LUKS2, ``hmac-sha256`` integrity|put a LUKS2 header on ``/dev/sda3``, ``hmac-sha256``, with `cryptsetup`}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
@@ -381,9 +381,9 @@ ref: mount
 teach: mount -o
 hint: same nosuid,nodev,noexec trio, now applied to the decrypted volume
 ---
-setup: A disk someone hands you is untrusted input, and a filesystem driver is
-setup: a parser that runs it in your kernel. The safest read of a disk you do
-setup: not trust is dd at the block level, where no parser runs at all.
+setup: a disk someone hands you is untrusted input, and a filesystem driver is
+setup: a parser that runs it in your kernel -- the safest read of a disk you
+setup: don't trust is dd at the block level, where no parser runs at all
 q: {image @txt@ (standing in for ``/dev/sda``) to ``disk.img``, byte for byte|make an image of @txt@ (stands in for ``/dev/sda``) as ``disk.img``|read @txt@ (it stands in for ``/dev/sda``) block by block into ``disk.img``}
 a: dd if=@txt@ of=disk.img
 state: exists:disk.img
@@ -391,7 +391,7 @@ ref: dd
 teach: dd
 hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
-setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {`mount` fat32 stick ``/dev/sda1`` at ``/mnt`` read-only, nosuid, nodev, noexec|`mount` ``/dev/sda1`` on ``/mnt`` as untrusted fat32 media: ro, nosuid, nodev, noexec|`mount` the fat32 volume ``/dev/sda1`` under ``/mnt``: ``ro,nosuid,nodev,noexec``}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
@@ -400,7 +400,7 @@ ref: mount
 teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
-setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {`mount` ``exfat`` card ``/dev/sda1`` at ``/mnt`` read-only, nosuid, nodev, noexec|`mount` ``/dev/sda1`` on ``/mnt`` as untrusted ``exfat`` media: ro, nosuid, nodev, noexec|`mount` the ``exfat`` volume ``/dev/sda1`` under ``/mnt``: ``ro,nosuid,nodev,noexec``}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
@@ -409,7 +409,7 @@ ref: mount
 teach: mount -t
 hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
-setup: Untrusted media goes at /mnt with ro,nosuid,nodev,noexec.
+setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {`mount` ``ntfs3`` disk ``/dev/sda2`` at ``/mnt`` read-only, nosuid, nodev, noexec|`mount` ``/dev/sda2`` on ``/mnt`` as untrusted ``ntfs3`` media: ro, nosuid, nodev, noexec|`mount` the ``ntfs3`` volume ``/dev/sda2`` under ``/mnt``: ``ro,nosuid,nodev,noexec``}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt

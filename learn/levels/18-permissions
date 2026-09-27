@@ -101,7 +101,7 @@ ref: id
 teach: id -u
 hint: -u limits output to just the numeric uid
 ---
-setup: a command wants your numeric gid, nothing else
+setup: a chown script needs your numeric gid to pass along, not the group name
 q: %show% just your numeric group `id`, nothing else
 a: id -g
 eg: id -g postgres

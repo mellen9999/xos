@@ -15,7 +15,7 @@ brief: This build of `nc` can connect out but cannot listen -- server mode is
 brief: compiled out on purpose. xos opens no doors it was not asked to.
 ---
 setup: file.txt is served over plain http below -- only the host and the
-setup: flag change from here on.
+setup: flag change from here on
 q: {keep ``file.txt``'s own name pulling it from @host@|don't rename it -- grab ``file.txt`` from @host@|leave the name alone, fetching ``file.txt`` from @host@}, with `wget`
 a: wget http://@host@/file.txt
 why: live-net
@@ -119,8 +119,8 @@ ref: nc
 teach: nc
 hint: pipe a raw request into nc and read the raw response back
 ---
-setup: Telnet still opens gear too old for ssh -- no encryption, but
-setup: sometimes the only door in.
+setup: telnet still opens gear too old for ssh -- no encryption, but
+setup: sometimes the only door in
 q: {reach a telnet-only box at @host@ on port @port@|open a session to old gear at @host@:@port@ that only speaks `telnet`|connect to a device at @host@:@port@ that has no ssh, only `telnet`}
 a: telnet @host@ @port@
 why: live-net
@@ -137,7 +137,7 @@ teach: telnet -l
 hint: -l sends a login name as soon as the connection opens
 ---
 setup: tftp has no login and no encryption -- exactly what firmware on
-setup: embedded gear still expects. The remote file is file.txt throughout.
+setup: embedded gear still expects; the remote file is file.txt throughout
 q: {fetch a file over `tftp` from @host@|download a file using `tftp` from @host@|use `tftp` to fetch a file from @host@}
 a: tftp -g -r file.txt @host@
 eg: tftp -g -r boot.bin legacy-switch.example.net
@@ -157,7 +157,7 @@ teach: tftp -l
 hint: -p puts a file, -l names the local file to send
 ---
 setup: ftpget and ftpput both name the local file local.txt and the remote
-setup: one remote.txt, and the password is secret. Only the flag changes.
+setup: one remote.txt, with secret as the password -- only the flag changes
 q: {fetch a file from the ftp server @host@|@host@ has the file -- get it with `ftpget`|use `ftpget` to pull a file from @host@}
 a: ftpget @host@ local.txt remote.txt
 why: live-net
@@ -165,7 +165,7 @@ ref: ftpget
 teach: ftpget
 hint: ftpget takes the local name then the remote name, in that order
 ---
-setup: local.txt and remote.txt are the names throughout, and secret is the password.
+setup: local.txt and remote.txt are the names throughout, and secret is the password
 q: {fetch from @host@ via `ftpget` as @user@, with a password|download from @host@ via `ftpget`, authenticating as @user@|use `ftpget` with the username @user@ to fetch from @host@}
 a: ftpget -u @user@ -p secret @host@ local.txt remote.txt
 eg: ftpget -u svc-monitor -p hunter2 archive.example.net build.tar build.tar
@@ -175,7 +175,7 @@ teach: ftpget -u
 teach: ftpget -p
 hint: -u sets the username, -p the password
 ---
-setup: local.txt and remote.txt are the names throughout.
+setup: local.txt and remote.txt are the names throughout
 q: {fetch from @host@ on the non-standard `ftpget` port @port@|download via `ftpget` from @host@ listening on port @port@|use `ftpget` against @host@ on the non-default port @port@}
 a: ftpget -P @port@ @host@ local.txt remote.txt
 eg: ftpget -P 2121 archive.example.net build.tar build.tar
@@ -184,7 +184,7 @@ ref: ftpget
 teach: ftpget -P
 hint: -P picks the port instead of ftp's default 21
 ---
-setup: local.txt and remote.txt are the names throughout.
+setup: local.txt and remote.txt are the names throughout
 q: {continue an interrupted `ftpget` download from @host@|resume an `ftpget` download from @host@ that got interrupted|pick an interrupted `ftpget` download from @host@ back up}
 a: ftpget -c @host@ local.txt remote.txt
 eg: ftpget -c archive.example.net build.tar build.tar
@@ -193,7 +193,7 @@ ref: ftpget
 teach: ftpget -c
 hint: -c continues a download from where it stopped
 ---
-setup: remote.txt is the name @txt@ takes on the server.
+setup: remote.txt is the name @txt@ takes on the server
 q: {put @txt@ up on the ftp server @host@|send @txt@ up to the ftp server @host@|use `ftpput` to upload @txt@ to @host@}
 a: ftpput @host@ remote.txt @txt@
 why: live-net
@@ -201,7 +201,7 @@ ref: ftpput
 teach: ftpput
 hint: ftpput takes the remote name then the local name, in that order
 ---
-setup: remote.txt is the name @txt@ takes on the server, and secret is the password.
+setup: remote.txt is the name @txt@ takes on the server, and secret is the password
 q: {upload @txt@ to @host@'s `ftpput`, authenticating as @user@|send @txt@ to @host@ via `ftpput`, logged in as @user@|use `ftpput` as @user@ to upload @txt@ to @host@}
 a: ftpput -u @user@ -p secret @host@ remote.txt @txt@
 eg: ftpput -u svc-monitor -p hunter2 archive.example.net build.tar release.tar
@@ -211,7 +211,7 @@ teach: ftpput -u
 teach: ftpput -p
 hint: -u sets the username, -p the password, same as ftpget
 ---
-setup: remote.txt is the name @txt@ takes on the server.
+setup: remote.txt is the name @txt@ takes on the server
 q: {upload @txt@ to @host@ on `ftpput` port @port@|send @txt@ to @host@'s `ftpput` on port @port@|use `ftpput` against @host@:@port@ to send @txt@}
 a: ftpput -P @port@ @host@ remote.txt @txt@
 eg: ftpput -P 2121 archive.example.net build.tar release.tar
@@ -220,8 +220,8 @@ ref: ftpput
 teach: ftpput -P
 hint: -P picks the port instead of ftp's default 21
 ---
-setup: Nothing routes anywhere until an interface has an address -- ask
-setup: the network for one.
+setup: nothing routes anywhere until an interface has an address -- ask
+setup: the network for one
 q: {ask for a dhcp lease on @iface@ with `udhcpc`|request a dhcp lease on @iface@ with `udhcpc`|use `udhcpc` to get a lease on @iface@}
 a: udhcpc -i @iface@
 why: live-net

@@ -40,8 +40,8 @@ ref: strings
 teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
-setup: ii keeps one directory per server. Your nick is xos and your session
-setup: directory is $HOME/irc unless a question says otherwise.
+setup: ii keeps one directory per server -- your nick is xos and your session
+setup: directory is $HOME/irc unless a question says otherwise
 q: {start `ii` against @host@ on the standard tls-free irc port, as nick ``xos``|connect `ii` to @host@ on the plain irc port, using the nick ``xos``|start `ii`, joining @host@ on the standard irc port as ``xos``}
 a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
 eg: ii -s irc.libera.chat -p 6697 -n xos -i $HOME/irc
@@ -52,7 +52,7 @@ teach: ii -p
 teach: ii -n
 hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
-setup: Your nick is xos.
+setup: your nick is xos
 q: {start a second `ii` session on @host@ as ``xos``, its files in ``/tmp/irc``|run `ii` on @host@ as nick ``xos``, files in ``/tmp/irc``, not the default|point `ii` at @host@ as ``xos`` with ``/tmp/irc`` as its directory}
 a: ii -s @host@ -n xos -i /tmp/irc
 why: live-net
@@ -60,7 +60,7 @@ ref: ii
 teach: ii -i
 hint: -i points ii at a directory of your choosing instead of the default
 ---
-setup: ii's files live under $HOME/irc, one directory per server.
+setup: ii's files live under $HOME/irc, one directory per server
 q: {join ``#xos`` on @host@ by sending `/j` ``#xos`` to its in fifo|write `/j` ``#xos`` into @host@'s in fifo|send the line `/j` ``#xos`` to @host@'s in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in
 why: live-net
@@ -68,7 +68,7 @@ ref: ii
 teach: ii
 hint: ii turns each server command into a line written to that server's in fifo
 ---
-setup: ii's files live under $HOME/irc, one directory per server.
+setup: ii's files live under $HOME/irc, one directory per server
 q: {read what is happening in #xos on @host@ with `tail`, live|follow #xos's out file on @host@ with `tail`, live|watch #xos's activity on @host@ with `tail`, as it happens}
 a: tail -f $HOME/irc/@host@/#xos/out
 why: interactive
@@ -76,7 +76,7 @@ ref: tail
 teach: tail -f
 hint: -f keeps tail running, printing new lines as they arrive
 ---
-setup: ii's files live under $HOME/irc, one directory per server.
+setup: ii's files live under $HOME/irc, one directory per server
 q: {say ``hello`` in #xos on @host@|send ``hello`` to #xos on @host@|drop a ``hello`` into #xos on @host@}
 a: echo hello > $HOME/irc/@host@/#xos/in
 why: live-net
@@ -84,7 +84,7 @@ ref: ii
 teach: ii
 hint: whatever you echo into a channel's in fifo, ii sends as a message
 ---
-setup: ii's files live under $HOME/irc, one directory per server.
+setup: ii's files live under $HOME/irc, one directory per server
 q: %find% every mention of your nick ``xos`` across every channel, with `grep`
 a: grep -r xos $HOME/irc
 why: fixture-cost
@@ -92,7 +92,7 @@ ref: grep
 teach: grep -r
 hint: -r walks every channel directory recursively
 ---
-setup: ii's files live under $HOME/irc, one directory per server.
+setup: ii's files live under $HOME/irc, one directory per server
 q: %list% the channel directories ii has joined, with `find` -- named #...
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 why: fixture-cost
@@ -100,10 +100,10 @@ ref: find
 teach: find -type
 hint: -maxdepth 2 stops find from wandering past the channel folders
 ---
-setup: Remote access on xos works by dialing OUT to a machine you control over
-setup: wireguard, so xos never listens on the network it is plugged into. These
-setup: are the pieces. None can run in this practice sandbox, so they are graded
-setup: on what you type.
+setup: remote access on xos works by dialing out to a machine you control over
+setup: wireguard, so xos never listens on the network it is plugged into --
+setup: none of these pieces can run in this sandbox, so they are graded
+setup: on what you type
 q: {generate a new wireguard private key and save it to ``private.key``|make a new wireguard private key and save it as ``private.key``|create a wireguard private key, writing it to ``private.key``}, with `wg`
 a: wg genkey > private.key
 why: live-net
@@ -151,8 +151,8 @@ ref: wg
 teach: wg
 hint: wg set applies configuration to an existing interface, private-key here
 ---
-setup: The peer's public key is PUBKEY, its endpoint titan.example:51820, and
-setup: the addresses it is allowed to use are 10.9.0.0/24.
+setup: the peer's public key is PUBKEY, its endpoint titan.example:51820, and
+setup: the addresses it is allowed to use are 10.9.0.0/24
 q: {add that ``peer`` to ``wg0`` by public key, ``endpoint`` and allowed ips|configure that ``peer`` on ``wg0`` with its key, ``endpoint`` and allowed ips|add that ``peer`` to ``wg0``, naming its key, ``endpoint`` and allowed ips}, with `wg`
 a: wg set wg0 peer PUBKEY endpoint titan.example:51820 allowed-ips 10.9.0.0/24
 why: live-net
@@ -185,8 +185,8 @@ ref: dropbearkey
 teach: dropbearkey -y
 hint: -y prints the public key for an existing private key file
 ---
-setup: The host key is /state/host_key, this machine's wireguard address is
-setup: 10.9.0.1, and you log in there as root with the key /state/id.
+setup: the host key is /state/host_key, this machine's wireguard address is
+setup: 10.9.0.1, and you log in there as root with the key /state/id
 q: {run `dropbear` on ``10.9.0.1:22``, bound to wireguard only|start `dropbear` listening only on 10.9.0.1 port 22|run `dropbear` bound to ``10.9.0.1:22``, the wireguard side only}
 a: dropbear -r /state/host_key -p 10.9.0.1:22
 eg: dropbear -r /state/host_key -p 10.9.0.2:2222
@@ -196,7 +196,7 @@ teach: dropbear -r
 teach: dropbear -p
 hint: -r names the host key, -p the address and port to bind
 ---
-setup: The host key is /state/host_key; you log in with the key /state/id.
+setup: the host key is /state/host_key; you log in with the key /state/id
 q: {run `dropbear` in the foreground, errors on stderr not a log|start `dropbear` so it stays in front of you and prints its errors|run `dropbear` foregrounded with its errors going to stderr}
 a: dropbear -r /state/host_key -F -E
 eg: dropbear -r /tmp/testkey -F -E
@@ -213,7 +213,7 @@ ref: dbclient
 teach: dbclient -i
 hint: -i points dbclient at the private key to authenticate with
 ---
-setup: The host key is /state/host_key; you log in with the key /state/id.
+setup: the host key is /state/host_key; you log in with the key /state/id
 q: {reach root at 10.9.0.1 by `dbclient`, straight into `abduco`'s ``work`` session|`dbclient` to root at 10.9.0.1, attaching straight to `abduco`'s ``work``|combine `dbclient` to root at 10.9.0.1 with `abduco` `-a` ``work``, one line}
 a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
 why: live-net
@@ -237,8 +237,8 @@ ref: dbclient
 teach: dbclient -L
 hint: -L takes LPORT:HOST:PORT, here 8080:localhost:80
 ---
-setup: ii and the tls tunnel are two commands wired by hand above. `irc` is the
-setup: one word that brings both up the only way that reaches a real network.
+setup: ii and the tls tunnel are two commands wired by hand above -- `irc` is
+setup: the one word that brings both up the only way that reaches a real network
 q: {reach ``#xos`` on libera in one word with `irc`, as one screen|open ``#xos`` as a one-screen chat with `irc`, on libera's defaults|join ``#xos`` on libera in one screen using `irc`}
 a: irc #xos
 why: live-net
