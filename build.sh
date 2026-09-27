@@ -1041,7 +1041,7 @@ rootfs() {
   for part in ref lib pools levels scenarios projects; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  for _f in skip skip-syntax builtins verbs phrases syntax vs bashisms chains migrations; do
+  for _f in skip skip-syntax builtins verbs phrases syntax vs bashisms chains migrations rekeys; do
     [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
   done
   install -m 0755 learn/learn root/bin/learn
@@ -1051,7 +1051,7 @@ rootfs() {
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
   cp learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains \
-     learn/syntax learn/vs learn/bashisms learn/migrations root/usr/share/learn/
+     learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys root/usr/share/learn/
   # the full operator narrative -- boot ledger, refusals, the arsenal, the verbs
   # -- shipped offline so a booted stranger can read what this machine is, not
   # only how each command works. the curriculum is the how; this is the why.

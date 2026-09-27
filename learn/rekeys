@@ -1,0 +1,10 @@
+# rekeys -- a q: that was reworded, and the template that replaced it. a card
+# is keyed by its q: template, so a rewording files its review history under
+# a key no block answers to; cards_rehome (lib/cards) reads this to carry the
+# row to the new wording. level-id, old template, new template, tab-separated.
+# a row only ever moves a card that would otherwise be orphaned, so an entry
+# can stay here for good.
+00-hello	make the shell print the word ``hello`` with `echo`	{make the shell print the word ``hello`` with `echo`|use `echo` to say ``hello``|`echo` ``hello`` back onto the screen}
+23-disks	{write a LUKS2 header on ``/dev/sda3`` with `cryptsetup`, ``hmac-sha256``|with `cryptsetup`, format ``/dev/sda3`` as LUKS2, ``hmac-sha256`` integrity|put a LUKS2 header on ``/dev/sda3``, ``hmac-sha256``, with `cryptsetup`}	{format ``/dev/sda3`` as LUKS2 with `cryptsetup`, ``hmac-sha256`` integrity|make ``/dev/sda3`` LUKS2 via `cryptsetup`, tamper-proofed by ``hmac-sha256``|``/dev/sda3`` needs an authenticated LUKS2 header -- `cryptsetup`, ``hmac-sha256``}
+24-the-machine	{log the line ``suspicious`` at priority ``user.warn``|log ``suspicious``, tagged ``user.warn``|send the log line ``suspicious`` at ``user.warn``}, with `logger`	{log the line ``suspicious`` at priority ``user.warn``|flag ``suspicious`` in the system log as a ``user.warn`` warning|``suspicious`` goes to syslog at ``user.warn``, not the default level}, with `logger`
+30-root	{copy busybox to `$HOME/x`, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|copy busybox into $HOME, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|drop busybox at `$HOME/x`, `chmod` ``+x``, run `true`, print ``ran`` or ``refused``}	{copy busybox to `$HOME/x`, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|does a `chmod` ``+x`` busybox at `$HOME/x` run `true`? say ``ran`` or ``refused``|test exec in $HOME: busybox as `$HOME/x`, `chmod` ``+x``, `true` -- ``ran`` or ``refused``}

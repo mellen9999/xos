@@ -2354,6 +2354,27 @@ selftest() {
 	  exit 0 ) \
 		|| { echo "FAIL migrate: rename, drop, idempotence or fresh install" >&2; bad=$((bad+1)); }
 
+	# cards_rehome follows a card that moved: a cut above it shifted its block
+	# index, or a rewording (learn/rekeys) replaced its template. a template
+	# two blocks share is ambiguous and a key already held is a duplicate --
+	# both stay orphans. a ledger with nothing to move is not rewritten.
+	( STATE="$TMP/rst"; ROOT="$TMP/rhm"; LEVELS="$ROOT/levels"; KEYS="$TMP/rhm.keys"
+	  CARDS="$STATE/cards"; mkdir -p "$STATE" "$LEVELS"; rm -f "$KEYS"
+	  printf 'name: t\n---\nq: alpha\n---\nq: `beta` new\n---\nq: twin\n---\nq: twin\n---\nq: held\n' > "$LEVELS/zz-t"
+	  printf '# c\nzz-t\tbeta old\tbeta new\n' > "$ROOT/rekeys"
+	  printf 'zz-t/3#alpha\t2\t1\nzz-t/9#beta old\t1\t1\nzz-t/1#twin\t2\t1\nzz-t/2#held\t2\t1\nzz-t/5#held\t1\t1\n' > "$CARDS"
+	  cards_rehome
+	  grep -q '^zz-t/1#alpha	2	1$' "$CARDS" || exit 1
+	  grep -q '^zz-t/2#beta new	1	1$' "$CARDS" || exit 1
+	  grep -q '^zz-t/1#twin	' "$CARDS" || exit 1
+	  grep -q '^zz-t/2#held	2	1$' "$CARDS" || exit 1
+	  [ "$(grep -c '^zz-t/5#held' "$CARDS")" = 1 ] || exit 1
+	  _m=$(ls -l --full-time "$CARDS" 2>/dev/null || cksum < "$CARDS")
+	  cards_rehome
+	  [ "$(ls -l --full-time "$CARDS" 2>/dev/null || cksum < "$CARDS")" = "$_m" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards_rehome: a moved card lost its reviews, or a guess was made" >&2; bad=$((bad+1)); }
+
 	# the home screen on a fresh install: nothing but the menu may reach it.
 	# a stray shell diagnostic is a message from a place that had no business
 	# speaking, and the same text twice is one row's problem announced by
@@ -3738,6 +3759,7 @@ MODE=learn
 S_RIGHT=0; S_WRONG=0; S_STREAK=0; S_BEST=0; S_START=$(date +%s 2>/dev/null || echo 0)
 cards_init
 migrate
+cards_rehome
 cards_decay
 # the prompt loop, drained before anything reads the schedule. cards_decay has
 # to have run first: it is what normalises a row an older build wrote, and
