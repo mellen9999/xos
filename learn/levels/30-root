@@ -160,7 +160,7 @@ hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
 ---
 setup: The other half of that rule: the places you CAN write must refuse to
 setup: execute. Copy /bin/busybox to $HOME/x, make it executable, and try it.
-q: {copy busybox to `$HOME/x`, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|copy busybox into $HOME, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|drop busybox at `$HOME/x`, `chmod` ``+x``, run `true`, print ``ran`` or ``refused``}
+q: {copy busybox to `$HOME/x`, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|does a `chmod` ``+x`` busybox at `$HOME/x` run `true`? say ``ran`` or ``refused``|test exec in $HOME: busybox as `$HOME/x`, `chmod` ``+x``, `true` -- ``ran`` or ``refused``}
 a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
 why: live-hw
 ref: chmod

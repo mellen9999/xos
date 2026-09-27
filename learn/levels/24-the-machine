@@ -319,7 +319,7 @@ teach: logger -s
 hint: -s echoes the message to stderr as well as logging it
 ---
 setup: a plain log line is easy to miss -- this one needs to stand out as a warning
-q: {log the line ``suspicious`` at priority ``user.warn``|log ``suspicious``, tagged ``user.warn``|send the log line ``suspicious`` at ``user.warn``}, with `logger`
+q: {log the line ``suspicious`` at priority ``user.warn``|flag ``suspicious`` in the system log as a ``user.warn`` warning|``suspicious`` goes to syslog at ``user.warn``, not the default level}, with `logger`
 a: logger -p user.warn suspicious
 eg: logger -p daemon.err service crashed
 why: live-hw

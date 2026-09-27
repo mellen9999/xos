@@ -52,7 +52,7 @@ ref: cd
 teach: cd
 hint: cd with nothing after it always takes you home
 ---
-q: make the shell print the word ``hello`` with `echo`
+q: {make the shell print the word ``hello`` with `echo`|use `echo` to say ``hello``|`echo` ``hello`` back onto the screen}
 a: echo hello
 out: ^hello$
 ref: echo

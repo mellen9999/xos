@@ -291,7 +291,7 @@ hint: -s takes a shared lock, which can coexist with other shared locks
 setup: p3 is the state partition -- the only thing on this stick that survives
 setup: a reboot, and the only place a key can live -- it is encrypted, and
 setup: also authenticated, which is a different property and the harder one
-q: {write a LUKS2 header on ``/dev/sda3`` with `cryptsetup`, ``hmac-sha256``|with `cryptsetup`, format ``/dev/sda3`` as LUKS2, ``hmac-sha256`` integrity|put a LUKS2 header on ``/dev/sda3``, ``hmac-sha256``, with `cryptsetup`}
+q: {format ``/dev/sda3`` as LUKS2 with `cryptsetup`, ``hmac-sha256`` integrity|make ``/dev/sda3`` LUKS2 via `cryptsetup`, tamper-proofed by ``hmac-sha256``|``/dev/sda3`` needs an authenticated LUKS2 header -- `cryptsetup`, ``hmac-sha256``}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
 eg: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sdb2
