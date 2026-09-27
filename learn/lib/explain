@@ -122,9 +122,11 @@ _exp_row() {
 	# sentence is still on `learn explain` and on the page itself, which is
 	# where you go when the one line was not enough.
 	if [ "${SYN_ONEROW:-0}" = 1 ]; then
-		EXP_LAB="$1" awk -v c="$C" -v n="$N" -v pad="$pad" -v gw="$gw" -v g="$2" '
+		EXP_LAB="$1" EXP_GLOSS="$2" awk -v c="$C" -v n="$N" -v pad="$pad" -v gw="$gw" '
 			BEGIN {
-				lab = ENVIRON["EXP_LAB"]
+				# both through the environment: awk reads escapes in a -v
+				# value, and the gloss of the \; row lost its backslash to it
+				lab = ENVIRON["EXP_LAB"]; g = ENVIRON["EXP_GLOSS"]
 				if (length(g) > gw) {
 					g = substr(g, 1, gw - 2)
 					sub(/[ ,][^ ,]*$/, "", g); sub(/[ .,|]+$/, "", g)
@@ -195,10 +197,16 @@ _prows() {
 		END { print rows + 0 }'
 }
 
-# the answers the corpus itself teaches for a command, cached once per process:
-# real lines, already graded, so an example can never drift from what the
-# trainer accepts. templated answers are skipped -- @txt@ is not something to
-# type. built from the levels, the missions and the gauntlet alike.
+# the example lines the corpus itself teaches for a command, cached once per
+# process: real lines, already graded, so an example can never drift from what
+# the trainer accepts. two sources per block. the FIRST answer, which is the
+# line the card stands behind -- later answers are the grader being generous
+# (`cp -R` is still right) and selftest lets them use a flag learn/skip retired,
+# so they are no example of anything. and `eg:`, a line an author wrote to show
+# the card's own flag somewhere its answer cannot: the card on screen must
+# never offer its own answer, so without eg: the one flag a card is ABOUT was
+# the one flag its examples could never show. built from the levels, the
+# missions and the gauntlet alike.
 examples_cached() {
 	[ -s "$TMP/examples.all" ] || {
 		# a sed script that fills every @token@ with the first value of its own
@@ -223,22 +231,25 @@ examples_cached() {
 		function flush2(   i) {
 			# verbatim: a listed answer is already the exact line the grader
 			# accepts, braces and all. an awk program is not an alternation.
-			# the third field is where the answer came from, so the card can
-			# refuse to show the very question it is open on top of.
-			if (r != "") for (i = 1; i <= n; i++) print r "\t" A[i] "\t" base ":" idx
-			n = 0; r = ""
+			# the third field is where the line came from, so the card can
+			# refuse to show the very question it is open on top of; the
+			# fourth says whether it IS that question (a) or was written to
+			# stand beside it (eg), which the refusal lets through.
+			if (r != "") for (i = 1; i <= n; i++) print r "\t" A[i] "\t" base ":" idx "\t" K[i]
+			n = 0; r = ""; na = 0
 		}
 		FNR == 1 { if (NR > 1) flush2(); idx = 0; base = FILENAME; sub(/.*\//, "", base) }
 		/^---/    { flush2(); idx++; next }
-		/^a: /    { l = $0; sub(/^a: /, "", l); A[++n] = l; next }
-		/^ref: /  { r = $2 }
+		/^a: /    { if (!na++) { l = $0; sub(/^a: /, "", l); A[++n] = l; K[n] = "a" }; next }
+		/^eg: /   { l = $0; sub(/^eg: /, "", l); A[++n] = l; K[n] = "eg"; next }
+		/^ref: /  { if (r == "") r = $2 }
 		END       { flush2() }
 		' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
 		| sed -f "$TMP/examples.sed" \
 		| grep -v '@[a-z0-9][a-z0-9]*@' \
 		| sort -u \
 		| awk -F'\t' '
-			# an answer two different blocks both list cannot be shown as an
+			# a line two different blocks both list cannot be shown as an
 			# example of either: whichever card is open, it would be handing
 			# over the line the learner is being asked to type
 			{ line[NR] = $0; seen[$2]++ }
@@ -282,49 +293,130 @@ _PAINT_AWK='
 		return out
 	}'
 
-# ref_examples CMD [SKIP] -- up to two example lines for CMD, never the answer
-# to the question on screen. shortest first, and no two examples leading with
-# the same flag, so two rows show two different things.
+# pin_keys CMD TOKEN... -- the flag rows of CMD's page that the tokens an
+# answer typed stand for. an answer writes `-rn`, `-d:` and `-k2`; the page
+# has rows -r, -n, -d and -k. a token the page documents whole (-maxdepth,
+# --spider) is its own row; anything else is walked a letter at a time the way
+# flag_ok walks it, and the walk stops at the first letter the page does not
+# know, because what follows is a value stuck to the flag and not more flags.
+pin_keys() {
+	local cmd=$1 tok rest c
+	shift
+	for tok in "$@"; do
+		if documented "$cmd" "$tok"; then printf '%s\n' "$tok"; continue; fi
+		case "$tok" in --*) continue ;; -*) rest=${tok#-} ;; *) rest=$tok ;; esac
+		while [ -n "$rest" ]; do
+			c=${rest%"${rest#?}"}
+			if documented "$cmd" "-$c"; then printf '%s\n' "-$c"
+			elif documented "$cmd" "$c"; then printf '%s\n' "$c"
+			else break
+			fi
+			rest=${rest#?}
+		done
+	done | awk '!seen[$0]++' | tr '\n' ' '
+}
+
+# ref_examples CMD [SKIP] [SRC] [PIN] -- up to two example lines for CMD, never
+# the answer to the question on screen. every line must RUN the command -- as
+# a pipeline's first word or after a | -- or it is an example of something
+# else that happens to mention it. the first slot goes to a line that uses a
+# flag the card is about (PIN, from pin_keys): the reference on a -c card that
+# shows -d and -r and never -c has answered every question but the one asked.
+# after that, one command beats a pipeline, a line with a flag beats a bare
+# one, and the shorter of two beats the longer -- see score().
 ref_examples() {
 	local out src=${3:-${Q_SRC:-}}
-	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v w="${COLS:-80}" \
-	                            -v N="$N" -v C="$C" "$_PAINT_AWK"'
-		$1 == c && $3 != src && index(skip, $2) == 0 && length($2) <= w - 4 { L[++n] = $2 }
-		END {
-			# the fullest line that still fits a row, not the shortest: a real
-			# invocation with its arguments teaches more than a bare command
-			for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++)
-				if (length(L[j]) > length(L[i])) { t = L[i]; L[i] = L[j]; L[j] = t }
-			# two examples that differ in one token teach one thing twice:
-			# the second must disagree with the first somewhere in its first
-			# three words, flag included -- one differing token is not enough
-			for (i = 1; i <= n && k < 2; i++) {
-				m = split(L[i], t2, " ")
-				if (k > 0) {
-					same = 0
-					for (f = 1; f <= 3; f++) if (t2[f] == prev[f]) same++
-					if (same >= 2) continue
-				}
-				k++; for (f = 1; f <= 3; f++) prev[f] = t2[f]
-				print "  " paint(L[i])
+	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v pin="${4:-}" \
+	                            -v w="${COLS:-80}" -v N="$N" -v C="$C" "$_PAINT_AWK"'
+		# the segments of a line that are this command running
+		function runs(l,   s, k, i, f) {
+			s = l; gsub(/\|\||&&|[|;`]|\$\(/, "\n", s)
+			k = split(s, seg, "\n"); nseg = 0
+			for (i = 1; i <= k; i++) {
+				f = seg[i]; sub(/^[ !(]+/, "", f)
+				if (index(f " ", c " ") == 1) segs[++nseg] = f
 			}
+			return nseg
+		}
+		# does the line pass CMD a pinned flag? short flags bundle, so -c
+		# is used by -cf as well as by -c; a long or word flag is a whole token
+		function pinned(l,   i, j, k, m, t, p, np) {
+			if (pin == "" || !runs(l)) return 0
+			np = split(pin, p, " ")
+			for (i = 1; i <= nseg; i++) {
+				m = split(segs[i], t, " ")
+				for (j = 2; j <= m; j++) for (k = 1; k <= np; k++) {
+					if (t[j] == p[k] || index(t[j], p[k] "=") == 1) return 1
+					if (p[k] ~ /^-[A-Za-z0-9]$/ && t[j] ~ /^-[A-Za-z0-9]+$/ \
+					    && index(substr(t[j], 2), substr(p[k], 2))) return 1
+				}
+			}
+			return 0
+		}
+		# the flag a line leads with, for telling two examples apart
+		function lead(l,   t, m, i) {
+			m = split(l, t, " ")
+			for (i = 2; i <= m; i++) if (t[i] ~ /^-/) return t[i]
+			return ""
+		}
+		# a pinned flag first, then one command over a pipeline, then a line
+		# that shows a flag at all over a bare invocation, then the shorter:
+		# a forty-character regex is the pattern being taught, not the command
+		function score(l, withpin) {
+			return (withpin && pinned(l) ? 100 : 0) \
+			     + (l !~ /\||;|&&|\$\(|`/ ? 10 : 0) + (lead(l) != "" ? 5 : 0) \
+			     - length(l) / 1000
+		}
+		$1 == c && !($3 == src && $4 == "a") && index(skip, $2) == 0 \
+		  && length($2) <= w - 4 && runs($2) { L[++n] = $2 }
+		END {
+			if (!n) exit
+			best = 0
+			for (i = 1; i <= n; i++) if (!best || score(L[i], 1) > score(L[best], 1)) best = i
+			print "  " paint(L[best])
+			# the second must disagree with the first somewhere in its first
+			# three words, flag included -- two lines that differ in one
+			# argument teach one thing twice
+			split(L[best], a, " "); two = 0
+			for (i = 1; i <= n; i++) {
+				if (i == best) continue
+				split(L[i], b, " "); same = 0
+				for (f = 1; f <= 3; f++) if (a[f] == b[f]) same++
+				if (same >= 2) continue
+				# and a second flag, not the first one again
+				sc = score(L[i], 0) + (lead(L[i]) != lead(L[best]) ? 3 : 0)
+				if (!two || sc > sc2) { two = i; sc2 = sc }
+			}
+			if (two) print "  " paint(L[two])
 		}')
 	[ -n "$out" ] || return 1
 	printf '  %sexamples%s\n%s\n' "$U" "$N" "$out"
 }
 
-# ref_card CMD head|flags [MAXROWS] -- the abridged reference. `head` is the
-# name, one-line usage and summary; `flags` is ONLY the flags the curriculum
-# drills -- `learn ref CMD` is always the whole thing. given a row budget the flags go two-column
-# and the descriptions are cut to their cell; the panel is a glance, the page
-# is the read, and the card never spends a row it was not given.
+# ref_card CMD head [NOVS] -- the name, the usage line and the one-line summary,
+# and the `vs` row unless NOVS: a chain opens two pages, and the second
+# command's quarrel with some third one is not what the card is asking.
+#
+# ref_card CMD pinned PIN -- the rows of the flags this card's own answer uses
+# (pin_keys), one full row each, marked with a > in the gutter. they are never
+# cut: the flag the prompt is asking for used to be listed in page order and
+# cut to the budget like any other, so grep -w sat in "+14 more" on the very
+# card that asks for it.
+#
+# ref_card CMD flags [MAXROWS] [PIN] -- the other flags the curriculum drills,
+# the pinned ones left out; `learn ref CMD` is always the whole thing. two
+# columns once there are enough of them, cut to MAXROWS, and a list that does
+# not fit spends its last row saying so. the name column is measured over the
+# pinned rows too, so the two lists line up as one.
 ref_card() {
-	local r taught
+	local r taught pin=
+	case "$2" in pinned) pin=${3:-} ;; flags) pin=${4:-} ;; esac
 	r=$(refname "$1")
 	[ -f "$REF/$r" ] || return 1
-	taught=$(taught_cached | awk -v c="$1" '$1 == c { printf " %s", $2 }')
+	taught=$(taught_cached | awk -v c="$1" '$1 == c { f = $2; sub(/\[.*/, "", f); printf " %s", f }')
 	_ref_rows "$REF/$r" |
-	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v taught="$taught " -v cols="${COLS:-80}" \
+	awk -v c="$1" -v mode="$2" -v max="${3:-0}" -v pin=" $pin " -v taught="$taught " \
+	    -v cols="${COLS:-80}" -v novs="$([ "$2" = head ] && printf '%s' "${3:-}")" \
 	    -v vs="$(vs_of "$1")" -v summary="$(summary_of "$1")" \
 	    -v B="$B" -v N="$N" -v D="$D" -v C="$C" -v M="$M" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
@@ -334,23 +426,34 @@ ref_card() {
 		function more(k) {
 			if (k > 0) printf "  %s+%d more -- learn ref %s%s\n", D, k, c, N
 		}
-		function fcol(s, w) { return pad(s, w - 1) " " }
 		function clip(s, w) {
 			if (w < 4 || length(s) <= w) return substr(s, 1, w < 1 ? 0 : w)
 			s = substr(s, 1, w - 2); sub(/[ ,][^ ,]*$/, "", s)
 			sub(/[ .,|]+$/, "", s); return s ".."
 		}
-		function known(k,   i, m, a) {
-			m = split(k, a, ",")
-			for (i = 1; i <= m; i++) if (index(taught, " " a[i] " ")) return 1
+		# the keys a row answers to. a row names its flag first (-c), after
+		# an alias (-, -i), inside brackets ([-s] TIME), after an operand
+		# (N1 -eq N2, ACT1 -o ACT2), or as a bare mode letter (tar c).
+		# every dashed word in the flag field is a key; a field with none is
+		# keyed by its first word, which is how a bare letter gets one.
+		function keys(f,   t, n, i, k) {
+			gsub(/[][]/, " ", f); n = split(f, t, /[ ,]+/); k = ""
+			for (i = 1; i <= n; i++) if (t[i] ~ /^-./) k = k " " t[i]
+			if (k == "" && n > 0) k = " " t[1]
+			return k " "
+		}
+		function hit(k, set,   i, m, a) {
+			m = split(k, a, " ")
+			for (i = 1; i <= m; i++) if (index(set, " " a[i] " ")) return 1
 			return 0
 		}
 		# the usage line comes from the binary, which offers everything it has:
 		# "echo [-neE]" over a card whose only row is -n advertises two flags
 		# the curriculum has decided not to teach. the letters in a bare cluster
-		# are filtered to the taught ones, the cluster goes if none survive, and
-		# anything more structured than [-abc] is left exactly as it came.
-		function abridge(u,   out, i, cl, keep, ch) {
+		# are filtered to the taught ones, the cluster goes if none survive,
+		# and a whole [-x ARG] or [--long] bracket is kept or dropped as one.
+		# what nests is tidied after: [[-s] TIME] with -s gone is [TIME].
+		function abridge(u,   out, i, cl, keep, ch, fl) {
 			out = ""
 			while (match(u, /\[-[A-Za-z0-9]+\]/)) {
 				cl = substr(u, RSTART + 2, RLENGTH - 3); keep = ""
@@ -362,51 +465,57 @@ ref_card() {
 				u = substr(u, RSTART + RLENGTH)
 			}
 			out = out u
-			# and the same for a flag shown with its argument -- [-e FMT],
-			# [-q PROBES] -- which is a whole bracket, kept or gone.
 			u = out; out = ""
-			while (match(u, /\[-[A-Za-z0-9] [A-Za-z_0-9]+\]/)) {
-				ch = substr(u, RSTART + 2, 1)
+			while (match(u, /\[(-[A-Za-z0-9] [A-Za-z_0-9]+|--[A-Za-z0-9][A-Za-z0-9-]*( [A-Za-z_0-9]+)?)\]/)) {
+				fl = substr(u, RSTART + 1, RLENGTH - 2); sub(/ .*/, "", fl)
 				out = out substr(u, 1, RSTART - 1)
-				if (index(taught, " -" ch " ")) out = out substr(u, RSTART, RLENGTH)
+				if (index(taught, " " fl " ")) out = out substr(u, RSTART, RLENGTH)
 				u = substr(u, RSTART + RLENGTH)
 			}
 			out = out u
+			gsub(/\[ +/, "[", out)
 			gsub(/  +/, " ", out); sub(/^ +| +$/, "", out)
 			return out
 		}
+		# the usage line is syntax you type, so it wears the typed colour;
+		# the placeholders in it -- FILE, DATE, URL -- are what you fill in,
+		# and go dim so the flags stand out from them
+		function typed(s) {
+			gsub(/[A-Z][A-Z_0-9]+/, D "&" C, s)
+			return C s N
+		}
 		{ line[NR] = $0 }
 		END {
-			n = 0; fw = 0; keep = 0
+			n = 0; fw = 0; np = 0
 			for (i = 2; i <= NR; i++) {
 				l = line[i]
-				if (l ~ /^Usage:/) { usage = substr(l, 8); continue }
-				# a blank line ENDS the flag block. it did not, and a page
-				# whose examples are tab-indented under the flags -- mkfifo,
-				# mkdir, chmod -- folded all three of them into the last
-				# row it kept, so -m read "Mode (default a=rw) mkfifo
-				# /tmp/p tail -f /tmp/p & echo hello".
-				if (l ~ /^[ \t]*$/) { keep = 0; continue }
-				if (l !~ /^\t/) { keep = 0; continue }
-				sub(/^\t+/, "", l); f = l; d = ""
-				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
-				key = f; sub(/[ \t[].*/, "", key)
-				if (key ~ /^-/) {
-					keep = known(key)
-					if (!keep) continue
-					n++; F[n] = f; Dd[n] = d
-					if (length(f) > fw) fw = length(f)
-				} else if (keep && n > 0) {
-					# a wrapped description: fold it into the row above rather
-					# than spend a whole row on half a sentence
-					Dd[n] = Dd[n] " " f (d == "" ? "" : " " d)
+				if (l ~ /^Usage:/) {
+					usage = substr(l, 8)
+					# a synopsis busybox wraps continues on tab-indented
+					# lines; wget lost everything after [--header STR]
+					while (i < NR && line[i + 1] ~ /^\t/) {
+						l = line[++i]; gsub(/\t/, " ", l); usage = usage " " l
+					}
+					continue
 				}
+				# only a row with ONE leading tab is a row. two or more is
+				# the tail of the description above it (find, ping, kill),
+				# and the rewritten glosses stand on their first line.
+				if (l !~ /^\t[^\t]/) continue
+				sub(/^\t/, "", l); f = l; d = ""
+				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
+				k = keys(f)
+				if (!hit(k, taught) && !hit(k, pin)) continue
+				if (hit(k, pin)) { np++; PF[np] = f; PD[np] = d }
+				else { n++; F[n] = f; Dd[n] = d }
+				if (length(f) > fw) fw = length(f)
 			}
 			if (mode == "head") {
 				# the usage line repeats the command name, and the header
 				# already prints it -- "ls  ls [-1Aa...]" reads as a stutter.
 				# a usage that is nothing BUT the name (pwd, clear) leaves the
 				# header alone rather than a name and a run of spaces
+				gsub(/[ \t]+/, " ", usage)
 				if (usage == c) usage = ""
 				else if (index(usage, c " ") == 1) usage = substr(usage, length(c) + 2)
 				usage = abridge(usage)
@@ -414,41 +523,47 @@ ref_card() {
 				# ref page all draw their subject this way, and a card is the
 				# same page in a panel.
 				if (usage == "") printf "  %s%s%s\n", B, c, N
-				else printf "  %s%s%s  %s%s%s\n", B, c, N, D, clip(usage, cols - length(c) - 6), N
+				else printf "  %s%s%s  %s\n", B, c, N, typed(clip(usage, cols - length(c) - 6))
 				if (summary != "") print "  " clip(summary, cols - 4)
 				# magenta: the row exists to hold this command against the
 				# one you might have reached for instead, and dim said the
 				# opposite -- that it was frame, not content.
-				if (vs != "") printf "  %s%s%s\n", M, clip(vs, cols - 4), N
+				if (vs != "" && novs == "") printf "  %s%s%s\n", M, clip(vs, cols - 4), N
 				exit
 			}
+			# a flag name is capped at 16 columns: --no-check-certificate
+			# at full width pushed its row past 80 and wrapped it
 			if (fw > 16) fw = 16
 			col = fw + 2
+			if (mode == "pinned") {
+				# a pinned row has the whole width, so a name past the
+				# column (--no-check-certificate) is printed whole and its
+				# gloss starts after it, rather than cut to "--no-check-cer.."
+				for (i = 1; i <= np; i++) {
+					pw = (length(PF[i]) > fw ? length(PF[i]) + 2 : col)
+					if (PD[i] == "") printf "> %s%s%s\n", C, PF[i], N
+					else printf "> %s%s%s%s\n", C, pad(PF[i], pw), N, clip(PD[i], cols - pw - 4)
+				}
+				exit
+			}
 			# TWO COLUMNS, always, once there are enough flags to be worth
-			# the halved description. it used to depend on the row budget --
-			# terminal height minus however tall this particular question
-			# happened to be -- so the same ls page was one column on one
-			# card and two on the next, and the layout read as a property of
-			# the level rather than of the command. a reference you have to
-			# re-learn the shape of is not a reference. one column below the
-			# threshold, where two would be narrow cells for no gain, and one
-			# column whenever the terminal is too narrow to split.
+			# the halved description -- never as a function of the budget, or
+			# the same page takes a different shape on every card and the
+			# layout reads as a property of the level rather than the command.
+			# one column below the threshold, and whenever the terminal is too
+			# narrow to split.
 			twocol = (n > 8 && cols >= 60)
 			# the budget, and the row the footer costs. a card still never
 			# spends a row it was not given: when the list does not fit, the
-			# LAST row goes to saying so rather than to one more flag.
+			# LAST row goes to saying so rather than to one more flag -- and
+			# ONE row with more than one flag is spent on the count alone.
 			budget = (max > 0 ? max : n)
-			# ONE row, with more flags than that, spends it on the count: both
-			# arms subtract the row the footer costs, unconditionally. they used to
-			# skip that subtraction at budget 1 and then skip the footer too,
-			# so a one-row panel showed one arbitrary flag and dropped fifteen
-			# in silence -- the failure that footer exists to prevent. it was
-			# unreachable only because ref_panel_text floors its share at two.
+			if (n == 0) exit
 			if (!twocol) {
 				shown = (n <= budget ? n : budget - 1)
 				for (i = 1; i <= shown; i++)
-					if (Dd[i] == "") printf "  %s%s%s\n", C, F[i], N
-					else printf "  %s%s%s%s\n", C, fcol(F[i], col), N, clip(Dd[i], cols - col - 4)
+					if (Dd[i] == "") printf "  %s%s%s\n", C, clip(F[i], fw), N
+					else printf "  %s%s%s%s\n", C, pad(clip(F[i], fw), col), N, clip(Dd[i], cols - col - 4)
 				more(n - shown)
 				exit
 			}
@@ -459,23 +574,26 @@ ref_card() {
 			cell = int((cols - 4) / 2); dw = cell - col
 			for (i = 1; i <= half; i++) {
 				j = i + half
-				printf "  %s%s%s%s", C, fcol(F[i], col), N, pad(clip(Dd[i], dw), dw)
-				if (j <= shown) printf "  %s%s%s%s", C, fcol(F[j], col), N, clip(Dd[j], dw)
+				printf "  %s%s%s%s", C, pad(clip(F[i], fw), col), N, pad(clip(Dd[i], dw), dw)
+				if (j <= shown) printf "  %s%s%s%s", C, pad(clip(F[j], fw), col), N, clip(Dd[j], dw)
 				printf "\n"
 			}
 			more(n - shown)
 		}'
 }
 
-# ref_panel_text ANSWER -- the tab/man panel: what the command is, the shell
-# syntax this answer leans on, the flags the curriculum drills, then two real
-# lines from the corpus. the one place both learn's word path and the editor's
-# Tab key call into, so they can never drift apart. PANEL_ROWS, when set, is
-# the room the caller has: the examples are what goes first when it is tight,
-# and the flag list is shaped to whatever is left.
+# ref_panel_text ANSWER -- the tab/man panel: what the command is, the flags
+# this card's answer uses (pinned, never cut), the other flags the curriculum
+# drills, two real lines from the corpus, and the shell syntax the answer leans
+# on. the one place both learn's word path and the editor's Tab key call into,
+# so they can never drift apart. PANEL_ROWS, when set, is the room the caller
+# has, given out in this order: the head and the pinned rows always, then the
+# syntax, the examples, and whatever is left to the other flags -- a row per
+# page held back for them come what may, so a cut list can always say so.
+# unset or 0 is no limit: a piped `tab` prints the whole card.
 ref_panel_text() {
-	local head syn ex used left budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
-	local refs r n each
+	local head syn ex left budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
+	local refs r n each rows novs pinned synall need
 	if [ -z "${Q_REF:-}" ]; then
 		note "no reference for this one"
 		return 0
@@ -489,36 +607,68 @@ ref_panel_text() {
 	# the card down rather than show it short.
 	n=$(printf '%s\n' "$refs" | grep -c .)
 	[ "${n:-0}" -ge 1 ] 2>/dev/null || { refs=$Q_REF; n=1; }
-	head=""
+	# each page's pinned keys, read once off the answer: CMD<TAB>keys
+	printf '%s\n' "$1" | answer_flags > "$TMP/panel.flags"
+	for r in $refs; do
+		# shellcheck disable=SC2046
+		printf '%s\t%s\n' "$r" "$(pin_keys "$r" $(awk -v c="$r" '$1 == c { print $2 }' "$TMP/panel.flags"))"
+	done > "$TMP/panel.pins"
+	head=""; novs=""; pinned=""
 	for r in $refs; do
 		head="${head:+$head
-}$(ref_card "$r" head)" || { note "no entry for $r"; return 0; }
+}$(ref_card "$r" head "$novs")" || { note "no entry for $r"; return 0; }
+		novs=1
+		pinned="$pinned$(ref_card "$r" pinned "$(_pins "$r")")"
 	done
-	syn=$(explain_syntax "$1" "$Q_REF" 1) || syn="  ${D}(none -- a single command, no operators)${N}"
-	ex=$(ref_examples "$Q_REF" "${Q_ANSWERS:-}") || ex=
+	# the syntax this ANSWER uses. the rows a page carries whatever you typed
+	# (learn/syn: * ? [...] on every ls card) are the last thing given room --
+	# only once every other flag has fit
+	syn=$(explain_syntax "$1" "" 1) || syn=
+	synall=$(explain_syntax "$1" "$Q_REF" 1) || synall=
+	ex=$(ref_examples "$Q_REF" "${Q_ANSWERS:-}" "" "$(_pins "$Q_REF")") || ex=
 	if [ "$budget" -gt 0 ]; then
-		used=$(printf '%s\n  shell syntax\n%s\n' "$head" "$syn" | _prows "$w")
-		left=$(( budget - used ))
-		# an example pair costs three rows; below that the flags need them more
-		if [ -n "$ex" ] && [ "$left" -ge 6 ]; then
-			left=$(( left - $(printf '%s\n' "$ex" | _prows "$w") ))
-		else
-			ex=
+		left=$(( budget - $(printf '%s\n' "$head" | _prows "$w") ))
+		[ -z "$pinned" ] || left=$(( left - $(printf '%s\n' "$pinned" | _prows "$w") ))
+		# a row per page held back for its other flags, or at the least the
+		# line saying how many there are
+		left=$(( left - n ))
+		rows=0; [ -z "$syn" ] || rows=$(( 1 + $(printf '%s\n' "$syn" | _prows "$w") ))
+		if [ "$rows" -le "$left" ]; then left=$(( left - rows )); else syn=; fi
+		if [ -n "$ex" ]; then
+			rows=$(printf '%s\n' "$ex" | _prows "$w")
+			if [ "$rows" -le "$left" ]; then left=$(( left - rows )); else ex=; fi
 		fi
-		budget=$left
-		[ "$budget" -ge 2 ] || budget=2
+		# every other flag, whole, against what is left
+		need=0
+		for r in $refs; do
+			need=$(( need + $(ref_card "$r" flags 0 "$(_pins "$r")" | _prows "$w") ))
+		done
+		if [ -n "$synall" ] && [ "$synall" != "$syn" ]; then
+			rows=$(( 1 + $(printf '%s\n' "$synall" | _prows "$w") ))
+			[ -n "$syn" ] && rows=$(( rows - 1 - $(printf '%s\n' "$syn" | _prows "$w") ))
+			[ $(( need - n + rows )) -le "$left" ] && { syn=$synall; left=$(( left - rows )); }
+		fi
+		# the other flags split what is left between the pages, evenly: two
+		# commands on one line are two things you have to know, and a panel
+		# that shows all of one and none of the other has picked for you
+		each=$(( (left + n) / n ))
+		[ "$each" -ge 1 ] || each=1
+	else
+		syn=$synall
+		each=0
 	fi
-	printf '%s\n  %sshell syntax%s\n%s\n' "$head" "$U" "$N" "$syn"
-	# the flag rows split between the pages, evenly: two commands on one line
-	# are two things you have to know, and a panel that shows all of one and
-	# none of the other has picked for you. each card says what it held back.
-	each=$(( budget / n ))
-	[ "$each" -ge 2 ] || each=2
+	printf '%s\n' "$head"
 	for r in $refs; do
-		ref_card "$r" flags "$each"
+		ref_card "$r" pinned "$(_pins "$r")"
+		ref_card "$r" flags "$each" "$(_pins "$r")"
 	done
 	[ -n "$ex" ] && printf '%s\n' "$ex"
+	[ -n "$syn" ] && printf '  %sshell syntax%s\n%s\n' "$U" "$N" "$syn"
+	return 0
 }
+
+# _pins CMD -- the pinned keys ref_panel_text read off the answer for CMD
+_pins() { awk -F'\t' -v c="$1" '$1 == c { print $2; exit }' "$TMP/panel.pins" 2>/dev/null; }
 
 # _panel_refs ANSWER -- the pages the panel opens, declared first, then the
 # commands the answer actually runs. deduplicated, and only ones we ship.
