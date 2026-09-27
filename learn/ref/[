@@ -7,18 +7,21 @@ The bracket form of `test`: the final argument must be a literal ].
 This is what `if [ ... ]` in a shell script actually runs.
 
 	-e FILE		FILE exists
-	-f FILE		FILE exists and is a regular file
-	-d FILE		FILE exists and is a directory
+	-f FILE		FILE is a regular file
+	-d FILE		FILE is a directory
 	-r FILE		FILE is readable
 	-w FILE		FILE is writable
 	-x FILE		FILE is executable
-	-s FILE		FILE exists and is not empty
+	-s FILE		Exists and isn't empty
 	-L FILE		FILE is a symbolic link
 	-z STR		STR is empty
 	-n STR		STR is not empty
+	N1 -eq N2	Numbers are equal
+	N1 -gt N2	First number is bigger
+	N1 -lt N2	First number is smaller
+	N1 -ne,-le,-ge N2	not equal, less/equal, greater/equal
 	STR1 = STR2	strings are equal
 	STR1 != STR2	strings differ
-	N1 -eq N2	numbers equal (-ne -lt -le -gt -ge also)
 	! EXPR		negate
 	EXPR -a EXPR	and;  EXPR -o EXPR	or
 

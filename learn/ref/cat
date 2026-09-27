@@ -7,5 +7,5 @@ Print FILEs to stdout.
 	-b	Number nonempty lines
 	-v	Show nonprinting characters as ^x or M-x
 	-t	...and tabs as ^I
-	-e	...and end lines with $
+	-e	Show $ at each line end
 	-A	Same as -vte

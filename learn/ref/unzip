@@ -8,7 +8,7 @@ Extract FILEs from ZIP archive.
 	-o	Overwrite
 	-j	Do not restore paths
 	-p	Write to stdout
-	-t	Test
+	-t	Check for corruption
 	-q	Quiet
 	-K	Do not clear SUID bit
 	-x FILE	Exclude FILEs

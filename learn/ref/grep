@@ -6,23 +6,23 @@ Search for PATTERN in FILEs (or stdin).
 	-H	Add 'filename:' prefix
 	-h	Do not add 'filename:' prefix
 	-n	Add 'line_no:' prefix
-	-l	Show only names of files that match
-	-L	Show only names of files that don't match
-	-c	Show only count of matching lines
-	-o	Show only the matching part of line
-	-q	Quiet. Return 0 if PATTERN is found, 1 otherwise
+	-l	Names of matching files
+	-L	Files with no match
+	-c	Count matching lines
+	-o	Only the matched text
+	-q	Quiet, use exit status
 	-v	Select non-matching lines
-	-s	Suppress open and read errors
-	-r	Recurse
+	-s	No error messages
+	-r	Search subdirectories too
 	-R	Recurse and dereference symlinks
 	-i	Ignore case
 	-w	Match whole words only
 	-x	Match whole lines only
-	-F	PATTERN is a literal (not regexp)
-	-E	PATTERN is an extended regexp
-	-m N	Match up to N times per file
-	-A N	Print N lines of trailing context
-	-B N	Print N lines of leading context
+	-F	Plain text, not a regex
+	-E	Extended regex, not basic
+	-m N	Up to N matches per file
+	-A N	N lines after each match
+	-B N	N lines before each match
 	-C N	Same as '-A N -B N'
-	-e PTRN	Pattern to match
+	-e PATTERN	Pattern to match
 	-f FILE	Read pattern from file

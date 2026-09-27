@@ -3,12 +3,12 @@ Usage: dbclient [-i KEYFILE] [-p PORT] [-l USER] [USER@]HOST [COMMAND]
 
 Log in to another machine over SSH, or run one command there.
 
-	-i FILE		identity (private key) to authenticate with
+	-i KEYFILE	identity (private key) to authenticate with
 	-p PORT		remote port
 	-l USER		remote username
 	-J CMD		proxy through a command
 	-N		do not run a command (just forward ports)
-	-L LPORT:HOST:PORT	forward a local port to a remote host:port
+	-L SPEC	forward a local port: LPORT:HOST:PORT
 	-R RPORT:HOST:PORT	forward a remote port back to a local host:port
 	-f		background after authenticating
 

@@ -1,8 +1,8 @@
 rm
 Usage: rm [-irf] FILE...
 
-Remove (unlink) FILEs.
+Delete FILEs.
 
 	-i	Always prompt before removing
-	-f	Never prompt
-	-R,-r	Recurse
+	-f	No prompts, ignore missing
+	-R,-r	Delete dirs and contents

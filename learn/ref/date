@@ -1,9 +1,9 @@
 date
 Usage: date [OPTIONS] [+FMT] [[-s] TIME]
 
-Display time (using +FMT), or set time.
+Show or set the current date and time.
 
-	-u		Work in UTC (don't convert to local time)
+	-u		Work in UTC, not local
 	[-s] TIME	Set time to TIME
 	-d TIME		Display TIME, not 'now'
 	-D FMT		FMT (strptime format) for -s/-d TIME conversion
@@ -19,3 +19,13 @@ Recognized TIME formats:
 	YYYY-MM-DD hh:mm[:ss]
 	[[[[[YY]YY]MM]DD]hh]mm[.ss]
 	'date TIME' form accepts MMDDhhmm[[YY]YY][.ss] instead
+
++FMT fields:
+	%Y	4-digit year
+	%m	Month (01-12)
+	%d	Day of month (01-31)
+	%H	Hour, 24h (00-23)
+	%M	Minute (00-59)
+	%S	Second (00-59)
+	%s	Seconds since 1970 (epoch)
+	%F	Same as %Y-%m-%d

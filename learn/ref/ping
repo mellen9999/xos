@@ -1,12 +1,12 @@
 ping
 Usage: ping [OPTIONS] HOST
 
-Send ICMP ECHO_REQUESTs to HOST.
+Check whether HOST is reachable and measure round-trip time.
 
 	-4,-6		Force IP or IPv6 name resolution
 	-c CNT		Send only CNT pings
 	-s SIZE		Send SIZE data bytes in packets (default 56)
-	-i SECS		Interval
+	-i SECS		Seconds between pings
 	-A		Ping as soon as reply is received
 	-t TTL		Set TTL
 	-I IFACE/IP	Source interface or IP address

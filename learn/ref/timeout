@@ -1,5 +1,7 @@
 timeout
 Usage: timeout [-s SIG] [-k KILL_SECS] SECS PROG ARGS
 
-Run PROG. Send SIG to it if it is not gone in SECS seconds.
-Default SIG: TERM.If it still exists in KILL_SECS seconds, send KILL.
+Run PROG, but kill it if it hasn't finished within a time limit.
+
+	-s SIG	Signal to send (default TERM)
+	-k KILL_SECS	Then KILL after KILL_SECS more seconds

@@ -13,7 +13,7 @@ This implementation supports unified diffs only.
 	-L	Use LABEL instead of the filename in the unified header
 	-N	Treat absent files as empty
 	-q	Output only whether files differ
-	-r	Recurse
+	-r	Compare subdirectories too
 	-S	Start with FILE when comparing directories
 	-T	Make tabs line up by prefixing a tab when necessary
 	-s	Report when two files are the same

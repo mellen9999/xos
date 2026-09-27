@@ -1,5 +1,5 @@
 hexdump
-Usage: hexdump [-bcdoxCv] [-e FMT] [-f FMT_FILE] [-n LEN] [-s OFS] [FILE]...
+Usage: hexdump [-bcdoxCv] [-e FORMAT_STR] [-f FORMAT_FILE] [-n LENGTH] [-s OFFSET] [FILE]...
 
 Display FILEs (or stdin) in a user specified format.
 
@@ -8,9 +8,9 @@ Display FILEs (or stdin) in a user specified format.
 	-d		2-byte decimal display
 	-o		2-byte octal display
 	-x		2-byte hex display
-	-C		hex+ASCII 16 bytes per line
-	-v		Show all (no dup folding)
-	-e FORMAT_STR	Example: '16/1 "%02x|""\n"'
-	-f FORMAT_FILE
+	-C		Hex with text beside it
+	-v		Don't fold repeats into *
+	-e FORMAT_STR	Use your own display format
+	-f FORMAT_FILE	Read the format from FORMAT_FILE
 	-n LENGTH	Show only first LENGTH bytes
 	-s OFFSET	Skip OFFSET bytes

@@ -3,28 +3,28 @@ Usage: tar c|x|t [-zJjahmvokO] [-f TARFILE] [-C DIR] [-T FILE] [-X FILE] [LONGOP
 
 Create, extract, or list files from a tar file.
 
-	c	Create
+	c	Create an archive
 	x	Extract
-	t	List
-	-f FILE	Name of TARFILE ('-' for stdin/out)
-	-C DIR	Change to DIR before operation
-	-v	Verbose
+	t	List contents
+	-f TARFILE	Archive file, or '-'
+	-C DIR	Work inside DIR
+	-v	List sizes, modes
 	-O	Extract to stdout
 	-m	Don't restore mtime
 	-o	Don't restore user:group
 	-k	Don't replace existing files
-	-z	(De)compress using gzip
-	-J	(De)compress using xz
-	-j	(De)compress using bzip2
+	-z	gzip (.tar.gz)
+	-J	xz (.tar.xz)
+	-j	bzip2 (.tar.bz2)
 	--lzma	(De)compress using lzma
 	-a	(De)compress based on extension
 	-h	Follow symlinks
-	-T FILE	File with names to include
+	-T FILE	Names in FILE
 	-X FILE	File with glob patterns to exclude
-	--exclude PATTERN	Glob pattern to exclude
+	--exclude GLOB	Skip names matching
 	--overwrite		Replace existing files
-	--strip-components NUM	NUM of leading components to strip
-	--no-recursion		Don't descend in directories
-	--numeric-owner		Use numeric user:group
+	--strip-components NUM	Drop NUM top dirs
+	--no-recursion		Don't enter dirs
+	--numeric-owner		Numeric uid:gid
 	--no-same-permissions	Don't restore access permissions
 	--to-command COMMAND	Pipe files to COMMAND

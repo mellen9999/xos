@@ -4,13 +4,13 @@ or: cp [-arPLHpfinlsu] SOURCE... { -t DIRECTORY | DIRECTORY }
 
 Copy SOURCEs to DEST.
 
-	-a	Same as -dpR
-	-R,-r	Recurse
+	-a	Keep everything (-dpR)
+	-R,-r	Copy directories recursively
 	-d,-P	Preserve symlinks (default if -R)
 	-L	Follow all symlinks
 	-H	Follow symlinks on command line
-	-p	Preserve file attributes if possible
-	-f	Overwrite
+	-p	Keep times, modes, owner
+	-f	Remove DEST if unwritable
 	-i	Prompt before overwrite
 	-n	Don't overwrite
 	-l,-s	Create (sym)links

@@ -3,5 +3,5 @@ Usage: rmdir [-p] DIRECTORY...
 
 Remove DIRECTORY if it is empty.
 
-	-p	Include parents
+	-p	Also remove emptied parents
 	--ignore-fail-on-non-empty

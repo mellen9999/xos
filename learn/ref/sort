@@ -1,19 +1,19 @@
 sort
-Usage: sort [-nrughMcszbdfiokt] [-o FILE] [-k START[.OFS][OPTS][,END[.OFS][OPTS]] [-t CHAR] [FILE]...
+Usage: sort [-nrughMcszbdfiokt] [-o FILE] [-k N[,M]] [-t CHAR] [FILE]...
 
 Sort lines of text.
 
 	-o FILE	Output to FILE
-	-c	Check whether input is sorted
+	-c	Just check it's sorted
 	-b	Ignore leading blanks
 	-f	Ignore case
 	-i	Ignore unprintable characters
 	-d	Dictionary order (blank or alphanumeric only)
 	-n	Sort numbers
 	-g	General numerical sort
-	-h	Sort human readable numbers (2K 1G)
+	-h	Sizes like 2K, 1G
 	-M	Sort month
-	-V	Sort version
+	-V	Version order: 1.9 < 1.10
 	-t CHAR	Field separator
 	-k N[,M] Sort by Nth field
 	-r	Reverse sort order

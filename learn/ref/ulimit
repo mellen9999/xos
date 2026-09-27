@@ -6,6 +6,6 @@ Show or set resource limits for the shell.
 Shell builtin. The limit also applies to everything the shell starts.
 
 	-a	show all current limits
-	-f N	cap file size at N blocks
+	-f SIZE	cap file size at SIZE blocks
 
 See also: free, ps

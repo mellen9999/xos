@@ -1,12 +1,12 @@
 touch
 Usage: touch [-cham] [-d DATE] [-t DATE] [-r FILE] FILE...
 
-Update mtime of FILEs.
+Create empty FILEs, or set their modified time to now.
 
-	-c	Don't create files
+	-c	Skip files that don't exist
 	-h	Don't follow links
 	-a	Change only atime
-	-m	Change only mtime
-	-d DT	Date/time to use
-	-t DT	Date/time to use
+	-m	Change only mod time
+	-d DATE	Use DATE, not now
+	-t DATE	Use DATE, not now
 	-r FILE	Use FILE's date/time

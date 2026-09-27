@@ -7,4 +7,4 @@ Download a file via FTP.
 	-v	Verbose
 	-u USER	Username
 	-p PASS	Password
-	-P PORT
+	-P PORT	Port (default 21)

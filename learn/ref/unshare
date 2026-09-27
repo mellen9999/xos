@@ -3,7 +3,7 @@ Usage: unshare [OPTIONS] [PROG ARGS]
 
 Run a program in new, unshared namespaces.
 
-	-m,--mount[=FILE]	Unshare mount namespace
+	-m,--mount[=F]	Unshare mount namespace (optionally bind to a file)
 	-u,--uts[=FILE]		Unshare UTS namespace (hostname etc.)
 	-i,--ipc[=FILE]		Unshare System V IPC namespace
 	-n,--net[=FILE]		Unshare network namespace

@@ -3,7 +3,7 @@ Usage: stat [-ltf] [-c FMT] FILE...
 
 Display file (default) or filesystem status.
 
-	-c FMT	Use the specified format
+	-c FMT	Print only FMT (%s size)
 	-f	Display filesystem status
 	-L	Follow links
 	-t	Terse display

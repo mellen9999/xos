@@ -1,7 +1,7 @@
 lsattr
 Usage: lsattr [-Radlpv] [FILE]...
 
-List ext2 file attributes.
+List the special flags set on files, like immutable.
 
 	-R	Recurse
 	-a	Include names starting with .

@@ -1,8 +1,8 @@
 watch
 Usage: watch [-n SEC] [-tx] PROG ARGS
 
-Run PROG periodically.
+Run PROG repeatedly and show its output, refreshing on a timer.
 
-	-n SEC	Period (default 2)
+	-n SEC	Seconds between runs
 	-t	Don't print header
 	-x	exec(PROG,ARGS) instead of sh -c 'PROG ARGS'

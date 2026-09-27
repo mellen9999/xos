@@ -3,9 +3,9 @@ Usage: blockdev OPTION BLOCKDEV
 
 Get or set low-level attributes of a block device.
 
-	--setro		Set ro
-	--setrw		Set rw
-	--getro		Get ro
+	--setro		Make device read-only
+	--setrw		Make device writable
+	--getro		Report read-only flag
 	--getss		Get sector size
 	--getbsz	Get block size
 	--setbsz BYTES	Set block size

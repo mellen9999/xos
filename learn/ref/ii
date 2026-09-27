@@ -10,7 +10,7 @@ directory holding an `in` FIFO you write to and an ``out`` file you read.
 	-p PORT		port (default 6667)
 	-n NICK		nickname
 	-f FULLNAME	real name field
-	-i DIR		root of the tree (default ~/irc)
+	-i DIR		where ii keeps its files (default ~/irc)
 
 	ii -s irc.example.org -n xos -i ~/irc &
 	echo '/j #chan' > ~/irc/irc.example.org/in

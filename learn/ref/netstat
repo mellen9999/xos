@@ -5,14 +5,14 @@ Display networking information.
 
 	-r	Routing table
 	-a	All sockets
-	-l	Listening sockets
+	-l	Listening sockets only
 		Else: connected sockets
 	-t	TCP sockets
 	-u	UDP sockets
 	-w	Raw sockets
 	-x	Unix sockets
 		Else: all socket types
-	-e	Other/more information
+	-e	Extra fields (user, inode)
 	-n	Don't resolve names
 	-W	Wide display
 	-p	Show PID/program name for sockets

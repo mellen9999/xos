@@ -4,4 +4,4 @@ Usage: truncate [-c] -s SIZE FILE...
 Shrink or extend files to a size.
 
 	-c	Do not create files
-	-s SIZE
+	-s SIZE	Set file to SIZE bytes

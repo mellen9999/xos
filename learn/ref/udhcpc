@@ -7,7 +7,7 @@ Obtain or renew a DHCP lease on an interface.
 
 	-i IFACE	Interface to use (default eth0)
 	-s PROG		Run PROG at DHCP events (default /usr/share/udhcpc/default.script)
-	-p FILE		Create pidfile
+	-p PIDFILE	Create pidfile
 	-B		Request broadcast replies
 	-t N		Send up to N discover packets (default 3)
 	-T SEC		Pause between packets (default 3)

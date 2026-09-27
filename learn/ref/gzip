@@ -5,6 +5,6 @@ Compress FILEs (or stdin).
 
 	-d	Decompress
 	-c	Write to stdout
-	-f	Force
+	-f	Overwrite an existing .gz
 	-k	Keep input files
 	-t	Test integrity

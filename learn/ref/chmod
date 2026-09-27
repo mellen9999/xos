@@ -1,7 +1,7 @@
 chmod
 Usage: chmod [-Rcvf] MODE[,MODE]... FILE...
 
-Change file permissions (mode) for FILE.
+Change who can read, write, or run FILE.
 
 MODE is octal number (bit pattern sstrwxrwxrwx) or [ugoa]{+|-|=}[rwxXst]
 
@@ -17,7 +17,7 @@ group, ``o`` others, ``a`` all three; `+` adds, `-` removes, `=` sets exactly.
 So ``u+x`` makes it executable by you, ``go-w`` takes write off everyone else,
 ``a=r`` leaves it read-only for all.
 
-	-R	Recurse
+	-R	Recurse into subdirectories
 	-c	List changed files
 	-v	Verbose
 	-f	Hide errors

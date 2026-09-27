@@ -1,7 +1,7 @@
 mount
 Usage: mount [OPTIONS] [-o OPT] DEVICE NODE
 
-Mount a filesystem. Filesystem autodetection requires /proc.
+Attach a filesystem so its files appear in the directory tree.
 
 	-a		Mount all filesystems in fstab
 	-f		Dry run
@@ -10,7 +10,7 @@ Mount a filesystem. Filesystem autodetection requires /proc.
 	-t FSTYPE[,...]	Filesystem type(s)
 	-T FILE		Read FILE instead of /etc/fstab
 	-O OPT		Mount only filesystems with option OPT (-a only)
--o OPT:
+	-o OPT		Options, e.g. ro,noexec
 	loop		Ignored (loop devices are autodetected)
 	[a]sync		Writes are [a]synchronous
 	[no]atime	Disable/enable updates to inode access times

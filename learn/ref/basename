@@ -3,5 +3,5 @@ Usage: basename FILE [SUFFIX] | -a FILE... | -s SUFFIX FILE...
 
 Strip directory path and SUFFIX from FILE.
 
-	-a		All arguments are FILEs
+	-a		Several FILEs, one call
 	-s SUFFIX	Remove SUFFIX (implies -a)

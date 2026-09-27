@@ -13,12 +13,12 @@ Trace the route to HOST.
 	-r	Bypass routing tables, send directly to HOST
 	-v	Verbose
 	-f N	First number of hops (default 1)
-	-m N	Max number of hops
-	-q N	Number of probes per hop (default 3)
-	-p N	Base UDP port number used in probes
+	-m MAXTTL	Max number of hops
+	-q PROBES	Number of probes per hop (default 3)
+	-p PORT	Base UDP port number used in probes
 		(default 33434)
-	-s IP	Source address
+	-s SRC_IP	Source address
 	-i IFACE Source interface
-	-t N	Type-of-service in probe packets (default 0)
-	-w SEC	Wait for a response (default 3)
-	-z MSEC	Wait before each send
+	-t TOS	Type-of-service in probe packets (default 0)
+	-w WAIT_SEC	Wait for a response (default 3)
+	-z PAUSE_MSEC	Wait before each send

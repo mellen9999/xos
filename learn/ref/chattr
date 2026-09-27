@@ -1,11 +1,11 @@
 chattr
 Usage: chattr [-R] [-v VERSION] [-p PROJID] [-+=AacDdijsStTu] FILE...
 
-Change ext2 file attributes.
+Set special flags on a file, like immutable or append-only.
 
 	-R	Recurse
-	-v NUM	Set version/generation number
-	-p NUM	Set project number
+	-v VERSION	Set version/generation number
+	-p PROJID	Set project number
 Modifiers:
 	-,+,=	Remove/add/set attributes
 Attributes:

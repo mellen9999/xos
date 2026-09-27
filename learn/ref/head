@@ -1,7 +1,7 @@
 head
 Usage: head [OPTIONS] [FILE]...
 
-Print first 10 lines of FILEs (or stdin).
+Print the first 10 lines of FILEs (or stdin).
 With more than one FILE, precede each with a filename header.
 
 	-n N[bkm]	Print first N lines

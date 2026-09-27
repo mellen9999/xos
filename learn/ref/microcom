@@ -3,8 +3,8 @@ Usage: microcom [-d DELAY_MS] [-t TIMEOUT_MS ] [-s SPEED] [-X] TTY
 
 Copy bytes from stdin to TTY and from TTY to stdout.
 
-	-d DELAY	Wait up to DELAY ms for TTY output before sending
+	-d DELAY_MS	Wait up to DELAY_MS for TTY output before sending
 			every next byte to it
-	-t TIMEOUT	Exit if both stdin and TTY are silent for TIMEOUT ms
-	-s SPEED	Set serial line to SPEED
+	-t TIMEOUT_MS	Exit if both stdin and TTY are silent for TIMEOUT_MS
+	-s SPEED	Baud rate, e.g. 115200
 	-X		Disable special meaning of NUL and Ctrl-X from stdin

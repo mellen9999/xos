@@ -5,5 +5,5 @@ Record a terminal session to a file.
 
 	-a	Append output
 	-c PROG	Run PROG, not shell
-	-q	Quiet
+	-q	No start/done banner
 	-t[FILE] Send timing to stderr or FILE

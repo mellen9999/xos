@@ -4,7 +4,7 @@ Usage: cpio [-dmvu] [-F FILE] [-R USER[:GRP]] [-H newc] [-tio] [-p DIR] [EXTR_FI
 Copy files into or out of a cpio archive.
 
 Main operation mode:
-	-t	List
+	-t	List contents, don't extract
 	-i	Extract EXTR_FILEs (or all)
 	-o	Create (requires -H newc)
 	-p DIR	Copy files to DIR

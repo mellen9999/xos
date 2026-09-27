@@ -80,7 +80,7 @@ $NAME	\$[A-Za-z_][A-Za-z0-9_]*	expand a variable value -- unquoted, the result a
 &	&	run the command in the background and carry on
 0nnn	((chmod|umask)( +-[^ ]+)*|(mkdir|mkfifo)( +-[^ ]+)* +-m) +[0-7]{3,4}( |$)	an octal mode, one digit per set: r=4 w=2 x=1 added up. 600 is rw for you and nothing for anyone else, 644 rw-r--r--, 755 rwxr-xr-x, 700 rwx------. a fourth digit in front is setuid/setgid/sticky
 [...]	\[[^] ]*\]	one character from the set, e.g. [0-9] -- glob and regex alike
-*	\*	a filename glob the shell expands before ls ever runs: 0+ characters, never a leading dot. in a grep/sed/awk pattern: 0+ of what precedes it
-?	\?	also expanded by the shell: exactly one character of a filename. in a grep -E pattern: 0 or 1 of what precedes it
+*	\*	a filename glob, 0+ characters; in a regex, 0+ of what precedes it. unquoted, the shell expands it before the command runs, and never onto a leading dot
+?	\?	one character of a filename; in grep -E, 0 or 1 of what precedes it. unquoted, the shell expands it before the command runs
 ~	~	your home directory -- the shell swaps it in, not the command
 -	(^|[[:space:]])-([[:space:]]|$)	a lone - means read stdin, by convention

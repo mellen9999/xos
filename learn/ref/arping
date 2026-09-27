@@ -6,11 +6,11 @@ Send ARP requests/replies.
 	-f		Quit on first ARP reply
 	-q		Quiet
 	-b		Keep broadcasting, don't go unicast
-	-D		Exit with 1 if DST_IP replies
+	-D		Check address isn't already in use
 	-U		Unsolicited ARP mode, update your neighbors
 	-A		ARP answer mode, update your neighbors
-	-c N		Stop after sending N ARP requests
-	-w TIMEOUT	Seconds to wait for ARP reply
+	-c CNT		Stop after sending CNT ARP requests
+	-w TIMEOUT	Give up after TIMEOUT seconds
 	-I IFACE	Interface to use (default eth0)
 	-s SRC_IP	Sender IP address
 	DST_IP		Target IP address

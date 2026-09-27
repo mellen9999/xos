@@ -9,6 +9,6 @@ View FILE (or stdin) one screenful at a time.
 	-M,-m	Display status line with line numbers
 		and percentage through the file
 	-N	Prefix line number to each line
-	-S	Truncate long lines
+	-S	Don't wrap long lines
 	-R	Remove color escape codes in input
 	-~	Suppress ~s displayed past EOF

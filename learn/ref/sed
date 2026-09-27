@@ -8,8 +8,19 @@ Filter and transform text using scripted edit commands.
 	-f FILE	Add FILE contents to sed commands to be executed
 	-i[SFX]	Edit files in-place (otherwise write to stdout)
 		Optionally back files up, appending SFX
-	-n	Suppress automatic printing of pattern space
+	-n	Only print lines you explicitly print (with p)
 	-r,-E	Use extended regex syntax
 
 If no -e or -f, the first non-option argument is the sed command string.
 Remaining arguments are input files (stdin if none).
+
+Script commands:
+	s/RE/REPL/FLAGS	Replace matches of RE with REPL
+			FLAGS: g (all matches), I (ignore case), p (print)
+	p		Print the current line
+	d		Delete the current line
+Addresses (before a command, select which lines it runs on):
+	N		Line number N
+	$		The last line
+	/RE/		Any line matching RE
+	N,M		Lines N through M

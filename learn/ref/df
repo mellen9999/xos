@@ -10,5 +10,5 @@ Print filesystem usage statistics.
 	-T	Print filesystem type
 	-t TYPE	Print only mounts of this type
 	-a	Show all filesystems
-	-i	Inodes
+	-i	Inode use, not space
 	-B SIZE	Blocksize

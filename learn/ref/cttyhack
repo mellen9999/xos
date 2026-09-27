@@ -1,7 +1,7 @@
 cttyhack
 Usage: cttyhack [PROG ARGS]
 
-Give PROG a controlling tty if possible.
+Give PROG a terminal to control, if one is available.
 Example for /etc/inittab (for busybox init):
 	::respawn:/bin/cttyhack /bin/sh
 Giving controlling tty to shell running with PID 1:

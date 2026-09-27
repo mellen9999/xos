@@ -1,4 +1,4 @@
 tac
 Usage: tac [FILE]...
 
-Concatenate FILEs and print them in reverse.
+Print FILEs with their lines in reverse order.

@@ -11,8 +11,8 @@ Keys:
 	H: toggle threads, 1: toggle SMP
 	Q,^C: exit
 Options:
-	-b	Batch mode
-	-n N	Exit after N iterations
-	-d SEC	Delay between updates
+	-b	Plain text, no live screen
+	-n COUNT	Exit after COUNT iterations
+	-d SECONDS	Delay between updates
 	-m	Same as 's' key
 	-H	Show threads

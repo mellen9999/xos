@@ -8,5 +8,5 @@ from stty sane.
 
 	-F DEVICE	Open device instead of stdin
 	-a		Print all current settings in human-readable form
-	-g		Print in stty-readable form
+	-g		Settings you can restore
 	[SETTING]	See manpage

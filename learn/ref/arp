@@ -6,14 +6,14 @@ Usage: arp
 [-v]	[-H HWTYPE] [-i IF] -s HOSTNAME HWADDR [netmask MASK] pub
 [-v]	[-H HWTYPE] [-i IF] -Ds HOSTNAME IFACE [netmask MASK] pub
 
-Manipulate ARP cache.
+Show or change IP-to-hardware-address mappings.
 
 	-a		Display (all) hosts
 	-d		Delete ARP entry
-	-s		Set new entry
+	-s		Add a static entry
 	-v		Verbose
 	-n		Don't resolve names
-	-i IF		Network interface
+	-i IF		Only entries on IF
 	-D		Read HWADDR from IFACE
 	-A,-p AF	Protocol family
 	-H HWTYPE	Hardware address type

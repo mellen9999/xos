@@ -3,7 +3,7 @@ Usage: fuser [-msk46] [-SIGNAL] FILE or PORT/PROTO
 
 Find processes which use FILEs or PORTs.
 
-	-m	Find processes which use same fs as FILEs
+	-m	Anything using FILE's mount
 	-4,-6	Search only IPv4/IPv6 space
 	-s	Don't display PIDs
 	-k	Kill found processes

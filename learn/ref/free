@@ -1,7 +1,7 @@
 free
 Usage: free [-bkmgh]
 
-Display free and used memory. The flags choose the unit only.
+Show how much memory is used and how much is free.
 
 	-b	bytes
 	-k	kilobytes (the default)

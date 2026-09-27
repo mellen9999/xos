@@ -1,7 +1,7 @@
 mkdir
 Usage: mkdir [-m MODE] [-p] DIRECTORY...
 
-Create DIRECTORY.
+Create one or more directories.
 
 	-m MODE	Permissions at creation, octal (700) or symbolic (u=rwx)
 	-p	No error if exists; make parent directories as needed

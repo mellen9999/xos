@@ -7,3 +7,11 @@ Extract and transform fields from text using patterns.
 	-F SEP		Use SEP as field separator
 	-f/-E FILE	Read program from FILE
 	-e AWK_PROGRAM
+
+Program basics:
+	print X	Print X, or the whole line if X is left out
+	$N	Field N of the current line ($1, $2, ...)
+	$NF	The last field of the current line
+	NR	Line number of the current line
+	BEGIN{}	Runs once, before the first line
+	END{}	Runs once, after the last line

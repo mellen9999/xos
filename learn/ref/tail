@@ -12,5 +12,5 @@ With more than one FILE, precede each with a filename header.
 	-q		Never print headers
 	-v		Always print headers
 	-f		Print data as file grows
-	-F		Same as -f, but keep retrying
+	-F		Follow name across rotation
 	-s SECONDS	Wait SECONDS between reads with -f
