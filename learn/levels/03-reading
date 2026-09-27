@@ -17,6 +17,7 @@ hint: no flags -- cat just dumps the whole file to the screen
 ---
 q: %show% @txt@ with `cat` and line numbers, to quote one back
 a: cat -n @txt@
+eg: cat -n /etc/passwd
 cmp: ref
 ref: cat
 teach: cat -n
@@ -24,6 +25,7 @@ hint: n numbers every line, including blanks
 ---
 q: %show% @cfg@ with `cat`, to spot trailing whitespace on each line
 a: cat -e @cfg@
+eg: cat -e /etc/fstab
 cmp: ref
 ref: cat
 teach: cat -e
@@ -39,6 +41,7 @@ hint: ten is what head does with no arguments
 q: %show% the first @n@ lines of @log@ with `head`
 a: head -n @n@ @log@
 a: head -@n@ @log@
+eg: head -n 5 /var/log/messages
 out: service started
 cmp: ref
 ref: head
@@ -47,6 +50,7 @@ hint: -n takes a count, or glue the number straight onto the dash
 ---
 q: %show% @log@'s date header with `head` -- the first ``20`` bytes
 a: head -c 20 @log@
+eg: head -c 100 /proc/version
 out: 2024-03-01
 cmp: ref
 ref: head
@@ -100,6 +104,7 @@ hint: pulls sequences of printable characters out of any file, text or not
 ---
 q: %show% `strings` in @bin@, skipping noise under 5 characters
 a: strings -n 5 @bin@
+eg: strings -n 8 /bin/busybox
 out: unlocked-by-strings
 cmp: ref
 ref: strings
@@ -109,6 +114,7 @@ hint: -n sets the minimum run length to count as a string
 q: %show% the `strings` in @bin@ with each one's byte offset
 a: strings -t d @bin@
 a: strings -t x @bin@
+eg: strings -t x /bin/busybox
 out: unlocked-by-strings
 cmp: ref
 ref: strings
@@ -124,6 +130,7 @@ hint: q leaves, /pattern searches, g and G jump to the ends
 ---
 q: {page @log@ in `less` with line numbers, so you can point one out|open @log@ in `less` with line numbers, to reference one|view @log@ in `less` with line numbers, to call one out}
 a: less -N @log@
+eg: less -N /etc/fstab
 why: interactive
 ref: less
 teach: less -N
@@ -131,6 +138,7 @@ hint: N turns on line numbers in the margin
 ---
 q: {view @log@ in `less` without wrapping, columns stay aligned|page @log@ in `less`, unwrapped -- keep columns aligned|open @log@ in `less` without wrapping long lines}
 a: less -S @log@
+eg: less -S /etc/passwd
 why: interactive
 ref: less
 teach: less -S
@@ -138,6 +146,7 @@ hint: S stops wrapping -- long lines scroll sideways instead
 ---
 q: {open @log@ in `less`, searching case-insensitively|page @log@ in `less`, with case-insensitive search|view @log@ in `less`, so searches ignore case}
 a: less -I @log@
+eg: less -I /etc/hosts
 why: interactive
 ref: less
 teach: less -I
@@ -145,6 +154,7 @@ hint: capital I makes searches ignore case
 ---
 q: %show% @log@'s last ``20`` bytes with `tail` -- just how it ended
 a: tail -c 20 @log@
+eg: tail -c 200 /var/log/dmesg
 cmp: ref
 ref: tail
 teach: tail -c
@@ -152,6 +162,7 @@ hint: c for characters/bytes, same idea as head -c
 ---
 q: {follow @log@ by name with `tail`, so it survives rotation|follow @log@ by name not handle, with `tail` -- survives rotation|watch @log@ with `tail`, in a way that survives rotation}
 a: tail -F @log@
+eg: tail -F /var/log/syslog
 why: interactive
 ref: tail
 teach: tail -F

@@ -22,6 +22,7 @@ hint: just grep, the pattern, then the file
 ---
 q: {not sure if @sev@ is upper or lower in @log@ -- `grep` it either way|@sev@ might be typed either case in @log@ -- `grep` regardless|`grep` @log@ for @sev@ without caring about case}
 a: grep -i @sev@ @log@
+eg: grep -i denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -46,6 +47,7 @@ hint: this counts LINES, not occurrences -- two matches on one line count once
 ---
 q: {%show% the @sev@ lines of @log@ with line numbers|number the @sev@ matches in @log@|which line numbers in @log@ have @sev@?}, with `grep`
 a: grep -n @sev@ @log@
+eg: grep -n denied /var/log/dmesg
 out: ^[0-9]+:
 cmp: ref
 ref: grep
@@ -62,6 +64,7 @@ hint: r walks into subdirectories; the dot is where it starts
 ---
 q: %list% just the filenames under here that contain @term@, with `grep`
 a: grep -rl @term@ .
+eg: grep -rl TODO src/
 cmp: ref
 ref: grep
 teach: grep -l
@@ -69,6 +72,7 @@ hint: l switches grep from printing lines to printing filenames
 ---
 q: %list% the files under here that do NOT contain @term@, with `grep`
 a: grep -rL @term@ .
+eg: grep -rL TODO src/
 cmp: ref
 ref: grep
 teach: grep -L
@@ -85,6 +89,7 @@ hint: o prints just the matched substring, one per line
 ---
 q: %show% @log@ lines with @sev@ as a whole word only, with `grep`
 a: grep -w @sev@ @log@
+eg: grep -w denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -102,6 +107,7 @@ hint: x requires the whole line to match, not just part of it
 ---
 q: %find% @sev@ in @log@, plus the 2 lines after, with `grep`
 a: grep -A 2 @sev@ @log@
+eg: grep -A 3 denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -110,6 +116,7 @@ hint: A for after, followed by the count
 ---
 q: %find% @sev@ in @log@, plus the 2 lines before, with `grep`
 a: grep -B 2 @sev@ @log@
+eg: grep -B 3 denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -118,6 +125,7 @@ hint: B for before, followed by the count
 ---
 q: %show% @sev@ in @log@ plus 2 lines of context, with `grep`
 a: grep -C 2 @sev@ @log@
+eg: grep -C 3 denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -126,6 +134,7 @@ hint: C for context -- both before and after
 ---
 q: %show% the first 2 @sev@ lines of @log@, then stop, with `grep`
 a: grep -m 2 @sev@ @log@
+eg: grep -m 3 denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -168,6 +177,7 @@ hint: grep's exit status is 0 for a match, 1 for none
 ---
 q: {`grep` @log@ for @sev@ without a missing-file error|`grep` @log@ for @sev@, no script-halting error|`grep` @log@ for @sev@ without a can't-read-file complaint}
 a: grep -s @sev@ @log@
+eg: grep -s denied /var/log/dmesg
 out: @sev@
 cmp: ref
 ref: grep
@@ -184,6 +194,7 @@ hint: f reads patterns from a file instead of the command line, one per line
 setup: your pattern starts with a dash and would otherwise get read as a flag
 q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using `-e` to name the pattern}
 a: grep -e @sev@ @log@
+eg: grep -e denied /var/log/dmesg
 out: @sev@
 ref: grep
 teach: grep -e

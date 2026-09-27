@@ -44,6 +44,7 @@ setup: ii keeps one directory per server. Your nick is xos and your session
 setup: directory is $HOME/irc unless a question says otherwise.
 q: {start `ii` against @host@ on the standard tls-free irc port, as nick ``xos``|connect `ii` to @host@ on the plain irc port, using the nick ``xos``|start `ii`, joining @host@ on the standard irc port as ``xos``}
 a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
+eg: ii -s irc.libera.chat -p 6697 -n xos -i $HOME/irc
 why: live-net
 ref: ii
 teach: ii -s
@@ -169,6 +170,7 @@ hint: wg show with no name reports on every interface
 ---
 q: %make% an ``ed25519`` ssh key at ``/state/id``, with `dropbearkey`
 a: dropbearkey -t ed25519 -f /state/id
+eg: dropbearkey -t ed25519 -f /tmp/testkey
 why: fixture-cost
 ref: dropbearkey
 teach: dropbearkey -t
@@ -177,6 +179,7 @@ hint: -t picks the key type, -f where to write it
 ---
 q: %show% the public half of ``/state/id``, with `dropbearkey`, to hand over
 a: dropbearkey -y -f /state/id
+eg: dropbearkey -y -f /tmp/testkey
 why: fixture-cost
 ref: dropbearkey
 teach: dropbearkey -y
@@ -186,6 +189,7 @@ setup: The host key is /state/host_key, this machine's wireguard address is
 setup: 10.9.0.1, and you log in there as root with the key /state/id.
 q: {run `dropbear` on ``10.9.0.1:22``, bound to wireguard only|start `dropbear` listening only on 10.9.0.1 port 22|run `dropbear` bound to ``10.9.0.1:22``, the wireguard side only}
 a: dropbear -r /state/host_key -p 10.9.0.1:22
+eg: dropbear -r /state/host_key -p 10.9.0.2:2222
 why: live-net
 ref: dropbear
 teach: dropbear -r
@@ -195,6 +199,7 @@ hint: -r names the host key, -p the address and port to bind
 setup: The host key is /state/host_key; you log in with the key /state/id.
 q: {run `dropbear` in the foreground, errors on stderr not a log|start `dropbear` so it stays in front of you and prints its errors|run `dropbear` foregrounded with its errors going to stderr}
 a: dropbear -r /state/host_key -F -E
+eg: dropbear -r /tmp/testkey -F -E
 why: live-net
 ref: dropbear
 teach: dropbear -F
@@ -218,6 +223,7 @@ hint: the whole point -- reconnect straight into the work that survived the drop
 ---
 q: {`dbclient` to root at 10.9.0.1 on port ``2222`` instead of 22|`dbclient` to root at 10.9.0.1, connecting on port ``2222``|use `dbclient` to reach root at 10.9.0.1 on port ``2222``}
 a: dbclient -p 2222 root@10.9.0.1
+eg: dbclient -p 2200 10.9.0.5
 why: live-net
 ref: dbclient
 teach: dbclient -p
@@ -225,10 +231,11 @@ hint: -p picks the port dbclient connects to
 ---
 q: {forward local port 8080 to 80 on 10.9.0.1 with `dbclient`, as root|tunnel local port 8080 to localhost:80 on 10.9.0.1 with `dbclient`|use `dbclient` to forward 8080 to localhost:80 on 10.9.0.1 as root}
 a: dbclient -L 8080:localhost:80 root@10.9.0.1
+eg: dbclient -L 5432:localhost:5432 10.9.0.1
 why: live-net
 ref: dbclient
 teach: dbclient -L
-hint: -L sets up local port forwarding, local port first then the far side
+hint: -L takes LPORT:HOST:PORT, here 8080:localhost:80
 ---
 setup: ii and the tls tunnel are two commands wired by hand above. `irc` is the
 setup: one word that brings both up the only way that reaches a real network.

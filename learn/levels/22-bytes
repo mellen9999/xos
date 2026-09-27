@@ -27,6 +27,7 @@ hint: C is the canonical format, and the only one worth memorising
 ---
 q: {@bin@'s header -- ``32`` bytes, hex and text|dump @bin@'s ``32`` bytes as hex and text|cap @bin@ at ``32`` bytes, hex and text}, with `hexdump`
 a: hexdump -C -n 32 @bin@
+eg: hexdump -C -n 64 /bin/busybox
 cmp: ref
 ref: hexdump
 teach: hexdump -n
@@ -34,6 +35,7 @@ hint: -n caps how many bytes hexdump reads, from the start
 ---
 q: {dump @bin@ from byte 8 on, hex and text|skip @bin@'s first 8 bytes, dump hex and text|show @bin@ from byte 8 onward as hex and text}, with `hexdump`
 a: hexdump -C -s 8 @bin@
+eg: hexdump -C -s 16 /bin/busybox
 cmp: ref
 ref: hexdump
 teach: hexdump -s
@@ -88,6 +90,7 @@ hint: -N caps how many bytes od reads, from the start
 ---
 q: {`od` @bin@ as hex, skipping its first ``4`` bytes|dump @bin@ hex with `od`, starting ``4`` bytes in|%show% @bin@ hex with `od`, past its first ``4`` bytes}
 a: od -j 4 -t x1 @bin@
+eg: od -j 8 -t x1 /bin/busybox
 cmp: ref
 ref: od
 teach: od -j
@@ -138,6 +141,7 @@ hint: status= controls dd's progress/summary output -- none silences it
 ---
 q: {@log@ is too long to page through -- `split` it into 2-line pieces|break @log@ into 2-line pieces with `split`|cut @log@ into 2-line chunks with `split`}
 a: split -l 2 @log@
+eg: split -l 1000 export.csv
 state: exists:xab
 ref: split
 teach: split -l
@@ -167,6 +171,7 @@ hint: shred overwrites the bytes first; -u then unlinks the file
 setup: someone insists three passes isn't enough and wants the old-school seven
 q: {overwrite @txt@ seven times before removing it|seven passes over @txt@, then remove it|wipe @txt@ with seven passes, then delete it}, with `shred`
 a: shred -n 7 -u @txt@
+eg: shred -n 3 /tmp/secret.key
 state: gone:@txt@
 ref: shred
 teach: shred -n
@@ -175,6 +180,7 @@ hint: -n sets how many overwrite passes; the default is three
 setup: you don't want it obvious afterward that this file was ever wiped
 q: {`shred` @txt@ with a final zero pass, then remove it|`shred` @txt@, zeroing it last, then delete it|end the `shred` of @txt@ with zeros, then remove it}
 a: shred -z -u @txt@
+eg: shred -z -u /tmp/secret.key
 state: gone:@txt@
 ref: shred
 teach: shred -z
@@ -183,6 +189,7 @@ hint: -z adds a last zero pass
 setup: you need a megabyte-sized file to test with and no megabyte to spend on it
 q: %make% a 1-megabyte file ``sparse.img`` with `truncate`
 a: truncate -s 1M sparse.img
+eg: truncate -s 10G disk.img
 state: exists:sparse.img
 ref: truncate
 teach: truncate -s
@@ -191,6 +198,7 @@ hint: -s sets the size; the file reads as that many bytes without using the spac
 setup: you need the space guaranteed now, not created as a hole that might fail to fill later
 q: {preallocate 64 kilobytes of real space for ``blob.bin``|claim 64 kilobytes of actual blocks for ``blob.bin``|reserve 64 kilobytes for ``blob.bin``, blocks and all}, with `fallocate`
 a: fallocate -l 64k blob.bin
+eg: fallocate -l 2G disk.img
 state: exists:blob.bin
 ref: fallocate
 teach: fallocate -l

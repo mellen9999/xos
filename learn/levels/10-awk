@@ -69,6 +69,7 @@ hint: the pattern filters which lines run the action
 setup: @csv@ is name,id,status,count
 q: %show% just the name column of @csv@, splitting fields with `awk`
 a: awk -F, '{print $1}' @csv@
+eg: awk -F , '{print $2}' employees.csv
 out: ^gateway$
 ref: awk
 teach: awk -F
@@ -77,6 +78,7 @@ hint: -F sets the field separator, same idea as cut -d
 setup: @csv@ is name,id,status,count
 q: %show% the name column of @csv@, skipping the header, with `awk`
 a: awk -F, 'NR > 1 {print $1}' @csv@
+eg: awk -F , 'NR > 1 {print $2}' employees.csv
 out: ^gateway$
 ref: awk
 teach: awk -F
@@ -85,6 +87,7 @@ hint: NR is the line number, so NR>1 means "not the first line"
 setup: @csv@ is name,id,status,count
 q: {add up the count column of @csv@, skipping the header row|sum the count column of @csv@, ignoring the header|total the count column of @csv@ without the header}, with `awk`
 a: awk -F, 'NR > 1 {s += $4} END {print s}' @csv@
+eg: awk -F , 'NR > 1 {s += $3} END {print s}' employees.csv
 out: ^[0-9]+$
 cmp: ref
 ref: awk
@@ -173,6 +176,7 @@ hint: extract the column, sort it, count it, then sort the counts numerically
 setup: awk can filter, count, and compute per line, but it has no sort of its own -- ordering the output takes another command
 q: {@csv@'s name and count, highest count first|@csv@'s name and count, ranked by count descending|rank @csv@ by count, name and count columns only}, with `awk`
 a: awk -F, 'NR>1 {print $1, $4}' @csv@ | sort -k2 -rn
+eg: awk -F , 'NR>1 {print $1, $3}' employees.csv | sort -k2 -rn
 cmp: ref
 ref: awk
 teach: awk -F
@@ -181,6 +185,7 @@ hint: awk pulls the two columns; sort -k2 -rn ranks by the second one, biggest f
 setup: awk can filter, count, and compute per line, but it has no sort of its own -- ordering the output takes another command
 q: {@csv@'s `up` rows, name column only, alphabetically|@csv@'s names with status `up`, alphabetically|which @csv@ names are `up`? list alphabetically}, with `awk`
 a: awk -F, '$3 == "up" {print $1}' @csv@ | sort
+eg: awk -F , '$2 == "active" {print $1}' employees.csv | sort
 cmp: ref
 ref: awk
 teach: awk -F

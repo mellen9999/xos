@@ -515,8 +515,11 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	fi
 	# the prose keeps the terminal's own foreground: the mark is a reversal of
 	# whatever is under it, so it says the most when what is under it is plain.
-	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand | lit_expand)"
-	Q_ROWS=$(( Q_ROWS + (2 + ${#Q_PROMPT}) / ${COLS:-80} + 1 ))
+	# wrapped the way the setup is, still fenced, so a narrow terminal breaks
+	# it between words and not wherever the edge falls.
+	_said=$(printf '%s\n' "$Q_PROMPT_HI" | wrap $(( COLS < 78 ? COLS - 2 : 76 )) | sed -e 's/ *$//' -e '/./s/^/  /')
+	printf '%s\n' "$_said" | hi_expand | lit_expand
+	Q_ROWS=$(( Q_ROWS + $(printf '%s\n' "$_said" | hi_strip | lit_strip | _prows "${COLS:-80}") ))
 	# a predict card shows the line rather than asking for it. it is set off
 	# from the prose because it is the thing being read, not the question.
 	if [ -n "${Q_PREDICT:-}" ]; then
@@ -1658,7 +1661,7 @@ _answer_walk() {
 # with Q_* filled and the raw block in $TMP/blk; increments the caller's bad
 # count (ash locals scope dynamically, so selftest's is visible here).
 st_block() {
-	local lbl=$1 a got flag rc w
+	local lbl=$1 a got flag rc w _egc
 
 	[ -n "$Q_ANSWERS" ] || { echo "FAIL $lbl: no answer" >&2; bad=$((bad+1)); }
 
@@ -1805,6 +1808,41 @@ st_block() {
 	done > "$TMP/tc.$$" 2>&1
 	if [ -s "$TMP/tc.$$" ]; then cat "$TMP/tc.$$" >&2; bad=$((bad + $(grep -c . "$TMP/tc.$$"))); fi
 	rm -f "$TMP/tc.$$"
+
+	# the card's own flag has an example somewhere the card can show it:
+	# another card's answer, or an eg: line of its own. the example pool
+	# refuses the answer on screen, so a flag drilled by one card alone was
+	# the one flag its examples could never show.
+	sed -n "s/^teach: \{0,1\}//p" "$TMP/blk" | while read -r tcmd tflags; do
+		for flag in $tflags; do
+			ref_examples "$tcmd" "$Q_ANSWERS" "$Q_SRC" "$(pin_keys "$tcmd" "${flag%%[*}")" 1 >/dev/null \
+				|| echo "FAIL $lbl: no example shows $tcmd $flag -- give the card an eg: line"
+		done
+	done > "$TMP/eg.$$" 2>&1
+	# and an eg: line is held to what an answer is: it runs the command it
+	# illustrates with one of the card's flags, every flag in it is documented
+	# and none retired, it fits a row, and it is no card's answer
+	_egc=$(sed -n "s/^teach: \{0,1\}//p" "$TMP/blk" | awk '{ print $1; exit }')
+	sed -n 's/^eg: \{0,1\}//p' "$TMP/blk" | while IFS= read -r e; do
+		[ "${#e}" -le 76 ] || echo "FAIL $lbl: eg: is ${#e} columns, over 76: $e"
+		case "$e" in *@*) echo "FAIL $lbl: eg: holds a token -- write the value: $e" ;; esac
+		printf '%s\n' "$e" | answer_cmds | grep -qxF -- "${_egc:-$Q_REF}" \
+			|| echo "FAIL $lbl: eg: does not run ${_egc:-$Q_REF}: $e"
+		_egu=0
+		for flag in $(sed -n "s/^teach: \{0,1\}//p" "$TMP/blk" | cut -d' ' -f2-); do
+			printf '%s\n' "$e" | uses_flag "$flag" && _egu=1
+		done
+		[ "$_egu" = 1 ] || echo "FAIL $lbl: eg: uses none of the card's flags: $e"
+		printf '%s\n' "$e" | answer_flags | while read -r ac af; do
+			[ -f "$REF/$ac" ] || continue
+			flag_ok "$ac" "$af" || echo "FAIL $lbl: eg: uses $ac $af, undocumented in ref/$ac"
+			retired "$ac" "$af" && echo "FAIL $lbl: eg: uses $ac $af, retired in learn/skip"
+		done
+		grep -qxF -- "a: $e" "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
+			&& echo "FAIL $lbl: eg: is some card's answer: $e"
+	done >> "$TMP/eg.$$" 2>&1
+	if [ -s "$TMP/eg.$$" ]; then cat "$TMP/eg.$$" >&2; bad=$((bad + $(grep -c . "$TMP/eg.$$"))); fi
+	rm -f "$TMP/eg.$$"
 
 	# and out:/state:/status: must describe reality, not the author's hope
 	if [ -n "$Q_OUT" ] || [ -n "$Q_STATE" ] || [ -n "$Q_STATUS" ]; then
@@ -2634,6 +2672,8 @@ c' 20)" = 3 ] || exit 1
 	  _ui_hi mono;   [ "$_c" = "$HI_ON" ] || exit 1
 	  case "$_c" in *'[0;7m') ;; *) exit 1 ;; esac   # reverse, off a clean slate
 	  _ui_hi none;   [ "$HI_ON" = "'" ] || exit 1    # no attributes -> quotes
+	  # and a possessive does not double the closing quote: 'notes.txt's
+	  [ "$(printf "%snotes.txt%s's time\n" "$HI1" "$HI2" | N= hi_expand)" = "'notes.txt's time" ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL ui mark: the name mark differs between terminals" >&2; bad=$((bad+1)); }
 
@@ -3350,6 +3390,37 @@ two'; ED_PANEL_ROWS=2
 	done
 	[ "$_sumbad" -eq 0 ] || { echo "FAIL learn/ref: $_sumbad summary problem(s) above" >&2; bad=$((bad+1)); }
 
+	# every drilled flag reads whole on the card. a gloss is cut to its cell
+	# -- twenty columns on find, tar and wget, where two columns of long flag
+	# names leave that much -- and "mtime is greater.." for both -mtime and
+	# -mmin, or "(De)compress.." for all three of tar's compressors, is a
+	# row that cannot tell its flag from the next one. rendered at 80 columns,
+	# the card's own layout, with the colours off so a cut is plain to see.
+	local _cb
+	_cb=$(for _c in $(taught_cached | awk '{ print $1 }' | sort -u); do
+		( C= N= D= B= M= COLS=80; ref_card "$_c" flags 0 "" ) 2>/dev/null \
+			| grep -E '[^.]\.\.( {2,}|$)' | sed "s/^/  $_c: gloss cut: /"
+	done)
+	[ -z "$_cb" ] || { printf '%s\n' "$_cb" >&2
+		echo "FAIL learn/ref: $(printf '%s\n' "$_cb" | grep -c .) drilled gloss(es) cut on the card" >&2; bad=$((bad+1)); }
+
+	# one name per argument, per page: the usage line said [-d DATE] while
+	# the row said -d DT, so the card read as two different flags.
+	local _an
+	_an=$(for _c in $(ls -1 "$REF"); do
+		awk -v c="$_c" '
+			/^Usage:/ { u = $0; getline; while ($0 ~ /^\t/) { u = u " " $0; getline } }
+			/^\t-[A-Za-z0-9] [A-Z][A-Z_0-9]*(\t|$)/ {
+				l = $0; sub(/^\t/, "", l); split(l, t, /[ \t]+/)
+				if (match(u, t[1] " [A-Z][A-Z_0-9]*")) {
+					w = substr(u, RSTART + length(t[1]) + 1, RLENGTH - length(t[1]) - 1)
+					if (w != t[2]) print "  " c " " t[1] ": usage says " w ", the row says " t[2]
+				}
+			}' "$REF/$_c"
+	done)
+	[ -z "$_an" ] || { printf '%s\n' "$_an" >&2
+		echo "FAIL learn/ref: $(printf '%s\n' "$_an" | grep -c .) argument(s) named two ways" >&2; bad=$((bad+1)); }
+
 	# the Tab card: abridged to the taught flags, fitted to a row budget, and
 	# never taller than that budget -- the outer panel cut must have nothing
 	# left to do. examples are real corpus answers and never the one on screen.
@@ -3387,10 +3458,14 @@ two'; ED_PANEL_ROWS=2
 	  # card can refuse its own answer. prove it on a real block, both ways:
 	  # the line tar's card shows first, then the same card opened on the
 	  # block that line answers
-	  line=$(ref_examples tar "" "" | sed -n '2s/^  //p')
-	  own=$(examples_cached | awk -F"\t" -v l="$line" '$1 == "tar" && $2 == l && $4 == "a" { print $3; exit }')
+	  # every other tar line goes in the skip list, so this one is the only
+	  # candidate either way and nothing but the source decides
+	  line=$(examples_cached | awk -F"\t" '$1 == "tar" && $4 == "a" { print $2; exit }')
+	  own=$(examples_cached | awk -F"\t" -v l="$line" '$1 == "tar" && $2 == l { print $3; exit }')
+	  others=$(examples_cached | awk -F"\t" -v l="$line" '$1 == "tar" && $2 != l { print $2 }')
 	  [ -n "$own" ] || exit 1
-	  ref_examples tar "" "$own" | grep -qxF "  $line" && exit 1
+	  ref_examples tar "$others" ""     | grep -qxF "  $line" || exit 1
+	  ref_examples tar "$others" "$own" | grep -qxF "  $line" && exit 1
 	  # the card's own flag leads: a -x card's first example extracts
 	  ref_examples tar "" "" "-x" | sed -n 2p | grep -qE -- ' -?[a-z]*x' || exit 1
 	  # and a line that only mentions the command is no example of it

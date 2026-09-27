@@ -72,6 +72,7 @@ hint: = sets the listed permissions exactly, and an empty list means none
 ---
 q: {make everything under @dir@ readable, subdirs included|@dir@ and every subdirectory under it should be readable|open @dir@ up for reading, all the way down}, with `chmod`
 a: chmod -R a+r @dir@
+eg: chmod -R go-w /opt/app
 why: primitive-cost
 ref: chmod
 teach: chmod -R
@@ -94,6 +95,7 @@ hint: id with no flags prints uid, gid and every group at once
 ---
 q: a command wants your numeric uid, nothing else -- %show% it with `id`
 a: id -u
+eg: id -u www-data
 why: primitive-cost
 ref: id
 teach: id -u
@@ -102,6 +104,7 @@ hint: -u limits output to just the numeric uid
 setup: a command wants your numeric gid, nothing else
 q: %show% just your numeric group `id`, nothing else
 a: id -g
+eg: id -g postgres
 why: primitive-cost
 ref: id
 teach: id -g
@@ -148,6 +151,7 @@ hint: %a in the format string is permission bits
 setup: you're about to write something large and need to know what filesystem actually holds it
 q: forget @txt@ itself -- with `stat`, %show% the filesystem it lives on
 a: stat -f @txt@
+eg: stat -f /etc/passwd
 out: ID|Block
 ref: stat
 teach: stat -f
@@ -155,6 +159,7 @@ hint: -f switches from the file's info to the filesystem it lives on
 ---
 q: {@txt@ is a symlink -- `stat` what it points to, not the link|@txt@ is a symlink -- follow it and `stat` the real file underneath|don't `stat` the symlink @txt@ itself, `stat` what it points at}
 a: stat -L @txt@
+eg: stat -L /etc/resolv.conf
 out: Size
 ref: stat
 teach: stat -L
@@ -163,6 +168,7 @@ hint: -L follows the link and reports on its target instead of the link itself
 setup: a backup tool only touches files older than a cutoff date, and @txt@ needs to look like it predates it
 q: {back-date @txt@'s timestamp to ``2024-03-01``, not right now|@txt@ needs to look last touched on ``2024-03-01``|stamp @txt@ with ``2024-03-01``, not the current time}, with `touch`
 a: touch -d 2024-03-01 @txt@
+eg: touch -d 2020-06-15 backup.tar.gz
 state: stamp:@txt@:2024-03-01
 ref: touch
 teach: touch -d
@@ -170,6 +176,7 @@ hint: -d takes an explicit date/time instead of using now
 ---
 q: {@txt2@ should carry the timestamp @txt@ already has|copy @txt@'s timestamp onto @txt2@, skip the date|make @txt2@'s timestamp match @txt@'s}, with `touch`
 a: touch -r @txt@ @txt2@
+eg: touch -r template.conf generated.conf
 state: sametime:@txt@:@txt2@
 ref: touch
 teach: touch -r

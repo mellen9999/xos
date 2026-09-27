@@ -26,6 +26,7 @@ hint: xargs turns lines of stdin into arguments appended to the command
 ---
 q: {count every .log file's lines, safe for names with spaces|count each .log file's lines in a way that survives spaces|line-count every .log file, spaces in the names and all}, with `xargs`
 a: find . -name '*.log' -print0 | xargs -0 wc -l
+eg: find . -name '*.tmp' -print0 | xargs -0 rm
 cmp: ref
 ref: xargs
 teach: xargs -0
@@ -40,6 +41,7 @@ hint: -n caps how many arguments go into each invocation
 ---
 q: {"``found`` NAME" per .log name `ls` prints, NAME mid-command|for every .log name `ls` prints, `echo` ``found`` NAME, not trailing|"``found`` NAME" per .log name from `ls`, name in the middle}, with `xargs`
 a: ls *.log | xargs -I {} echo found {}
+eg: find . -name '*.bak' | xargs -I {} mv {} {}.old
 out: ^found .*\.log$
 cmp: ref
 ref: xargs
@@ -48,6 +50,7 @@ hint: -I defines a placeholder that gets replaced with each input item
 ---
 q: {`echo` the names `ls` prints, showing each command before it runs|print every `echo` command before it runs over `ls`'s names|feed `ls`'s names to `echo`, printing each command line first}, with `xargs`
 a: ls | xargs -t echo
+eg: find . -name '*.tmp' | xargs -t rm
 cmp: ref
 ref: xargs
 teach: xargs -t
@@ -55,6 +58,7 @@ hint: -t prints the command line to stderr before running it
 ---
 q: {`printf` '' sends no input -- don't let `echo` ``nothing`` run at all|with `printf` '' as the input, skip running `echo` ``nothing`` entirely|empty input from `printf` '' must not still run `echo` ``nothing`` once}, with `xargs`
 a: printf '' | xargs -r echo nothing
+eg: find . -name '*.core' | xargs -r rm
 why: primitive-cost
 ref: xargs
 teach: xargs -r
@@ -63,6 +67,7 @@ hint: without -r, an empty input still runs the command once with no arguments
 setup: each of these is slow and independent, and doing them strictly one at a time wastes time
 q: {`echo` `ls`'s names one per run, 2 runs going at a time|run `echo` over `ls`'s names one name each, 2 in parallel|`echo` each name `ls` prints, one per run, capped at 2 parallel}, with `xargs`
 a: ls | xargs -P 2 -n 1 echo
+eg: ls *.log | xargs -P 4 -n 1 gzip
 why: primitive-cost
 ref: xargs
 teach: xargs -P
@@ -84,6 +89,7 @@ hint: a second argument to basename is a suffix to strip as well
 ---
 q: {strip ``.txt`` off @txt@ with `basename`, the suffix named as a flag|`basename` @txt@, naming the ``.txt`` suffix explicitly|drop ``.txt`` from @txt@ with `basename`, the way that scales to more files}
 a: basename -s .txt @txt@
+eg: basename -s .conf /etc/wireguard/wg0.conf
 cmp: ref
 ref: basename
 teach: basename -s
@@ -91,6 +97,7 @@ hint: -s is the explicit-flag form of the same suffix stripping
 ---
 q: {@txt@ and @log@ -- just the filenames, in one `basename` call|`basename` @txt@ and @log@ in one call, not two|@txt@ and @log@ to bare filenames, one `basename` call}
 a: basename -a @txt@ @log@
+eg: basename -a /etc/passwd /etc/hosts
 cmp: ref
 ref: basename
 teach: basename -a
@@ -112,6 +119,7 @@ hint: realpath resolves any relative pieces and symlinks along the way
 ---
 q: {follow @txt@ through symlinks to whatever it finally points at|use `readlink` `-f` to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
 a: readlink -f @txt@
+eg: readlink -f /usr/bin/awk
 cmp: ref
 ref: readlink
 teach: readlink -f
@@ -119,6 +127,7 @@ hint: -f follows every link in the chain, not just the first one
 ---
 q: {piping @txt@'s link target onward, no stray newline, with `readlink`|@txt@'s `readlink` target with no trailing newline|feed @txt@'s `readlink` target on without an extra newline}
 a: readlink -n @txt@
+eg: readlink -n /usr/bin/vi
 why: primitive-cost
 ref: readlink
 teach: readlink -n
@@ -148,6 +157,7 @@ hint: hash remembers a command's location so future lookups skip the $PATH searc
 ---
 q: {check whether `sed` is available, the portable way|use `command` `-v` to check for `sed` portably, across shells|test whether `sed` exists using the POSIX-portable `command` `-v`}
 a: command -v sed
+eg: command -v awk
 cmp: ref
 ref: command
 teach: command -v

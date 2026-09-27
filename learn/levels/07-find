@@ -32,6 +32,7 @@ hint: -name matches the glob against just the filename
 ---
 q: {treat .LOG and .log as the same file type|ignore case entirely, whether it's .log or .LOG|case shouldn't matter -- catch both .LOG and .log}, with `find`
 a: find . -iname '*.log'
+eg: find /etc -iname '*.conf'
 cmp: ref
 ref: find
 teach: find -iname
@@ -63,6 +64,7 @@ hint: -maxdepth caps how far down find will go
 setup: you want what's nested inside, not the top-level structure itself
 q: {skip anything shallower than 2 levels down|list only entries at least 2 levels deep under here|you only want entries 2 levels down or deeper}, with `find`
 a: find . -mindepth 2
+eg: find /var/log -mindepth 1
 cmp: ref
 ref: find
 teach: find -mindepth
@@ -70,6 +72,7 @@ hint: -mindepth is the floor, -maxdepth is the ceiling
 ---
 q: {which regular files here top 1 kilobyte|list regular files under here over 1 kilobyte|you need regular files under here past 1 kilobyte}, with `find`
 a: find . -type f -size +1k
+eg: find /var/log -type f -size +10k
 cmp: ref
 ref: find
 teach: find -size
@@ -77,6 +80,7 @@ hint: + means "more than", - means "less than", plain means "exactly"
 ---
 q: {which files or directories under here are empty|list every empty file or directory under here|you want anything empty, file or directory, under here}, with `find`
 a: find . -empty
+eg: find /var/spool -empty
 cmp: ref
 ref: find
 teach: find -empty
@@ -84,6 +88,7 @@ hint: matches files with zero bytes or directories with nothing in them
 ---
 q: {which regular files under here changed in the last day|list regular files modified sometime in the last day|you want regular files under here touched within a day}, with `find`
 a: find . -type f -mtime -1
+eg: find /etc -type f -mtime -7
 cmp: ref
 ref: find
 teach: find -mtime
@@ -91,6 +96,7 @@ hint: -1 means "less than one day ago"
 ---
 q: {which regular files here changed in the last 30 minutes|list regular files modified in the last 30 minutes here|you want regular files touched here in the last 30 minutes}, with `find`
 a: find . -type f -mmin -30
+eg: find /etc -type f -mmin -10
 cmp: ref
 ref: find
 teach: find -mmin
@@ -98,6 +104,7 @@ hint: -mmin is -mtime's minutes cousin
 ---
 q: {which regular files under here are executable|list regular files here that have the executable bit set|you want regular files under here that can be executed}, with `find`
 a: find . -type f -executable
+eg: find /mnt/usb -type f -executable
 cmp: ref
 ref: find
 teach: find -executable
@@ -119,6 +126,7 @@ hint: a dash before the mode means all its bits must be set -- the file can have
 ---
 q: {which files under here belong to the user ``nobody``|list files here that the user ``nobody`` owns|you want files under here owned by ``nobody``}, with `find`
 a: find . -user nobody
+eg: find /home -user www-data
 cmp: ref
 ref: find
 teach: find -user
@@ -126,6 +134,7 @@ hint: matches the file's owner, not who's running find
 ---
 q: {which files under here belong to the group ``nobody``|list files here owned by the group ``nobody``|you want files under here in the group ``nobody``}, with `find`
 a: find . -group nobody
+eg: find /var/www -group www-data
 cmp: ref
 ref: find
 teach: find -group
@@ -147,6 +156,7 @@ hint: ! negates whatever predicate follows it
 ---
 q: {which entries under here have src in their path|list entries whose path contains src|you want entries under here with src in their path}, with `find`
 a: find . -path '*src*'
+eg: find . -path '*vendor*'
 cmp: ref
 ref: find
 teach: find -path
@@ -154,6 +164,7 @@ hint: -path matches the whole path, not just the filename like -name does
 ---
 q: {round up .log files here, skipping the ``logs`` directory|list .log files here, but never enter ``logs``|you want .log files here, none from inside ``logs``}, with `find`
 a: find . -name logs -prune -o -name '*.log' -print
+eg: find . -name node_modules -prune -o -name '*.js' -print
 cmp: ref
 ref: find
 teach: find -prune -print
@@ -161,6 +172,7 @@ hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
 q: {stop at the first .log file found, not the whole tree|`find` the first .log file and stop, not the rest of the tree|`find` one .log file and quit immediately, not the whole tree}, with `find`
 a: find . -name '*.log' -print -quit
+eg: find . -name '*.conf' -print -quit
 cmp: ref
 ref: find
 teach: find -quit
@@ -183,6 +195,7 @@ hint: ending with + batches the results; ending with \; forks per file
 setup: you are cataloguing what lives on this disk, not what is mounted into it
 q: {list entries under here without leaving this filesystem|you want entries under here, none from another filesystem|stay on this filesystem -- list entries under here only}, with `find`
 a: find . -xdev
+eg: find /var -xdev
 cmp: ref
 ref: find
 teach: find -xdev
@@ -190,6 +203,7 @@ hint: stops find from crossing into a mounted filesystem
 ---
 q: {which files does each symlink under here actually point to|list files under here, resolving symlinks instead of naming them|you want symlinks under here followed, not just listed}, with `find`
 a: find -L . -type f
+eg: find -L /etc/alternatives -type f
 cmp: ref
 ref: find
 teach: find -L
@@ -198,6 +212,7 @@ hint: makes find follow symlinks and describe what they point to
 setup: whatever you do to a directory must happen after its contents
 q: {list everything here bottom-up, contents before their directory|walk this tree so each directory prints after its contents|you want a bottom-up listing here, contents before the directory}, with `find`
 a: find . -depth
+eg: find /var/spool -depth
 cmp: ref
 ref: find
 teach: find -depth
@@ -205,6 +220,7 @@ hint: flips the walk order -- normally a directory prints before its contents
 ---
 q: {filenames may have spaces -- list .log files, NUL-separated|.log filenames could contain spaces -- print them NUL-separated|you need .log files here printed NUL-separated, spaces and all}, with `find`
 a: find . -name '*.log' -print0
+eg: find . -name '*.conf' -print0 | xargs -0 grep -l root
 cmp: ref
 ref: find
 teach: find -print0

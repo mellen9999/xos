@@ -179,6 +179,7 @@ hint: strings pulls printable text out of the binary; grep -c counts the matches
 setup: p3 counts its own unlocks. Remember the number the way you remember the four words.
 q: {print the boot count from `$HOME/ledger`|check how many times this state unlocked, from `$HOME/ledger`|pull the unlock count out of `$HOME/ledger`}, with `cut`
 a: cut -d' ' -f1 $HOME/ledger
+eg: cut -d: -f3 /etc/passwd
 why: live-hw
 ref: cut
 teach: cut -d -f

@@ -108,6 +108,7 @@ hint: -i starts from an empty environment, so only what you set after it survive
 ---
 q: {remove @mvar@ from the environment, printing ``gone`` to prove it|run a command that cannot see @mvar@, printing ``gone`` to prove it|hide @mvar@ from one command, printing ``gone`` to prove it}, with `env`
 a: env -u @mvar@ sh -c 'echo gone'
+eg: env -u HTTP_PROXY sh -c 'echo no proxy'
 out: gone
 cmp: ref
 ref: env
@@ -116,6 +117,7 @@ hint: -u strips one variable out of the environment for that command only
 ---
 q: %show% the environment NUL-separated so xargs `-0` can parse it safely
 a: env -0
+eg: env -0 | tr '\0' '\n' | wc -l
 cmp: ref
 ref: env
 teach: env -0
@@ -138,6 +140,7 @@ hint: read takes one line from stdin and stores it in the named variable
 setup: the line you are reading is a windows path, and a shell that eats backslashes would mangle it
 q: {`read` a raw path into @var@ so backslashes survive intact|`read` user input into @var@ without losing any backslashes|take a line into @var@ exactly as typed, backslashes and all}, with `read`
 a: read -r @var@
+eg: read -r reply < /etc/hostname
 why: interactive
 ref: read
 teach: read -r
@@ -145,6 +148,7 @@ hint: -r is what you want essentially always; without it a backslash vanishes
 ---
 q: {prompt with "``name:`` " and `read` the reply into @var@|show "``name:`` " then `read` what comes back into @var@|ask "``name:`` " and store the answer in @var@}, with `read`
 a: read -p "name: " @var@
+eg: read -p "user: " reply
 why: interactive
 ref: read
 teach: read -p
@@ -153,6 +157,7 @@ hint: -p prints its argument as a prompt before reading
 setup: the delimiter you need is sitting in a variable, not written as a literal
 q: set d to a comma, then %show% @csv@'s first column with `cut`
 a: d=,; cut -d"$d" -f1 @csv@
+eg: cut -d : -f1 /etc/passwd
 out: ^gateway$
 ref: cut
 teach: cut -d
@@ -167,6 +172,7 @@ hint: -c takes the command to run as its next argument
 ---
 q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}, with `unalias`
 a: unalias -a
+eg: alias ll=ls; unalias -a
 why: conceptual
 ref: unalias
 teach: unalias -a
@@ -175,6 +181,7 @@ hint: -a clears every alias in one shot
 setup: your `$PATH` might be hijacked or broken
 q: %show% every place in your $PATH with a command called `sh`, with `which`
 a: which -a sh
+eg: which -a ls
 cmp: ref
 ref: which
 teach: which -a

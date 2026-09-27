@@ -98,6 +98,7 @@ hint: ^ *  matches leading spaces, replaced with nothing
 ---
 q: {drop comments, then blanks, from @cfg@ in one `sed` pass|drop comments and blanks from @cfg@ in one `sed` invocation|in one `sed` pass, remove comments and blanks from @cfg@}
 a: sed -e '/^#/d' -e '/^$/d' @cfg@
+eg: sed -e '/^#/d' -e '/^$/d' /etc/profile
 out: listen
 ref: sed
 teach: sed -e
@@ -122,6 +123,7 @@ hint: capture each field in a group, then reorder them with \1 and \2
 ---
 q: {copy @cfg@ to ``edit.ini``, then change @old@ to @new@|copy @cfg@ to ``edit.ini``, then swap @old@ for @new@|copy @cfg@ to ``edit.ini``, swap @old@ for @new@ in it}, with `sed`
 a: cp @cfg@ edit.ini && sed -i 's/@old@/@new@/g' edit.ini
+eg: sed -i 's/staging/production/g' app.yaml
 state: exists:edit.ini
 ref: sed
 teach: sed -i
@@ -146,6 +148,7 @@ hint: a pattern address and $ together mean from the first match to the end
 ---
 q: {save @old@-to-@new@ in ``s.sed``, apply to @cfg@|write ``s.sed`` with @old@-to-@new@, run on @cfg@|put @old@-to-@new@ in ``s.sed``, apply to @cfg@}, with `sed`
 a: printf 's/@old@/@new@/g\n' > s.sed && sed -f s.sed @cfg@
+eg: printf 's/beta/release/g\n' > fix.sed && sed -f fix.sed app.yaml
 cmp: ref
 ref: sed
 teach: sed -f

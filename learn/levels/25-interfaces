@@ -142,6 +142,7 @@ hint: route with no arguments is ifconfig's routing counterpart
 ---
 q: dns might not even work yet -- %show% routes without names, using `route`
 a: route -n
+eg: route -n | grep '^0.0.0.0'
 why: live-hw
 ref: route
 teach: route -n
@@ -156,6 +157,7 @@ hint: arp with no arguments lists the whole cache
 ---
 q: %show% the `arp` cache numerically, without resolving names
 a: arp -n
+eg: arp -n | grep 192.168.50.1
 why: live-net
 ref: arp
 teach: arp -n
@@ -163,6 +165,7 @@ hint: -n skips resolving hostnames for each entry
 ---
 q: {mac changed, cache is stale -- delete the `arp` entry for @ip@|remove the `arp` entry for @ip@|drop @ip@ from the `arp` cache}
 a: arp -d @ip@
+eg: arp -d 192.168.50.1
 why: live-hw
 ref: arp
 teach: arp -d
@@ -170,6 +173,7 @@ hint: -d removes one entry from the cache
 ---
 q: {pin @ip@ to the mac ``00:11:22:33:44:55`` permanently, with `arp`|permanently map @ip@ to ``00:11:22:33:44:55`` with `arp`|add a static `arp` entry for @ip@ at ``00:11:22:33:44:55``}
 a: arp -s @ip@ 00:11:22:33:44:55
+eg: arp -s 192.168.50.1 aa:bb:cc:dd:ee:ff
 why: live-hw
 ref: arp
 teach: arp -s
@@ -177,6 +181,7 @@ hint: -s pins an ip to a mac address by hand
 ---
 q: %show% `arp` entries for @iface@ only
 a: arp -i @iface@
+eg: arp -i vlan10
 why: live-hw
 ref: arp
 teach: arp -i
@@ -193,6 +198,7 @@ hint: arp works below ip, so this finds hosts that will not answer a ping
 setup: every arping here sends one probe, then stops
 q: {send the arp probe for @ip@ out of @iface@|send the arp probe for @ip@ through @iface@|pick @iface@ as the interface the arp probe for @ip@ goes out of}
 a: arping -I @iface@ -c 1 @ip@
+eg: arping -I vlan10 -c 1 192.168.50.1
 why: live-hw
 ref: arping
 teach: arping -I
@@ -201,6 +207,7 @@ hint: -I picks which interface the probe goes out of
 setup: every arping here sends one probe, then stops
 q: {send a duplicate-address-detection probe for @ip@|probe for whether @ip@ is already a duplicate|send a duplicate-address-detection check for @ip@}
 a: arping -D -c 1 @ip@
+eg: arping -D -c 1 192.168.50.1
 why: live-hw
 ref: arping
 teach: arping -D
@@ -209,6 +216,7 @@ hint: -D checks whether an address is already claimed before you use it
 setup: every arping here sends one probe, then stops
 q: {`arping` @ip@ using @ip2@ as the chosen source address|`arping` @ip@ with @ip2@ as the source address you choose|set @ip2@ as the source address when `arping` @ip@}
 a: arping -s @ip2@ -c 1 @ip@
+eg: arping -s 192.168.50.1 -c 1 192.168.50.254
 why: live-hw
 ref: arping
 teach: arping -s
@@ -217,6 +225,7 @@ hint: -s sets the source address the probe claims to be from
 setup: arping can run forever waiting for an answer that never comes, and a script needs it to give up
 q: {stop `arping` @ip@ after 5 seconds whatever happens|cap `arping` @ip@ at 5 seconds no matter what|make `arping` @ip@ give up after 5 seconds}
 a: arping -w 5 @ip@
+eg: arping -w 10 192.168.50.1
 why: live-hw
 ref: arping
 teach: arping -w
@@ -231,6 +240,7 @@ hint: ipcalc with no flags prints the whole network breakdown
 ---
 q: %show% just the broadcast address for @ip@/24, with `ipcalc`
 a: ipcalc -b @ip@/24
+eg: ipcalc -b 192.168.50.1/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -b
@@ -238,6 +248,7 @@ hint: -b isolates just the broadcast address
 ---
 q: %show% just the network address for @ip@/24, with `ipcalc`
 a: ipcalc -n @ip@/24
+eg: ipcalc -n 192.168.50.1/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -n
@@ -245,6 +256,7 @@ hint: -n isolates just the network address
 ---
 q: %show% just the netmask for @ip@/24, with `ipcalc`
 a: ipcalc -m @ip@/24
+eg: ipcalc -m 192.168.50.1/24
 cmp: ref
 ref: ipcalc
 teach: ipcalc -m
@@ -252,6 +264,7 @@ hint: -m isolates just the netmask
 ---
 q: %show% @ip@'s prefix length for netmask ``255.255.255.0``, with `ipcalc`
 a: ipcalc -p @ip@ 255.255.255.0
+eg: ipcalc -p 192.168.50.1 255.255.0.0
 cmp: ref
 ref: ipcalc
 teach: ipcalc -p

@@ -28,6 +28,7 @@ setup: ONE peer you control, over wireguard. That tiny baseline is the point:
 setup: every OTHER established connection is a question you have to answer.
 q: show every established tcp connection with `netstat`, and its process
 a: netstat -tnp
+eg: netstat -tu
 why: live-net
 ref: netstat
 teach: netstat -t
@@ -85,6 +86,7 @@ setup: the only name the system answers to as superuser; a hidden second uid-0 i
 setup: a whole extra root hiding in plain sight in the passwd database.
 q: print every account in ``/etc/passwd`` whose uid is 0, with `awk`
 a: awk -F: '$3==0 {print $1}' /etc/passwd
+eg: awk -F: '{print $1, $7}' /etc/passwd
 cmp: ref
 ref: awk
 teach: awk -F

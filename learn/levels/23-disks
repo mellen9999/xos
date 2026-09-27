@@ -30,6 +30,7 @@ hint: df alone reports every mounted filesystem, one line each
 ---
 q: %show% free space in a human readable form, with `df`
 a: df -h
+eg: df -h /state
 out: [0-9]+\.[0-9]+[KMGT]
 ref: df
 teach: df -h
@@ -37,6 +38,7 @@ hint: -h scales the numbers to k/m/g instead of raw block counts
 ---
 q: space free but nothing writable -- %show% inode usage, not blocks, with `df`
 a: df -i
+eg: df -i /mnt
 out: Inodes
 ref: df
 teach: df -i
@@ -44,6 +46,7 @@ hint: -i swaps the space columns for inode counts and percent-used
 ---
 q: mounted filesystems -- %show% free space, type in a column, with `df`
 a: df -T
+eg: df -T /state
 out: Filesystem +Type
 ref: df
 teach: df -T
@@ -51,6 +54,7 @@ hint: -T adds a column naming each filesystem's type
 ---
 q: is the read-only root full -- %show% free space for ``squashfs``, with `df`
 a: df -t squashfs
+eg: df -t vfat
 why: live-hw
 ref: df
 teach: df -t
@@ -65,6 +69,7 @@ hint: -s collapses the whole tree into one summary line
 ---
 q: {how much space does @dir@ use, human readable, with `du`|with `du`, what does @dir@ use, scaled to something readable|report the size of @dir@ in human readable units, with `du`}
 a: du -sh @dir@
+eg: du -sh /var/log
 cmp: ref
 ref: du
 teach: du -h
@@ -79,6 +84,7 @@ hint: -a walks down to individual files, not just directories
 ---
 q: the ``prune`` directory is nested -- %show% it one level deep, with `du`
 a: du -d 1 prune
+eg: du -d 2 /var/log
 cmp: ref
 ref: du
 teach: du -d
@@ -86,6 +92,7 @@ hint: -d takes a depth -- 1 stops descending after the first level
 ---
 q: %show% @dir@'s sizes with a grand total at the end, with `du`
 a: du -c @dir@
+eg: du -c /var/log /etc
 out: total
 ref: du
 teach: du -c
@@ -94,6 +101,7 @@ hint: -c appends one extra 'total' line summing everything above it
 setup: you are sizing what this directory itself holds, not what is mounted into it
 q: {measure @dir@ without crossing onto another filesystem, with `du`|measure @dir@ but stay on its own filesystem, with `du`|report the size of @dir@ without other mounts, with `du`}
 a: du -x @dir@
+eg: du -x /var/log
 why: fixture-cost
 ref: du
 teach: du -x
@@ -122,6 +130,7 @@ hint: findfs takes a LABEL= or UUID= and prints the matching device node
 ---
 q: {this isn't your machine -- `mount` ``/dev/sdb1`` read-only at ``/mnt``|`mount` ``/dev/sdb1`` at ``/mnt``, allowing no writes|`mount` ``/dev/sdb1`` at ``/mnt`` without write access}
 a: mount -r /dev/sdb1 /mnt
+eg: mount -r /dev/sdc1 /mnt
 why: root
 ref: mount
 teach: mount -r
@@ -160,6 +169,7 @@ hint: umount takes the mountpoint, or the device, and detaches it
 ---
 q: {`umount` ``/mnt`` even though something is still using it, lazily|`umount` ``/mnt`` lazily, even with something still using it|`umount` ``/mnt`` now, but let the detach finish once it's no longer busy}
 a: umount -l /mnt
+eg: umount -l /media/usb
 why: root
 ref: umount
 teach: umount -l
@@ -167,6 +177,7 @@ hint: -l detaches it now and cleans up once nothing is using it
 ---
 q: {force an `umount` of ``/mnt``|force ``/mnt`` to `umount`|make ``/mnt`` `umount` even if it resists}
 a: umount -f /mnt
+eg: umount -f /media/usb
 why: root
 ref: umount
 teach: umount -f
@@ -174,6 +185,7 @@ hint: -f forces the unmount even if the filesystem is unresponsive
 ---
 q: {`umount` everything that can be unmounted|`umount` every filesystem that will allow it|`umount` as much as possible in one go}
 a: umount -a
+eg: sync && umount -a
 why: root
 ref: umount
 teach: umount -a
@@ -188,6 +200,7 @@ hint: -f finds the next free loop device and attaches to it in one step
 ---
 q: {attach ``disk.img`` read-only to a loop device, with `losetup`|loop-attach ``disk.img`` with `losetup`, without allowing writes|`losetup` ``disk.img`` onto a free loop device, writes refused}
 a: losetup -r -f disk.img
+eg: losetup -r -f evidence.img
 why: root
 ref: losetup
 teach: losetup -r
@@ -196,6 +209,7 @@ hint: -r attaches the loop device read-only
 setup: there's no partition table to read -- only the fact that a real partition starts a megabyte in
 q: {attach ``disk.img`` with `losetup` at a ``1048576`` byte offset -- one mb in|loop-attach ``disk.img`` with `losetup`, skipping ``1048576`` bytes in|attach ``disk.img`` to a loop device, ``1048576`` bytes in, with `losetup`}
 a: losetup -o 1048576 -f disk.img
+eg: losetup -o 2097152 -f evidence.img
 why: root
 ref: losetup
 teach: losetup -o
@@ -203,6 +217,7 @@ hint: -o takes a byte offset into the image to start the mapping at
 ---
 q: {attach ``disk.img`` with `losetup`, scanning it for partitions|loop-attach ``disk.img`` with `losetup`, having it scanned for partitions|attach ``disk.img`` with `losetup`, exposing any partitions it contains}
 a: losetup -P -f disk.img
+eg: losetup -P -f evidence.img
 why: root
 ref: losetup
 teach: losetup -P
@@ -210,6 +225,7 @@ hint: -P scans the attached image for a partition table
 ---
 q: you don't know how ``/dev/sda`` is carved up -- %list% its table, with `fdisk`
 a: fdisk -l /dev/sda
+eg: fdisk -l /dev/sdb
 why: root
 ref: fdisk
 teach: fdisk -l
@@ -217,6 +233,7 @@ hint: -l just lists the partition table, no interactive prompt
 ---
 q: {you need ``/dev/sda``'s exact size before imaging -- `blockdev`, in bytes|with `blockdev`, what is the size of ``/dev/sda``, in bytes|find the exact byte size of ``/dev/sda``, with `blockdev`}
 a: blockdev --getsize64 /dev/sda
+eg: blockdev --getsize64 /dev/sdb
 why: root
 ref: blockdev
 teach: blockdev --getsize64
@@ -224,6 +241,7 @@ hint: --getsize64 reports the size in bytes, not sectors
 ---
 q: {mark ``/dev/sda`` read-only at the block layer, with `blockdev`|with `blockdev`, flip ``/dev/sda`` read-only below the filesystem|set the block-level read-only flag on ``/dev/sda``, `blockdev`}
 a: blockdev --setro /dev/sda
+eg: blockdev --setro /dev/sdb
 why: root
 ref: blockdev
 teach: blockdev --setro
@@ -231,6 +249,7 @@ hint: --setro flips the read-only flag at the block layer, below any filesystem
 ---
 q: {confirm the read-only flag on ``/dev/sda`` stuck, with `blockdev`|with `blockdev`, check whether ``/dev/sda``'s read-only flag is set|is ``/dev/sda`` read-only at the block layer, with `blockdev`}
 a: blockdev --getro /dev/sda
+eg: blockdev --getro /dev/sdb
 why: root
 ref: blockdev
 teach: blockdev --getro
@@ -245,6 +264,7 @@ hint: sync with no arguments flushes every dirty buffer on the system
 ---
 q: {you just wrote @txt@ -- flush just its data, with `sync`|flush just @txt@'s buffered data, with `sync`, rest alone|write out only @txt@'s pending data, with `sync`, not all}
 a: sync -d @txt@
+eg: sync -d /var/log/app.log
 why: primitive-cost
 ref: sync
 teach: sync -d
@@ -252,6 +272,7 @@ hint: naming the file scopes the flush to it; -d skips syncing its metadata
 ---
 q: {lock ``lock.file`` with `flock`, giving up at once if ``held``, `echo` ``held``|with `flock`, try ``lock.file``'s lock, failing fast, not waiting|take ``lock.file``'s lock with `flock`, bailing if someone has it}
 a: flock -n lock.file echo held
+eg: flock -n build.lock echo busy
 out: held
 cmp: ref
 ref: flock
@@ -260,6 +281,7 @@ hint: -n makes flock fail instead of waiting when the lock is held
 ---
 q: {take ``lock.file``'s lock as shared with `flock`, around `echo` ``held``|with `flock`, hold a shared lock on ``lock.file``, echoing ``held``|lock ``lock.file`` shared with `flock`, running `echo` ``held``}
 a: flock -s lock.file echo held
+eg: flock -s build.lock echo reading
 out: held
 cmp: ref
 ref: flock
@@ -272,6 +294,7 @@ setup: also authenticated, which is a different property and the harder one.
 q: {write a LUKS2 header on ``/dev/sda3`` with `cryptsetup`, ``hmac-sha256``|with `cryptsetup`, format ``/dev/sda3`` as LUKS2, ``hmac-sha256`` integrity|put a LUKS2 header on ``/dev/sda3``, ``hmac-sha256``, with `cryptsetup`}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
+eg: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sdb2
 why: root
 ref: cryptsetup
 teach: cryptsetup --type
@@ -287,6 +310,7 @@ hint: open maps the decrypted device under /dev/mapper by the name you give
 ---
 q: {unlock ``/dev/sda3`` as ``state`` with `cryptsetup`, allowing no writes|with `cryptsetup`, `open` ``/dev/sda3`` read-only as ``state``, no writes|decrypt ``/dev/sda3`` as ``state`` with `cryptsetup`, permitting no writes}
 a: cryptsetup open --readonly /dev/sda3 state
+eg: cryptsetup open --readonly /dev/sdb2 vault
 why: root
 ref: cryptsetup
 teach: cryptsetup --readonly
@@ -316,6 +340,7 @@ hint: luksDump reads the header itself -- it never touches the encrypted data
 setup: cryptsetup's default cipher can change between versions, and whatever unlocks this later has to match exactly
 q: {format ``/dev/sda3`` with `cryptsetup`, naming ``aes-xts-plain64`` cipher|with `cryptsetup`, format ``/dev/sda3`` with ``aes-xts-plain64``, not default|choose ``aes-xts-plain64`` yourself, formatting ``/dev/sda3``, `cryptsetup`}
 a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
+eg: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sdb2
 why: root
 ref: cryptsetup
 teach: cryptsetup --cipher
@@ -324,6 +349,7 @@ hint: --cipher names the cipher instead of taking cryptsetup's default
 setup: xts splits the key across two sub-ciphers, so a 256 bit cipher takes a 512 bit key
 q: {format ``/dev/sda3`` with a ``512`` bit key, with `cryptsetup`|a ``512`` bit key on a newly formatted ``/dev/sda3``, via `cryptsetup`|choose a ``512`` bit key formatting ``/dev/sda3``, with `cryptsetup`}
 a: cryptsetup luksFormat --key-size 512 /dev/sda3
+eg: cryptsetup luksFormat --key-size 256 /dev/sdb2
 why: root
 ref: cryptsetup
 teach: cryptsetup --key-size
@@ -332,6 +358,7 @@ hint: --key-size is in bits, and must match what the cipher supports
 setup: argon2id needs more memory to derive the key than this device can spare
 q: {format ``/dev/sda3`` with `cryptsetup`, choosing ``pbkdf2`` over argon2id|with `cryptsetup`, format ``/dev/sda3`` with ``pbkdf2``, not argon2id|swap ``/dev/sda3``'s key derivation to ``pbkdf2``, with `cryptsetup`}
 a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
+eg: cryptsetup luksFormat --pbkdf argon2id /dev/sdb2
 why: root
 ref: cryptsetup
 teach: cryptsetup --pbkdf
@@ -339,6 +366,7 @@ hint: --pbkdf picks the key derivation function used to slow down password guess
 ---
 q: {format ``/dev/sda3`` with no prompt, for a script, with `cryptsetup`|with `cryptsetup`, format ``/dev/sda3`` with no confirmation, scripted|skip the are-you-sure prompt, formatting ``/dev/sda3``, `cryptsetup`}
 a: cryptsetup luksFormat --batch-mode /dev/sda3
+eg: cryptsetup luksFormat --batch-mode /dev/sdb2
 why: root
 ref: cryptsetup
 teach: cryptsetup --batch-mode
@@ -408,6 +436,7 @@ hint: mke2fs with no flags builds an ext2 filesystem by default
 setup: this runs from a script, with nothing there to answer an are-you-sure prompt
 q: %make% an ext filesystem on ``/dev/mapper/state``, with `mke2fs`
 a: mke2fs -F /dev/mapper/state
+eg: mke2fs -F /dev/mapper/backup
 why: root
 ref: mke2fs
 teach: mke2fs -F
@@ -415,6 +444,7 @@ hint: -F skips the confirmation prompt
 ---
 q: %make% an ext filesystem on ``/dev/mapper/state`` labelled ``data``, with `mke2fs`
 a: mke2fs -L data /dev/mapper/state
+eg: mke2fs -L backup /dev/mapper/backup
 why: root
 ref: mke2fs
 teach: mke2fs -L
@@ -423,6 +453,7 @@ hint: -L sets the filesystem's volume label
 setup: ext reserves a slice of every filesystem for root to log in when it's full -- nothing here ever needs that margin
 q: {make ``/dev/mapper/state``'s filesystem with `mke2fs`, no admin space|with `mke2fs`, reserve zero blocks for admin on ``/dev/mapper/state``|build ``/dev/mapper/state``'s filesystem with `mke2fs`, none for root}
 a: mke2fs -m 0 /dev/mapper/state
+eg: mke2fs -m 1 /dev/mapper/backup
 why: root
 ref: mke2fs
 teach: mke2fs -m
@@ -437,6 +468,7 @@ hint: mkdosfs with no flags builds fat32 (or fat16, sized by the partition)
 ---
 q: {format ``/dev/sda1`` as fat with `mkdosfs`, volume label ``BACKUP``|with `mkdosfs`, make a fat filesystem on ``/dev/sda1``, labelled ``BACKUP``|format ``/dev/sda1`` as fat with `mkdosfs`, labelling it ``BACKUP``}
 a: mkdosfs -n BACKUP /dev/sda1
+eg: mkdosfs -n TRANSFER /dev/sdb1
 why: root
 ref: mkdosfs
 teach: mkdosfs -n
@@ -458,6 +490,7 @@ hint: mountpoint says whether a path is where a filesystem is attached
 ---
 q: {quietly confirm ``/proc`` is a `mountpoint`, exit status only|`mountpoint` ``/proc`` silently -- answer in the exit status|check ``/proc`` with `mountpoint`, printing nothing, status only}
 a: mountpoint -q /proc
+eg: mountpoint -q /state
 status: 0
 cmp: ref
 ref: mountpoint
@@ -481,6 +514,7 @@ hint: partprobe asks the kernel to rescan the table without a reboot
 ---
 q: {securely discard every sector of the ssd ``/dev/sdb``|secure-discard the whole of the ssd ``/dev/sdb``|throw every sector on the ssd ``/dev/sdb`` away, securely}, with `blkdiscard`
 a: blkdiscard -s /dev/sdb
+eg: blkdiscard -s /dev/sdc
 why: root
 ref: blkdiscard
 teach: blkdiscard -s
@@ -489,6 +523,7 @@ hint: -s asks the drive for a secure discard, not just a plain trim
 setup: wiping the whole disk would take too long, and only the front needs to go
 q: {discard the first ``1G`` of ``/dev/sdb``|discard ``1G`` from the start of ``/dev/sdb``|only ``/dev/sdb``'s first ``1G`` needs discarding}, with `blkdiscard`
 a: blkdiscard -l 1G /dev/sdb
+eg: blkdiscard -l 512M /dev/sdc
 why: root
 ref: blkdiscard
 teach: blkdiscard -l

@@ -214,7 +214,16 @@ _ui_hi "$_tier"
 # hi_expand BASE -- fences to marks, on stdin. BASE is the styling of the text
 # the name sits in, which the closing mark has to hand back: a name inside the
 # dim hint panel must leave the rest of that row dim, not reset to live text.
-hi_expand() { sed -e "s/$HI1/$HI_ON/g" -e "s/$HI2/$HI_OFF$N${1:-}/g"; }
+#
+# with no colour the marks are quotes, and a possessive on a marked name came
+# out 'notes.txt''s -- two quotes, one of them the mark. the closing quote
+# yields to the apostrophe: 'notes.txt's.
+hi_expand() {
+	case "$HI_OFF" in
+		"'") sed -e "s/$HI1/$HI_ON/g" -e "s/$HI2'/'/g" -e "s/$HI2/$HI_OFF$N${1:-}/g" ;;
+		*)   sed -e "s/$HI1/$HI_ON/g" -e "s/$HI2/$HI_OFF$N${1:-}/g" ;;
+	esac
+}
 
 # hi_strip -- the same text with the fences gone: what gets measured, matched
 # and written down. every width, every grader and every ledger sees this one.
@@ -506,9 +515,13 @@ wrap() {
 # say -- fence first, wrap at the text's own width, indent, then expand: the
 # marks become escapes only once nothing is left to measure. handing wrap whole
 # escape sequences to count is what tears a paragraph.
+#
+# wrap keeps the space it broke on, because it must agree with fold -s (G50
+# measures briefs with the host's fold); what is printed drops it, or every
+# wrapped line ends in a blank that a copy or a narrow terminal trips on.
 say() {
 	fence | wrap $(( COLS < 78 ? COLS - 2 : 76 )) \
-		| sed -e '/./s/^/  /' | expand
+		| sed -e 's/ *$//' -e '/./s/^/  /' | expand
 }
 
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }

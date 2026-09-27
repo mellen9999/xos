@@ -28,6 +28,7 @@ hint: -f is true only for a regular file, not a directory or link
 ---
 q: {make sure @dir@ is really a directory before you cd into it|check that @dir@ is actually a directory, not a file|confirm @dir@ names a directory you can work in}
 a: [ -d @dir@ ]
+eg: [ -d /etc/ssh ]
 status: 0
 ref: [
 teach: [ -d
@@ -35,6 +36,7 @@ hint: -d is true only when the path is a directory
 ---
 q: {make sure @txt@ isn't empty before you use it as input|check that @txt@ exists and actually has content|confirm @txt@ is there and isn't a zero-byte file}
 a: [ -s @txt@ ]
+eg: [ -s /etc/hosts ]
 status: 0
 ref: [
 teach: [ -s
@@ -42,6 +44,7 @@ hint: -s checks existence AND that the size is greater than zero
 ---
 q: {make sure you can actually read @txt@ before you try|check that you have read permission on @txt@|confirm @txt@ isn't locked away from you}
 a: [ -r @txt@ ]
+eg: [ -r /etc/hostname ]
 status: 0
 ref: [
 teach: [ -r
@@ -49,6 +52,7 @@ hint: -r checks the read permission bit, not just that the file exists
 ---
 q: {make sure you can actually edit @script@ before you try|check that you have write permission on @script@|confirm @script@ isn't locked read-only}
 a: [ -w @script@ ]
+eg: [ -w /tmp/rotate.sh ]
 status: 0
 ref: [
 teach: [ -w
@@ -56,6 +60,7 @@ hint: -w checks the write permission bit
 ---
 q: {make sure @script@ is actually runnable before you try ./@script@|check that @script@ has the execute bit set|confirm @script@ can be run, not just read}
 a: [ -x @script@ ]
+eg: [ -x /usr/bin/env ]
 status: 0
 ref: [
 teach: [ -x
@@ -63,6 +68,7 @@ hint: -x checks the execute permission bit
 ---
 q: {check whether ``link.txt`` is a symlink before you overwrite what it points to|confirm ``link.txt`` is a symlink rather than the real file|make sure ``link.txt`` is a link, not the file itself}
 a: [ -L link.txt ]
+eg: [ -L /etc/localtime ]
 status: 0
 ref: [
 teach: [ -L
@@ -70,6 +76,7 @@ hint: -L is true for a symlink even if what it points to is missing
 ---
 q: {test whether the variable @var@ is empty|check that @var@ holds nothing|confirm @var@ is empty}
 a: [ -z "$@var@" ]
+eg: [ -z "$CFG_PATH" ]
 status: 0
 ref: [
 teach: [ -z
@@ -77,6 +84,7 @@ hint: -z is true when the string's length is zero
 ---
 q: {test whether the variable @var@ is NOT empty|check that @var@ actually holds something|confirm @var@ is set to a nonempty value}
 a: [ -n "$@var@" ]
+eg: [ -n "$HOME" ]
 status: 1
 ref: [
 teach: [ -n
@@ -100,6 +108,7 @@ hint: || only runs echo when the test in front of it fails
 setup: you're reading a portable script written without square brackets
 q: {use `test`, not [ ], to check @dir@ is a directory, printing ``ok``|check @dir@ is a directory with the `test` command, printing ``ok``|run `test` `-d` on @dir@, printing ``ok``, no square brackets}
 a: test -d @dir@ && echo ok
+eg: test -d /etc/ssh && echo present
 cmp: ref
 ref: test
 teach: test -d
@@ -121,6 +130,7 @@ hint: != is the string inequality operator, the opposite of =
 ---
 q: {check @cfg@ has exactly 7 lines, printing ``seven`` or ``other``|make sure @cfg@ still has 7 lines, printing ``seven`` or ``other``|verify @cfg@'s line count is 7, printing ``seven`` or ``other``}
 a: [ "$(wc -l < @cfg@)" -eq 7 ] && echo seven || echo other
+eg: [ "$retries" -eq 0 ] && echo clean || echo retried
 cmp: ref
 ref: [
 teach: [ -eq
@@ -128,6 +138,7 @@ hint: -eq is numeric equality; use = for strings instead
 ---
 q: {flag @log@ as too big past ``14`` lines, printing ``more`` or ``few``|check whether @log@ has grown past ``14`` lines, printing ``more`` or ``few``|watch for @log@ passing ``14`` lines, printing ``more`` or ``few``}
 a: [ "$(wc -l < @log@)" -gt 14 ] && echo more || echo few
+eg: [ "$retries" -gt 3 ] && echo abort || echo continue
 cmp: ref
 ref: [
 teach: [ -gt
@@ -135,6 +146,7 @@ hint: -gt is numeric greater-than
 ---
 q: {flag @log@ as too short, under ``14`` lines, printing ``fewer`` or ``many``|check whether @log@ is under ``14`` lines, printing ``fewer`` or ``many``|watch for @log@ under ``14`` lines, printing ``fewer`` or ``many``}
 a: [ "$(wc -l < @log@)" -lt 14 ] && echo fewer || echo many
+eg: [ "$freegb" -lt 5 ] && echo low || echo ok
 cmp: ref
 ref: [
 teach: [ -lt

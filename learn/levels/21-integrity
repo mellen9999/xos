@@ -55,6 +55,7 @@ hint: -c reads a hash file back and reports OK or FAILED per line
 ---
 q: {`sha256sum` the .log files into ``sums.txt``, then check, quiet|`sha256sum` .log files to ``sums.txt`` and verify, failures only|`sha256sum` .log files into ``sums.txt``, check with no OK noise}
 a: sha256sum *.log > sums.txt && sha256sum -c -s sums.txt
+eg: sha256sum -c -s release.sha256
 status: 0
 cmp: ref
 ref: sha256sum
@@ -102,6 +103,7 @@ hint: cmp reports the first byte and line where two files diverge
 ---
 q: {`cmp` @txt@ against @txt2@ from a script -- just the exit code|silently `cmp` @txt@ and @txt2@, for an if-check|@txt@ and @txt2@ compared with `cmp`, exit status only}
 a: cmp -s @txt@ @txt2@
+eg: cmp -s /etc/hosts /etc/hosts.bak
 status: 1
 cmp: ref
 ref: cmp
@@ -111,6 +113,7 @@ hint: -s suppresses all output, leaving only the exit status to check
 setup: you already know image-a.txt and image-b.txt differ somewhere and need to see every place, not just the first
 q: %list% every differing byte between ``image-a.txt`` and ``image-b.txt``, with `cmp`
 a: cmp -l image-a.txt image-b.txt
+eg: cmp -l firmware-a.bin firmware-b.bin
 out: ^ *[0-9]+ +[0-9]+ +[0-9]+
 status: 1
 ref: cmp
@@ -120,6 +123,7 @@ hint: -l lists every differing byte position and value, not just the first
 setup: you only care whether the headers of image-a.txt and image-b.txt match, not the whole files
 q: {`cmp` just the first ``10`` bytes of ``image-a.txt`` and ``image-b.txt``|`cmp` whether ``image-a.txt`` and ``image-b.txt`` agree in their first ``10`` bytes|`cmp` ``image-a.txt`` against ``image-b.txt``, the first ``10`` bytes only}
 a: cmp -n 10 image-a.txt image-b.txt
+eg: cmp -n 4 header-a.bin header-b.bin
 status: 0
 ref: cmp
 teach: cmp -n
@@ -135,6 +139,7 @@ hint: busybox diff prints unified output -- ---/+++ headers, then - and + lines
 ---
 q: %show% @txt@ vs @txt2@ as a unified `diff`, 3 lines of context
 a: diff -U 3 @txt@ @txt2@
+eg: diff -U 5 config.old config.new
 out: ^---
 status: 1
 ref: diff
@@ -143,6 +148,7 @@ hint: -U sets how many lines of context surround each change
 ---
 q: {`diff` @txt@ and @txt2@ for just a yes/no on whether they differ|`diff` @txt@ and @txt2@, skip the details, differ or not|get a single differ/no-differ answer with `diff`, @txt@ vs @txt2@}
 a: diff -q @txt@ @txt2@
+eg: diff -q config.old config.new
 out: differ
 status: 1
 ref: diff
@@ -151,6 +157,7 @@ hint: -q collapses the whole comparison down to a single differ/no-differ line
 ---
 q: {write Abc to ``a.txt`` and abc to ``b.txt``, then `diff` ignoring case|put Abc in ``a.txt``, abc in ``b.txt``, then `diff` them case-blind|``a.txt`` gets Abc and ``b.txt`` abc -- `diff` them, case aside}
 a: printf 'Abc\n' > a.txt; printf 'abc\n' > b.txt; diff -i a.txt b.txt
+eg: diff -i motd.txt motd.txt.orig
 status: 0
 ref: diff
 teach: diff -i
@@ -158,6 +165,7 @@ hint: -i folds case before comparing, so Abc and abc count as equal
 ---
 q: {@txt@ got reformatted -- `diff` against @txt2@, ignore whitespace|`diff` @txt@ and @txt2@ without whitespace differences in the way|`diff` @txt@ and @txt2@ with spacing ignored}
 a: diff -w @txt@ @txt2@
+eg: diff -w config.old config.new
 out: ^---
 cmp: ref
 status: 1
@@ -167,6 +175,7 @@ hint: -w treats runs of whitespace as equivalent, ignoring how much there is
 ---
 q: {check with `diff` whether @dir@ and @dir2@ match all the way down|`diff` every file under @dir@ against @dir2@, subdirs included|`diff` @dir@ and @dir2@ as whole trees, not just top-level files}
 a: diff -r @dir@ @dir2@
+eg: diff -r /opt/app-old /opt/app-new
 why: fixture-cost
 ref: diff
 teach: diff -r
@@ -188,6 +197,7 @@ hint: base64 is an encoding, not encryption -- anyone can undo it
 ---
 q: {@txt@'s `base64` needs wrapping at ``40`` columns for pasting|encode @txt@ as `base64`, but wrap the output at ``40`` columns|encode @txt@ in `base64` with lines no longer than ``40`` characters}
 a: base64 -w 40 @txt@
+eg: base64 -w 64 /etc/hosts
 out: [A-Za-z0-9+/]
 cmp: ref
 ref: base64

@@ -25,6 +25,7 @@ hint: vi with just a filename opens it for editing, ready in normal mode
 ---
 q: {open @txt@ read-only in `vi`, so it cannot be damaged|open @txt@ in `vi` read-only, so a stray edit cannot land|view @txt@ in `vi` without being able to save changes}
 a: vi -R @txt@
+eg: vi -R /etc/hosts
 why: interactive
 ref: vi
 teach: vi -R
@@ -122,6 +123,7 @@ setup: at the prompt uses the same keys you just learned in the editor: Escape
 setup: for normal mode, then h j k l, w, dd, and / to search your history.
 q: {turn on|enable} `vi` keybindings at the shell prompt, with `set`
 a: set -o vi
+eg: set -o | grep vi
 why: conceptual
 ref: set
 teach: set -o

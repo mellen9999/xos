@@ -16,6 +16,7 @@ brief: what you do with the column afterwards is the other half.
 setup: @csv@ is name,id,status,count
 q: %show% just the name column of @csv@, with `cut`
 a: cut -d, -f1 @csv@
+eg: cut -d : -f1 /etc/group
 out: ^gateway$
 ref: cut
 teach: cut -d
@@ -56,6 +57,7 @@ hint: a trailing dash with no end number means to the end of the line
 ---
 q: @log@ opens with a 10-char date -- %show% just that, with `cut`
 a: cut -c1-10 @log@
+eg: date +%Y-%m-%d | cut -c 1-4
 out: ^2024-03-01$
 ref: cut
 teach: cut -c
@@ -63,6 +65,7 @@ hint: -c counts characters by position, not fields
 ---
 q: @log@ opens with a date and a space -- %show% the rest, with `cut`
 a: cut -c12- @log@
+eg: head -1 /etc/os-release | cut -c 6-
 cmp: ref
 ref: cut
 teach: cut -c
@@ -71,6 +74,7 @@ hint: same trailing-dash trick as field ranges, but for characters
 setup: a line with no comma at all must not slip through as if it were a name
 q: %show% @csv@'s name column with `cut`, skipping lines with no comma
 a: cut -d, -f1 -s @csv@
+eg: cut -d: -f1 -s /etc/fstab
 out: ^gateway$
 cmp: ref
 ref: cut
@@ -109,6 +113,7 @@ hint: \n is the newline character, deleted the same as any other
 ---
 q: {squeeze repeated spaces in @log@ to one each|collapse runs of spaces in @log@ to one|collapse every space run in @log@ down to one}, with `tr`
 a: tr -s ' ' < @log@
+eg: ps | tr -s ' '
 out: INFO service
 ref: tr
 teach: tr -s
@@ -123,6 +128,7 @@ hint: tr maps the first set onto the second, one character at a time
 ---
 q: {delete everything from @txt@ except letters and newlines|keep only letters and newlines in @txt@, delete the rest|strip @txt@ down to just letters and newlines}, with `tr`
 a: tr -dc 'a-zA-Z\n' < @txt@
+eg: tr -dc '0-9.\n' < /etc/hosts
 out: rotate
 ref: tr
 teach: tr -c

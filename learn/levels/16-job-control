@@ -82,13 +82,15 @@ hint: timeout runs the command and sends TERM if it's still going after the limi
 ---
 q: {cap `sleep` ``10`` at 2 seconds with `timeout`, force-killing it, no TERM first|run `sleep` ``10`` under a 2 second `timeout` that skips straight to ``KILL``|give `sleep` ``10`` two seconds under `timeout`, then make sure it dies via ``KILL``}
 a: timeout -s KILL 2 sleep 10
+eg: timeout -s KILL 30 tar -czf backup.tar.gz /var/log
 why: interactive
 ref: timeout
 teach: timeout -s
-hint: -s picks which signal timeout sends when the limit is hit
+hint: -s picks the signal timeout sends at the limit, here KILL
 ---
 q: {give `sleep` ``10`` one second under `timeout`, then force-kill it if it won't die|cap `sleep` ``10`` at 1 second with `timeout`, escalating to KILL if it won't die|run `sleep` ``10`` under a 1 second `timeout` that escalates to KILL}
 a: timeout -k 1 1 sleep 10
+eg: timeout -k 5 30 tar -czf app-backup.tar.gz /etc
 why: interactive
 ref: timeout
 teach: timeout -k
@@ -97,6 +99,7 @@ hint: -k gives a grace period, then escalates to KILL if the first signal didn't
 setup: abduco sessions here are called work and run /bin/sh.
 q: {start a detached session called ``work`` running ``/bin/sh``|use `abduco` `-n` to create ``work``, detached, running ``/bin/sh``|create the detached session ``work`` running ``/bin/sh``}
 a: abduco -n work /bin/sh
+eg: abduco -n build /bin/sh
 why: interactive
 ref: abduco
 teach: abduco -n
@@ -105,6 +108,7 @@ hint: -n creates the session detached, without attaching to it
 setup: abduco sessions here are called work and run /bin/sh.
 q: {start a session called ``work`` running ``/bin/sh`` and attach now|use `abduco` `-c` to create ``work`` on ``/bin/sh``, attaching at once|create ``work`` running ``/bin/sh`` with `abduco`, attaching right away}
 a: abduco -c work /bin/sh
+eg: abduco -c build /bin/sh
 why: interactive
 ref: abduco
 teach: abduco -c
@@ -112,6 +116,7 @@ hint: -c creates the session and attaches to it in one step
 ---
 q: {reattach to the session called ``work``|use `abduco` `-a` to reattach to ``work``|attach back into the existing ``work`` session}
 a: abduco -a work
+eg: abduco -a build
 why: interactive
 ref: abduco
 teach: abduco -a
@@ -120,6 +125,7 @@ hint: -a attaches to a session that already exists
 setup: abduco sessions here are called work and run /bin/sh.
 q: {attach to ``work``, or create it on ``/bin/sh`` if it does not exist|use `abduco` `-A` so ``work`` is created on ``/bin/sh`` only if missing|attach to ``work``, letting `abduco` create it on ``/bin/sh`` if needed}
 a: abduco -A work /bin/sh
+eg: abduco -A build /bin/sh
 why: interactive
 ref: abduco
 teach: abduco -A
@@ -127,6 +133,7 @@ hint: -A attaches if the session exists, or creates it if it doesn't
 ---
 q: {watch the session ``work`` without being able to type into it|use `abduco` `-r` to observe ``work`` without sending it input|open ``work`` read-only, with no typing allowed}
 a: abduco -r work
+eg: abduco -r build
 why: interactive
 ref: abduco
 teach: abduco -r
@@ -141,6 +148,7 @@ hint: abduco with no session name lists what it's holding
 ---
 q: %list% the `jobs` in this shell, with pids, after backgrounding `sleep` 1
 a: sleep 1 & jobs -l
+eg: sleep 5 & true; jobs -l
 why: interactive
 ref: jobs
 teach: jobs -l
@@ -155,6 +163,7 @@ hint: -1 is the signal number for HUP, same as -HUP
 ---
 q: %show% every resource limit this shell is under, with `ulimit`
 a: ulimit -a
+eg: ulimit -f 1024; ulimit -a
 cmp: ref
 ref: ulimit
 teach: ulimit -a
@@ -163,6 +172,7 @@ hint: -a prints every limit at once instead of just one
 setup: a script's writes keep failing partway through, mysteriously
 q: %show% the maximum file size this shell may create, with `ulimit`
 a: ulimit -f
+eg: ulimit -f 2097152; ulimit -f
 cmp: ref
 ref: ulimit
 teach: ulimit -f

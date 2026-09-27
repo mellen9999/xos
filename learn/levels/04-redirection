@@ -70,6 +70,7 @@ hint: tee writes to the file and passes the same data through to stdout
 ---
 q: %show% @log@ on screen and APPEND a copy to ``copy.txt``, with `tee`
 a: cat @log@ | tee -a copy.txt
+eg: dmesg | tee -a /var/log/boot.log
 out: service started
 ref: tee
 teach: tee -a

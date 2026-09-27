@@ -20,6 +20,7 @@ hint: -c sets how many pings to send before stopping
 setup: every ping here sends three, then stops
 q: {just need loss percent -- `ping` @ip@ quietly, summary only|`ping` @ip@ with per-packet output suppressed, summary only|`ping` @ip@ and print only the final summary}
 a: ping -c 3 -q @ip@
+eg: ping -c 5 -q 192.168.50.1
 why: live-net
 ref: ping
 teach: ping -q
@@ -28,6 +29,7 @@ hint: -q suppresses per-packet lines, printing only the final summary
 setup: every ping here sends three, then stops
 q: {don't flood the link -- `ping` @ip@ one second apart|`ping` @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
 a: ping -i 1 -c 3 @ip@
+eg: ping -i 2 -c 3 192.168.50.1
 why: live-net
 ref: ping
 teach: ping -i
@@ -36,6 +38,7 @@ hint: -i sets the interval between packets, in seconds
 setup: every ping here sends three, then stops
 q: {two interfaces, test one specifically -- `ping` @ip@ out of @iface@|`ping` @ip@ through @iface@|send the pings to @ip@ out of @iface@}
 a: ping -I @iface@ -c 3 @ip@
+eg: ping -I vlan10 -c 3 192.168.50.1
 why: live-net
 ref: ping
 teach: ping -I
@@ -44,6 +47,7 @@ hint: -I picks which interface the pings go out of
 setup: every ping here sends three, then stops
 q: {probe for MTU trouble -- `ping` @ip@ with a ``1000`` byte payload|`ping` @ip@ using a ``1000`` byte payload, to see where the MTU breaks|send ``1000`` byte pings to @ip@ to test for MTU issues}
 a: ping -s 1000 -c 3 @ip@
+eg: ping -s 1400 -c 3 192.168.50.1
 why: live-net
 ref: ping
 teach: ping -s
@@ -51,6 +55,7 @@ hint: -s sets the payload size in bytes, useful for MTU testing
 ---
 q: {@ip@ may be dead -- give the `ping` run up after 5 seconds|cap the whole `ping` run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}, with `ping`
 a: ping -w 5 @ip@
+eg: ping -w 10 192.168.50.1
 why: live-net
 ref: ping
 teach: ping -w
@@ -65,6 +70,7 @@ hint: traceroute with no flags shows the path packets take, hop by hop
 ---
 q: {no dns wait per hop -- `traceroute` to @ip@ without resolving names|`traceroute` to @ip@ skipping name resolution for speed|run `traceroute` to @ip@ fast, with no hostname lookups}
 a: traceroute -n @ip@
+eg: traceroute -n 192.168.50.1
 why: live-net
 ref: traceroute
 teach: traceroute -n
@@ -72,6 +78,7 @@ hint: -n skips resolving each hop's hostname, so it runs faster
 ---
 q: {the `traceroute` to @ip@ is dragging on -- cap it at ``10`` hops|cap the `traceroute` to @ip@ at ``10`` hops|`traceroute` to @ip@ but stop after ``10`` hops}
 a: traceroute -m 10 @ip@
+eg: traceroute -m 20 192.168.50.1
 why: live-net
 ref: traceroute
 teach: traceroute -m
@@ -79,6 +86,7 @@ hint: -m caps the maximum number of hops traced
 ---
 q: {a firewall may drop udp -- `traceroute` @ip@ with icmp echo|`traceroute` to @ip@ with icmp echo probes instead of udp|switch the `traceroute` to @ip@ over to icmp echo}
 a: traceroute -I @ip@
+eg: traceroute -I 192.168.50.1
 why: live-net
 ref: traceroute
 teach: traceroute -I
@@ -87,6 +95,7 @@ hint: -I switches the probe type to icmp echo instead of udp
 setup: the default wait per hop makes a long trace take forever, and you want through it faster
 q: {`traceroute` to @ip@, waiting at most 2 seconds for each probe|cap each probe's wait to 2 seconds on a `traceroute` to @ip@|`traceroute` to @ip@, waiting no more than 2 seconds per probe}
 a: traceroute -w 2 @ip@
+eg: traceroute -w 5 192.168.50.1
 why: live-net
 ref: traceroute
 teach: traceroute -w
@@ -115,6 +124,7 @@ hint: netstat alone lists the sockets currently in use
 ---
 q: what's accepting connections -- %show% listening sockets, with `netstat`
 a: netstat -l
+eg: netstat -l | grep :443
 why: live-net
 ref: netstat
 teach: netstat -l
@@ -122,6 +132,7 @@ hint: -l filters down to sockets in the listening state
 ---
 q: %show% every socket, listening or not, with `netstat`
 a: netstat -a
+eg: netstat -a | grep ESTABLISHED
 why: live-net
 ref: netstat
 teach: netstat -a
@@ -143,6 +154,7 @@ hint: -t filters to tcp sockets only
 ---
 q: %show% only udp sockets, with `netstat`
 a: netstat -u
+eg: netstat -u | grep :53
 why: live-net
 ref: netstat
 teach: netstat -u
@@ -165,6 +177,7 @@ hint: single-letter flags combine -- tlnp is t, l, n and p together
 setup: a service talks over a local socket file, not the network, and the usual listing won't show it
 q: %show% unix domain sockets, with `netstat`
 a: netstat -x
+eg: netstat -x | grep /tmp
 why: live-net
 ref: netstat
 teach: netstat -x
@@ -173,6 +186,7 @@ hint: -x filters to unix domain sockets
 setup: something on this box talks in raw packets, skipping tcp and udp entirely, and you want to see it
 q: %show% raw sockets, with `netstat`
 a: netstat -w
+eg: netstat -w | head -5
 why: live-net
 ref: netstat
 teach: netstat -w
@@ -181,6 +195,7 @@ hint: -w filters to raw sockets
 setup: you need to know which user owns a socket, not just that it's open
 q: %show% `netstat` output with extended information
 a: netstat -e
+eg: netstat -e | grep root
 why: live-net
 ref: netstat
 teach: netstat -e
@@ -188,6 +203,7 @@ hint: -e adds extended fields like user and inode
 ---
 q: long addresses keep getting cut off -- %show% `netstat` with wide columns
 a: netstat -W
+eg: netstat -W | grep :8443
 why: live-net
 ref: netstat
 teach: netstat -W
