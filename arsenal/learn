@@ -7,9 +7,11 @@
 # so input is a plain read, and a miss is graded and revealed at once rather than
 # held open for retries -- as base learn's boss mode already does.
 #
-#   arsenal learn              the first mission
-#   arsenal learn 04-web       that mission by name
-#   arsenal learn 4            that mission by number
+#   arsenal learn              pick up where you left off
+#   arsenal learn 04-web       a mission by name (or `4` by number)
+#   arsenal learn review       the cards that are due, or the weakest
+#   arsenal learn daily        one card a day, under the clock
+#   arsenal learn stats        mastery, what is due, the streak, the leeches
 #   arsenal learn selftest     prove every card (runs each answer)
 set -u
 
@@ -636,6 +638,10 @@ selftest_graded() {
 			  printf 'quit\n' | review 1 2>&1 | grep -q '? hint'
 			) || { echo "FAIL srs: review skips a backtick card (stale-check too strict)"; bad=$((bad + 1)); }
 		fi
+		# stats reads the ledger and the level files -- prove it runs clean on a
+		# seeded row (a broken held_scan join or leech format would error here).
+		( CARDS="$TMP/stc"; printf '%s/1#x\t2\t%s\t%s\t7\t2\t3\n' "$_first" "$(now)" "$(now)" > "$CARDS"
+		  stats_report >/dev/null 2>&1 ) || { echo "FAIL srs: stats_report errored"; bad=$((bad + 1)); }
 	fi
 
 	total=$(level_ids | grep -c .)
@@ -690,14 +696,59 @@ lint_report() {
 	' "$LEVELS"/*
 }
 
+# stats -- where you stand: mastery per mission, what is due, the daily streak,
+# and the cards that keep getting away. reads the ledger the same way held_ids
+# does (held_scan rebuilds keys from the level files and joins the ledger, so an
+# orphaned row never reads as 6-of-5 mastered). prints plainly, no full-screen.
+stats_report() {
+	local id n m tot=0 mas=0 ndue lk ln lkey lid ltpl
+	printf '  %smastery%s  %s cards\n' "$B" "$N" "$(grep -c . "$CARDS" 2>/dev/null || echo 0)"
+	held_scan > "$TMP/stmas" 2>/dev/null
+	for id in $(level_ids); do
+		n=$(level_nq "$id"); [ "$n" -gt 0 ] || continue
+		m=$(awk -v id="$id" '$1==id{print $2}' "$TMP/stmas"); m=${m:-0}
+		tot=$((tot + n)); mas=$((mas + m))
+		printf '  %s%-16s%s %s%s/%s%s\n' "$W" "$(level_field "$id" name)" "$N" \
+			"$([ "$m" = "$n" ] && printf '%s' "$G" || printf '%s' "$D")" "$m" "$n" "$N"
+	done
+	ndue=$(cards_ndue)
+	printf '  %s%-16s%s %s%s/%s%s  %s%s due%s\n' "$W" total "$N" \
+		"$([ "$mas" = "$tot" ] && printf '%s' "$G" || printf '%s' "$D")" "$mas" "$tot" "$N" \
+		"$([ "${ndue:-0}" -gt 0 ] && printf '%s' "$Y" || printf '%s' "$D")" "${ndue:-0}" "$N"
+	if [ -f "$DAILY" ]; then
+		local dd ds db; read -r dd ds db < "$DAILY" 2>/dev/null || true
+		[ -n "${ds:-}" ] && printf '  %s%-16s%s %s%s%s  %sbest %s%s\n' "$W" "daily streak" "$N" "$G" "${ds:-0}" "$N" "$D" "${db:-0}" "$N"
+	fi
+	lk=$(cards_leeches 3 | head -5)
+	if [ -n "$lk" ]; then
+		rule; note "keeps getting away"
+		printf '%s\n' "$lk" | while IFS="$(printf '\t')" read -r ln lkey; do
+			[ -n "$lkey" ] || continue
+			lid=${lkey%%/*}; ltpl=${lkey#*#}
+			# collapse a card's {a|b} to its first branch for the one-line label.
+			printf '  %s%2sx%s %s%3s%s %s\n' "$R" "$ln" "$N" "$D" "${lid%%-*}" "$N" \
+				"$(printf '%s' "$ltpl" | sed 's/{\([^{}|]*\)|[^{}]*}/\1/g' | cut -c1-56)"
+		done
+	fi
+}
+
 main() {
 	local arg=${1:-} lvl rc ndue
 	case "$arg" in
 		selftest) selftest_graded; exit $? ;;
 		list)     level_ids; exit 0 ;;
 		lint)     lint_report; exit 0 ;;
+		stats)    stats_report; exit 0 ;;
 		review)   shift; review "${1:-20}"; exit $? ;;
 		daily)    daily; exit $? ;;
+		-h|--help|help)
+			printf 'usage: arsenal learn [mission|verb]\n'
+			printf '  (no arg)   pick up where you left off\n'
+			printf '  <name|n>   a mission by name or number\n'
+			printf '  review     the cards that are due, or the weakest\n'
+			printf '  daily      one card a day, under the clock\n'
+			printf '  stats      mastery, what is due, the streak, the leeches\n'
+			exit 0 ;;
 	esac
 	if [ -z "$arg" ]; then
 		# bare `arsenal learn` resumes at the first mission whose boss has not
