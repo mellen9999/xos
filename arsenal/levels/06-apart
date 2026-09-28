@@ -7,7 +7,7 @@ brief: reads a program's shape -- what it is, how it was built -- safely, unexec
 brief: `cc` turns text into a real program, so you can build your own tools here too.
 tools: binwalk radare2 cc
 ---
-q: scan ``mystery.bin`` for what is packed inside it, with `binwalk`
+q: {take a first pass at|run an initial check on|look closely at} ``mystery.bin`` for what is packed inside it, with `binwalk`
 a: binwalk mystery.bin
 out: gzip compressed data
 ref: binwalk
@@ -16,7 +16,7 @@ hint: binwalk takes just the file -- no flags needed to scan it
 seed: printf 'plain header padding, nothing to see here' > mystery.bin
 seed: printf 'a hidden payload' | gzip >> mystery.bin
 ---
-q: pull the pieces `binwalk` found out of ``mystery.bin``
+q: {pull the pieces|extract everything|carve out whatever} `binwalk` found out of ``mystery.bin``
 a: binwalk -e mystery.bin
 state: exists:extractions
 ref: binwalk
@@ -25,7 +25,7 @@ hint: -e extracts every piece it recognised into its own folder
 seed: printf 'plain header padding, nothing to see here' > mystery.bin
 seed: printf 'a hidden payload' | gzip >> mystery.bin
 ---
-q: find out what kind of program ``hello`` is, without running it, with `radare2`
+q: {find out what kind of program|identify what type of binary|figure out what sort of executable} ``hello`` is, without running it, with `radare2`
 a: rabin2 -I hello
 out: [Ee][Ll][Ff]
 ref: radare2
@@ -33,20 +33,20 @@ teach: radare2
 hint: rabin2 -I prints the binary's info -- type, arch, os -- unexecuted
 seed: cp /bin/busybox hello
 ---
-q: open ``hello`` to read it, without executing it, with `radare2`
+q: {crack open|pull up|drop into} ``hello`` to read it, without executing it, with `radare2`
 a: r2 hello
 ref: radare2
 teach: radare2
 hint: r2 drops you into radare2's own prompt to explore the binary
 ---
-q: turn ``hello.c`` into a program and run it, with `cc`
+q: ``hello.c`` -- {turn it into a program and run it|compile it and run whatever comes out|build it into an executable and launch it}, with `cc`
 a: cc hello.c -o hello.out && ./hello.out
 ref: cc
 teach: cc
 hint: cc the source, -o names the output, then run what it built
 seed: printf '#include <stdio.h>\nint main(void) { printf("hello from xos\\n"); return 0; }\n' > hello.c
 ---
-q: compile ``hello.c`` into a program named ``hello.out``, with `cc`, without running it
+q: {take the source file and compile|grab the code and build|put together a build from} ``hello.c`` into a program named ``hello.out``, with `cc`, without running it
 a: cc hello.c -o hello.out
 ref: cc
 teach: cc

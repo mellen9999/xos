@@ -11,21 +11,21 @@ brief: `xexec`; here you are graded on knowing the right invocation, not
 brief: on running it.
 tools: pspy strace ddrescue testdisk photorec smartctl
 ---
-q: watch every process that starts, for 3 seconds, with `pspy`
+q: {watch every new process for exactly 3 seconds|capture 3 seconds of every process that starts|keep an eye on process starts for a 3-second window}, with `pspy`
 a: timeout 3 pspy 2>/dev/null || true
 out: [Pp]spy
 ref: pspy
 teach: pspy
 hint: timeout caps the watch at 3s, pspy needs no root, `|| true` swallows a nonzero exit
 ---
-q: trace every `open`/`openat` call `busybox true` makes, showing the first 8 lines, with `strace`
+q: {see which files it tries to open|watch its open-related syscalls happen|catch exactly what it opens, syscall by syscall} -- trace every `open`/`openat` call `busybox true` makes, first 8 lines, with `strace`
 a: strace -f -e trace=open,openat busybox true 2>&1 | head -8
 out: exited with 0
 ref: strace
 teach: strace
 hint: -f follows forks, -e trace= filters to the syscalls named, 2>&1 carries strace's own stderr into the pipe
 ---
-q: rescue ``mystery.bin`` into ``rescued.img``, logging the bad spots to ``rescue.map``, with `ddrescue`
+q: {the source might be failing, so copy what you still can|treat it like a dying drive and pull off every readable byte|assume part of it won't read, and salvage what does} -- rescue ``mystery.bin`` into ``rescued.img``, logging the bad spots to ``rescue.map``, with `ddrescue`
 a: ddrescue -f mystery.bin rescued.img rescue.map 2>&1 | tail -4
 out: Finished
 ref: ddrescue
@@ -33,19 +33,19 @@ teach: ddrescue
 hint: -f forces the output file, then source, destination image, then the map that survives a retry
 seed: dd if=/dev/zero of=mystery.bin bs=1k count=4 2>/dev/null
 ---
-q: rebuild the wiped partition table on ``image.img``, with `testdisk`
+q: ``image.img`` {lost its partition table -- rebuild it|has a wiped partition table -- put it back|came back with no partition table at all -- reconstruct it}, with `testdisk`
 a: testdisk image.img
 ref: testdisk
 teach: testdisk
 hint: one argument, the image -- full-screen after that, so this is graded on the invocation alone
 ---
-q: carve files straight off ``image.img`` by their shape, ignoring the partition table, with `photorec`
+q: ``image.img`` {has no usable partition table -- carve files out by their shape instead|partition table is gone -- recover files by their raw shape instead|table is unreadable -- pull files straight out by matching their shape}, with `photorec`
 a: photorec image.img
 ref: photorec
 teach: photorec
 hint: same one argument as testdisk -- the last resort when the table itself is unrecoverable
 ---
-q: check whether ``/dev/sda`` is dying, with `smartctl`
+q: ``/dev/sda`` {might be failing -- get its health verdict|could be on its way out -- ask for a pass/fail health check|may be dying -- pull its overall health status}, with `smartctl`
 a: smartctl -H /dev/sda
 ref: smartctl
 teach: smartctl

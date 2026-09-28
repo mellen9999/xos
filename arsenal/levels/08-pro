@@ -12,28 +12,28 @@ brief: fast; `whois` looks up who owns an address. None of them run here --
 brief: there is no safe local stand-in -- so know the invocation, and never
 brief: point it anywhere but home.
 ---
-q: find and dump the databases behind a sql injection at ``127.0.0.1``, with `sqlmap`
+q: {find and dump the databases behind a sql injection at|pull every database out through a sql injection at|grind through the sql injection until the databases spill out at} ``127.0.0.1``, with `sqlmap`
 a: sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/sqlmap/sqlmap.py -u 'http://127.0.0.1/item?id=1' --batch --dbs
 a: python3 ~/tools/sqlmap/sqlmap.py -u 'http://127.0.0.1/item?id=1' --batch --dbs
 ref: sqlmap
 teach: sqlmap
 hint: -u the vulnerable url, --batch answers every prompt itself, --dbs lists the databases it finds
 ---
-q: dump the password hashes from a Windows host at ``127.0.0.1`` you already have creds for, with `impacket`'s `secretsdump.py`
+q: {dump the password hashes from a Windows host you already have creds for, at|you're already in with valid credentials on a Windows machine -- rip its hashes out, at|use those Windows creds to rip the password hashes out of the host at} ``127.0.0.1``, with `impacket`'s `secretsdump.py`
 a: sh ~/tools/xexec -t ~/tools/python bin/python3 ~/tools/impacket/secretsdump.py DOMAIN/user:pass@127.0.0.1
 a: python3 ~/tools/impacket/secretsdump.py DOMAIN/user:pass@127.0.0.1
 ref: impacket
 teach: impacket
 hint: secretsdump.py, then domain/user:pass@host -- 70 more scripts live in the same folder
 ---
-q: stand up a `chisel` reverse-tunnel server on your own box, port 8080
+q: {stand up a reverse-tunnel server on your own box, port 8080, with|get a reverse-tunnel listener running locally on port 8080, with|you need a way back in from outside a firewall -- open a reverse-tunnel server on port 8080, using} `chisel`
 a: chisel server -p 8080 --reverse
 a: sh ~/tools/xexec chisel server -p 8080 --reverse
 ref: chisel
 teach: chisel
 hint: server mode, -p the port it listens on, --reverse lets a client dial in from the far side
 ---
-q: forward a `socat` listener on port 9000 to port 445 on ``127.0.0.1``
+q: {forward a listener on port 9000 to port 445 on|take anything hitting port 9000 and relay it to port 445 on|bridge port 9000 through to port 445 on} ``127.0.0.1``, with `socat`
 a: socat TCP-LISTEN:9000,fork TCP:127.0.0.1:445
 a: socat TCP-LISTEN:9000,fork,reuseaddr TCP:127.0.0.1:445
 a: sh ~/tools/xexec socat TCP-LISTEN:9000,fork TCP:127.0.0.1:445
@@ -41,14 +41,14 @@ ref: socat
 teach: socat
 hint: TCP-LISTEN with fork accepts more than one connection, then the destination host:port
 ---
-q: start `ligolo-proxy`'s operator side with a self-signed cert
+q: {start the operator side with a self-signed cert, using|bring up the operator console behind a self-signed cert, with|spin up the proxy's control console, self-signed cert and all, using} `ligolo-proxy`
 a: ligolo-proxy -selfcert
 a: sh ~/tools/xexec ligolo-proxy -selfcert
 ref: ligolo-proxy
 teach: ligolo-proxy
 hint: -selfcert skips needing a real certificate for the tunnel
 ---
-q: connect `ligolo-agent` back to a proxy waiting on ``127.0.0.1``, port 11601
+q: {connect back to a proxy waiting on|have the agent phone home to the proxy sitting on|point the agent at the proxy that's listening on} ``127.0.0.1``, port 11601, with `ligolo-agent`
 a: ligolo-agent -connect 127.0.0.1:11601
 a: ligolo-agent -connect 127.0.0.1:11601 -ignore-cert
 a: sh ~/tools/xexec ligolo-agent -connect 127.0.0.1:11601
@@ -56,14 +56,14 @@ ref: ligolo-agent
 teach: ligolo-agent
 hint: -connect host:port of the proxy; -ignore-cert matches its -selfcert
 ---
-q: scan every port on ``127.0.0.1`` fast, with `masscan`
+q: {scan every port on|sweep the full port range on|blow through all 65535 ports on} ``127.0.0.1`` fast, with `masscan`
 a: masscan -p1-65535 127.0.0.1 --rate 10000
 a: sh ~/tools/xexec masscan -p1-65535 127.0.0.1 --rate 10000
 ref: masscan
 teach: masscan
 hint: -p the port range, the address (or range) last, --rate packets per second
 ---
-q: ask the public registry who owns ``127.0.0.1``, with `whois`
+q: {ask the public registry who owns|look up who owns|find out who's behind} ``127.0.0.1``, with `whois`
 a: whois 127.0.0.1
 a: sh ~/tools/xexec whois 127.0.0.1
 ref: whois
