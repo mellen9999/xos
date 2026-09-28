@@ -643,11 +643,59 @@ selftest_graded() {
 	[ "$bad" = 0 ]
 }
 
+# lint -- the authoring ledger, reported never gated (a hard gate on wording
+# breeds filler, same call base learn made). single-phrasing and same-words say
+# whether a card can be memorised as a fixed string; unnamed-token whether the
+# answer needs a @token@ the prompt never shows (a lab @...port@ counts as named
+# when its @...url@ sibling is, since the url embeds the port); ungraded counts
+# the recognition-only cards (no safe local target), hintless the ones with no
+# hint. runs nothing, reads only the level files.
+lint_report() {
+	awk '
+		function norm(b,  x){ x=b; gsub(/`[^`]*`/,"",x); gsub(/@[a-z]+@/,"",x); gsub(/%[a-z]+%/,"",x); gsub(/[^a-zA-Z ]/," ",x); return tolower(x) }
+		function named(tk, q, hint,  sib){
+			if(index(q,tk)||index(hint,tk)) return 1
+			if(tk ~ /port@$/){ sib=tk; sub(/port@$/,"url@",sib); if(index(q,sib)||index(hint,sib)) return 1 }
+			return 0
+		}
+		BEGIN{ RS="\n---\n" }
+		/(^|\n)q:/{
+			q=""; a=""; hint=""; graded=0
+			n=split($0,L,"\n")
+			for(i=1;i<=n;i++){
+				if(L[i]~/^q: /){ t=L[i]; sub(/^q: ?/,"",t); q=(q==""?t:q" "t) }
+				else if(L[i]~/^a: /&&a==""){ a=L[i]; sub(/^a: ?/,"",a) }
+				else if(L[i]~/^hint:/)hint=L[i]
+				else if(L[i]~/^(out|state|status):/)graded=1
+			}
+			if(q=="")next
+			cards++
+			if(hint=="")hl++
+			if(!graded)ung++
+			if(q !~ /\{[^{}]*\|[^{}]*\}/)single++
+			line=q
+			while(match(line,/\{[^{}]*\|[^{}]*\}/)){ inner=substr(line,RSTART+1,RLENGTH-2); line=substr(line,RSTART+RLENGTH)
+				nb=split(inner,br,"|")
+				for(i=1;i<nb;i++)for(j=i+1;j<=nb;j++){
+					delete S; np=split(norm(br[j]),P," "); for(x=1;x<=np;x++)if(P[x]!="")S[P[x]]=1
+					c=0;t=0; na=split(norm(br[i]),A," "); for(x=1;x<=na;x++)if(A[x]!=""){t++; if(A[x] in S)c++}
+					if(t>0 && c/t>=0.75){ sw++; break }
+				}
+			}
+			s=a; delete atok
+			while(match(s,/@[a-z]+@/)){ tk=substr(s,RSTART,RLENGTH); s=substr(s,RSTART+RLENGTH); if(!named(tk,q,hint))atok[tk]=1 }
+			for(tk in atok)ut++
+		}
+		END{ printf "arsenal lint: %d cards, %d single-phrasing, %d same-words, %d unnamed-token, %d ungraded, %d hintless\n", cards, single+0, sw+0, ut+0, ung+0, hl+0 }
+	' "$LEVELS"/*
+}
+
 main() {
 	local arg=${1:-} lvl rc ndue
 	case "$arg" in
 		selftest) selftest_graded; exit $? ;;
 		list)     level_ids; exit 0 ;;
+		lint)     lint_report; exit 0 ;;
 		review)   shift; review "${1:-20}"; exit $? ;;
 		daily)    daily; exit $? ;;
 	esac

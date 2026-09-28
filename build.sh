@@ -4689,6 +4689,10 @@ ci() {
     as_out=$(ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn selftest 2>&1) || as_rc=1
     printf '%s\n' "$as_out" | grep -vE '^note ' >&2 || true
     [ "$as_rc" -eq 0 ] || rc=1
+    # the authoring ledger: advisory like learn's (never gated -- a hard rule on
+    # wording breeds filler), printed so single-phrasing/same-words drift shows.
+    say "arsenal authoring ledger"
+    ARSENAL_ROOT="$PWD/arsenal" "$bb" ash arsenal/learn lint 2>&1 || true
   fi
   # the copied engine libs must still match the fort's -- the one gate that
   # stops a fix landing in one tree and not the other (the drift this session found).
