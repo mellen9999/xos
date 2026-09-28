@@ -98,7 +98,13 @@ jail_init() {
 		fi
 	done
 	# write-once -> W^X: the exec surface is read-only for the rest of the session.
-	[ "$JAIL_MOUNTED" = 1 ] && mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$JAIL_EXEC" 2>/dev/null
+	# a hard failure, not a warning -- a surface that stayed writable is not the
+	# guarantee this jail claims, so a failed remount aborts jail_init instead of
+	# silently running with a forgeable exec surface.
+	if [ "$JAIL_MOUNTED" = 1 ]; then
+		mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$JAIL_EXEC" 2>/dev/null \
+			|| { echo "jail: failed to remount $JAIL_EXEC read-only" >&2; return 1; }
+	fi
 	[ -n "$JAIL_DROP" ] && chown nobody "$JAIL_SCRATCH" 2>/dev/null
 	return 0
 }
