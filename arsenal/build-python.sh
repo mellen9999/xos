@@ -49,8 +49,14 @@ cd "$OUT"
 # (a bare --depth 1 would drift to whatever HEAD happens to be).
 if [ ! -d sqlmap ]; then
   git clone --filter=blob:none https://github.com/sqlmapproject/sqlmap sqlmap >/dev/null 2>&1
-  git -C sqlmap checkout -q "$SQLMAP_REV"
 fi
+# land on the exact pin EVERY run, not only the first clone: an existing checkout
+# left at some other commit (stale, hand-edited, tampered) would otherwise ship
+# unverified -- the same re-check build-docs/build-arsenal-c already do. assert it.
+git -C sqlmap checkout -q "$SQLMAP_REV" 2>/dev/null \
+  || { echo "FAIL: sqlmap cannot check out pin $SQLMAP_REV" >&2; exit 1; }
+_sh=$(git -C sqlmap rev-parse HEAD 2>/dev/null)
+case "$_sh" in "$SQLMAP_REV"*) : ;; *) echo "FAIL: sqlmap HEAD $_sh != pin $SQLMAP_REV" >&2; exit 1 ;; esac
 # ---- impacket: the carried python offensive suite -------------------------
 # every wheel version+sha256-pinned in impacket.requirements; --require-hashes
 # --no-deps makes pip refuse anything not named there (the complete 21-dist

@@ -45,6 +45,7 @@ for b in kiwix-serve kiwix-search; do
   # a static-PIE binary has NO INTERP; a dynamic one would need a loader the
   # target lacks. gate it, so a changed upstream build fails loud not at runtime.
   readelf -l "$OUT/$b" 2>/dev/null | grep -q INTERP && {
+    rm -f "$OUT/$b"   # do not leave the rejected binary in $OUT for a later step to trust
     echo "FAIL: $b is dynamically linked (has INTERP) -- not portable to xos" >&2; exit 1; }
 done
 echo "staged: kiwix-serve + kiwix-search $KIWIXVER (static-PIE musl)"

@@ -565,6 +565,10 @@ clone_pinned() {
   B=build/binr/blob/r2blob.static
   readelf -l "$B" | grep -q INTERP && { echo "r2blob not static"; exit 1; }
   strip "$B"; cp "$B" /out/radare2
+  # the blob is a multicall binary (argv[0] dispatches, busybox-style), and the
+  # field name everyone types -- and the name the r2 card teaches -- is `r2`.
+  # without this the stick ships only `radare2` and `r2 hello` is command-not-found.
+  ln -sf radare2 /out/r2
   "/out/radare2" -v 2>&1 | head -1 ) || log "radare2 FAILED"
 
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine
@@ -599,7 +603,7 @@ clone_pinned() {
 # is the next add, not a blocker.
 
 
-echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file|mandoc|minisign|dvtm|rsync|binwalk)$' | tr '\n' ' ')"
+echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file|mandoc|minisign|dvtm|rsync|binwalk|qrencode|radare2|cc)$' | tr '\n' ' ')"
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to
@@ -607,7 +611,9 @@ echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # a builder that ships nothing must fail, not shrink -- the same rule as rootfs().
 # john ships as a tree (john/john inside), not a lone file -- checked with -e.
 built=0
-for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg minisign dvtm rsync; do [ -f "$OUT/$b" ] && built=$((built+1)); done
+for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg zstd ddrescue strace testdisk photorec smartctl file mandoc minisign dvtm rsync binwalk qrencode radare2; do [ -f "$OUT/$b" ] && built=$((built+1)); done
+# john and cc ship as TREES (john/john, cc/tcc-bin), not lone files.
 [ -f "$OUT/john/john" ] && built=$((built+1))
+[ -d "$OUT/cc" ] && built=$((built+1))
 [ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
 echo "note: refresh arsenal/arsenal.lock after (sha256 + sizes)."
