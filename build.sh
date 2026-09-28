@@ -4711,6 +4711,27 @@ ci() {
   else
     printf '  every card has exactly one q:\n'
   fi
+  # every carried FIELD tool is drilled by at least one card -- the curriculum's
+  # promise ("learn the whole toolkit") made a build gate, the same completeness
+  # G24/G26 hold base learn to. the stick's OWN presentation utilities render
+  # maps/charts/images/qr codes: you use them, you do not drill them, so they are
+  # exempt by name -- and a sixth one added later fails this until someone says so.
+  if [ -f arsenal/arsenal-catalog ] && [ -d arsenal/levels ]; then
+    say "every field tool has a card"
+    local _cov_miss
+    _cov_miss=$(comm -23 \
+      <(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | sort -u) \
+      <( { grep -h '^teach:' arsenal/levels/* 2>/dev/null | sed 's/^teach: *//'
+           grep -h '^a:'     arsenal/levels/* 2>/dev/null | sed 's/^a: *//' | awk '{print $1}'
+           grep -h '^tools:'  arsenal/levels/* 2>/dev/null | sed 's/^tools: *//' | tr ' ' '\n'
+         } | sort -u ) \
+      | grep -vwE 'atlas|chart|view|qr|qrencode' || true)   # grep exits 1 when it filters all out (the pass case); set -e must not see it
+    if [ -n "$_cov_miss" ]; then
+      printf '  \033[1;31mcarried tool with no card\033[0m (add one, or exempt it if it is a utility): %s\n' "$(echo $_cov_miss)" >&2; rc=1
+    else
+      printf '  every field tool is drilled\n'
+    fi
+  fi
   # the copied engine libs must still match the fort's -- the one gate that
   # stops a fix landing in one tree and not the other (the drift this session found).
   [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }
