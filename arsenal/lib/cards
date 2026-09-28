@@ -70,7 +70,12 @@ _cards_unlock() { flock -u 8 2>/dev/null; { exec 8>&-; } 2>/dev/null; :; }
 # whose prompt gains a `mktemp` is the same card it was the day before, and
 # keying on the raw line would have orphaned every SRS row in the ledger the
 # moment the corpus was marked up.
-card_key() { printf '%s/%s#%s' "$1" "$2" "$3" | tr -d '\t`'; }
+# the newline is struck off with the tab and the backtick: the ledger is one
+# tab-separated row per card, so a key that carried a newline (a card written
+# with two q: lines) would split its own row and corrupt every later read. no
+# shipped card does that -- a build gate forbids it -- but the key stays valid
+# even if one slipped through, because data integrity is not left to a gate alone.
+card_key() { printf '%s/%s#%s' "$1" "$2" "$3" | tr -d '\t\n`'; }
 
 card_tier() {
 	[ -f "$CARDS" ] || { echo 0; return; }

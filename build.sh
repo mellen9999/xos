@@ -4694,6 +4694,23 @@ ci() {
     say "arsenal authoring ledger"
     ARSENAL_ROOT="$PWD/arsenal" "$bb" ash arsenal/learn lint 2>&1 || true
   fi
+  # one q: per card, across every corpus that becomes SRS cards. the card key
+  # is the q: template, stored one tab-separated row per card; a second q: line
+  # gives held_keys (which reads only the first) a different key than blk_load
+  # (which reads them all), so the card would never register as held -- the same
+  # grade-time-vs-read-time split as the review bug. forbid it at the source.
+  say "one q: per card"
+  local q2
+  q2=$(awk '
+    FNR==1{ blk=0; q=0 }
+    /^---$/{ blk++; q=0; next }
+    /^q: /{ q++; if(q==2) printf "  %s block %d has a second q:\n", FILENAME, blk }
+  ' learn/levels/* learn/scenarios/* learn/chains arsenal/levels/* 2>/dev/null)
+  if [ -n "$q2" ]; then
+    printf '  \033[1;31mmultiple q: lines in one block\033[0m\n%s\n' "$q2" >&2; rc=1
+  else
+    printf '  every card has exactly one q:\n'
+  fi
   # the copied engine libs must still match the fort's -- the one gate that
   # stops a fix landing in one tree and not the other (the drift this session found).
   [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }
