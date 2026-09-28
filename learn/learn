@@ -873,9 +873,12 @@ review() {
 		fi
 		[ -f "$path" ] || continue
 		# a card whose template no longer matches its block is stale -- the
-		# file was edited since. skip it rather than ask the wrong thing.
+		# file was edited since. skip it rather than ask the wrong thing. the
+		# stored tpl is card_key's backtick/tab-stripped form, so Q_TPL must be
+		# stripped the same way before comparing -- a raw compare called every
+		# ``name``-marked card stale and dropped it from every review.
 		blk_load "$path" "$idx" >/dev/null 2>&1 || continue
-		[ "$Q_TPL" = "$tpl" ] || continue
+		[ "$(printf '%s' "$Q_TPL" | tr -d '\t`')" = "$tpl" ] || continue
 		k=$((k + 1))
 		cls
 		statusbar "review" "$sub" "$k" "$nc" ""
@@ -2495,6 +2498,23 @@ selftest() {
 	  [ "$(cut -f5 "$CARDS")" = 180 ] || exit 1
 	  exit 0 ) \
 		|| { echo "FAIL cards: the due queue or the interval ceiling is wrong" >&2; bad=$((bad+1)); }
+
+	# review must ASK a marked-up card, not skip it as stale: the stored key is
+	# card_key's backtick-stripped form, so a raw-template compare dropped every
+	# ``name``-marked card from every review. seed a due row for a real backtick
+	# card in the first level and prove review renders it ('? hint' prints only
+	# once a card is on screen).
+	( _rl=$(level_ids | head -1); _rn=$(level_nq "$_rl"); _ri=1
+	  while [ "$_ri" -le "$_rn" ]; do
+		blk_load "$(level_path "$_rl")" "$_ri" >/dev/null 2>&1 && case "$Q_TPL" in *'`'*) break ;; esac
+		_ri=$((_ri + 1))
+	  done
+	  [ "$_ri" -le "$_rn" ] || exit 0   # no marked-up card here, nothing to prove
+	  CARDS="$TMP/revc"; SESSION_SEEN="$TMP/revs"
+	  _rk=$(card_key "$_rl" "$_ri" "$Q_TPL")
+	  printf '%s\t1\t%s\t%s\t1\t1\t0\n' "$_rk" "$(now)" "$(( $(now) - 86400 ))" > "$CARDS"
+	  printf 'quit\n' | review 1 2>&1 | grep -q '? hint' ) \
+		|| { echo "FAIL review: a marked-up card is skipped as stale" >&2; bad=$((bad+1)); }
 
 	( CARDS="$TMP/sc4"; SESSION_SEEN="$TMP/ss4"
 	  : > "$CARDS"; : > "$SESSION_SEEN"
