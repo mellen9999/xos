@@ -24,6 +24,22 @@ MNT=/run/xosprov
 [ "$(id -u)" = 0 ] || exec sudo -E "$0" "$@"
 [ -b "$DEV" ] || { echo "not a block device: $DEV" >&2; exit 1; }
 cryptsetup isLuks "$DEV" || { echo "$DEV is not LUKS -- is that p3?" >&2; exit 1; }
+# identity guard: addstate luksFormats p3 with label XOS-STATE (build.sh:4040).
+# isLuks alone would happily open a typo'd device -- your own encrypted home,
+# another stick -- and populate() would then overwrite it. require the label, so
+# only an xos state volume is ever opened. fail-safe: a missing/unreadable label
+# reads as empty and refuses; it can never wrongly ALLOW. XOS_PROVISION_ANYLUKS=1
+# is the loud escape hatch for a legitimate p3 made before the label existed.
+_lbl=$(cryptsetup luksDump "$DEV" 2>/dev/null | awk '/^Label:/{print $2; exit}')
+if [ "$_lbl" != XOS-STATE ]; then
+	if [ "${XOS_PROVISION_ANYLUKS:-}" = 1 ]; then
+		echo "warning: $DEV label is '${_lbl:-none}', not XOS-STATE -- overriding on XOS_PROVISION_ANYLUKS=1" >&2
+	else
+		echo "$DEV is LUKS but not an xos p3 (label '${_lbl:-none}', want XOS-STATE) -- refusing to overwrite." >&2
+		echo "if this really is your p3 (made before the label), re-run with XOS_PROVISION_ANYLUKS=1" >&2
+		exit 1
+	fi
+fi
 
 echo "provisioning arsenal onto $DEV"
 cryptsetup open "$DEV" "$MAP"
