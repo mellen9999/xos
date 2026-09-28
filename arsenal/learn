@@ -69,8 +69,15 @@ level_jail() {
 	local t paths=""
 	jail_teardown 2>/dev/null
 	lab_down 2>/dev/null
+	# JAIL_MISSING names the level's tools: that this host has no binary for.
+	# the stick (provision stages all of them) leaves it empty and selftest runs
+	# every card for real; a dev host missing a carried tool cannot run-grade the
+	# cards that use it, so selftest notes+skips those rather than failing on an
+	# absence that is not a card bug. see selftest_graded's tier-2 block.
+	JAIL_MISSING=""
 	for t in $(level_field "$1" tools); do
-		p=$(tool_path "$t") && [ -n "$p" ] && paths="$paths $p"
+		if p=$(tool_path "$t") && [ -n "$p" ]; then paths="$paths $p"
+		else JAIL_MISSING="$JAIL_MISSING $t"; fi
 	done
 	# shellcheck disable=SC2086
 	jail_init $paths || die "jail_init failed for $1"
@@ -325,7 +332,7 @@ run_level() {
 # the output/state is judged, so a card that cannot pass itself fails the build.
 # runs nothing interactive.
 selftest_graded() {
-	local id nq i first bad=0 b bosses="" total
+	local id nq i first bad=0 b bosses="" total _skip _m
 	for id in $(level_ids); do
 		nq=$(level_nq "$id")
 		[ "$nq" -gt 0 ] || { echo "FAIL $id: no questions"; bad=$((bad + 1)); continue; }
@@ -352,7 +359,13 @@ selftest_graded() {
 			# never exercises out:/state:/tools. run the answer for real and hold
 			# its observable against the assertion -- this is what proves the
 			# fixture seed, the staged tool and the regex are actually right.
-			if [ -n "${Q_OUT:-}${Q_STATE:-}${Q_STATUS:-}" ] && [ -n "$first" ]; then
+			_skip=""
+			for _m in ${JAIL_MISSING:-}; do
+				case " $first " in *" $_m "*|*"/$_m "*|*"$_m;"*|*"$_m|"*) _skip=$_m ;; esac
+			done
+			if [ -n "${Q_OUT:-}${Q_STATE:-}${Q_STATUS:-}" ] && [ -n "$first" ] && [ -n "$_skip" ]; then
+				echo "note $id/$i: skip run-grade -- '$_skip' not on this host"
+			elif [ -n "${Q_OUT:-}${Q_STATE:-}${Q_STATUS:-}" ] && [ -n "$first" ]; then
 				_g=$(run_answer "$first"); _rc=$?
 				[ -z "${Q_OUT:-}" ]    || printf '%s\n' "$_g" | grep -qE -- "$Q_OUT" \
 					|| { echo "FAIL $id/$i: out:/$Q_OUT/ does not match what '$first' prints"; bad=$((bad + 1)); }

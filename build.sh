@@ -2847,8 +2847,10 @@ G44EOF
   g "G38 build scripts parse under bash" "$g38"
 
   # G48 -- the scripts G35 and G38 do not name: the commit hook, the arsenal
-  # builders, the on-stick helpers (arsenal, xexec, the learn installers), and
-  # the two CI runners. the hook is the sharp one -- it IS gate G9, and a syntax
+  # builders, the on-stick helpers (arsenal, xexec, the learn installers), the
+  # graded arsenal school (arsenal/learn + its lib/*, which ride p3 off-image so
+  # nothing else parse-checks them), and the two CI runners. the hook is the
+  # sharp one -- it IS gate G9, and a syntax
   # error in it makes git skip it silently, so the guard would wave through the
   # artifacts and keys it exists to stop. the runners are the same shape of
   # danger one level out: they are what runs every other gate unattended, and a
@@ -2859,6 +2861,7 @@ G44EOF
   local g48=ok f48 e48 chk48 f48py
   for f48 in githooks/pre-commit learn/install.sh learn/push learn/wrapper \
              arsenal/*.sh arsenal/arsenal arsenal/xexec arsenal/qr \
+             arsenal/learn arsenal/lib/* \
              ci/lib.sh ci/xos-repro ci/xos-ci-full; do
     [ -f "$f48" ] || continue
     case "$(head -1 "$f48")" in *bash) chk48="bash -n" ;; *) chk48="$bb35 ash -n" ;; esac
@@ -4564,7 +4567,8 @@ ci() {
   for f in build.sh selftest.sh init learn/learn learn/lib/* \
            overlay/usr/share/udhcpc/default.script githooks/pre-commit githooks/pre-push \
            learn/install.sh learn/push learn/wrapper ci/xos-* \
-           arsenal/*.sh arsenal/arsenal arsenal/xexec arsenal/qr; do
+           arsenal/*.sh arsenal/arsenal arsenal/xexec arsenal/qr \
+           arsenal/learn arsenal/lib/*; do
     [ -f "$f" ] || continue
     # ci/xos-* also matches the systemd units and the tier README; those are
     # not scripts and `sh -n` on one is a confusing failure, not a finding.
@@ -4624,6 +4628,22 @@ ci() {
     cv_out=$(LEARN_ROOT="$PWD/learn" "$bb" ash learn/learn coverage -q 2>&1) || cv_rc=1
     printf '%s\n' "$cv_out" | sed -n '3,5p'
     [ "$cv_rc" -eq 0 ] || { printf '%s\n' "$cv_out" >&2; rc=1; }
+  fi
+  # the graded arsenal school, the same static net G25 gives base learn: render
+  # every card, grade each card's own answer, and hold unique-boss / >=5-per-boss.
+  # arsenal rides p3 off-image and its tools stage on the stick, so a lean ci host
+  # has only some of them -- selftest_graded notes+skips a card whose carried tool
+  # is absent here (the stick, with every tool staged, runs them all at provision).
+  # so a broken engine, a duplicate boss or a card that cannot grade its own answer
+  # is caught on the push, while a merely-absent tool is not mistaken for a defect.
+  if [ -d arsenal/levels ] && [ -n "$bb" ]; then
+    say "arsenal school selftest"
+    # captured, not piped: a pipe returns grep's status, so a real selftest
+    # failure would sail past (the same trap the learn coverage block names).
+    local as_out as_rc=0
+    as_out=$(ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn selftest 2>&1) || as_rc=1
+    printf '%s\n' "$as_out" | grep -vE '^note ' >&2 || true
+    [ "$as_rc" -eq 0 ] || rc=1
   fi
   [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
                   || printf '\033[1;31m  ci: FAILED\033[0m\n'
