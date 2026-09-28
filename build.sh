@@ -4523,6 +4523,11 @@ lint() {
   out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script \
                     ci/xos-repro ci/xos-ci-full githooks/pre-commit githooks/pre-push; echo)
   out+=$(shellcheck -s sh learn/lib/*; echo)
+  # the arsenal tree was never shellchecked though it is the security-tooling
+  # half of the codebase: the school driver, its libs, the xexec doorway and the
+  # provisioning scripts. PARITY/rekeys are data, not scripts, and live outside
+  # arsenal/lib so this glob does not reach them.
+  out+=$(shellcheck -s sh arsenal/learn arsenal/arsenal arsenal/xexec arsenal/qr arsenal/*.sh arsenal/lib/*; echo)
   printf '%s\n' "$out"
   # warnings/info are noise until they aren't; only error-severity fails the
   # run, so a bump in shellcheck's own defaults can't silently red the tree.
@@ -4532,6 +4537,46 @@ lint() {
   fi
   printf '  \033[1;32mno shellcheck errors\033[0m\n'
   return 0
+}
+
+libparity() {
+  # the engine libs arsenal COPIES from the fort must not silently drift. p3
+  # cannot source the signed fort (the signing boundary), so lib/cards lib/coach
+  # lib/ctx lib/grade lib/ui are duplicated by hand -- and a fix that lands in
+  # one copy and not the other is exactly how two ui fixes and the whole SRS
+  # read-side went missing from arsenal for a release. every shared basename
+  # (learn/lib INTERSECT arsenal/lib, discovered here so a future lib is covered
+  # for free) must be byte-identical, EXCEPT the pairs pinned in
+  # arsenal/lib/PARITY -- and a pinned pair is checked by hash on BOTH sides, so
+  # the pin cannot be quieted by editing one file to match the other, or both
+  # without re-pinning. reads only committed files: buildless by construction.
+  # the pin file (arsenal/PARITY) lives top-level, not under arsenal/lib, so the
+  # script-parse and shellcheck globs never try to read its data rows as shell.
+  say "engine-lib parity (learn/lib <-> arsenal/lib)"
+  local f lh ah pin="arsenal/PARITY" bad=0 want_l want_a
+  for f in $(comm -12 <(ls learn/lib 2>/dev/null | sort) <(ls arsenal/lib 2>/dev/null | sort)); do
+    [ -f "learn/lib/$f" ] && [ -f "arsenal/lib/$f" ] || continue
+    lh=$(sha256sum < "learn/lib/$f" | cut -d' ' -f1)
+    ah=$(sha256sum < "arsenal/lib/$f" | cut -d' ' -f1)
+    if [ "$lh" = "$ah" ]; then
+      # a stale pin (the files agree again) is a soft note, so the allowlist
+      # cleans itself rather than accumulating dead rows.
+      grep -q "^lib/${f}[[:space:]]" "$pin" 2>/dev/null \
+        && printf '  \033[1;33mnote\033[0m lib/%s matches -- its PARITY row is stale, remove it\n' "$f"
+      continue
+    fi
+    want_l=$(awk -v p="lib/$f" '$1==p && $2=="learn"   {print $3}' "$pin" 2>/dev/null)
+    want_a=$(awk -v p="lib/$f" '$1==p && $2=="arsenal" {print $3}' "$pin" 2>/dev/null)
+    if [ "$want_l" = "$lh" ] && [ "$want_a" = "$ah" ]; then
+      printf '  lib/%s: pinned divergence ok\n' "$f"
+    else
+      printf '  \033[1;31mlib/%s DIVERGED and is not pinned\033[0m (learn=%.8s arsenal=%.8s)\n' "$f" "$lh" "$ah" >&2
+      printf '    port the change to both copies, or add a reviewed pin to %s\n' "$pin" >&2
+      bad=1
+    fi
+  done
+  [ "$bad" = 0 ] && printf '  \033[1;32mshared engine libs in parity\033[0m\n'
+  return $bad
 }
 
 ci() {
@@ -4645,6 +4690,9 @@ ci() {
     printf '%s\n' "$as_out" | grep -vE '^note ' >&2 || true
     [ "$as_rc" -eq 0 ] || rc=1
   fi
+  # the copied engine libs must still match the fort's -- the one gate that
+  # stops a fix landing in one tree and not the other (the drift this session found).
+  [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }
   [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
                   || printf '\033[1;31m  ci: FAILED\033[0m\n'
   return $rc
