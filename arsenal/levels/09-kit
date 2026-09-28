@@ -20,6 +20,7 @@ hint: -dump prints the page's text and exits, no interactive browser
 q: with `python`, print the sum of 2 and 2
 a: python3 -c "print(2 + 2)"
 a: python -c "print(2 + 2)"
+out: ^4$
 ref: python
 teach: python
 hint: python3 -c runs a one-line program; print() shows the result

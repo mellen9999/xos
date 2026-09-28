@@ -66,7 +66,7 @@ tool_path() {
 # reads $SANDBOX; lib/jail calls the same tree $JAIL_SCRATCH -- binding here is
 # the one introduction the two ported-apart libs need.
 level_jail() {
-	local t paths=""
+	local t paths="" p spec
 	jail_teardown 2>/dev/null
 	lab_down 2>/dev/null
 	# JAIL_MISSING names the level's tools: that this host has no binary for.
@@ -77,7 +77,13 @@ level_jail() {
 	JAIL_MISSING=""
 	for t in $(level_field "$1" tools); do
 		if p=$(tool_path "$t") && [ -n "$p" ]; then paths="$paths $p"
-		else JAIL_MISSING="$JAIL_MISSING $t"; fi
+		else
+			# a missing tree tool is invoked in cards by its shim name(s), not the
+			# tools: name (python -> python3), so record those too or selftest's
+			# absent-tool skip would miss them and FAIL on a host without the tree.
+			spec=$(tree_spec "$t"); [ -n "$spec" ] && t="$t ${spec#*|}"
+			JAIL_MISSING="$JAIL_MISSING $t"
+		fi
 	done
 	# shellcheck disable=SC2086
 	jail_init $paths || die "jail_init failed for $1"

@@ -30,27 +30,72 @@ fi
 
 JAIL_BASE=""; JAIL_EXEC=""; JAIL_SCRATCH=""; JAIL_MOUNTED=0
 
-# jail_init [TOOL_PATH...] -- stand the jail up once. stages each tool binary onto
-# an exec tmpfs (when root) and remounts it read-only; makes a nobody-owned
-# scratch. safe to call with no tools (a file-only lesson needs none).
+# tree_spec NAME -- for a tool that ships as a directory tree (an interpreter +
+# its stdlib + .so's, not one static binary), print "ENTRY|SHIM...": the path to
+# run RELATIVE to the staged tree, and the command name(s) to expose on the jail
+# PATH for it. this is the same tree-vs-binary knowledge arsenal's runline() holds
+# for xexec (arsenal:24-35) -- the jail is a ported-apart lib and cannot source
+# the launcher, so the handful of carried trees are named here too. empty = not a
+# tree (stage as a single binary). only trees with a SAFE, target-free invocation
+# are run-graded; sqlmap/impacket ride the python tree but need a live target, so
+# they stay recognition-only and are not listed.
+tree_spec() {
+	case "$1" in
+		python) echo "bin/python3|python python3" ;;
+		cc)     echo "cc|cc" ;;
+		*)      echo "" ;;
+	esac
+}
+
+# jail_init [TOOL_PATH...] -- stand the jail up once. stages each tool onto an exec
+# tmpfs (when root) and remounts it read-only; makes a nobody-owned scratch. a path
+# to a regular file stages as a single binary; a path to a DIRECTORY stages as a
+# tree (cp -a) and gets shim(s) on PATH per tree_spec -- so `python3 -c ...` runs
+# the carried interpreter off the read-only surface exactly as a static tool does,
+# nobody-dropped, W^X intact. safe to call with no tools (a file-only lesson needs
+# none). staging a tree the host does not carry is a silent no-op (its card is then
+# skipped by selftest, run recognition-only in a real session).
 jail_init() {
 	JAIL_BASE=$(mktemp -d "${TMPDIR:-/tmp}/arsjail.XXXXXX") || return 1
 	chmod 755 "$JAIL_BASE"
 	JAIL_EXEC="$JAIL_BASE/bin"; JAIL_SCRATCH="$JAIL_BASE/work"
 	mkdir -p "$JAIL_EXEC" "$JAIL_SCRATCH"
 	# size the exec tmpfs to the tools it must hold + margin: a single arsenal
-	# binary can be 130+MB (nuclei), and a fixed cap silently truncated the copy
-	# so a late tool never staged and its card failed. tmpfs size is a LIMIT, not
-	# a reservation -- only the bytes actually copied cost RAM. 32MB floor + margin.
+	# binary can be 130+MB (nuclei) and a python tree ~280MB, and a fixed cap
+	# silently truncated the copy so a late tool never staged and its card failed.
+	# tmpfs size is a LIMIT, not a reservation -- only the bytes actually copied
+	# cost RAM. 32MB floor + margin; a tree is measured whole with du.
 	_sz=32
-	for _t in "$@"; do [ -f "$_t" ] && _sz=$(( _sz + ( $(wc -c < "$_t" 2>/dev/null || echo 0) / 1048576 ) + 1 )); done
+	for _t in "$@"; do
+		if   [ -f "$_t" ]; then _sz=$(( _sz + ( $(wc -c < "$_t" 2>/dev/null || echo 0) / 1048576 ) + 1 ))
+		elif [ -d "$_t" ]; then _sz=$(( _sz + ( $(du -sk "$_t" 2>/dev/null | cut -f1 || echo 0) / 1024 ) + 8 ))
+		fi
+	done
 	if [ -n "$JAIL_DROP" ]; then
 		mount -t tmpfs -o nosuid,nodev,size="${_sz}m" tmpfs "$JAIL_EXEC" 2>/dev/null && JAIL_MOUNTED=1
 	fi
 	for _t in "$@"; do
-		[ -f "$_t" ] || continue
-		cp "$_t" "$JAIL_EXEC/$(basename "$_t")" 2>/dev/null && chmod 755 "$JAIL_EXEC/$(basename "$_t")" \
-			|| { echo "jail: failed to stage $(basename "$_t")" >&2; }
+		_b=$(basename "$_t")
+		if [ -f "$_t" ]; then
+			cp "$_t" "$JAIL_EXEC/$_b" 2>/dev/null && chmod 755 "$JAIL_EXEC/$_b" \
+				|| { echo "jail: failed to stage $_b" >&2; }
+		elif [ -d "$_t" ]; then
+			# a tree: copy it whole, then drop a shim per name it answers to. the
+			# shim execs the real entrypoint by its absolute staged path, so the
+			# interpreter derives its prefix from where it actually lives (a symlink
+			# would break python's sys.prefix). skipped if this host lacks a spec.
+			_spec=$(tree_spec "$_b"); [ -n "$_spec" ] || continue
+			# stage under a hidden name so the tree dir never collides with a shim
+			# of the same name (python tree vs the `python` shim, cc vs `cc`). PATH
+			# lookup finds the shim files and ignores the dir.
+			mkdir -p "$JAIL_EXEC/.$_b" && cp -a "$_t/." "$JAIL_EXEC/.$_b/" 2>/dev/null \
+				|| { echo "jail: failed to stage tree $_b" >&2; continue; }
+			_entry=${_spec%|*}; _shims=${_spec#*|}
+			for _s in $_shims; do
+				printf '#!/bin/sh\nexec "%s" "$@"\n' "$JAIL_EXEC/.$_b/$_entry" > "$JAIL_EXEC/$_s" \
+					&& chmod 755 "$JAIL_EXEC/$_s" || echo "jail: failed to shim $_s" >&2
+			done
+		fi
 	done
 	# write-once -> W^X: the exec surface is read-only for the rest of the session.
 	[ "$JAIL_MOUNTED" = 1 ] && mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$JAIL_EXEC" 2>/dev/null
