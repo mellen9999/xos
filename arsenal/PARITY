@@ -11,5 +11,5 @@
 # sees). regenerate a pair with:  sha256sum < learn/lib/X ; sha256sum < arsenal/lib/X
 #
 # path       side     sha256                                                            reason
-lib/grade    learn    78cba52131d7dc086c121b5d86a35f3faa31727b4daa3bcffd1e5e0060a0881f  arsenal's run_answer/sandbox target lib/jail not the fort's nobody-sandbox; _answer_walk/answer_cmds/answer_flags are ported down from learn/learn (arsenal's thin driver has no call site). permanent, by design.
-lib/grade    arsenal  687c978f293f1715f7cbffdbd54e9a9efd0baaa99a04f09887e9e739aa7a7481  (see the learn row) -- the arsenal-side copy of the same reviewed divergence.
+lib/grade    learn    4bbff6fb076696bddd7c93afe505b70bdd6bb42dbc48ba4eaf92b6f71d4099f9  arsenal's run_answer/sandbox target lib/jail not the fort's nobody-sandbox; _answer_walk/answer_cmds/answer_flags are ported down from learn/learn (arsenal's thin driver has no call site). permanent, by design.
+lib/grade    arsenal  d36485b7d50380219180dffbdbc1be0ab337e0bbefed43719d3034d896e6a351  (see the learn row) -- the arsenal-side copy of the same reviewed divergence.
