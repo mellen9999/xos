@@ -63,7 +63,10 @@ mkdir -p /tmp/run/cryptsetup
 # go below it: max(clock, floor). this does not make the clock RIGHT, it makes
 # it impossible to push into the past, which is the property TLS needs.
 epoch=$(cmdline_get xos.epoch)
-case "$epoch" in *[!0-9]*) epoch="" ;; esac
+# a present-but-malformed epoch means the clock floor silently will not apply --
+# the one degradation this file otherwise always announces. absent is fine (no
+# floor asked). build.sh always writes a plain integer, so this is belt-and-braces.
+case "$epoch" in *[!0-9]*) echo "clock floor SKIPPED: xos.epoch is not a number" > /dev/console; epoch="" ;; esac
 clockfloored=""
 if [ -n "$epoch" ]; then
 	now=$(date -u +%s 2>/dev/null || echo 0)
@@ -126,7 +129,11 @@ shutdown_() { # $1 = poweroff|reboot|halt
 		# vault mode mounts p3 read-only on a sidecar instead of over $HOME;
 		# release it too or cryptsetup close finds the device still busy.
 		umount /tmp/p3ro 2>/dev/null || umount -l /tmp/p3ro 2>/dev/null
-		cryptsetup close xosstate 2>/dev/null
+		# a lazy unmount can leave the mapping busy, so close can fail -- and on
+		# halt (no power-cut to wipe the key) that leaves p3's master key resident
+		# with no word said. poweroff/reboot make it moot, but say it either way.
+		cryptsetup close xosstate 2>/dev/null \
+			|| echo "xos: WARNING: could not release p3 -- state may still be unlocked" > /dev/console
 	fi
 	sync
 	case "$1" in reboot) reboot -f ;; halt) halt -f ;; *) poweroff -f ;; esac
@@ -767,7 +774,7 @@ state_open() {
 	# up to three tries: a single typo should not cost persistence for the
 	# whole session, and there is no reboot-to-retry from across a tunnel. an
 	# empty answer at any prompt still means "skip" deliberately.
-	local pass opened="" tries=0 vault=0 roopt=""
+	local pass opened="" tries=0 vault=0 roopt="" _e anydmg=""
 	while [ "$tries" -lt 3 ]; do
 		tries=$((tries + 1))
 		printf '\n  unlock persistent state? passphrase (empty to skip): ' > /dev/console
@@ -783,18 +790,27 @@ state_open() {
 			# device read-only, and dm-integrity then refuses a writable open.
 			# open --readonly instead and remember it: this boot is a vault.
 			roopt=""; dev_ro "$dev" && roopt="--readonly"
-			if printf '%s' "$pass" | cryptsetup open $roopt --key-file - "$dev" xosstate >/dev/null 2>&1; then
+			# capture the failure so "wrong passphrase" is not asserted over a
+			# damaged header or an integrity mismatch -- the same honesty the
+			# mount step below insists on. a bad passphrase is "No key available";
+			# anything else is a device fault, remembered as anydmg.
+			if _e=$(printf '%s' "$pass" | cryptsetup open $roopt --key-file - "$dev" xosstate 2>&1); then
 				opened="$dev"; [ -n "$roopt" ] && vault=1; break
 			fi
+			case "$_e" in *"No key available"*|'') : ;; *) anydmg=1 ;; esac
 		done
 		# the secret has done its job; do not leave it in PID 1's memory for
 		# the rest of the uptime
-		pass=""
+		pass=""; _e=""
 		[ -n "$opened" ] && break
 		[ "$tries" -lt 3 ] && printf '  wrong passphrase -- %d attempt(s) left\n' "$((3 - tries))" > /dev/console
 	done
 	if [ -z "$opened" ]; then
-		printf '  wrong passphrase -- continuing without persistence\n' > /dev/console
+		if [ -n "$anydmg" ]; then
+			printf '  could not unlock p3 -- wrong passphrase, or a header/integrity fault -- continuing without persistence\n' > /dev/console
+		else
+			printf '  wrong passphrase -- continuing without persistence\n' > /dev/console
+		fi
 		return 1
 	fi
 	# a candidate that is not on the boot stick opened: legitimate in the qemu
