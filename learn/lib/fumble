@@ -145,5 +145,3 @@ fum_top() {
 	[ -s "$FUMBLED" ] || return 0
 	sort -t "$(printf '\t')" -k1,1nr -k2,2 "$FUMBLED" 2>/dev/null | head -n "${1:-5}"
 }
-
-fum_total() { awk -F'\t' '{ n += $1 } END { print n + 0 }' "$FUMBLED" 2>/dev/null || echo 0; }
