@@ -1,0 +1,6 @@
+# rekeys -- a q: that was reworded, and the template that replaced it. a card
+# is keyed by its q: template, so a rewording files its review history under
+# a key no block answers to; cards_rehome (lib/cards) reads this to carry the
+# row to the new wording. level-id, old template, new template, tab-separated.
+# a row only ever moves a card that would otherwise be orphaned, so an entry
+# can stay here for good.

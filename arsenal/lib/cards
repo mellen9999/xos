@@ -272,6 +272,56 @@ held_keys() {
 	return 0
 }
 
+# cards_rehome -- give an orphaned row back to the card it belongs to. the
+# block index in a key is positional, so a card cut from a level moved every
+# card below it, and a reworded q: moved its own: the rows stayed CORRECT and
+# were filed under keys no block answers to, eroding away with nothing to
+# prove them. a row whose key no block answers to is re-filed when its level
+# has exactly one block with that template -- the same card at a new index.
+# learn/rekeys names the templates a rewording replaced, so those follow too.
+# two blocks sharing a template is ambiguous and a row that would land on a
+# key already held is a duplicate; both are left alone, as before. runs at
+# every start and writes only when something moved, so no corpus edit ever
+# needs a schema bump to keep the reviews it did not mean to throw away.
+cards_rehome() {
+	[ -s "$CARDS" ] || return 0
+	held_keys
+	awk -F'\t' -v OFS='\t' -v kf="$KEYS" -v rk="$ROOT/rekeys" -v cf="$CARDS" '
+		function tpl(k) { return substr(k, index(k, "#") + 1) }
+		function lvl(k) { return substr(k, 1, index(k, "/") - 1) }
+		BEGIN {
+			while ((getline l < kf) > 0) {
+				split(l, f, "\t"); live[f[2]] = 1
+				t = f[1] SUBSEP tpl(f[2]); n[t]++; at[t] = f[2]
+			}
+			while ((getline l < rk) > 0) {
+				if (l ~ /^#/ || l == "") continue
+				split(l, f, "\t"); gsub(/`/, "", f[2]); gsub(/`/, "", f[3])
+				re[f[1] SUBSEP f[2]] = f[3]
+			}
+		}
+		FILENAME == cf && FNR == NR { row[++r] = $0; have[$1] = 1; next }
+		END {
+			for (i = 1; i <= r; i++) {
+				split(row[i], f, "\t"); k = f[1]
+				if (!(k in live) && index(k, "/") && index(k, "#")) {
+					id = lvl(k); t = tpl(k)
+					if ((id SUBSEP t) in re) t = re[id SUBSEP t]
+					if (n[id SUBSEP t] == 1 && !(at[id SUBSEP t] in have)) {
+						have[at[id SUBSEP t]] = 1; moved++
+						sub(/^[^\t]*/, at[id SUBSEP t], row[i])
+					}
+				}
+				print row[i]
+			}
+			exit (moved ? 0 : 1)
+		}' "$CARDS" > "$CARDS.rehome.$$" 2>/dev/null || { rm -f "$CARDS.rehome.$$"; return 0; }
+	_cards_lock
+	mv "$CARDS.rehome.$$" "$CARDS" 2>/dev/null || rm -f "$CARDS.rehome.$$"
+	_cards_unlock
+	return 0
+}
+
 held_scan() {
 	held_keys
 	# which file a row came from is asked by name, not by NR == FNR: the ledger

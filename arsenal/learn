@@ -20,6 +20,12 @@ LEVELS="$AROOT/levels"
 SHELLBIN=/bin/sh
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/arsenal-learn"
 CARDS="$STATE/cards"
+# which bosses have actually fallen (resume reads this to find the next
+# mission), the mid-mission place ledger (one file per level), and the daily
+# streak. same shapes as the fort's; see the ported helpers below.
+PASSED="$STATE/passed"
+INPROG="$STATE/inprogress"
+DAILY="$STATE/daily"
 
 die() { echo "learn: $*" >&2; exit 1; }
 
@@ -43,6 +49,11 @@ done
 
 ctx_init
 cards_init
+# rehome before decay (a reworded/moved card gets its review row back before
+# the calendar erodes anything), then erode what has gone stale. no migrate:
+# arsenal has no older on-disk schema to replay. matches learn/learn's launch.
+cards_rehome
+cards_decay
 
 # where carried tool binaries live: on the stick they are in ~/tools (installed
 # by provision), on a dev host they are staged in ~/.local/share/xos-arsenal.
@@ -112,6 +123,67 @@ resolve_level() {
 	[ -f "$LEVELS/$1" ] && { printf '%s\n' "$1"; return 0; }
 	case "$1" in ''|*[!0-9]*) return 1 ;; esac
 	level_ids | grep "^$(printf '%02d' "$1")-" | head -1
+}
+
+# ---- progress ledgers -------------------------------------------------------
+# ported from learn/learn: the passed ledger (which bosses have fallen) and the
+# in-progress ledger (the cards a half-finished mission still owes). arsenal has
+# no placement/act/scenario layer, so those halves are dropped -- everything
+# below reads only $PASSED/$INPROG/$STATE and level_path/level_nq, all bound
+# above. every write is a same-directory rename: the tether can cut power
+# between a truncate and a write, and a half-written ledger is worse than none.
+_ledger_add() { # FILE ID
+	mkdir -p "$STATE" 2>/dev/null || return 0
+	{ cat "$1" 2>/dev/null; echo "$2"; } | sort -u > "$1.tmp.$$" 2>/dev/null \
+		&& mv "$1.tmp.$$" "$1" 2>/dev/null || rm -f "$1.tmp.$$" 2>/dev/null
+	return 0
+}
+level_passed()    { _ledger_add "$PASSED" "$1"; inprog_clear "$1"; }
+level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
+# the first mission whose boss has not yet fallen -- where a bare `arsenal
+# learn` resumes, instead of always restarting at 01.
+resume_target()   { for _id in $(level_ids); do level_is_passed "$_id" || { printf '%s\n' "$_id"; return 0; }; done; return 1; }
+
+# one file per level, holding the cards it still owes you: quitting a mission
+# mid-way used to reshuffle and re-ask the whole thing next run. one line,
+# rewritten after each answer: <fingerprint> <right> <answered> <cards to ask>...
+_inprog_file() { printf '%s.%s\n' "$INPROG" "$1"; }
+# the level's CONTENT, not its name: an edited level renumbers its cards, and
+# resuming into the old numbering would ask a card the file no longer has.
+level_fp() { md5sum 2>/dev/null < "$(level_path "$1")" | cut -d' ' -f1; }
+inprog_save() { # ID FP RIGHT ANSWERED REMAINING...
+	local f; f=$(_inprog_file "$1"); shift
+	mkdir -p "$STATE" 2>/dev/null || return 0
+	printf '%s\n' "$*" > "$f.tmp.$$" 2>/dev/null \
+		&& mv "$f.tmp.$$" "$f" 2>/dev/null || rm -f "$f.tmp.$$" 2>/dev/null
+	return 0
+}
+inprog_clear() { rm -f "$(_inprog_file "$1")" 2>/dev/null; return 0; }
+# sets INPROG_LEFT/RIGHT/DONE, or returns 1 with nothing to resume. every field
+# is proved before any of it is believed -- a truncated, stale or hand-edited
+# place starts the level over rather than indexing past its end.
+inprog_load() { # ID FP NQ
+	INPROG_LEFT=""; INPROG_RIGHT=0; INPROG_DONE=0
+	local id=$1 fp=$2 nq=$3 f line n
+	f=$(_inprog_file "$id")
+	[ -f "$f" ] || return 1
+	IFS= read -r line < "$f" 2>/dev/null || line=""
+	set -f; set -- $line; set +f
+	# three fields is a whole record: fingerprint, right, answered, nothing
+	# owed -- the place a learner standing at the boss is in, and it has to load
+	# or walking away from a boss costs the mission.
+	[ $# -ge 3 ] && [ "$1" = "$fp" ] || { inprog_clear "$id"; return 1; }
+	case "$2$3" in *[!0-9]*) inprog_clear "$id"; return 1 ;; esac
+	INPROG_RIGHT=$2; INPROG_DONE=$3
+	shift 3
+	[ $(($# + INPROG_DONE)) -eq "$nq" ] && [ "$INPROG_RIGHT" -le "$INPROG_DONE" ] \
+		|| { inprog_clear "$id"; return 1; }
+	for n; do
+		case "$n" in *[!0-9]*) inprog_clear "$id"; return 1 ;; esac
+		[ "$n" -ge 1 ] && [ "$n" -le "$nq" ] || { inprog_clear "$id"; return 1; }
+	done
+	INPROG_LEFT="$*"
+	return 0
 }
 
 # blk_load FILE INDEX -- ported from learn/learn:405 (blk_load). fills
@@ -294,40 +366,160 @@ boss_round() {
 	return 1
 }
 
-# run_level ID -- ported from learn/learn:704, cut down: no in-progress
-# resume ledger, no act overlay, no repeat-brief suppression -- every run
-# shows the brief and asks every card in a fresh shuffle. those all read
-# state this stage does not need to prove yet.
+# run_level ID -- ported from learn/learn:707, cut down: no act overlay, no
+# scenario/project unlocks (arsenal has none). the in-progress ledger and the
+# boss-fall -> passed write ARE kept: a half-finished mission resumes at the
+# cards it still owes, and a mission whose boss falls is recorded so a bare
+# `arsenal learn` moves on to the next one.
 run_level() {
-	local id=$1 nq i right=0 total=0 rc lname order
+	local id=$1 nq i k right=0 total=0 rc lname lsub fp order rest
 	nq=$(level_nq "$id")
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
 	lname=$(level_field "$id" name)
+	lsub="level $(level_no "$id")"
+	fp=$(level_fp "$id")
 	level_jail "$id"
 
-	cls
-	hdr "$lname" "level $(level_no "$id")  ${nq} questions"
-	level_field "$id" brief | say
-	pause_card || return 2
-
-	order=$(shuffle_n "$nq" "$nq")
-	set -f; set -- $order; set +f
-	for i; do
-		total=$((total + 1))
+	# a resumed mission keeps its order and its score and goes straight to the
+	# cards still owed; a fresh one shuffles and teaches the brief first.
+	if inprog_load "$id" "$fp" "$nq"; then
+		order=$INPROG_LEFT; right=$INPROG_RIGHT; total=$INPROG_DONE
+		lsub="$lsub  resumed"
+	else
 		cls
-		statusbar "$lname" "card $total/$nq" "$total" "$nq" "$right"
+		hdr "$lname" "$lsub  ${nq} questions"
+		level_field "$id" brief | say
+		pause_card || return 2
+		order=$(shuffle_n "$nq" "$nq")
+	fi
+	k=$total
+	inprog_save "$id" "$fp" "$right" "$total" $order
+
+	while :; do
+		set -f; set -- $order; set +f
+		[ $# -gt 0 ] || break
+		i=$1; shift; rest="$*"
+		k=$((k + 1))
+		cls
+		statusbar "$lname" "$lsub" "$k" "$nq" "$right"
 		ask "$id" "$i"; rc=$?
+		# quitting mid-card leaves it owed: the place on disk still has it at
+		# the head, because it was never answered.
 		[ "$rc" = 2 ] && return 2
 		[ "$rc" = 0 ] && right=$((right + 1))
+		total=$((total + 1))
+		order=$rest
+		inprog_save "$id" "$fp" "$right" "$total" $order
 		pause_card || return 2
 	done
+	# keep the record in its terminal shape -- everything answered, nothing
+	# owed -- so a boss walked away from resumes AT the boss, not the whole
+	# mission. level_passed (on a win) is the only thing that clears it.
+	inprog_save "$id" "$fp" "$right" "$total"
 
 	cls
-	statusbar "$lname" "done" "$total" "$nq" "$right"
+	statusbar "$lname" "$lsub" "$total" "$nq" "$right"
 	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
 	echo
 
-	boss_round "$id"
+	boss_round "$id"; rc=$?
+	[ "$rc" = 0 ] && level_passed "$id"
+	return "$rc"
+}
+
+# review [N] -- the due cards (soonest first), or the weakest when nothing is
+# due, N at a time. ported from learn/learn:852, minus the scenario branch:
+# every arsenal key is a plain <level>/<idx>#<template>. the one thing base
+# learn's review never had to do -- restage the jail when the queue crosses
+# into a new level -- arsenal must, because a level's tools are staged once per
+# level, not per answer; without it a run-graded card from one mission would be
+# judged in another mission's jail.
+review() {
+	local n=${1:-20} line key lvl rest idx rc sub=due nc k=0 seenlvl=
+	[ -s "$CARDS" ] || { note "no cards yet -- answer some missions first"; return 0; }
+	cards_due | head -n "$n" > "$TMP/rev"
+	nc=$(grep -c . "$TMP/rev")
+	if [ "$nc" -eq 0 ]; then
+		sub=weakest
+		note "nothing due -- the weakest cards instead."
+		cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
+		nc=$(grep -c . "$TMP/rev")
+	fi
+	[ "$nc" -gt 0 ] || { note "nothing to review."; return 0; }
+	# the list is read on fd 3 because ask() owns stdin.
+	while IFS= read -r line <&3; do
+		key=$(printf '%s\n' "$line" | cut -f1)
+		lvl=${key%%/*}; rest=${key#*/}; idx=${rest%%#*}
+		[ -f "$(level_path "$lvl")" ] || continue
+		# a card whose template no longer matches its block is stale -- the file
+		# was edited since. skip it rather than ask the wrong thing. rebuild the
+		# key through card_key and compare whole keys: the stored tpl is already
+		# card_key's backtick/tab-stripped form, so comparing Q_TPL raw would
+		# call every marked-up card stale and skip it. (only Q_TPL is read here,
+		# which is roll-independent, so the pre-jail load is safe.)
+		blk_load "$(level_path "$lvl")" "$idx" >/dev/null 2>&1 || continue
+		[ "$(card_key "$lvl" "$idx" "$Q_TPL")" = "$key" ] || continue
+		# restage the jail on entering a new level (see the header note).
+		[ "$lvl" = "$seenlvl" ] || { level_jail "$lvl"; seenlvl=$lvl; }
+		k=$((k + 1))
+		cls
+		statusbar "review" "$sub" "$k" "$nc" ""
+		ask "$lvl" "$idx"; rc=$?
+		[ "$rc" = 2 ] && return 0
+		pause_card || return 0
+	done 3< "$TMP/rev"
+}
+
+# daily -- one card from the top third of the curriculum, under boss rules (no
+# hints, the clock), the same one for everybody on a given UTC day. ported from
+# learn/learn:944; keeps the day-streak ledger. like review it stages the jail
+# itself -- nothing upstream did.
+daily() {
+	local day nl lo lvl nq idx rc
+	# label and seed must agree on "today": date +%s is UTC seconds regardless
+	# of TZ, so the label goes UTC too or the same-one-everywhere claim breaks
+	# for anyone west of UTC after 5pm.
+	day=$(date -u +%Y-%m-%d 2>/dev/null || echo today)
+	RANDOM=$(( $(date +%s 2>/dev/null || echo 0) / 86400 ))
+	nl=$(level_ids | grep -c .)
+	[ "$nl" -gt 0 ] || { no "no missions yet."; return 1; }
+	lo=$(( nl * 2 / 3 ))
+	# draw in THIS shell: a subshell re-seeds RANDOM from its own pid.
+	rnd $(( nl - lo )); lvl=$(level_ids | sed -n "$(( lo + REPLY + 1 ))p")
+	nq=$(level_nq "$lvl")
+	[ "$nq" -gt 0 ] || { no "no daily today: $lvl has no questions."; return 1; }
+	rnd "$nq"; idx=$((REPLY + 1))
+	BOSS_LIMIT=$(boss_limit "$lvl")
+	level_jail "$lvl"
+	cls
+	statusbar "daily" "$day  no hints" 1 1 ""
+	MODE=boss
+	ask "$lvl" "$idx"; rc=$?
+	MODE=learn
+	[ "$rc" = 2 ] && return 0
+	# a persistent day-streak, keyed on the UTC day NUMBER so there is no
+	# date-string math. the first daily of a new day advances or breaks it;
+	# re-opening the same day just shows what stands.
+	local dnum lastd dstreak dbest
+	dnum=$(( $(date +%s 2>/dev/null || echo 0) / 86400 ))
+	[ -f "$DAILY" ] && read -r lastd dstreak dbest < "$DAILY" 2>/dev/null || true
+	lastd=${lastd:-0}; dstreak=${dstreak:-0}; dbest=${dbest:-0}
+	if [ "$lastd" != "$dnum" ]; then
+		if [ "$rc" = 0 ]; then
+			[ "$lastd" = "$((dnum - 1))" ] && dstreak=$((dstreak + 1)) || dstreak=1
+		else
+			dstreak=0
+		fi
+		[ "$dstreak" -gt "$dbest" ] && dbest=$dstreak
+		mkdir -p "$STATE" 2>/dev/null || true
+		printf '%s %s %s\n' "$dnum" "$dstreak" "$dbest" > "$DAILY.tmp.$$" 2>/dev/null \
+			&& mv "$DAILY.tmp.$$" "$DAILY" 2>/dev/null || rm -f "$DAILY.tmp.$$" 2>/dev/null
+	fi
+	rule
+	printf '  %sdaily %s%s  %s%s\n' "$B" "$day" "$N" \
+		"$([ "$rc" = 0 ] && echo correct || echo wrong)" \
+		"$([ "$dstreak" -ge 2 ] && printf '  %s%s-day streak%s' "$G" "$dstreak" "$N")"
+	pause_card || return 0
 }
 
 # selftest -- the authoring net. for every card: it renders, it has an answer
@@ -383,24 +575,96 @@ selftest_graded() {
 			i=$((i + 1))
 		done
 	done
+	# ---- the SRS wiring, not just card content -------------------------------
+	# the ledger these missions write must also be READ back: promoted, decayed,
+	# queued, rehomed, resumed. base learn proves this in its own selftest;
+	# arsenal wires the same engine, so it proves it the same way, in isolated
+	# state, so a broken launch hook or a lost resume fails the build too.
+	local _n _was _tab _first _fp _nq _rem _i _k
+	_n=$(now); _tab=$(printf '\t')
+	( CARDS="$TMP/sc"; SESSION_SEEN="$TMP/ss"; : > "$CARDS"; : > "$SESSION_SEEN"
+	  # mastery is two sittings, and a mastered card is not due today
+	  card_grade k 1; : > "$SESSION_SEEN"; card_grade k 1
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  [ "$(cards_ndue)" = 0 ]       || exit 1
+	  # a row long past due by more than the grace window loses a rung, once
+	  printf 'k\t2\t%s\t%s\t7\t2\t0\n' "$_n" "$((_n - 30 * 86400))" > "$CARDS"
+	  cards_decay; [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  _was=$(cat "$CARDS"); cards_decay; [ "$(cat "$CARDS")" = "$_was" ] || exit 1
+	) || { echo "FAIL srs: grade/decay/ndue"; bad=$((bad + 1)); }
+
+	# cards_rehome carries a moved card's reviews to its new block/template.
+	( STATE="$TMP/rst"; ROOT="$TMP/rhm"; LEVELS="$ROOT/levels"; KEYS="$TMP/rhm.keys"
+	  CARDS="$STATE/cards"; mkdir -p "$STATE" "$LEVELS"; rm -f "$KEYS"
+	  printf 'name: t\n---\nq: alpha\n---\nq: `beta` new\n---\nq: held\n' > "$LEVELS/zz-t"
+	  printf '# c\nzz-t\tbeta old\tbeta new\n' > "$ROOT/rekeys"
+	  printf 'zz-t/9#alpha\t2\t1\nzz-t/8#beta old\t1\t1\n' > "$CARDS"
+	  cards_rehome
+	  grep -q "^zz-t/1#alpha${_tab}2${_tab}1$" "$CARDS" || exit 1
+	  grep -q "^zz-t/2#beta new${_tab}1${_tab}1$" "$CARDS" || exit 1
+	) || { echo "FAIL srs: cards_rehome"; bad=$((bad + 1)); }
+
+	# the in-progress ledger round-trips, and resume_target skips a passed level.
+	_first=$(level_ids | head -1)
+	if [ -n "$_first" ]; then
+		_fp=$(level_fp "$_first"); _nq=$(level_nq "$_first")
+		_rem=$(seq 2 "$_nq" | tr '\n' ' ')
+		( STATE="$TMP/rest"; PASSED="$STATE/passed"; INPROG="$STATE/inprogress"; mkdir -p "$STATE"
+		  # shellcheck disable=SC2086
+		  inprog_save "$_first" "$_fp" 1 1 $_rem
+		  inprog_load "$_first" "$_fp" "$_nq" || exit 1
+		  [ "$INPROG_RIGHT" = 1 ] && [ "$INPROG_DONE" = 1 ] || exit 1
+		  level_passed "$_first"
+		  [ ! -f "$INPROG.$_first" ] || exit 1            # passing clears the place
+		  [ "$(resume_target)" != "$_first" ] || exit 1   # and resume moves past it
+		) || { echo "FAIL srs: inprog/resume round-trip"; bad=$((bad + 1)); }
+
+		# review must ASK a marked-up card, not skip it as stale. the stored key
+		# is card_key's backtick-stripped form, so a raw-template compare would
+		# call every ``name``-marked card stale. seed a due row for a real
+		# backtick card and prove review renders it (the '? hint' line only
+		# prints once a card is on screen).
+		_i=1
+		while [ "$_i" -le "$_nq" ]; do
+			blk_load "$(level_path "$_first")" "$_i" >/dev/null 2>&1 && case "$Q_TPL" in *'`'*) break ;; esac
+			_i=$((_i + 1))
+		done
+		if [ "$_i" -le "$_nq" ]; then
+			( STATE="$TMP/revst"; CARDS="$STATE/cards"; SESSION_SEEN="$TMP/revst.seen"; mkdir -p "$STATE"
+			  _k=$(card_key "$_first" "$_i" "$Q_TPL")
+			  printf '%s\t1\t%s\t%s\t1\t1\t0\n' "$_k" "$(now)" "$(( $(now) - 86400 ))" > "$CARDS"
+			  printf 'quit\n' | review 1 2>&1 | grep -q '? hint'
+			) || { echo "FAIL srs: review skips a backtick card (stale-check too strict)"; bad=$((bad + 1)); }
+		fi
+	fi
+
 	total=$(level_ids | grep -c .)
 	echo "selftest: $total level(s), $bad problem(s)"
 	[ "$bad" = 0 ]
 }
 
 main() {
-	local arg=${1:-} lvl
+	local arg=${1:-} lvl rc ndue
 	case "$arg" in
 		selftest) selftest_graded; exit $? ;;
 		list)     level_ids; exit 0 ;;
+		review)   shift; review "${1:-20}"; exit $? ;;
+		daily)    daily; exit $? ;;
 	esac
 	if [ -z "$arg" ]; then
-		lvl=$(level_ids | head -1)
+		# bare `arsenal learn` resumes at the first mission whose boss has not
+		# fallen, not always the first one.
+		lvl=$(resume_target) || lvl=$(level_ids | head -1)
 	else
 		lvl=$(resolve_level "$arg")
 	fi
 	[ -n "$lvl" ] && [ -f "$LEVELS/$lvl" ] || die "no such level: ${arg:-<none, and none found under $LEVELS>}"
-	run_level "$lvl"
+	run_level "$lvl"; rc=$?
+	# the due queue, surfaced where a returning learner will see it: after the
+	# mission, below the boss screen, so the mastery labels connect to something.
+	ndue=$(cards_ndue)
+	[ "${ndue:-0}" -gt 0 ] && printf '  %s%s due%s -- %sarsenal learn review%s\n' "$D" "$ndue" "$N" "$W" "$N"
+	return "$rc"
 }
 
 main "$@"
