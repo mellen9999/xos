@@ -19,7 +19,8 @@ no email, no pgp key, no bounty. one person reads these.
 the five things `docs/threat-model.md` says are actually protected. a report
 that lands on one of these is a real report:
 
-1. **the credentials on p3** -- luks2, opt-in, no backdoor
+1. **the credentials on p3** -- wireguard key, ssh keys, operator loot -- luks2,
+   opt-in, no backdoor
 2. **the integrity of the running system** -- the verity chain, secure boot,
    revocation
 3. **non-leakage into the host** -- no writes to its disks, nothing left at
