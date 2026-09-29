@@ -1818,7 +1818,12 @@ st_block() {
 	# the one flag its examples could never show.
 	sed -n "s/^teach: \{0,1\}//p" "$TMP/blk" | while read -r tcmd tflags; do
 		for flag in $tflags; do
-			ref_examples "$tcmd" "$Q_ANSWERS" "$Q_SRC" "$(pin_keys "$tcmd" "${flag%%[*}")" 1 >/dev/null \
+			# pin the width to the 80-col floor (the serial screen G50 budgets
+			# against), not the ambient COLS: whether the corpus HAS an example
+			# that fits is a fixed build property, and inheriting the width of the
+			# terminal the build happens to run in made this pass on a wide window
+			# and FAIL on a narrow one -- a 72-char eg fits 80 but not a 70-col shell.
+			COLS=80 ref_examples "$tcmd" "$Q_ANSWERS" "$Q_SRC" "$(pin_keys "$tcmd" "${flag%%[*}")" 1 >/dev/null \
 				|| echo "FAIL $lbl: no example shows $tcmd $flag -- give the card an eg: line"
 		done
 	done > "$TMP/eg.$$" 2>&1
