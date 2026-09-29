@@ -979,7 +979,8 @@ else
 	# own first line away on the terminal the mono tier exists for.
 	grep -q 'serial-size: 24x80' <<< "$serout" \
 		&& ok "the serial line is 80x24, the screen G50 measures briefs against" \
-		|| bad "the serial geometry is not 24x80 -- G50's brief budget no longer matches it"
+		|| { printf '%s\n' "$serout" > /tmp/xos-a20.serout
+		     bad "the serial geometry is not 24x80 [$(grep -oE 'serial-(size|baud|usb): .*' <<< "$serout" | tr '\n' '|')] -- G50's brief budget no longer matches it (full serout: /tmp/xos-a20.serout)"; }
 	assert_complete "$serout" "A20 usb-serial boot"
 fi
 
