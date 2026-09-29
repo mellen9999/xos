@@ -189,6 +189,25 @@ so a runner or a pre-push hook can run it on every push (`XOS_NOVERIFY=1` overri
 for a WIP branch). the building gates and the qemu self-test stay a deliberate
 `./build.sh gates` / `./selftest.sh`.
 
+## keeping it current
+
+xos never updates itself -- an immutable signed image can't, and shouldn't; that
+is the point. you decide when. one command shows what is behind, and changes
+nothing:
+
+    ./build.sh outdated    # only looks -- no key, no build, never touches a stick
+
+it reads every pinned version, checks it against that project's own upstream, and
+prints the ones behind with the exact line to fix each. to take an update:
+
+    ./build.sh bump kernel 6.18.54   # edits one version number for you
+    ./build.sh all                   # rebuild -- re-checks the maintainer signature
+    ./build.sh install /dev/sdX      # flash the new stick
+
+if the rebuild stops on a signature or hash that does not match, that version is
+not trusted -- do not ship it (put the old number back the same way). nothing
+changes until you run these.
+
 ## checking it yourself
 
 none of this asks you to trust whoever built the stick. five rungs, cheapest

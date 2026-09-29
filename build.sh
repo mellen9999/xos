@@ -4579,6 +4579,79 @@ libparity() {
   return $bad
 }
 
+# outdated -- is any pinned dependency behind its upstream? this ONLY LOOKS: it
+# never changes a byte, never touches the stick. runs on your own box (needs the
+# network). xos does not auto-update -- on purpose (immutable signed image) --
+# so this is how you find out WHEN to rebuild, and `bump` below makes the change
+# a 9-year-old can do. only STABLE releases count: after reading a project's own
+# git tags we keep pure numeric versions, which drops rc/devel/beta tags.
+outdated() {
+  say "is anything behind?  -- this only LOOKS, it never changes your stick"
+  local behind=0
+  _chk() { # friendly-name  current-version  git-repo  tag-refspec(''=all)  sed(tag -> version)
+    local name=$1 cur=$2 repo=$3 refspec=$4 latest top
+    latest=$(timeout 25 git ls-remote --tags --refs "$repo" ${refspec:+"$refspec"} 2>/dev/null \
+             | sed 's#.*/##' | eval "$5" | grep -E '^[0-9]+(\.[0-9]+)+$' | sort -V | tail -1)
+    if [ -z "$latest" ]; then printf '  %-12s %-13s  ?  could not reach upstream -- check by hand\n' "$name" "$cur"; return; fi
+    top=$(printf '%s\n%s\n' "$cur" "$latest" | sort -V | tail -1)
+    if [ "$top" = "$cur" ]; then
+      printf '  %-12s %-13s  up to date\n' "$name" "$cur"
+    else
+      printf '  \033[1;33m%-12s %-13s  BEHIND\033[0m -- newest is %s   \033[1mfix: ./build.sh bump %s %s\033[0m\n' "$name" "$cur" "$latest" "$name" "$latest"
+      behind=$((behind + 1))
+    fi
+  }
+  # kernel: stay on your own series (6.18.x) -- a .z bump is the security one; a
+  # whole new series is a deliberate move, not a "you're behind".
+  _chk kernel       "$KVER"   https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git "v${KVER%.*}.*" "sed 's/^v//'"
+  _chk busybox      "$BBVER"  https://git.busybox.net/busybox                    '' "tr '_' '.'"
+  _chk cryptsetup   "$CSVER"  https://gitlab.com/cryptsetup/cryptsetup           '' "sed -n 's/^v//p'"
+  _chk util-linux   "$UTLVER" https://github.com/util-linux/util-linux           '' "sed -n 's/^v//p'"
+  _chk lvm2         "$LVMVER" https://github.com/lvmteam/lvm2                     '' "sed -n 's/^v//p'"
+  _chk dropbear     "$DBVER"  https://github.com/mkj/dropbear                    '' "sed -n 's/^DROPBEAR_//p'"
+  _chk wireguard    "$WGTVER" https://github.com/WireGuard/wireguard-tools       '' "sed -n 's/^v//p'"
+  # odd version style (a date suffix) or a deliberately quiet project -- the
+  # tag filter cannot judge these, so name them for a human. sources: SOURCES.md.
+  printf '  \033[2mby hand (odd version or a quiet project): bearssl %s  popt %s  json-c %s  ii %s  abduco %s\033[0m\n' \
+    "$BSSLVER" "$POPTVER" "$JSONCVER" "$IIVER" "$ABDVER"
+  echo
+  if [ "$behind" -eq 0 ]; then
+    printf '  \033[1;32meverything checkable is current -- nothing to do.\033[0m\n'
+  else
+    printf '  \033[1;33m%d behind.\033[0m to update one: run its \033[1mfix:\033[0m line, then \033[1m./build.sh all\033[0m, then flash the stick.\n' "$behind"
+  fi
+  printf '  \033[2mxos never updates itself. nothing changed just now.\033[0m\n'
+  return 0
+}
+
+# bump -- change one pinned version in build.sh, so the next ./build.sh all uses
+# it. this is the ONLY change; it does not build, sign, or touch the stick. for a
+# maintainer-signed dep (kernel/busybox/cryptsetup/util-linux) the build re-checks
+# the signature, so a fake version is refused loudly. `outdated` prints the exact
+# line to run. usage: ./build.sh bump <name> <version>   e.g. bump cryptsetup 2.8.8
+bump() {
+  local name=$1 new=$2 const old
+  case "$name" in
+    kernel) const=KVER ;;  busybox) const=BBVER ;;  cryptsetup) const=CSVER ;;
+    util-linux) const=UTLVER ;;  lvm2) const=LVMVER ;;  dropbear) const=DBVER ;;
+    wireguard|wireguard-tools) const=WGTVER ;;  json-c) const=JSONCVER ;;
+    popt) const=POPTVER ;;  bearssl) const=BSSLVER ;;  ii) const=IIVER ;;  abduco) const=ABDVER ;;
+    *) echo "bump: don't know '$name'. try: ./build.sh outdated  (it names each one)" >&2; return 1 ;;
+  esac
+  [ -n "$new" ] || { echo "bump: give the new version too, e.g. ./build.sh bump cryptsetup 2.8.8" >&2; return 1; }
+  old=$(sed -n "s/^$const=\"\${$const:-\(.*\)}\"/\1/p" build.sh | head -1)
+  [ -n "$old" ] || { echo "bump: could not find $const in build.sh" >&2; return 1; }
+  [ "$old" = "$new" ] && { echo "$name is already pinned at $new -- nothing to do."; return 0; }
+  sed -i "s|^$const=\"\${$const:-$old}\"|$const=\"\${$const:-$new}\"|" build.sh
+  grep -q "^$const=\"\${$const:-$new}\"" build.sh \
+    || { echo "bump: edit did not take -- change $const in build.sh by hand" >&2; return 1; }
+  echo "bumped $name: $old -> $new"
+  echo "now, in order:"
+  echo "  1.  ./build.sh all      (rebuilds + re-checks the download; type your password when asked)"
+  echo "  2.  flash the new stick"
+  echo "if the build stops on a signature or hash that does not match, the new version is NOT trusted -- do not ship it; put the old number back with: ./build.sh bump $name $old"
+}
+
 ci() {
   # the checks that need neither the signing key nor a full image build, in one
   # command a self-hosted runner, a timer, or the pre-push hook can call. the
@@ -5019,7 +5092,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|outdated|bump <name> <ver>|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac
