@@ -17,7 +17,7 @@ fi
 # four sessions build at once. XOS_CACHE=src restores the old single-dir layout.
 XOS_CACHE="${XOS_CACHE:-$HOME/.cache/xos/tarballs}"
 
-KVER="${KVER:-6.18.49}"
+KVER="${KVER:-6.18.54}"
 BBVER="${BBVER:-1.38.0}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
@@ -27,11 +27,11 @@ ABDVER="${ABDVER:-0.6}"
 # trust surface it has ever taken -- recorded in SOURCES.md rather than waved
 # through. the kernel crypto backend (AF_ALG) is what avoids a fifth: no
 # openssl, no gcrypt, no nettle.
-CSVER="${CSVER:-2.8.7}"
+CSVER="${CSVER:-2.8.8}"
 LVMVER="${LVMVER:-2.03.42}"
 POPTVER="${POPTVER:-1.19}"
 JSONCVER="${JSONCVER:-0.19-20260627}"
-UTLVER="${UTLVER:-2.42.2}"
+UTLVER="${UTLVER:-2.42.4}"
 # phase 4, remote access: wireguard userland + dropbear ssh. wireguard is in the
 # kernel; wg only configures it. dropbear is the one listening service xos runs,
 # and only ever on the wireguard interface.
@@ -4624,32 +4624,75 @@ outdated() {
   return 0
 }
 
-# bump -- change one pinned version in build.sh, so the next ./build.sh all uses
-# it. this is the ONLY change; it does not build, sign, or touch the stick. for a
-# maintainer-signed dep (kernel/busybox/cryptsetup/util-linux) the build re-checks
-# the signature, so a fake version is refused loudly. `outdated` prints the exact
-# line to run. usage: ./build.sh bump <name> <version>   e.g. bump cryptsetup 2.8.8
+# bump -- take one dependency to a new version, SAFELY, in one command. for a
+# maintainer-signed dep it downloads the new tarball AND its signature, VERIFIES
+# that signature against the same committed key the build trusts, and only then
+# changes anything: the version, the pinned hash (sources.sha256) and the stored
+# signature (sigs/). if the signature does not verify, NOTHING changes -- a fake
+# or tampered version is refused before it can be pinned. an unsigned (TOFU) dep
+# is pinned from what TLS delivered, said out loud. after this, `./build.sh all`
+# rebuilds. usage: ./build.sh bump <name> <version>   e.g. bump cryptsetup 2.8.8
 bump() {
-  local name=$1 new=$2 const old
+  local name=$1 new=$2 const old signed=0 url sign key fpr tb pre
+  # per-dep: constant, tarball URL, whether/where its maintainer signs. the three
+  # kernel.org-signed ones + busybox are verified; the rest are trust-on-first-use
+  # (SOURCES.md says which), pinned from TLS with a warning.
   case "$name" in
-    kernel) const=KVER ;;  busybox) const=BBVER ;;  cryptsetup) const=CSVER ;;
-    util-linux) const=UTLVER ;;  lvm2) const=LVMVER ;;  dropbear) const=DBVER ;;
-    wireguard|wireguard-tools) const=WGTVER ;;  json-c) const=JSONCVER ;;
-    popt) const=POPTVER ;;  bearssl) const=BSSLVER ;;  ii) const=IIVER ;;  abduco) const=ABDVER ;;
+    kernel)     const=KVER;   pre=linux;         url="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$new.tar.xz";                        key=sigs/linux-release-key.asc;      fpr=$LNX_FPR; signed=xz ;;
+    cryptsetup) const=CSVER;  pre=cryptsetup;    url="https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${new%.*}/cryptsetup-$new.tar.xz";   key=sigs/cryptsetup-release-key.asc; fpr=$CS_FPR;  signed=xz ;;
+    util-linux) const=UTLVER; pre=util-linux;    url="https://cdn.kernel.org/pub/linux/utils/util-linux/v${new%.*}/util-linux-$new.tar.xz";   key=sigs/util-linux-release-key.asc; fpr=$UTL_FPR; signed=xz ;;
+    busybox)    const=BBVER;  pre=busybox;       url="https://busybox.net/downloads/busybox-$new.tar.bz2";                                    key=sigs/busybox-release-key.asc;    fpr=$BB_FPR;  signed=raw ;;
+    lvm2)       const=LVMVER; pre=LVM2;          url="https://sourceware.org/pub/lvm2/LVM2.$new.tgz";       signed=0 ;;
+    dropbear)   const=DBVER;  pre=dropbear;      url="https://matt.ucc.asn.au/dropbear/releases/dropbear-$new.tar.bz2"; signed=0 ;;
+    wireguard|wireguard-tools) const=WGTVER; pre=wireguard-tools; url="https://git.zx2c4.com/wireguard-tools/snapshot/wireguard-tools-$new.tar.gz"; signed=0 ;;
+    json-c)     const=JSONCVER; pre=json-c;      url="https://github.com/json-c/json-c/archive/refs/tags/json-c-$new.tar.gz"; signed=0 ;;
+    popt)       const=POPTVER;  pre=popt;        url="https://github.com/rpm-software-management/popt/releases/download/popt-$new-release/popt-$new.tar.gz"; signed=0 ;;
+    ii)         const=IIVER;    pre=ii;          url="https://dl.suckless.org/tools/ii-$new.tar.gz"; signed=0 ;;
+    abduco)     const=ABDVER;   pre=abduco;      url="https://www.brain-dump.org/projects/abduco/abduco-$new.tar.gz"; signed=0 ;;
+    bearssl)    const=BSSLVER;  pre=bearssl;     url="https://bearssl.org/bearssl-$new.tar.gz"; signed=0 ;;
     *) echo "bump: don't know '$name'. try: ./build.sh outdated  (it names each one)" >&2; return 1 ;;
   esac
   [ -n "$new" ] || { echo "bump: give the new version too, e.g. ./build.sh bump cryptsetup 2.8.8" >&2; return 1; }
   old=$(sed -n "s/^$const=\"\${$const:-\(.*\)}\"/\1/p" build.sh | head -1)
   [ -n "$old" ] || { echo "bump: could not find $const in build.sh" >&2; return 1; }
   [ "$old" = "$new" ] && { echo "$name is already pinned at $new -- nothing to do."; return 0; }
+  command -v curl >/dev/null 2>&1 || { echo "bump: needs curl" >&2; return 1; }
+  mkdir -p "$XOS_CACHE" sigs
+  tb=$(basename "$url")
+  say "bump $name $old -> $new  (verify first, change nothing until it passes)"
+  echo "  downloading $tb ..."
+  curl -fsSL --retry 2 -o "$XOS_CACHE/$tb" "$url" || { echo "bump: could not download $url" >&2; return 1; }
+
+  if [ "$signed" != 0 ]; then
+    # the maintainer signs the UNCOMPRESSED tar (kernel.org) or the archive as
+    # published (busybox). fetch the signature and verify with the SAME committed
+    # key + fingerprint the build uses -- reusing sigver, so this is exactly the
+    # build's own check, run early. nothing is pinned unless it returns clean.
+    local signurl="${url%.tar.xz}.tar.sign"; [ "$signed" = raw ] && signurl="$url.sig"
+    local signdst="sigs/$tb.NEW"; [ "$signed" = xz ] && signdst="sigs/${tb%.xz}.sign.NEW"
+    echo "  downloading + verifying the maintainer signature ..."
+    curl -fsSL --retry 2 -o "$signdst" "$signurl" || { rm -f "$XOS_CACHE/$tb" "$signdst"; echo "bump: could not download the signature ($signurl) -- NOT pinned" >&2; return 1; }
+    if ! XOS_STRICT=1 sigver "$tb" "$signdst" "$key" "$fpr" "$([ "$signed" = xz ] && echo xz)"; then
+      rm -f "$XOS_CACHE/$tb" "$signdst"
+      echo "bump: signature did NOT verify -- $name $new is refused, nothing changed" >&2; return 1
+    fi
+  else
+    printf '  \033[1;33mno maintainer signature for %s -- pinning what TLS delivered (trust-on-first-use).\n  confirm it is the real upstream before you ship.\033[0m\n' "$name"
+  fi
+
+  # verified (or TOFU-accepted): NOW commit the three pins together.
+  local newhash; newhash=$(sha256sum "$XOS_CACHE/$tb" | cut -d' ' -f1)
   sed -i "s|^$const=\"\${$const:-$old}\"|$const=\"\${$const:-$new}\"|" build.sh
-  grep -q "^$const=\"\${$const:-$new}\"" build.sh \
-    || { echo "bump: edit did not take -- change $const in build.sh by hand" >&2; return 1; }
-  echo "bumped $name: $old -> $new"
-  echo "now, in order:"
-  echo "  1.  ./build.sh all      (rebuilds + re-checks the download; type your password when asked)"
-  echo "  2.  flash the new stick"
-  echo "if the build stops on a signature or hash that does not match, the new version is NOT trusted -- do not ship it; put the old number back with: ./build.sh bump $name $old"
+  grep -q "^$const=\"\${$const:-$new}\"" build.sh || { echo "bump: version edit failed" >&2; return 1; }
+  sed -i "\|  ${pre}[-.].*|d; \|	${pre}[-.].*|d" sources.sha256   # drop the old line for this dep
+  printf '%s  %s\n' "$newhash" "$tb" >> sources.sha256
+  if [ "$signed" = xz ]; then
+    rm -f "sigs/${pre}-$old.tar.sign"; mv "sigs/${tb%.xz}.sign.NEW" "sigs/${tb%.xz}.sign"
+  elif [ "$signed" = raw ]; then
+    rm -f "sigs/${pre}-$old.tar.bz2.sig"; mv "sigs/$tb.NEW" "sigs/$tb.sig"
+  fi
+  echo "  pinned: $const=$new, sources.sha256 ($newhash), $([ "$signed" != 0 ] && echo 'signature stored' || echo 'no sig (TOFU)')"
+  echo "next:  ./build.sh all   then flash the stick.   to undo:  ./build.sh bump $name $old"
 }
 
 ci() {
