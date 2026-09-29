@@ -1050,8 +1050,16 @@ _conreal=$(cat /sys/class/tty/console/active 2>/dev/null); _conreal=${_conreal##
 for _s in /dev/ttyUSB* /dev/ttyACM*; do
 	[ -c "$_s" ] || continue
 	[ "${_s#/dev/}" = "$_conreal" ] && continue
-	stty -F "$_s" "$SERIAL_BAUD" cs8 -parenb -cstopb -crtscts ixon ixoff \
-		rows 24 cols 80 2>/dev/null
+	# busybox stty aborts the WHOLE command at the first option a device
+	# rejects, so cramming baud, flow control and geometry into one call let a
+	# flag the ftdi ttyUSB refuses take the trailing `rows 24 cols 80` down with
+	# it -- the line got its baud (first) and no size (last), and A20's
+	# serial-size check caught exactly that. split by concern so a rejected flag
+	# can only lose itself: baud+framing, then xon/xoff (before -crtscts, which
+	# an ftdi may refuse), then the geometry the brief-height gate is measured on.
+	stty -F "$_s" "$SERIAL_BAUD" cs8 -parenb -cstopb 2>/dev/null
+	stty -F "$_s" ixon ixoff -crtscts 2>/dev/null
+	stty -F "$_s" rows 24 cols 80 2>/dev/null
 	console_loop "$_s" &
 	spawned=$((spawned + 1))
 done
