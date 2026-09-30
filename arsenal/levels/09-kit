@@ -5,6 +5,8 @@ brief: The arsenal is not only weapons. A text browser, a PDF reader, offline
 brief: Wikipedia, a name-finder, a language to glue it all together, even a
 brief: game for the long nights. This level is knowing which tool is which and
 brief: how you reach for it -- most are things you run and use, not drills, so
+brief: (``example.com`` is a name set aside for teaching -- it belongs to
+brief: nobody, so looking up its sub-addresses bothers no real site.)
 brief: here you name the invocation. As always, any target is ``127.0.0.1`` or
 brief: something you own.
 tools: links subfinder dnsx mutool kiwix-serve kiwix-search frotz python

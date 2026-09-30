@@ -3,8 +3,10 @@ boss: crawler
 flavor: A site you own, on the loopback that only means this machine.
 brief: These probe a practice website the lab stands up on 127.0.0.1 -- your
 brief: own, and the only address in range. `httpx` asks a URL what it is;
-brief: `gobuster` guesses hidden paths from a wordlist. Same tools the pros
-brief: point at real targets, aimed here where it is safe to learn them.
+brief: `gobuster` and `ffuf` guess hidden pages from a wordlist; `nmap` checks
+brief: which ports are open; `nuclei` runs a big set of ready-made checks for
+brief: known problems. The same tools the pros point at real targets, aimed
+brief: here where it is safe to learn them.
 tools: httpx gobuster ffuf nmap nuclei
 lab: web
 ---
@@ -24,7 +26,7 @@ hint: -title asks for the <title> of the page
 ---
 q: probe @weburl@ and {show the web server it runs|identify the server software behind it|find out what server powers it}, with `httpx`
 a: httpx -u @weburl@ -server -silent -nc
-out: [Ss]erver|[Pp]ython|http
+out: [Ss]erver|[Pp]ython|SimpleHTTP
 ref: httpx
 teach: httpx
 hint: -server reports the Server header

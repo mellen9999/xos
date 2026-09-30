@@ -2,7 +2,8 @@ name: disks
 boss: coroner
 flavor: A drive that might already be dead, and the tools that find out.
 brief: `pspy` watches every process that starts, and `strace` follows one
-brief: program's system calls -- both restated here against a live fixture.
+brief: program's system calls -- the requests it makes to the kernel, like
+brief: opening a file. You meet both here, against a live fixture.
 brief: `ddrescue` copies a failing source once, carefully, logging what it
 brief: could not read; that also runs here, against a small file standing
 brief: in for a dying disk. `testdisk`, `photorec` and `smartctl` are

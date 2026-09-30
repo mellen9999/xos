@@ -26,16 +26,17 @@ seed: printf 'plain header padding, nothing to see here' > mystery.bin
 seed: printf 'a hidden payload' | gzip >> mystery.bin
 ---
 q: {find out what kind of program|identify what type of binary|figure out what sort of executable} ``hello`` is, without running it, with `radare2`
+a: radare2 -qc iI hello
 a: rabin2 -I hello
 out: [Ee][Ll][Ff]
 ref: radare2
 teach: radare2
-hint: rabin2 -I prints the binary's info -- type, arch, os -- unexecuted
+hint: radare2 -qc iI (or rabin2 -I) prints type, arch and os without running it
 seed: cp /bin/busybox hello
 ---
 q: {crack open|pull up|drop into} ``hello`` to read it, without executing it, with `radare2`
 a: r2 hello
-ref: radare2
+ref: r2
 teach: radare2
 hint: r2 drops you into radare2's own prompt to explore the binary
 ---

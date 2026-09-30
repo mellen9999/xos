@@ -565,10 +565,11 @@ clone_pinned() {
   B=build/binr/blob/r2blob.static
   readelf -l "$B" | grep -q INTERP && { echo "r2blob not static"; exit 1; }
   strip "$B"; cp "$B" /out/radare2
-  # the blob is a multicall binary (argv[0] dispatches, busybox-style), and the
-  # field name everyone types -- and the name the r2 card teaches -- is `r2`.
-  # without this the stick ships only `radare2` and `r2 hello` is command-not-found.
-  ln -sf radare2 /out/r2
+  # the blob is a multicall binary (argv[0] dispatches, busybox-style). every
+  # family name a card teaches must exist as a link or it is command-not-found
+  # on the stick: the r2 card teaches `r2`, 06-apart teaches `rabin2 -I`. ship
+  # them all (rax2 too -- same blob, the arithmetic/base tool).
+  for _a in r2 rabin2 rax2; do ln -sf radare2 "/out/$_a"; done
   "/out/radare2" -v 2>&1 | head -1 ) || log "radare2 FAILED"
 
 # gdb -- DEFERRED (static link). 15.2 configures and compiles clean in Alpine

@@ -14,7 +14,12 @@ brief: The tools live on the encrypted side, which cannot run a program
 brief: directly -- that is what keeps the stick safe. `xexec` is the doorway:
 brief: it copies one tool into a tiny space that can run, runs it, and tears
 brief: that space down. In here the school runs the tools for you; outside,
-brief: you type `xexec` yourself.
+brief: you run one yourself with ``sh ~/tools/xexec`` then the tool's name.
+brief:
+brief: You already met `abduco` in the base course -- it keeps a shell alive
+brief: even after you disconnect. `dvtm` builds on that: it splits one screen
+brief: into panes, so you can watch several things at once. Both are drilled
+brief: here.
 ---
 q: {the one safe address to aim every tool at, in this school|what address means "only this machine"|the loopback address the school uses for every target}
 a: 127.0.0.1

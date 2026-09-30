@@ -75,7 +75,10 @@ present=""
 for f in "$T"/*; do
   [ -e "$f" ] || continue
   b=$(basename "$f")
-  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas|view|canvas.py|qr|chart) continue ;; esac
+  # r2/rabin2/rax2 are argv0 aliases of radare2 (the attested entry), not tools
+  # in their own right -- radare2's catalog line names them, so don't list them
+  # here as separate, unattested files.
+  case "$b" in arsenal|arsenal.lock|arsenal-catalog|arsenal-playbook|xexec|learn|lib|pools|levels|phrases|atlas|view|canvas.py|qr|chart|r2|rabin2|rax2) continue ;; esac
   present="$present $b "
   d=$(desc "$b")
   [ -n "$d" ] || d="(no description -- present, unattested by catalog)"

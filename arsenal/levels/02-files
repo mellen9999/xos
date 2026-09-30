@@ -29,7 +29,7 @@ seed: printf 'this file is not what its name claims to be\n' > @bin@
 ---
 q: ``sample.json`` has a ``tools`` array -- {print each entry on its own line|list every value in it, one per line|pull out each item, one line at a time}, with `jq`
 a: jq -r '.tools[]' sample.json
-out: ^jq$
+out: ^mandoc$
 ref: jq
 teach: jq
 hint: -r for raw strings, ``.tools[]`` walks the array

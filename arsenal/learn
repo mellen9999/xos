@@ -12,7 +12,8 @@
 #   arsenal learn review       the cards that are due, or the weakest
 #   arsenal learn daily        one card a day, under the clock
 #   arsenal learn stats        mastery, what is due, the streak, the leeches
-#   arsenal learn selftest     prove every card (runs each answer)
+#   arsenal learn selftest     check every card; run-grade the ones that carry
+#                              an assertion (out:/state:/status:), when the tool is present
 set -u
 
 AROOT="${ARSENAL_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
