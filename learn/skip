@@ -8,7 +8,7 @@
 #
 # format:  <command> <flag>   # reason
 #
-# the reasons collapse to five kinds:
+# the reasons collapse to six kinds:
 #   alias      -- a second spelling of a flag we already teach
 #   verbose    -- output chattiness, no new capability
 #   compat     -- accepted for other implementations, no-op or near enough
@@ -610,17 +610,18 @@ traceroute -s    # ditto
 
 # ── whole commands. the flag field is `*`. ──
 #
-# the seventeen flagless pages here were invisible to `learn coverage` until
+# the eight flagless pages here were invisible to `learn coverage` until
 # it counted commands as well as flags: flags_of returns nothing for
 # `trap HANDLER SIGNAL`, so they contributed nothing to the denominator and
 # could never read as holes.
 
 ash      *      # alias -- the same shell under its other name; sh is what the corpus teaches
 cttyhack *      # absent -- allocates a controlling tty, and the grader has none
-halt     *      # alias -- halt, poweroff and reboot are one applet; poweroff is the one taught
+halt     *      # danger -- halt, poweroff and reboot are one applet; all three are banned by the answer fence, so none is drilled
 history  *      # absent -- prints nothing outside an interactive shell
 times    *      # verbose -- all-zero cpu time in a one-shot answer; it asserts nothing
 tutorial *      # the greeter -- three pages that point at learn; nothing to drill, it is the on-ramp to the curriculum, not part of it
 
-poweroff *      # danger -- banned by the answer fence; a drill that runs your answer cannot ask for it
-reboot   *      # danger -- same fence; halt is retired above as its alias
+poweroff *      # danger -- same applet as halt/reboot; a drill that runs your answer cannot ask for it
+reboot   *      # danger -- same applet as halt/poweroff, same fence
+clone    *      # danger -- copies over a whole disk; a drill that runs your answer must never wipe one

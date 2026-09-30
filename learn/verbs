@@ -7,4 +7,4 @@
 # internal helpers (_fumble, _ircui) are not verbs a person types and are not
 # listed. carried p3/arsenal capability (xexec, vault) rides p3, never the
 # signed fort, and is documented with the arsenal, not here.
-irc scrub recon_accept
+irc scrub recon_accept clone

@@ -587,7 +587,7 @@ fetch() {
   # kernel.org sources: the maintainer's detached signature over the tar,
   # matched against a fingerprint pinned above. a digest is only ever pinned
   # for a tarball whose signature verified first.
-  get "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz" \
+  get "https://cdn.kernel.org/pub/linux/kernel/v${KVER%%.*}.x/linux-$KVER.tar.xz" \
       "linux-$KVER.tar.xz" "linux-$KVER"
   sigver "linux-$KVER.tar.xz" "sigs/linux-$KVER.tar.sign" sigs/linux-release-key.asc "$LNX_FPR" xz
   get "https://busybox.net/downloads/busybox-$BBVER.tar.bz2" \
@@ -1058,10 +1058,11 @@ rootfs() {
   mkdir -p root/usr/share/doc/xos
   cp README.md root/usr/share/doc/xos/README
 
-  # overlay carries the udhcpc script, without which dhcp silently configures
-  # nothing, and the wordlist init turns the roothash into four spoken words. it was optional; under `set -e` a
-  # failing test in an && list does not abort, so a missing overlay just
-  # produced a quieter, more broken image.
+  # overlay carries the udhcpc script (without which dhcp silently configures
+  # nothing) and the wordlist init turns the roothash into four spoken words.
+  # the copy below was once a member of an && list; under `set -e` a failing
+  # member of an && list does not abort, so a missing overlay produced a
+  # quieter, more broken image instead of stopping. hence the explicit guard.
   [ -d overlay ] || { echo "FAIL: overlay/ missing" >&2; return 1; }
   cp -r overlay/. root/
 
@@ -1200,6 +1201,79 @@ recon_accept() {
 		mv "$f" "${f%.new}" && sync && n=$((n + 1)) && echo "accepted: machine ${f##*/recon/} is the baseline now"
 	done
 	[ "$n" -gt 0 ] || echo "nothing to accept -- no machine is reported as changed"
+}
+# clone -- copy THIS whole stick (boot code, root, and your encrypted p3) onto a
+# spare you plug in, then read every byte back to prove the copy is exact. no
+# build host, no keys: a stick is just bytes, and this copies all of them. the
+# spare boots on the same enrolled keys and unlocks p3 with the same passphrase,
+# so keep it somewhere safe and apart. for a perfect copy, do this with the
+# write-protect switch ON (vault mode) so nothing changes mid-copy.
+clone() {
+	local d bpart bootdisk
+	for d in /sys/block/dm-*; do
+		[ "$(cat "$d/dm/name" 2>/dev/null)" = vroot ] || continue
+		bpart=$(ls "$d/slaves" 2>/dev/null | head -1); break
+	done
+	bootdisk=$(printf '%s' "$bpart" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
+	[ -n "$bootdisk" ] && [ -b "/dev/$bootdisk" ] \
+		|| { echo "clone: could not tell which stick this booted from -- not safe to copy"; return 1; }
+	# a spare is a whole removable disk that is not this stick. usb sticks show up
+	# here; the host's own disks never do (xos ships no driver that can see them).
+	local c name spares="" n=0
+	for c in /sys/block/*; do
+		name=${c##*/}
+		case "$name" in loop*|dm-*|ram*|zram*|sr*|md*) continue ;; esac
+		[ "$name" = "$bootdisk" ] && continue
+		[ "$(cat "$c/removable" 2>/dev/null)" = 1 ] || continue
+		[ -b "/dev/$name" ] || continue
+		spares="$spares $name"; n=$((n + 1))
+	done
+	if [ "$n" -eq 0 ]; then
+		echo "clone: plug in the spare stick first -- nothing removable is attached yet."
+		return 1
+	fi
+	if [ "$n" -gt 1 ]; then
+		echo "clone: more than one spare is plugged in. leave ONLY the target in, then run clone again:"
+		for name in $spares; do echo "  /dev/$name  ($(cat "/sys/block/$name/device/model" 2>/dev/null))"; done
+		return 1
+	fi
+	local dst; dst=$(printf '%s' "$spares" | tr -d ' ')
+	grep -q "^/dev/$dst" /proc/mounts && { echo "clone: /dev/$dst is in use (mounted) -- unmount it first"; return 1; }
+	local bmodel dmodel bsec dsec
+	# sysfs pads the model field; trim trailing spaces so what you type matches
+	bmodel=$(cat "/sys/block/$bootdisk/device/model" 2>/dev/null | sed 's/[[:space:]]*$//')
+	dmodel=$(cat "/sys/block/$dst/device/model" 2>/dev/null | sed 's/[[:space:]]*$//')
+	bsec=$(cat "/sys/block/$bootdisk/size" 2>/dev/null)
+	dsec=$(cat "/sys/block/$dst/size" 2>/dev/null)
+	[ -n "$bsec" ] && [ -n "$dsec" ] || { echo "clone: could not read the disk sizes"; return 1; }
+	[ "$dsec" -ge "$bsec" ] \
+		|| { echo "clone: the spare ($((dsec/2048)) MiB) is smaller than this stick ($((bsec/2048)) MiB) -- it cannot hold a full copy"; return 1; }
+	echo
+	echo "  this stick   /dev/$bootdisk  ($((bsec/2048)) MiB, ${bmodel:-unknown})   -- read only"
+	echo "  the spare    /dev/$dst  ($((dsec/2048)) MiB, ${dmodel:-unknown})   -- ERASED and overwritten"
+	echo
+	echo "  everything on the spare is destroyed and replaced with an exact copy of this stick."
+	printf "  to go ahead, type the spare's model exactly (%s): " "${dmodel:-unknown}"
+	local ans; IFS= read -r ans
+	[ "$ans" = "${dmodel:-unknown}" ] || { echo "  that did not match -- nothing was written."; return 1; }
+	sync
+	echo "  copying $((bsec/2048)) MiB -- this takes a while (very roughly a minute per 500 MiB)."
+	echo "  do NOT pull either stick until it says done."
+	if ! dd if="/dev/$bootdisk" of="/dev/$dst" bs=4M 2>/dev/null; then
+		echo "  clone: the copy did not finish -- do not trust /dev/$dst"; return 1
+	fi
+	sync
+	echo "  reading it back to prove the copy is exact..."
+	local h1 h2
+	h1=$(dd if="/dev/$bootdisk" bs=4M count=$((bsec/8192)) 2>/dev/null | sha256sum | cut -d' ' -f1)
+	h2=$(dd if="/dev/$dst"      bs=4M count=$((bsec/8192)) 2>/dev/null | sha256sum | cut -d' ' -f1)
+	if [ -n "$h1" ] && [ "$h1" = "$h2" ]; then
+		echo "  done -- /dev/$dst is an exact copy of this stick, p3 and all."
+		echo "  it boots on the same keys and unlocks p3 with the same passphrase. store it apart."
+	else
+		echo "  clone: the read-back did NOT match -- the copy is bad, do not rely on /dev/$dst"
+		return 1
+	fi
 }
 # one channel, one screen, from the same two fifos. the top rows are a scroll
 # region fed by tail -f on the channel's out; the row above the bottom is where
@@ -2422,6 +2496,7 @@ TODO: write this entry by hand.
 #   G63 the levels ask you to put two commands together, and keep asking
 #   G64 clone is guarded and proves the spare is a faithful copy
 #   G65 every carried map layer is pinned by sha256 and licensed public-domain
+#   G66 bump edits exactly the two pins it should and reverses byte-clean
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -3658,7 +3733,7 @@ G51
   # build afterward, but a hard gate here means that restore is enforced,
   # not just intended.
   local tf=0 tfword
-  for tfword in xos.test xos.teststate xos.testwg xos.testtether; do
+  for tfword in xos.test xos.teststate xos.testwg xos.testtether xos.testclone; do
     grep -qF "$tfword" cmdline.txt && tf=$((tf+1))
   done
   g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"
@@ -3860,6 +3935,50 @@ G51
     g65=FAIL; printf '    %s is missing\n' "$mps" >&2
   fi
   g "G65 carried maps pinned and licensed" "$g65"
+
+  # G66 -- bump rewrites the two trust-critical pins (the version in build.sh and
+  # the hash line in sources.sha256) with in-place surgery; a bug there ships a
+  # wrong or misplaced pin silently. prove on a scratch copy that _bump_apply
+  # touches EXACTLY the one dep (build.sh changes one line, sources.sha256 swaps
+  # one line and leaves every other byte-identical) and that bumping back to the
+  # old version restores the same content -- the property that makes the printed
+  # `to undo: ./build.sh bump <name> <old>` a real undo. also prove bump verifies
+  # the maintainer signature BEFORE it calls the surgery, so a bad signature
+  # changes nothing.
+  local g66=ok bd ov ot oh
+  bd=$(mktemp -d) || { g66=FAIL; printf "    G66: mktemp failed\n" >&2; }
+  if [ "$g66" = ok ]; then
+    cp build.sh "$bd/b"; cp sources.sha256 "$bd/s"
+    ov=$(sed -n 's/^CSVER="${CSVER:-\(.*\)}"/\1/p' build.sh | head -1)
+    ot=$(awk '$2 ~ /^cryptsetup[-.]/ {print $2}' sources.sha256 | head -1)
+    oh=$(awk '$2 ~ /^cryptsetup[-.]/ {print $1}' sources.sha256 | head -1)
+    if [ -z "$ov" ] || [ -z "$ot" ] || [ -z "$oh" ]; then
+      g66=FAIL; printf "    G66: could not read the cryptsetup pin/hash to test against\n" >&2
+    else
+      # forward: bump cryptsetup to a fake version with a fake hash
+      BUMP_BUILD="$bd/b" BUMP_SRC="$bd/s" _bump_apply CSVER "$ov" 99.99.99 cryptsetup         0000000000000000000000000000000000000000000000000000000000000000         cryptsetup-99.99.99.tar.xz >/dev/null 2>&1 || { g66=FAIL; printf "    G66: forward _bump_apply failed\n" >&2; }
+      # build.sh: exactly one line changed (the CSVER pin), nothing else
+      local bdiff; bdiff=$(diff build.sh "$bd/b" | grep -c '^[<>]' || true)
+      [ "$bdiff" = 2 ] || { g66=FAIL; printf "    G66: bump changed %s build.sh line-halves, want 2 (one dep)\n" "$bdiff" >&2; }
+      grep -q '^CSVER="${CSVER:-99.99.99}"' "$bd/b" || { g66=FAIL; printf "    G66: the version pin was not retargeted\n" >&2; }
+      # sources.sha256: only the cryptsetup row moved; every other dep byte-identical
+      local sdiff; sdiff=$(diff <(sort sources.sha256) <(sort "$bd/s") | grep -c '^[<>]' || true)
+      [ "$sdiff" = 2 ] || { g66=FAIL; printf "    G66: bump changed %s sources.sha256 lines, want 2 (only this dep)\n" "$sdiff" >&2; }
+      [ "$(grep -c '  cryptsetup-' "$bd/s")" = 1 ] || { g66=FAIL; printf "    G66: more than one cryptsetup hash line after bump\n" >&2; }
+      grep -q '^0\{64\}  cryptsetup-99.99.99.tar.xz$' "$bd/s" || { g66=FAIL; printf "    G66: the new hash line is wrong\n" >&2; }
+      # reverse: bump back -- build.sh byte-identical, sources.sha256 same line-set
+      BUMP_BUILD="$bd/b" BUMP_SRC="$bd/s" _bump_apply CSVER 99.99.99 "$ov" cryptsetup "$oh" "$ot" >/dev/null 2>&1         || { g66=FAIL; printf "    G66: reverse _bump_apply failed\n" >&2; }
+      cmp -s build.sh "$bd/b" || { g66=FAIL; printf "    G66: bump then un-bump did NOT restore build.sh byte-for-byte\n" >&2; }
+      diff <(sort sources.sha256) <(sort "$bd/s") >/dev/null 2>&1         || { g66=FAIL; printf "    G66: un-bump did not restore the sources.sha256 line set\n" >&2; }
+    fi
+    # fail-closed ordering: sigver must be called before the pin surgery, so a
+    # bad signature aborts with nothing changed. read it out of the bump body.
+    local sline aline; sline=$(awk '/^bump\(\) \{/{f=1} f&&/sigver /{print NR; exit}' build.sh)
+    aline=$(awk '/^bump\(\) \{/{f=1} f&&/_bump_apply /{print NR; exit}' build.sh)
+    { [ -n "$sline" ] && [ -n "$aline" ] && [ "$sline" -lt "$aline" ]; }       || { g66=FAIL; printf "    G66: bump does not verify the signature before committing pins\n" >&2; }
+    rm -rf "$bd"
+  fi
+  g "G66 bump edits exactly the pins and reverses clean" "$g66"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed -- and that the ones that ran are
@@ -4632,13 +4751,30 @@ outdated() {
 # or tampered version is refused before it can be pinned. an unsigned (TOFU) dep
 # is pinned from what TLS delivered, said out loud. after this, `./build.sh all`
 # rebuilds. usage: ./build.sh bump <name> <version>   e.g. bump cryptsetup 2.8.8
+# the reversible, network-free heart of bump: retarget the version pin and the
+# sources.sha256 hash line, and NOTHING else. factored out so G66 can prove, on a
+# scratch copy, that a bump edits exactly those two lines and that bumping back to
+# the old version restores the files byte-for-byte. operates on build.sh +
+# sources.sha256 by default; BUMP_BUILD / BUMP_SRC point it at scratch copies.
+_bump_apply() { # $1=const $2=old $3=new $4=pre $5=newhash $6=tb
+  local const=$1 old=$2 new=$3 pre=$4 newhash=$5 tb=$6
+  local B=${BUMP_BUILD:-build.sh} S=${BUMP_SRC:-sources.sha256}
+  sed -i "s|^$const=\"\${$const:-$old}\"|$const=\"\${$const:-$new}\"|" "$B"
+  grep -q "^$const=\"\${$const:-$new}\"" "$B" || return 1
+  # drop the old line for this dep -- match the FILENAME field literally (a regex
+  # on a short prefix like "ii" could hit the wrong row), keying on "${pre}-" /
+  # "${pre}." exactly, whatever whitespace separates the hash from the name.
+  awk -v p="$pre" 'BEGIN{lp=length(p)} {fn=$2; pfx=substr(fn,1,lp); nx=substr(fn,lp+1,1)} (pfx==p && (nx=="-"||nx==".")){next} {print}' "$S" > "$S.bump" && mv "$S.bump" "$S"
+  printf '%s  %s\n' "$newhash" "$tb" >> "$S"
+}
+
 bump() {
   local name=$1 new=$2 const old signed=0 url sign key fpr tb pre
   # per-dep: constant, tarball URL, whether/where its maintainer signs. the three
   # kernel.org-signed ones + busybox are verified; the rest are trust-on-first-use
   # (SOURCES.md says which), pinned from TLS with a warning.
   case "$name" in
-    kernel)     const=KVER;   pre=linux;         url="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$new.tar.xz";                        key=sigs/linux-release-key.asc;      fpr=$LNX_FPR; signed=xz ;;
+    kernel)     const=KVER;   pre=linux;         url="https://cdn.kernel.org/pub/linux/kernel/v${new%%.*}.x/linux-$new.tar.xz";                        key=sigs/linux-release-key.asc;      fpr=$LNX_FPR; signed=xz ;;
     cryptsetup) const=CSVER;  pre=cryptsetup;    url="https://cdn.kernel.org/pub/linux/utils/cryptsetup/v${new%.*}/cryptsetup-$new.tar.xz";   key=sigs/cryptsetup-release-key.asc; fpr=$CS_FPR;  signed=xz ;;
     util-linux) const=UTLVER; pre=util-linux;    url="https://cdn.kernel.org/pub/linux/utils/util-linux/v${new%.*}/util-linux-$new.tar.xz";   key=sigs/util-linux-release-key.asc; fpr=$UTL_FPR; signed=xz ;;
     busybox)    const=BBVER;  pre=busybox;       url="https://busybox.net/downloads/busybox-$new.tar.bz2";                                    key=sigs/busybox-release-key.asc;    fpr=$BB_FPR;  signed=raw ;;
@@ -4680,12 +4816,12 @@ bump() {
     printf '  \033[1;33mno maintainer signature for %s -- pinning what TLS delivered (trust-on-first-use).\n  confirm it is the real upstream before you ship.\033[0m\n' "$name"
   fi
 
-  # verified (or TOFU-accepted): NOW commit the three pins together.
+  # verified (or TOFU-accepted): NOW commit the two content pins together --
+  # the version and the sources.sha256 hash line. the surgery is factored into
+  # _bump_apply so G66 can prove it edits exactly those lines and reverses clean.
   local newhash; newhash=$(sha256sum "$XOS_CACHE/$tb" | cut -d' ' -f1)
-  sed -i "s|^$const=\"\${$const:-$old}\"|$const=\"\${$const:-$new}\"|" build.sh
-  grep -q "^$const=\"\${$const:-$new}\"" build.sh || { echo "bump: version edit failed" >&2; return 1; }
-  sed -i "\|  ${pre}[-.].*|d; \|	${pre}[-.].*|d" sources.sha256   # drop the old line for this dep
-  printf '%s  %s\n' "$newhash" "$tb" >> sources.sha256
+  _bump_apply "$const" "$old" "$new" "$pre" "$newhash" "$tb" \
+    || { echo "bump: pin surgery failed -- nothing committed" >&2; return 1; }
   if [ "$signed" = xz ]; then
     rm -f "sigs/${pre}-$old.tar.sign"; mv "sigs/${tb%.xz}.sign.NEW" "sigs/${tb%.xz}.sign"
   elif [ "$signed" = raw ]; then

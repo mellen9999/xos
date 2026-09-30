@@ -27,7 +27,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=20
+EXPECTED_SECTIONS=22
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. the whole stick is what boots
@@ -457,6 +457,9 @@ section "A12  learn describes the system that is actually running"
 # on the stick, offline.
 grep -q 'no-bash: absent' <<< "$out" && ok "bash is gone -- one shell" || bad "a second shell shipped"
 grep -q 'shell-vi-default: yes' <<< "$out" && ok "vi-mode line editing is the default shell behavior" || bad "vi keybindings are not the default"
+grep -q 'shell-vi-prompt: yes' <<< "$out" \
+	&& ok "the interactive prompt actually renders through PS1_CMD (vi state visible)" \
+	|| bad "shell-vi-prompt probe failed -- the prompt hook did not run"
 refs=$(grep -oP 'learn-refs: \K[0-9]+' <<< "$out" | head -1)
 runs=$(grep -oP 'learn-runs: \K[0-9]+' <<< "$out" | head -1)
 if [ "${refs:-0}" -gt 0 ] && [ "${refs:-0}" = "${runs:-x}" ]; then
@@ -467,6 +470,9 @@ fi
 grep -qE 'learn-ref-ls: .' <<< "$out" && ! grep -q 'learn-ref-ls: MISSING' <<< "$out" \
 	&& ok "learn ref resolves an entry at runtime" \
 	|| bad "learn ref ls returned nothing -- the manpage substitute is empty (or the probe never ran)"
+grep -q 'learn-ref-verbs: ok' <<< "$out" \
+	&& ok "learn ref resolves xos's own verbs (irc, scrub, recon_accept) at runtime" \
+	|| bad "a learn ref page for an xos verb is empty on the booted system"
 les=$(grep -oP 'learn-levels: \K[0-9]+' <<< "$out" | head -1)
 pls=$(grep -oP 'learn-pools: \K[0-9]+' <<< "$out" | head -1)
 [ "${les:-0}" -gt 0 ] && ok "curriculum present in the image ($les levels)" \
@@ -518,9 +524,12 @@ tty_n=$(grep -oP 'ttys-spawned: \K[0-9]+' <<< "$out" | head -1)
 grep -q 'console-device-ok: yes' <<< "$out" \
 	&& ok "the console supervisor runs with a real device" \
 	|| bad "the console got an empty device -- it would error-loop on real hardware"
-# PID 1 used to BE the shell, so a shell exiting was a kernel panic.
+# what this actually proves: the boot ran to the end of the probe block with PID 1
+# alive and no kernel panic. it does NOT exercise a console session exiting -- the
+# respawn-after-exit path is G40 (respawn_wait) and console-device-ok above, so the
+# label says only what the check sees.
 grep -q 'XOS-TEST-DONE' <<< "$out" && ! grep -q 'Kernel panic' <<< "$out" \
-	&& ok "PID 1 survived every console session" || bad "the boot panicked (or never reached DONE)"
+	&& ok "the boot reached DONE with PID 1 alive and no kernel panic" || bad "the boot panicked (or never reached DONE)"
 
 echo
 section "A14  state can be encrypted AND authenticated"
@@ -973,6 +982,12 @@ else
 	grep -q 'serial-term: vt320' <<< "$serout" \
 		&& ok "the serial line got TERM=vt320 (learn draws it on the mono tier)" \
 		|| bad "the serial TERM is not vt320 -- a serial session draws for the wrong hardware"
+	# the DEFAULT above cannot fail on its own; this asserts the term console_loop
+	# ACTUALLY assigned the enumerated line, read from its own beacon. a broken
+	# case in console_loop (mislabelling a ttyUSB as TERM=linux) fails here.
+	grep -q 'serial-term-picked: vt320' <<< "$serout" \
+		&& ok "console_loop picked vt320 for the real serial device (not just the default)" \
+		|| bad "console_loop assigned the serial line the wrong TERM -- a mislabelled serial console"
 	# and its geometry, because the brief-height gate is measured against it: a
 	# serial line reports no window size, so init pins 80x24 and G50 budgets 19
 	# rendered rows from it. if these ever disagree, a teaching page scrolls its
@@ -993,6 +1008,120 @@ else
 		       bad "the serial geometry is $_ssz, not 24x80 -- G50's brief budget no longer matches it (full serout: /tmp/xos-a20.serout)" ;;
 	esac
 	assert_complete "$serout" "A20 usb-serial boot"
+fi
+
+section "A21  vault mode: a write-protected stick runs from RAM, untouched"
+# the FlashBlu30's hardware write-protect switch is the whole vault story, and
+# nothing tested it: dev_ro(), the --readonly LUKS open and the /tmp/p3ro sidecar
+# never ran under qemu. a virtio disk attached readonly=on makes the guest kernel
+# mark /sys/class/block/vdb/ro=1 -- exactly what dev_ro reads -- so the real vault
+# path runs here for the first time. it needs a provisioned p3 (ext4 + files) and
+# a production stick, both of which A19's rig knows how to make.
+if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+	skipped "no stub or unlocked key -- A21 not evaluated"
+else
+	# a production stick: the test flags stripped, so state_open runs for real
+	a21cmd=$(tr ' ' '\n' < cmdline.txt | grep -v '^xos\.test' | tr '\n' ' ')
+	ukify build --linux=bzImage --cmdline="$a21cmd" --stub="$stub" \
+		--output=/tmp/xos-a21.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a21-signed.efi /tmp/xos-a21.efi >/dev/null 2>&1
+	cp stick.img /tmp/xos-a21.img
+	mcopy -o -i /tmp/xos-a21.img@@1M /tmp/xos-a21-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	# provision a p3 (ext4 + wg0.conf), exactly the way A19's crown-jewel does
+	a21disk=/tmp/xos-a21-state.img
+	truncate -s 48M "$a21disk"
+	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a21disk" >/dev/null 2>&1
+	prov=$(boot_state "$a21disk")
+	grep -q 'teststate-mkfs: ok' <<< "$prov" \
+		&& ok "provision boot laid down a p3 to run vault mode against" \
+		|| bad "could not provision the p3 for the vault test"
+	# boot production with that SAME disk attached READ-ONLY -- the switch is on.
+	a21log=/tmp/xos-a21.log a21fifo=/tmp/xos-a21.fifo
+	rm -f "$a21fifo" "$a21log"; mkfifo "$a21fifo"
+	timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		"${QEMU_FW[@]}" \
+		-drive file=/tmp/xos-a21.img,if=virtio,format=raw,readonly=on \
+		-drive file="$a21disk",if=virtio,format=raw,readonly=on \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < "$a21fifo" > "$a21log" 2>&1 &
+	qp21=$!
+	exec 9<> "$a21fifo"
+	# type the passphrase at each prompt (three tries, same as the real hand)
+	a21sent=0; a21seen=0; a21t=0
+	while [ "$a21sent" -lt 3 ]; do
+		a21t=0
+		while [ "$a21t" -lt 90 ]; do
+			grep -aqE 'vault mode:|continuing without persistence|would not mount' "$a21log" && break 2
+			a21seen=$(grep -ac 'unlock persistent state?' "$a21log" || true)
+			[ "${a21seen:-0}" -gt "$a21sent" ] && break
+			sleep 1; a21t=$((a21t+1))
+		done
+		[ "$a21t" -ge 90 ] && break
+		printf 'testpass\n' >&9
+		a21sent=$((a21sent+1))
+	done
+	# wait for the vault line, then drive a write-probe at the login shell: the
+	# read-only p3 sidecar must refuse a write; the RAM $HOME must accept one.
+	a21t=0
+	while [ "$a21t" -lt 45 ] && ! grep -aqE 'vault mode:|continuing without persistence|would not mount' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
+	sleep 3
+	printf '%s\n' 'touch /tmp/p3ro/vaultprobe 2>&1 | grep -qi read-only && echo VAULT-P3-RO; touch "$HOME/vaultprobe" 2>/dev/null && echo VAULT-HOME-OK; echo VAULT-PROBE-DONE' >&9
+	a21t=0
+	while [ "$a21t" -lt 30 ] && ! grep -aq 'VAULT-PROBE-DONE' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
+	sleep 2
+	exec 9>&-; kill "$qp21" 2>/dev/null; wait "$qp21" 2>/dev/null; rm -f "$a21fifo"
+
+	grep -aq 'vault mode: p3 is write-protected' "$a21log" \
+		&& ok "the write-protect switch put the boot in vault mode (dev_ro + --readonly open)" \
+		|| bad "vault mode did not engage on a read-only p3 -- the switch story is unproven"
+	grep -aq 'VAULT-P3-RO' "$a21log" \
+		&& ok "a write to p3 is refused -- the stick stays untouched in vault mode" \
+		|| bad "p3 took a write in vault mode (or the probe never ran) -- the core promise is unproven"
+	grep -aq 'VAULT-HOME-OK' "$a21log" \
+		&& ok "the RAM \$HOME still takes writes -- work continues, nothing persists" \
+		|| bad "the RAM home was not writable in vault mode"
+	rm -f /tmp/xos-a21*.efi /tmp/xos-a21*.img "$a21disk" "$a21log"
+fi
+
+
+section "A22  clone: a booted stick copies itself onto a plugged-in spare"
+# the field clone verb -- a booted xos writes a full, verified copy of its own
+# stick onto a spare, with no build host and no keys. driven through the
+# xos.testclone probe hook: clone runs non-interactively, the spare's own model
+# fed in as the confirmation a hand would type. the spare is attached as
+# REMOVABLE usb (what a spare stick looks like); the boot disk is virtio and is
+# excluded. we assert clone's own verdict AND cmp the spare image to the stick
+# from outside the guest, so the copy is proven twice.
+if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+	skipped "no stub or unlocked key -- A22 not evaluated"
+else
+	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testclone" \
+		--stub="$stub" --output=/tmp/xos-a22.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a22-signed.efi /tmp/xos-a22.efi >/dev/null 2>&1
+	a22stick=/tmp/xos-a22.img a22spare=/tmp/xos-a22-spare.img
+	cp stick.img "$a22stick"
+	mcopy -o -i "$a22stick"@@1M /tmp/xos-a22-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	a22ssz=$(stat -c%s "$a22stick"); truncate -s $((a22ssz + 8*1024*1024)) "$a22spare"
+	a22out=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
+		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
+		-device qemu-xhci,id=xhci \
+		-drive if=none,id=spare,format=raw,file="$a22spare" \
+		-device usb-storage,bus=xhci.0,drive=spare,removable=on \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
+	if grep -q 'clone-test: .*is an exact copy of this stick' <<< "$a22out"; then
+		ok "clone found the spare, confirmed it by model, copied and read it back clean"
+	else
+		bad "clone did not report a verified copy"
+		printf '%s\n' "$a22out" | grep -a 'clone-test:' | sed 's/^/    /'
+	fi
+	if cmp -n "$a22ssz" "$a22stick" "$a22spare" >/dev/null 2>&1; then
+		ok "the spare image byte-matches the stick over its whole length"
+	else
+		bad "the spare's bytes do not match the stick -- clone was not faithful"
+	fi
+	assert_complete "$a22out" "A22 clone boot"
+	rm -f /tmp/xos-a22*.efi /tmp/xos-a22-signed.efi "$a22spare" /tmp/xos-a22.img
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"

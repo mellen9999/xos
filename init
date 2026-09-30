@@ -535,7 +535,7 @@ if cmdline_has xos.test; then
 	printf 'abduco-session-listed: '; abduco 2>&1 | grep -q probe && echo yes || echo no
 	printf 'abduco-child-alive: '; [ -s /tmp/tick ] && echo yes || echo no
 	# learn must describe the system that is actually running, not the one it was
-	# written against -- A15 reads these two back.
+	# written against -- A12 reads these two back.
 	printf 'learn-refs: '; _n=0; for _f in /usr/share/learn/ref/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	printf 'learn-runs: '; _c=$(learn list 2>/dev/null | grep -c .); echo "${_c:-0}"
 	printf 'learn-ref-ls: '; learn ref ls 2>/dev/null | head -1 | grep . || echo MISSING
@@ -705,6 +705,24 @@ if cmdline_has xos.test; then
 		rm -f /tmp/wgkey /tmp/hostkey /tmp/clientkey /tmp/badkey
 	fi
 
+	if cmdline_has xos.testclone; then
+		# drive the clone verb non-interactively against a plugged-in spare, so
+		# the harness can prove a booted stick copies itself. the verbs live in
+		# /etc/shrc, sourced in a subshell exactly as the scrub probe does; the
+		# spare's own model is piped in as the confirmation a hand would type.
+		printf 'clone-test: '
+		_csp=""
+		for _cd in /sys/block/sd*; do
+			[ "$(cat "$_cd/removable" 2>/dev/null)" = 1 ] && _csp=$(basename "$_cd") && break
+		done
+		if [ -z "$_csp" ]; then
+			echo "no removable spare attached"
+		else
+			_cm=$(cat "/sys/block/$_csp/device/model" 2>/dev/null | sed 's/[[:space:]]*$//')
+			printf '%s\n' "$_cm" | ( . /etc/shrc; clone ) 2>&1 | sed 's/^/clone-test: /'
+		fi
+	fi
+
 	[ -n "${_prevprintk:-}" ] && echo "$_prevprintk" > /proc/sys/kernel/printk 2>/dev/null
 	echo "XOS-TEST-END"
 	sync
@@ -722,9 +740,10 @@ fi
 # nosuid,nodev,noexec: state persists, but a binary dropped onto it still cannot
 # run -- the same W^X property the read-only root has.
 #
-# this runs AFTER the test block (which powers off) so an automated boot never
-# blocks on the prompt, and BEFORE the consoles so the session that starts sees
-# the persistent home. STATE_DIR is set at the top, beside shutdown_().
+# this runs on every boot, after the probe block above and before the consoles,
+# so the session that starts sees the persistent home. it only prompts when a
+# LUKS candidate is actually present, so an ordinary boot with no p3 falls
+# straight through. STATE_DIR is set at the top, beside shutdown_().
 # true when the block device's media is write-protected. a BLU-style hardware
 # write switch sets the SCSI write-protect bit, which the kernel exposes as ro=1
 # on the block device (and on its parent disk). checked BEFORE opening so the
@@ -1001,6 +1020,11 @@ console_loop() {
 	# health beacon (bounded -- single line, overwritten): proves this loop is
 	# running with a real device, which the empty-$_dev bug made impossible.
 	[ -n "$_dev" ] && printf '%s\n' "$_dev" >> /tmp/console.up 2>/dev/null
+	# record the term this loop ACTUALLY picked for its device (from the case
+	# above, not the cmdline default) so a test can assert console_loop's own
+	# choice -- a broken case that mislabels a serial line as TERM=linux would
+	# show here, where echoing the SERIAL_TERM default could never reveal it.
+	[ -n "$_dev" ] && printf '%s\n' "$_term" > "/tmp/console.term.$(basename "$_dev")" 2>/dev/null
 	while : ; do
 		_t0=$(date +%s 2>/dev/null || echo 0)
 		banner > "$_dev" 2>/dev/null
@@ -1082,6 +1106,11 @@ if cmdline_has xos.test; then
 	# the geometry too: a serial line reports no window size, so init pins it,
 	# and the brief-height gate is measured against exactly these numbers.
 	printf 'serial-term: %s\n' "$SERIAL_TERM"
+	# and the term console_loop ACTUALLY assigned that first serial line, read
+	# back from its own beacon: this is what a broken case would corrupt, where
+	# the default above cannot move. A20 asserts on THIS line.
+	[ -n "$_ser" ] && printf 'serial-term-picked: %s\n' \
+		"$(cat "/tmp/console.term.$(basename "${_ser%% *}")" 2>/dev/null)"
 	[ -n "$_ser" ] && printf 'serial-size: %s\n' \
 		"$(stty -F "${_ser%% *}" size 2>/dev/null | tr ' ' 'x')"
 	echo "XOS-TEST-DONE"

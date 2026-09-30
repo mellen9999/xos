@@ -1,0 +1,26 @@
+clone
+Usage: clone
+
+Copy this whole stick onto a spare you plug in.
+
+	clone
+
+xos lives on a usb stick, and a stick can be lost or wear out. clone
+makes a spare: plug an empty usb stick into the same machine and run
+clone with no arguments. It finds the one spare you plugged in, shows
+you both sticks and their sizes, and makes you type the spare's model
+back before it writes anything -- so it can never overwrite the wrong
+disk.
+
+It copies every byte: the boot code, the read-only system, and your
+encrypted p3. Then it reads the copy back and checks it matches, byte
+for byte, before it calls the copy done. The spare boots on the same
+enrolled keys and unlocks p3 with the same passphrase, so guard it like
+the original and store it somewhere apart.
+
+It refuses if no spare is plugged in, if more than one is (leave only
+the target), if the spare is smaller than this stick, or if the spare
+is in use. For the cleanest copy, turn the write-protect switch ON
+first (vault mode) so nothing can change while it copies.
+
+See also: dd, sha256sum, scrub
