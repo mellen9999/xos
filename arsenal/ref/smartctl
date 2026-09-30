@@ -1,0 +1,13 @@
+smartctl
+Usage: smartctl [-H|-a|-A] /dev/sdX   |   smartctl -t short /dev/sdX
+
+Reads a drive's own SMART health data -- is it failing before you trust it with
+data or wipe it? A one-line health verdict, the full attribute table, or kick
+off a self-test.
+
+	-H /dev/sdX   the overall health verdict (PASSED / FAILING)
+	-a /dev/sdX   every attribute and the full report
+	-A /dev/sdX   just the attribute values (pipe to `chart`)
+	-t short /dev/sdX   start a short self-test
+
+See also: ddrescue, chart

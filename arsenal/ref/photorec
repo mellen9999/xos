@@ -1,0 +1,13 @@
+photorec
+Usage: photorec IMAGE_or_DEVICE
+
+Carves files back off a formatted or damaged filesystem by their signatures --
+it ignores the directory structure entirely and recognises file types from
+their content, so it recovers data even when the filesystem is gone. Interactive.
+
+	photorec image.img    carve from a ddrescue image (preferred)
+	photorec /dev/sdX     carve from the device directly
+
+Recovers file contents, not names -- expect `f0001234.jpg` style output.
+
+See also: testdisk, ddrescue, file

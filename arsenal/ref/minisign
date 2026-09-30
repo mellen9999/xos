@@ -1,0 +1,12 @@
+minisign
+Usage: minisign -G ... | minisign -S -s KEY -m FILE | minisign -V -p KEY -m FILE
+
+Signs and verifies files with a single ed25519 key -- no gpg web-of-trust, just
+one keypair. Prove a release is yours, or check one before you trust it. A
+signature lands beside the file as `FILE.minisig`.
+
+	-G -p pub -s sec   generate a keypair ( -W for no passphrase )
+	-S -s sec -m FILE  sign FILE -> FILE.minisig
+	-V -p pub -m FILE  verify FILE against its signature
+
+See also: age, john

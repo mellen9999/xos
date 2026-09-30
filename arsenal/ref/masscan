@@ -1,0 +1,15 @@
+masscan
+Usage: masscan -pPORTS RANGE --rate N [-oL FILE]
+
+An internet-scale port scanner: stateless, so it finds open ports across huge
+ranges very fast -- then you point nmap at only the hosts that answered. It is
+loud by nature; the rate controls how loud.
+
+	-p1-65535     the ports to probe (a range or list)
+	--rate N      packets per second -- higher is faster and louder
+	-oL FILE      write the open ports to a file
+
+Only against networks you own or are authorised to test. In this school the
+target is always `127.0.0.1`.
+
+See also: nmap, tcpdump

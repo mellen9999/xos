@@ -1,0 +1,12 @@
+binwalk
+Usage: binwalk [-e] [-Me] FILE
+
+Scans a firmware image or any blob for things embedded inside it -- filesystems,
+compressed streams, keys, other binaries -- by recognising their signatures.
+Then it can carve those pieces out for you to examine.
+
+	binwalk FILE    list what it finds and where (offsets)
+	-e              extract the pieces it recognised
+	-Me             extract recursively (matryoshka: pieces inside pieces)
+
+See also: file, radare2, zstd

@@ -4984,6 +4984,26 @@ ci() {
       printf '  every field tool is drilled\n'
     fi
   fi
+  # every card's ref: names a real reference page, and every page names a tool a
+  # card drills -- the Tab panel and `arsenal learn ref` both read these, so a
+  # ref: with no page is a dead panel and an orphan page is a claim nothing uses.
+  if [ -d arsenal/ref ] && [ -d arsenal/levels ]; then
+    say "arsenal reference pages cover the cards"
+    local _rf_refs _rf_have _rf_miss _rf_orphan
+    _rf_refs=$( { grep -h '^ref:' arsenal/levels/* 2>/dev/null | sed 's/^ref: *//'
+                  grep -h '^teach:' arsenal/levels/* 2>/dev/null | sed 's/^teach: *//'; } \
+                | grep -E '^[a-z]' | sort -u )
+    _rf_have=$(ls arsenal/ref 2>/dev/null | sort -u)
+    _rf_miss=$(comm -23 <(printf '%s\n' "$_rf_refs") <(printf '%s\n' "$_rf_have") || true)
+    _rf_orphan=$(comm -13 <(printf '%s\n' "$_rf_refs") <(printf '%s\n' "$_rf_have") || true)
+    if [ -n "$_rf_miss" ]; then
+      printf '  \033[1;31mcard ref: with no page\033[0m: %s\n' "$(echo $_rf_miss)" >&2; rc=1
+    fi
+    if [ -n "$_rf_orphan" ]; then
+      printf '  \033[1;31mreference page no card names\033[0m (remove it or point a ref: at it): %s\n' "$(echo $_rf_orphan)" >&2; rc=1
+    fi
+    [ -z "$_rf_miss$_rf_orphan" ] && printf '  every ref: has a page, every page a card\n'
+  fi
   # the copied engine libs must still match the fort's -- the one gate that
   # stops a fix landing in one tree and not the other (the drift this session found).
   [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }

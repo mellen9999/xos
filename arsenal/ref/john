@@ -1,0 +1,15 @@
+john
+Usage: john --format=TYPE --wordlist=LIST HASHES   then: john --show HASHES
+
+Offline password cracker: given a file of password hashes, it tries words from
+a list (and rules) against them, fast, on the cpu. Offline means no target sees
+it -- but you still need the hashes lawfully.
+
+	--wordlist=LIST      the words to try ( rockyou.txt is the classic )
+	--format=TYPE        the hash type, e.g. `raw-md5`, `nt`
+	--show               print the passwords already cracked
+	(bare) john HASHES   auto-detect the format and start
+
+Crack only hashes you are authorised to hold.
+
+See also: hydra, minisign

@@ -1,0 +1,16 @@
+xexec
+Usage: sh ~/tools/xexec TOOL [ARGS...]
+
+The doorway that runs a carried tool. The tools live on the encrypted side of
+the stick, which cannot run a program directly -- that is what keeps the stick
+safe. `xexec` copies one tool into a tiny space that is allowed to run, runs
+it there, and tears that space down when it exits.
+
+	sh ~/tools/xexec httpx -u http://127.0.0.1
+	sh ~/tools/xexec -t python python3 script.py   (-t stages a whole tree)
+
+In this school the tools are run for you. Outside it, you run them yourself
+with the line above. Nothing a tool writes to the exec space survives -- save
+what you want to keep to your home or the loot folder.
+
+See also: arsenal, vault

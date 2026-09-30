@@ -1,0 +1,16 @@
+impacket
+Usage: python3 ~/tools/impacket/<tool>.py DOMAIN/user:pass@HOST
+
+A suite of ~70 python tools for windows/active-directory work: dump credential
+hashes, roast kerberos tickets, relay captured auth, and get code execution on
+a host. Each is a separate script; run it through xexec's python tree.
+
+	secretsdump.py DOM/u:p@HOST     dump SAM/NTDS password hashes
+	GetUserSPNs.py DOM/u:p -request kerberoast -> crack in john
+	GetNPUsers.py DOM/ -no-pass     AS-REP roast (no creds needed)
+	ntlmrelayx.py -tf targets       relay captured authentication
+	psexec.py DOM/u@HOST            run a command (also wmiexec.py)
+
+For authorised engagements against domains you may test only.
+
+See also: john, python

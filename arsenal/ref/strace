@@ -1,0 +1,12 @@
+strace
+Usage: strace [-f] [-e trace=SET] CMD   |   strace -p PID
+
+Traces the system calls a program makes -- every file it opens, socket it
+connects, and why it exits. When a binary misbehaves and says nothing useful,
+strace shows what it actually asked the kernel to do.
+
+	-f                    follow child processes (forks)
+	-e trace=open,openat  limit to these calls (also `network`, `file`)
+	-p PID                attach to a process already running
+
+See also: file, pspy, radare2

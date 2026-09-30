@@ -1,0 +1,16 @@
+gobuster
+Usage: gobuster dir -u URL -w WORDLIST [-q] [-x EXTS]
+
+Brute-forces what a web target does not link to: hidden directories and files,
+dns subdomains, or virtual hosts. `dir` mode walks a wordlist against a url and
+shows the status code of every path that exists.
+
+	dir -u URL -w LIST   directory/file brute force
+	dns -d DOMAIN -w LIST   subdomain brute force
+	vhost -u URL -w LIST    virtual-host brute force
+	-x php,txt,bak        also try these extensions on each word
+	-q                    quiet: just the hits, no status lines
+
+Only against a target you own or are authorised to test.
+
+See also: ffuf, httpx, dnsx

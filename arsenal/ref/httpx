@@ -1,0 +1,17 @@
+httpx
+Usage: httpx -u URL [-sc] [-title] [-server] [-silent] [-nc]
+
+Fast http prober. Give it a URL, or a list of them, and it says which actually
+answer and what they are -- status code, page title, the server software, the
+tech behind it. The first pass over a set of hosts, before you scan deep.
+
+	-u URL        probe a single url ( -l FILE for a list )
+	-sc           show the HTTP status code
+	-title        show the page's <title>
+	-server       show the Server header
+	-tech-detect  name the frameworks/tech it can fingerprint
+	-silent -nc   quiet output, no colour -- clean for piping
+
+Only against hosts you own or are authorised to test.
+
+See also: ffuf, nuclei, nmap, subfinder

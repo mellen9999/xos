@@ -1,0 +1,16 @@
+sqlmap
+Usage: python3 ~/tools/sqlmap/sqlmap.py -u 'URL?param=1' --batch [--dbs]
+
+Automated sql-injection: it probes a parameter for injectable points, then, if
+one exists, extracts the databases, tables and rows behind it. A carried python
+tool -- run it through xexec's python tree.
+
+	-u 'URL?p=1'   the target url with a testable parameter
+	--batch        take the default answer to every prompt
+	--dbs          list the databases it can reach
+	-D db -T tbl --dump   dump a specific table
+
+Only against an application you own or are authorised to test. In this school
+the target is always `127.0.0.1`.
+
+See also: nuclei, ffuf, python

@@ -1,0 +1,13 @@
+testdisk
+Usage: testdisk IMAGE_or_DEVICE
+
+Rebuilds a lost or corrupt partition table and its boot sectors. When a disk
+"has no partitions" but the data is still there, testdisk scans for the old
+structure and can write it back. Interactive, menu-driven.
+
+	testdisk image.img    operate on a ddrescue image (safer than the disk)
+	testdisk /dev/sdX     operate on the device directly
+
+Work on a ddrescue image, not the failing disk, whenever you can.
+
+See also: photorec, ddrescue, smartctl

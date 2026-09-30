@@ -1,0 +1,12 @@
+python
+Usage: sh ~/tools/xexec -t ~/tools/python bin/python3 [ARGS]
+
+A full carried cpython 3.12 -- a repl, a scripting language, a quick web server
+(`python3 -m http.server 8000`), and the runtime behind sqlmap and impacket.
+Its C extensions need a whole tree, so it is run through xexec's `-t` tree mode.
+
+	python3 -c 'CODE'       run a one-liner
+	python3 script.py       run a script
+	python3 -m http.server 8000   serve the current dir (a lab web target)
+
+See also: xexec, sqlmap, impacket, cc

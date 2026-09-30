@@ -1,0 +1,13 @@
+ligolo-agent
+Usage: ligolo-agent -connect OPERATOR:11601 [-ignore-cert]
+
+The target side of ligolo-ng: dropped on a foothold, it dials back to your
+`ligolo-proxy` and becomes the far end of the tunnel, so the foothold's network
+shows up as a local interface on your box.
+
+	-connect HOST:11601   dial back to the operator's proxy
+	-ignore-cert          accept a self-signed cert (pairs with -selfcert)
+
+For authorised engagements only -- this is code you place on another machine.
+
+See also: ligolo-proxy, chisel

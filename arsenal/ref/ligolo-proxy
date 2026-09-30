@@ -1,0 +1,13 @@
+ligolo-proxy
+Usage: ligolo-proxy -selfcert
+
+The operator side of ligolo-ng: it stands up a tun-based tunnel so the network
+behind a foothold appears as a local interface you can reach directly, no socks
+juggling. Run this on YOUR box; run `ligolo-agent` on the foothold.
+
+	-selfcert     generate a self-signed cert (lab / quick use)
+	in its shell: `session` to pick an agent, then `start`
+
+For authorised engagements only.
+
+See also: ligolo-agent, chisel, socat

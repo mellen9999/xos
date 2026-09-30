@@ -1,0 +1,13 @@
+rsync
+Usage: rsync -a [--delete] SRC DEST   (DEST may be user@HOST:path)
+
+Syncs files or whole trees, copying only what changed -- so a second run is
+fast and a broken transfer resumes. Over ssh it is how you pull loot back or
+push a payload out.
+
+	-a            archive: recurse, keep perms/times/links
+	-z            compress in transit
+	-P            show progress and keep partial files (resumable)
+	--delete      make DEST match SRC exactly (removes extras)
+
+See also: zstd, age

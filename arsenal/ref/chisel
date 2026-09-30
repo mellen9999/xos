@@ -1,0 +1,15 @@
+chisel
+Usage: chisel server -p PORT --reverse   |   chisel client OP:PORT R:socks
+
+A tcp/udp tunnel that rides over http, for pivoting through a firewall that
+only lets http out. Run the server on your own box; the client on the foothold
+dials back and opens a socks proxy you route the rest of your tools through.
+
+	server -p PORT --reverse    operator side: accept reverse tunnels
+	client OP:PORT R:socks      foothold side: reverse socks proxy
+	client OP:PORT L:9000:host:445   forward a single local port
+
+For authorised engagements only; a tunnel through someone else's firewall is
+exactly what you must have permission for.
+
+See also: socat, ligolo-proxy, ligolo-agent

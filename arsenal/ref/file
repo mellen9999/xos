@@ -1,0 +1,11 @@
+file
+Usage: file [-k] PATH
+
+Identifies what a blob actually is by reading its bytes, not trusting its name
+or extension. The first question to ask of anything unknown: an ELF binary, a
+gzip stream, a jpeg, plain text? `file` answers before you open it.
+
+	file PATH     name the type from the content
+	-k            keep going -- show every type it matches, not just the first
+
+See also: binwalk, strace, radare2

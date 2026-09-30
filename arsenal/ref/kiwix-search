@@ -1,0 +1,10 @@
+kiwix-search
+Usage: kiwix-search ZIM.zim 'QUERY'
+
+Greps a .zim archive straight from the command line -- no server, no browser.
+The fast way to pull an answer out of an offline wikipedia or a field manual
+when you just need the text.
+
+	kiwix-search wiki.zim 'first aid'    search an archive for a phrase
+
+See also: kiwix-serve, rg, links

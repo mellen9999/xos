@@ -1,0 +1,16 @@
+dnsx
+Usage: dnsx -l FILE [-a] [-resp] [-silent]   |   dnsx -d DOMAIN -w LIST
+
+A fast dns toolkit. Resolve a list of names to addresses, show their records,
+or brute-force subdomains from a wordlist. The bridge between a list of names
+(from subfinder) and the live hosts you actually probe.
+
+	-l FILE     resolve every name in this file
+	-a          ask for A records (addresses)
+	-resp       show the response value, not just the name
+	-d -w LIST  brute-force subdomains of a domain from a wordlist
+	-silent     clean output for piping
+
+Only against domains you are authorised to assess.
+
+See also: subfinder, httpx

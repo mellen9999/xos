@@ -1,0 +1,14 @@
+age
+Usage: age -e -p -o OUT.age FILE   |   age -d -o FILE OUT.age
+
+Modern file encryption with no gpg keyring to manage -- encrypt to a passphrase
+or to a keypair, decrypt on the other end. For sealing loot before you carry or
+send it.
+
+	-e            encrypt
+	-p            use a passphrase (prompts)
+	-o FILE       write to this output
+	-d            decrypt
+	-r RECIPIENT  encrypt to a public key instead of a passphrase
+
+See also: minisign, zstd

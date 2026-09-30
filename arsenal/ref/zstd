@@ -1,0 +1,12 @@
+zstd
+Usage: zstd [-d] [-c] FILE   |   zstd -19 FILE
+
+Compresses and decompresses zstandard streams -- the format the stick's images,
+firmware and payloads arrive in, that nothing else here reads. Fast, and its
+high levels squeeze hard.
+
+	-d          decompress
+	-c          write to stdout (pipe it on, e.g. `| tar xf -`)
+	-19         a high compression level when packing
+
+See also: file, tar

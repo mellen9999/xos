@@ -1,0 +1,10 @@
+frotz
+Usage: frotz STORY.z5
+
+A z-machine interpreter -- it plays the interactive-fiction story files in the
+`if/` library on the knowledge stick. Morale is a supply, and text adventures
+are the one genre a text-only box runs natively.
+
+	frotz story.z5    load and play a story file
+
+See also: view, links

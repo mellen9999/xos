@@ -476,7 +476,9 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 engine as base `learn`, on the p3 side. Nine missions, from safety and the
 multiplexer through files, disks, the web, passwords, taking a thing apart, moving
 loot, the professional tools and the rest of the kit -- every carried tool drilled
-and graded by *running* what you type, with the same spaced-repetition cards. The
+and graded by *running* what you type, with the same spaced-repetition cards -- and
+the same vi line editor, so tab opens a tool's reference page mid-drill (`arsenal
+learn ref <tool>` prints it too), exactly as base `learn` does. The
 answers run jailed: each tool is staged onto a throwaway exec tmpfs and the answer
 runs as `nobody` against practice targets the school stands up on `127.0.0.1`, so a
 live tool can touch nothing real.

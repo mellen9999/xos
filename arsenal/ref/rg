@@ -1,0 +1,13 @@
+rg
+Usage: rg [-i] [-n] [-l] PATTERN [PATH]
+
+ripgrep: searches a whole tree of files for a pattern, fast, skipping what you
+would not want searched. The tool for sifting loot and the offline corpora --
+find the one line, or the one file, that matters.
+
+	-i          ignore case
+	-n          show line numbers
+	-l          just the names of files that match
+	-A N / -B N   N lines of context after / before a match
+
+See also: jq, grep

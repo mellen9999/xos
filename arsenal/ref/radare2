@@ -1,0 +1,14 @@
+radare2
+Usage: radare2 [-A] [-qc 'CMDS'] FILE
+
+The reverse-engineering toolkit. `radare2` (alias `r2`) opens a binary in its
+own interactive shell to disassemble, analyse and hex-edit it offline. The same
+blob answers to sibling names: `rabin2` for headers, `rax2` for base conversion.
+
+	r2 -A FILE       open and auto-analyse
+	-qc 'CMDS' FILE  run commands and quit (scriptable, no shell)
+	inside: afl (list functions), pdf @main (disasm), iz (strings), V (visual)
+	rabin2 -I FILE   file headers -- type, arch, os
+	rax2 0x41        convert between number bases
+
+See also: r2, file, binwalk, strace

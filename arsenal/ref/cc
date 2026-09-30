@@ -1,0 +1,12 @@
+cc
+Usage: sh ~/tools/xexec -t ~/tools/cc cc FILE.c -o OUT
+
+Compiles C right on the stick: `cc` is tcc with its own preprocessor, assembler
+and linker plus a musl sysroot, producing a static binary with no external
+toolchain. For a quick proof-of-concept or a small tool in the field.
+
+	cc file.c -o out        compile to a named output
+	cc file.c -o out && ./out   build and run it
+	-static                 force a fully static link (the default here)
+
+See also: python, xexec, radare2

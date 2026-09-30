@@ -1,0 +1,11 @@
+whois
+Usage: whois DOMAIN_or_IP
+
+Looks up who registered a domain or owns an ip range -- registrar, dates,
+contacts, netblock. The one basic lookup busybox does not ship. A quiet first
+question in recon: who is this, on paper?
+
+	whois example.com    a domain's registration record
+	whois 1.2.3.4        the owner/netblock of an address
+
+See also: subfinder, dnsx

@@ -1,0 +1,11 @@
+mandoc
+Usage: mandoc PAGE
+
+Renders a man page -- it turns the raw roff/troff source of a manual into the
+formatted page you read. It is the reader for the man-pages corpus staged on
+the stick; no full roff toolchain needed.
+
+	mandoc demo.1        render one page file
+	mandoc man/ls.1      render a staged page by path
+
+See also: links, mutool

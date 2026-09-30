@@ -1,0 +1,18 @@
+hydra
+Usage: hydra -l USER -P LIST [-s PORT] TARGET SERVICE
+
+Online login brute-forcer: it tries username/password pairs against a live
+service -- ssh, http, ftp and many more -- and reports what worked. Online
+means loud and rate-limited; keep the thread count low to stay quiet.
+
+	-l USER / -L FILE   one username / a list of them
+	-p PASS / -P FILE   one password / a wordlist
+	-s PORT             the service port
+	-t N                N parallel tries (lower = quieter)
+	-f                  stop at the first valid login
+	-V                  show every attempt
+	-o FILE             write found logins to a file
+
+Only against a service you own or are authorised to test.
+
+See also: john, nmap

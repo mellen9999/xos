@@ -1,0 +1,16 @@
+nuclei
+Usage: nuclei -u URL [-silent] [-tags ...] [-severity ...]
+
+Template-driven scanner. It runs a large library of community checks for known
+CVEs, misconfigurations and exposures against a target, and reports what
+matched. Point it at the urls httpx said were live.
+
+	-u URL             scan a single target ( -l FILE for a list )
+	-tags cve,exposure limit to these template tags
+	-severity high,critical   only report findings this serious
+	-silent            just the findings, no banner
+
+Only against hosts you own or are authorised to test. In this school the
+target is always `127.0.0.1`.
+
+See also: httpx, ffuf, sqlmap

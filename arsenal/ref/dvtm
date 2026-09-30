@@ -1,0 +1,14 @@
+dvtm
+Usage: dvtm
+
+Splits one terminal into panes, so you can watch several things at once -- a
+scan in one, its output in another. No server and no config: it runs on top of
+`abduco`, which keeps the whole set alive when you detach. The modifier key is
+`ctrl-g` -- press it, then a command key.
+
+	ctrl-g c   open a new pane
+	ctrl-g j   move to the next pane
+	ctrl-g k   move to the previous pane
+	ctrl-g x   close the focused pane
+
+See also: abduco

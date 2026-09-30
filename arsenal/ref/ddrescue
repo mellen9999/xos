@@ -1,0 +1,12 @@
+ddrescue
+Usage: ddrescue [-f] [-r N] INFILE OUTFILE MAPFILE
+
+Images a dying disk. It copies what reads cleanly first, logs the bad ranges to
+a map file, and skips the rot -- so you rescue the most data soonest, and can
+resume later exactly where it stopped. Always keep the map file.
+
+	INFILE OUTFILE MAPFILE   source, image, and the resume log
+	-f                       force: allow writing to an existing output
+	-r N                     retry bad areas N more times
+
+See also: smartctl, testdisk, photorec

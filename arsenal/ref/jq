@@ -1,0 +1,12 @@
+jq
+Usage: jq [-r] 'FILTER' FILE
+
+Parses and filters json -- which is what nearly every other tool here emits.
+Pull one value out of a wall of output, walk an array, reshape records. The
+filter is a little path language: `.key`, `.arr[]`, `.a.b`.
+
+	'.key'        the value at a top-level key
+	'.arr[]'      every element of an array, one per line
+	-r            raw output: strings without their quotes
+
+See also: rg, python

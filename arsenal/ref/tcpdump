@@ -1,0 +1,16 @@
+tcpdump
+Usage: tcpdump [-i IFACE] [-n] [-c N] [-w FILE | -r FILE] [FILTER]
+
+Captures and inspects packets on the wire. Record traffic to a .pcap for later,
+or read one back through a filter to find the conversation you care about.
+
+	-i IFACE   capture on this interface ( `lo` is loopback )
+	-n         do not resolve names -- faster, and shows raw addresses
+	-c N       stop after N packets
+	-w FILE    write raw packets to a capture file
+	-r FILE    read a capture back instead of the wire
+	FILTER     e.g. `tcp port 80`, `host 10.0.0.5 and port 443`
+
+Capture only on networks you own or are authorised to monitor.
+
+See also: masscan, socat

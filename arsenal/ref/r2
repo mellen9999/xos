@@ -1,0 +1,12 @@
+r2
+Usage: r2 [-A] FILE
+
+The interactive front end of radare2 (the same binary under a shorter name).
+`r2 FILE` drops you into its own prompt to explore a binary -- analyse it, list
+its functions, disassemble, read its strings, edit its bytes.
+
+	r2 FILE       open the binary in the r2 shell
+	-A            auto-analyse on open
+	inside: afl (functions), pdf @main (disassemble main), iz (strings), q (quit)
+
+See also: radare2, file, binwalk

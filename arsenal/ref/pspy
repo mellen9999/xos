@@ -1,0 +1,13 @@
+pspy
+Usage: pspy
+
+Watches processes and cron jobs start, live, without needing root. On a box you
+have a foothold on, it is how you spot a privileged script or a scheduled task
+you could turn into a way up -- local privilege-escalation enumeration.
+
+	pspy                   watch everything (ctrl-c to stop)
+	timeout N pspy         watch for N seconds, then stop
+
+Run it on a machine you are authorised to be on.
+
+See also: strace, ps

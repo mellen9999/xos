@@ -3,9 +3,11 @@
 # run-and-judge / state), answers run inside the jail (lib/jail) instead of base
 # learn's nobody-sandbox. reuses base learn's engine where the shape is identical
 # (blk_load, ask, run_level, boss_round -- see the fort's learn/learn) and drops
-# what the fort has and p3 does not: no vi-mode line editor (lib/edit is fort-only)
-# so input is a plain read, and a miss is graded and revealed at once rather than
-# held open for retries -- as base learn's boss mode already does.
+# what the fort has and p3 does not, and adds back the parts p3 can: the vi-mode
+# line editor and its Tab reference panel (lib/edit, copied and parity-checked)
+# read the pages in ref/, so Tab opens a command's reference here exactly as it
+# does in the fort. a miss is graded and revealed at once rather than held open
+# for retries -- as base learn's boss mode already does.
 #
 #   arsenal learn              pick up where you left off
 #   arsenal learn 04-web       a mission by name (or `4` by number)
@@ -18,7 +20,7 @@ set -u
 
 AROOT="${ARSENAL_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 ROOT="$AROOT"                 # lib/ctx reads pools/phrases off $ROOT, not $AROOT
-REF="$AROOT/ref"              # may not exist yet -- flagnorm degrades gracefully
+REF="$AROOT/ref"              # the reference pages the tab panel reads
 LEVELS="$AROOT/levels"
 SHELLBIN=/bin/sh
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/arsenal-learn"
@@ -29,6 +31,7 @@ CARDS="$STATE/cards"
 PASSED="$STATE/passed"
 INPROG="$STATE/inprogress"
 DAILY="$STATE/daily"
+EDIT_HIST="$STATE/edit-hist"   # the vi line editor's own history
 
 die() { echo "learn: $*" >&2; exit 1; }
 
@@ -45,7 +48,7 @@ trap cleanup EXIT
 trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
-for _l in ui ctx cards coach jail grade lab; do
+for _l in ui ctx cards coach jail grade lab edit; do
 	[ -f "$AROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$AROOT/lib/$_l"
 done
@@ -253,46 +256,104 @@ $Q_SEED
 }
 
 # ---- the question loop --------------------------------------------------
-# ported from learn/learn:481 (ask), cut down to one attempt per card: no vi
-# editor here (lib/edit is fort-only), so there is no in-place "wipe the wrong
-# line and try again" -- a miss is graded, diagnosed and revealed immediately,
-# same as base learn's boss/daily modes already do on a miss. `?`/`hint`
-# before answering still opens the hint line; there is no reference panel
-# (REF may not exist for arsenal yet).
+# ported from learn/learn:481 (ask), cut down to one attempt per card: a miss is
+# graded, diagnosed and revealed immediately rather than held open for retries,
+# same as base learn's boss/daily modes already do. the vi editor (lib/edit) is
+# here now, so `?` opens the hint panel and Tab opens the reference page for the
+# card's tool, either key again closing it -- the same two panels the fort has.
+# _prows TEXT -- how many terminal rows a block takes at width $1, escapes not
+# counted. ported from learn/lib/explain; the tab panel needs it to know how
+# many rows the prompt above it spent, so a long question shrinks the panel
+# rather than pushing it off the bottom of the screen.
+_prows() {
+	awk -v w="${1:-80}" '
+		{ t = $0; gsub(/\033\[[0-9;?]*[A-Za-z]/, "", t)
+		  n = length(t); rows += int((n > 0 ? n - 1 : 0) / w) + 1 }
+		END { print rows + 0 }'
+}
+
+# ref_panel_text ANSWER -- the Tab panel: this card's reference page, keyed off
+# its ref:, with backtick literals marked. the ANSWER arg is taken for signature
+# parity with the editor's caller (lib/edit's _ed_panel_load); the page itself is
+# what the panel shows. the editor's _ed_panel_fit trims it to the rows left.
+ref_panel_text() {
+	[ -n "${Q_REF:-}" ] && [ -f "$REF/$Q_REF" ] || { echo "no reference for this card"; return 0; }
+	sed 's/^/  /' "$REF/$Q_REF" | lit_expand
+}
+
+# show_ref TOOL -- print a whole reference page, framed. `arsenal learn ref TOOL`
+# and the non-terminal Tab fallback both use it; the interactive Tab opens the
+# panel above instead.
+show_ref() {
+	local _c=${1:-}
+	[ -n "$_c" ] || { echo "usage: arsenal learn ref TOOL" >&2; return 1; }
+	if [ ! -f "$REF/$_c" ]; then
+		echo "arsenal learn: no reference for '$_c'" >&2
+		echo "try: sh ~/tools/arsenal $_c   (its recipe playbook)" >&2
+		return 1
+	fi
+	printf '%s\n' "$RULE"
+	sed 's/^/  /' "$REF/$_c" | lit_expand
+	printf '%s\n' "$RULE"
+}
+
 ask() {   # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
 	local key input rc _m
 	blk_load "$(level_path "$1")" "$2" || return 1
 	key=$(card_key "$1" "$2" "$Q_TPL")
 
+	ED_OPEN=
 	printf '  %s\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand | lit_expand)"
-	[ "$MODE" = learn ] && note "? hint"
+	# rows above the answer line, counted as printed, so the panel fits under it
+	Q_ROWS=$(( 3 + $(printf '%s\n' "$Q_PROMPT_HI" | hi_strip | lit_strip | _prows "${COLS:-80}") ))
+	[ "$MODE" = learn ] && { note "? hint${SEP}tab ref"; Q_ROWS=$(( Q_ROWS + 1 )); }
+	# a meta reply (?, blank, tab) re-asks the same line: wipe its echo so the
+	# prompt keeps its place. only on a real terminal, for the vi editor's line.
+	_meta_clear() { [ -t 0 ] && [ -t 1 ] && [ "${_csi:-1}" = 1 ] \
+		&& printf '\033[%dA\r\033[J' "${ED_ROWS_USED:-1}"; return 0; }
 
+	case "$MODE" in
+		boss) ED_DEADLINE=$(( $(date +%s) + BOSS_LIMIT )) ;;
+		*)    ED_DEADLINE= ;;
+	esac
 	while :; do
-		printf '%s%s%s ' "$W" "$PROMPT_CH" "$N"
 		if [ "$MODE" = boss ]; then
-			IFS= read -r -t "$BOSS_LIMIT" input; rc=$?
+			# thirty seconds: long enough to type what you know, too short to
+			# look it up -- the editor is here, but the hint and reference are not.
+			clock_read "$BOSS_LIMIT"; rc=$?
+			[ "$rc" = 3 ] && return 2
 			if [ "$rc" != 0 ]; then
-				echo
+				[ -t 0 ] || echo
 				no "out of time."
 				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				card_grade "$key" 0
 				return 1
 			fi
+			input=$(printf '%s' "$CLOCK_LINE" | tr -d '\t')
 		else
-			IFS= read -r input || return 2
+			# full vi-mode line editing with the Tab reference panel, on a
+			# terminal; a plain read when stdin is not one (the build's checks).
+			read_line || return 2
+			input="$REPLY_LINE"
 		fi
 
 		case "$input" in
 			quit) return 2 ;;
-			'')   continue ;;
+			'')   _meta_clear; continue ;;
 			'?'|hint)
-				if [ "$MODE" != learn ]; then
-					note "no hints under the clock."
-				elif [ -n "${Q_HINT:-}" ]; then
-					note "$(printf '%s' "$Q_HINT" | hi_expand "$D")"
-				else
-					note "no hint for this one."
-				fi
+				if [ "$MODE" != learn ]; then note "no hints under the clock."
+				elif [ -t 0 ]; then
+					if [ "$ED_OPEN" = hint ]; then ED_OPEN=; else ED_OPEN=hint; fi
+					_meta_clear
+				elif [ -n "${Q_HINT:-}" ]; then note "$(printf '%s' "$Q_HINT" | hi_expand "$D")"
+				else note "no hint. try: arsenal learn ref $Q_REF"; fi
+				continue ;;
+			man|tab)
+				if [ "$MODE" != learn ]; then note "no reference under the clock."
+				elif [ -t 0 ]; then
+					if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
+					_meta_clear
+				else show_ref "$Q_REF"; fi
 				continue ;;
 		esac
 		break
@@ -739,6 +800,7 @@ main() {
 		selftest) selftest_graded; exit $? ;;
 		list)     level_ids; exit 0 ;;
 		lint)     lint_report; exit 0 ;;
+		ref)      shift; show_ref "${1:-}"; exit $? ;;
 		stats)    stats_report; exit 0 ;;
 		review)   shift; review "${1:-20}"; exit $? ;;
 		daily)    daily; exit $? ;;
@@ -749,6 +811,7 @@ main() {
 			printf '  review     the cards that are due, or the weakest\n'
 			printf '  daily      one card a day, under the clock\n'
 			printf '  stats      mastery, what is due, the streak, the leeches\n'
+			printf '  ref TOOL   the reference page for a carried tool (Tab opens it mid-drill)\n'
 			exit 0 ;;
 	esac
 	if [ -z "$arg" ]; then

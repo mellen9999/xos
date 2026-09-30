@@ -1,0 +1,14 @@
+abduco
+Usage: abduco [-n|-c|-a] NAME [CMD...]
+
+Keeps a shell -- or any program -- alive when you step away or get cut off.
+Start a program inside a named session, detach, and it keeps running; attach
+again later and it is exactly where you left it. On a stick you reach over a
+tunnel, this is what survives a dropped connection.
+
+	abduco               list the sessions that are running
+	abduco -n NAME CMD   start CMD in a new session called NAME
+	abduco -a NAME       attach -- step back into a running session
+	ctrl-\               detach: step away, leaving it running
+
+See also: dvtm, xexec

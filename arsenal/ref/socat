@@ -1,0 +1,15 @@
+socat
+Usage: socat ADDRESS1 ADDRESS2
+
+A swiss-army socket relay: it joins any two endpoints -- sockets, files, ptys,
+tls -- and pumps bytes between them. Port-forward, relay through a pivot,
+wrap a plain service in tls, or stand up a quick listener.
+
+	TCP-LISTEN:PORT,fork,reuseaddr   accept connections (fork per client)
+	TCP:HOST:PORT                    connect out to a host
+	OPENSSL-LISTEN:PORT,cert=c.pem   a tls listener
+	e.g. socat TCP-LISTEN:9000,fork TCP:127.0.0.1:445   (forward)
+
+Relay only traffic on systems you own or are authorised to test.
+
+See also: chisel, ligolo-proxy, tcpdump

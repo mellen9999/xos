@@ -1,0 +1,15 @@
+subfinder
+Usage: subfinder -d DOMAIN [-silent] [-all]
+
+Passive subdomain discovery. It asks public sources which sub-addresses exist
+under a domain -- it sends no packets to the target itself, so it is the
+quietest first step of recon. Feed its output to httpx to see which are live.
+
+	-d DOMAIN   the domain to enumerate
+	-all        query every source (slower, more complete)
+	-silent     just the names, one per line
+
+`example.com` is a reserved name set aside for teaching; real recon is only
+for domains you are authorised to assess.
+
+See also: dnsx, httpx, nmap

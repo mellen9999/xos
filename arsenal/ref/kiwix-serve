@@ -1,0 +1,11 @@
+kiwix-serve
+Usage: kiwix-serve --port PORT ZIM.zim
+
+Serves offline .zim archives -- wikipedia, survival guides, docs -- over http on
+localhost, so you can browse them in `links` with no network at all. Point it at
+the zims on the XOS-KNOW stick.
+
+	--port PORT    listen on this port (then open it in links)
+	ZIM.zim        one or more archives to serve
+
+See also: kiwix-search, links

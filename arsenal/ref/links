@@ -1,0 +1,12 @@
+links
+Usage: links [-dump] URL_or_FILE
+
+A text-mode web browser: it renders html/http with no gui, so you can read a
+served zim, browse a local page, or view a site over a tunnel from the console.
+`-dump` prints a page as text and exits, for scripting.
+
+	links URL          browse interactively (q to quit)
+	links -dump URL    render the page to stdout and exit
+	links file.html    open a local file
+
+See also: kiwix-serve, mutool, httpx

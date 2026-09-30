@@ -1,0 +1,12 @@
+mutool
+Usage: mutool draw -F txt FILE.pdf
+
+The pdf reader (from mupdf). On a text console it turns a pdf into readable text
+(or html) so you can grep and page through it. `draw` is the render subcommand;
+`-F txt` picks plain-text output.
+
+	mutool draw -F txt file.pdf     pdf -> text (pipe to `less`)
+	mutool draw -F html file.pdf    pdf -> html
+	mutool draw -F txt file.pdf N   just page N
+
+See also: view, links, mandoc

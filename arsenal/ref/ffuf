@@ -1,0 +1,19 @@
+ffuf
+Usage: ffuf -u URL/FUZZ -w WORDLIST [-mc CODES] [-s]
+
+Fast web fuzzer. It requests a URL over and over, putting each word from a
+wordlist where you wrote `FUZZ`, and shows which ones answer -- the way you
+find hidden paths, parameters or virtual hosts on a web target.
+
+	-u URL/FUZZ   the target; `FUZZ` marks where each word is substituted
+	-w WORDLIST   the words to try, one per line
+	-mc CODES     keep only these HTTP status codes (e.g. -mc 200)
+	-fc CODES     the opposite -- filter OUT these codes
+	-s            quiet: just the hits, no banner or progress bar
+	-t N          N requests at once (default 40)
+
+Only ever against a site you own or are allowed to test. In this school the
+target is always `127.0.0.1`. Pointed at a stranger's machine it is a crime,
+not a drill.
+
+See also: gobuster, httpx, nuclei

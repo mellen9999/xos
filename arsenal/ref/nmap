@@ -1,0 +1,17 @@
+nmap
+Usage: nmap [-sT|-sV|-sC|-sn] [-p PORTS] TARGET
+
+The deep host/service scanner: what is open, what service and version answers,
+what the default scripts turn up. Slower than masscan, so scan the whole space
+with masscan and go deep here on what answered.
+
+	-sT          TCP connect scan -- works without root
+	-p PORTS     limit to these ports ( -p- is all 65535 )
+	-sV          probe service versions
+	-sC          run the default NSE scripts
+	-sn          ping sweep: who is alive, no port scan
+	--script vuln   run the NSE vulnerability checks
+
+Only against hosts you own or are authorised to test.
+
+See also: masscan, httpx, nuclei
