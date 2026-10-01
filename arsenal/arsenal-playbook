@@ -92,10 +92,10 @@ httpx	probe ports: httpx -l hosts.txt -ports 80,443,8080,8443 -silent
 nuclei	nuclei -u https://TARGET                       # all templates
 nuclei	nuclei -l live-urls.txt -tags cve,exposure -severity high,critical
 subfinder	subfinder -d TARGET -silent -all               # passive subdomains
-dnsx	dnsx -l hosts.txt -a -resp -silent             # resolve + show records
+dnsx	dnsx -l hosts.txt -resp -silent                # resolve + show records (A by default)
 dnsx	brute: dnsx -d TARGET -w WL/subdomains.txt -silent
 gobuster	gobuster dir -u https://TARGET -w WL/common.txt -x php,txt,bak
-gobuster	gobuster dns -d TARGET -w WL/subdomains.txt
+gobuster	gobuster dns --domain TARGET -w WL/subdomains.txt
 gobuster	gobuster vhost -u https://TARGET -w WL/subdomains.txt --append-domain
 masscan	masscan -p1-65535 10.0.0.0/8 --rate 10000 -oL scan.txt   # then nmap the hits
 nmap	nmap -sV -sC -p- TARGET                         # versions + default scripts
