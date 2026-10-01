@@ -1,0 +1,16 @@
+#!/bin/sh
+# xos arsenal -- the field-toolkit index and graded school, standalone. no stick.
+#
+# the corpus and a busybox live in one share dir, which doubles as the tool dir
+# the carried binaries (nmap, httpx, ...) are staged into -- exactly the role
+# ~/tools plays on the stick, so the dispatcher indexes the tools there and the
+# school's jail resolves them through ARSENAL_BIN. the answers run under this
+# busybox so a card grades by the image's commands, not the host's gnu tools.
+#
+# kept in the tree beside the corpus, not written by the installer, so arsenal
+# behaves identically however it arrived (install.sh here, or a future push).
+R="${XDG_DATA_HOME:-$HOME/.local/share}/xos-arsenal"
+export XOS_TOOLS="$R"
+export ARSENAL_ROOT="$R"
+PATH="$R/bb:$PATH"; export PATH
+exec "$R/bb/ash" "$R/arsenal" "$@"

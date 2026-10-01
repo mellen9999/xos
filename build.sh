@@ -2935,7 +2935,7 @@ G44EOF
   # POSIX check that also catches a bashism smuggled into a #!/bin/sh file).
   local g48=ok f48 e48 chk48 f48py
   for f48 in githooks/pre-commit learn/install.sh learn/push learn/wrapper \
-             arsenal/*.sh arsenal/arsenal arsenal/xexec arsenal/qr \
+             arsenal/*.sh arsenal/wrapper arsenal/arsenal arsenal/xexec arsenal/qr \
              arsenal/learn arsenal/lib/* \
              ci/lib.sh ci/xos-repro ci/xos-ci-full; do
     [ -f "$f48" ] || continue
@@ -4864,7 +4864,7 @@ ci() {
   for f in build.sh selftest.sh init learn/learn learn/lib/* \
            overlay/usr/share/udhcpc/default.script githooks/pre-commit githooks/pre-push \
            learn/install.sh learn/push learn/wrapper ci/xos-* \
-           arsenal/*.sh arsenal/arsenal arsenal/xexec arsenal/qr \
+           arsenal/*.sh arsenal/wrapper arsenal/arsenal arsenal/xexec arsenal/qr \
            arsenal/learn arsenal/lib/*; do
     [ -f "$f" ] || continue
     # ci/xos-* also matches the systemd units and the tier README; those are
