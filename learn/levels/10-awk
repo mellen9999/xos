@@ -1,6 +1,6 @@
 name: awk
 boss: Indexer
-flavor: Zero-indexed. Off by one and you get nothing.
+flavor: `$0` is the whole line; fields start at `$1`. Off by one and you get nothing.
 brief: `awk` splits every line into fields and runs your program on each one.
 brief: `$1` is the first field, `$NF` the last, `$0` the whole line. `NR` is the line
 brief: number. That is most of it.

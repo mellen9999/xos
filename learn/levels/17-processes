@@ -16,8 +16,8 @@ brief: open -- which is the answer to most "device is busy" refusals. `pkill`
 brief: and `killall` end one by name instead of by number.
 brief:
 brief: `nproc` counts the cpus, `free` reports memory. `unshare` runs a command in
-brief: its own namespaces and `nsenter` joins one already running -- that pair,
-brief: and nothing more, is what a container is underneath.
+brief: its own namespaces and `nsenter` joins one already running -- that pair is
+brief: the isolation a container stands on, with cgroups and a root switch for the rest.
 ---
 q: %list% the processes running right now
 a: ps

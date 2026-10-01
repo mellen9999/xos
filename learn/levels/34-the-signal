@@ -12,9 +12,9 @@ brief: default. `kill -15` (TERM, the default signal) is what most things
 brief: send when they ask a process to stop; a caught or ignored TERM never
 brief: gets that chance to end it.
 brief:
-brief: EXIT is still the one that always fires -- on a normal finish, on
-brief: `exit`, or after a signal with no trap of its own -- which is why
-brief: cleanup belongs on EXIT and nowhere else.
+brief: EXIT fires on a normal finish and on `exit`, but a signal that kills the
+brief: shell with no trap of its own does NOT run it -- so cleanup that must
+brief: survive a `kill` needs its own `TERM` (or `INT`) trap, which is this level.
 ---
 setup: a script wants the chance to clean up before it actually stops, even when told to stop
 q: {catch `TERM` with `trap` before it can end the shell, then send it|`trap` `TERM` to a handler, `kill -15` this shell to prove it's ``caught``|make `TERM` run a handler via `trap`, then `kill -15` yourself to test it}

@@ -6,7 +6,8 @@ brief: it -- addresses, links, routes, neighbours -- and `ifconfig` and `route` 
 brief: the older ones you will still meet on machines that have not moved on.
 brief:
 brief: `ip` has a shape: `ip OBJECT COMMAND`. `ip addr`, `ip link`, `ip route`, `ip neigh`.
-brief: Every one of them takes `show`, `add` and `del`.
+brief: They all take `show`; `ip addr` and `ip route` also take `add` and `del`
+brief: (`ip neigh` is `show`/`flush`, `ip link` sets or shows).
 brief:
 brief: The link layer underneath: a neighbour is a machine on your own wire,
 brief: found by `arp`, which is the old view of the table `ip neigh` now shows.

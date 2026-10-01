@@ -11,7 +11,7 @@ brief:
 brief: The rest of the asking: `hostname` is its name, `date` the software clock
 brief: and `hwclock` the battery-backed one under it, `lspci` `lsusb` and `lsscsi`
 brief: list what is plugged into which bus, `devmem` reads physical memory by
-brief: address, `logger` writes your own line into the log `dmesg` reads, `watch`
+brief: address, `logger` writes your own line into the system log, `watch`
 brief: reruns a command so you can see a number move.
 brief:
 brief: The terminal is a device too: `tty` names yours, `stty` sets how it behaves,
