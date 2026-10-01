@@ -34,10 +34,10 @@ teach: subfinder
 hint: -d the domain, -silent for just the names
 ---
 q: {resolve the names in|turn every name listed in|look up addresses for each name in} ``names.txt`` to addresses, with `dnsx`, showing the response
-a: dnsx -l names.txt -a -resp
+a: dnsx -l names.txt -resp
 ref: dnsx
 teach: dnsx
-hint: -l the list, -a for A records, -resp to show the answer
+hint: -l the list, -resp to show the answer -- dnsx resolves A records by default
 ---
 q: {pull the words out of|strip the text out of|get everything readable out of} ``file.pdf`` as plain text, with `mutool`
 a: mutool draw -F txt file.pdf
