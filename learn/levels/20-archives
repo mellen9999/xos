@@ -147,9 +147,9 @@ teach: gzip -c
 hint: -c writes the compressed bytes to stdout, leaving the file untouched
 ---
 q: {a leftover @txt@.gz exists -- compress @txt@ anyway, with `gzip`|@txt@.gz already exists -- redo the compression, with `gzip`|compress @txt@ again though its .gz is already there, with `gzip`}
-a: gzip -f @txt@
+a: gzip -c @txt@ > @txt@.gz && gzip -f @txt@
 eg: gzip -f /var/log/app.log
-state: exists:@txt@.gz
+state: gone:@txt@
 ref: gzip
 teach: gzip -f
 hint: -f overrides gzip's refusal to clobber an existing .gz
@@ -242,7 +242,7 @@ teach: unzip -d
 hint: -d names the directory to extract into instead of the current one
 ---
 q: {old files in the way -- re-extract ``archive.zip`` with `unzip`, overwrite|redo the `unzip` extraction of ``archive.zip``, replacing what's there|extract ``archive.zip`` again without it asking about existing files, with `unzip`}
-a: unzip -o archive.zip
+a: unzip archive.zip && unzip -o archive.zip
 eg: unzip -o release.zip
 state: exists:hello.txt
 ref: unzip

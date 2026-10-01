@@ -11,7 +11,7 @@ a: ls /usr/share/learn/ref | wc -l
 a: ls -1 /usr/share/learn/ref | wc -l
 ref: ls
 cmp: ref
-hint: one filename per line out of ls, then count the lines
+hint: pipe ls into wc -l to count -- piped, ls already prints one name per line
 ---
 setup: find prints one path per line under /usr/share/learn, so it counts by
 setup: piping into wc.

@@ -157,10 +157,10 @@ ref: stat
 teach: stat -f
 hint: -f switches from the file's info to the filesystem it lives on
 ---
-q: {@txt@ is a symlink -- `stat` what it points to, not the link|@txt@ is a symlink -- follow it and `stat` the real file underneath|don't `stat` the symlink @txt@ itself, `stat` what it points at}
-a: stat -L @txt@
+q: {``link.txt`` is a symlink -- `stat` what it points to, not the link|``link.txt`` is a symlink -- follow it and `stat` the real file underneath|don't `stat` the symlink ``link.txt`` itself, `stat` what it points at}
+a: stat -L link.txt
 eg: stat -L /etc/resolv.conf
-out: Size
+out: regular file
 ref: stat
 teach: stat -L
 hint: -L follows the link and reports on its target instead of the link itself

@@ -125,8 +125,8 @@ ref: readlink
 teach: readlink -f
 hint: -f follows every link in the chain, not just the first one
 ---
-q: {piping @txt@'s link target onward, no stray newline, with `readlink`|@txt@'s `readlink` target with no trailing newline|feed @txt@'s `readlink` target on without an extra newline}
-a: readlink -n @txt@
+q: {piping ``link.txt``'s link target onward, no stray newline, with `readlink`|``link.txt``'s `readlink` target with no trailing newline|feed ``link.txt``'s `readlink` target on without an extra newline}
+a: readlink -n link.txt
 eg: readlink -n /usr/bin/vi
 why: primitive-cost
 ref: readlink
