@@ -35,12 +35,12 @@ teach: jq
 hint: -r for raw strings, ``.tools[]`` walks the array
 seed: printf '{"host":"scanhost","tools":["file","jq","rg","zstd","mandoc"],"count":5}\n' > sample.json
 ---
-q: ``sample.json`` holds a ``count`` field -- {read out its value|find out what number it holds|get just that one value}, with `jq`
-a: jq -r '.count' sample.json
-out: ^5$
+q: ``sample.json`` holds a ``host`` field -- {read out its value|find out which host it names|get just that one value, unquoted}, with `jq`
+a: jq -r '.host' sample.json
+out: ^scanhost$
 ref: jq
 teach: jq
-hint: -r again, this time a plain field instead of an array
+hint: -r again -- on a string field it strips the quotes jq would otherwise print
 seed: printf '{"host":"scanhost","tools":["file","jq","rg","zstd","mandoc"],"count":5}\n' > sample.json
 ---
 q: @dir@ might hide the word ``secret`` somewhere -- {find every match and show its line number|track down each hit, with line numbers attached|search the whole tree and report exactly where, line by line}, with `rg`
