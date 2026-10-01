@@ -3,7 +3,7 @@ Usage: ping [OPTIONS] HOST
 
 Check whether HOST is reachable and measure round-trip time.
 
-	-4,-6		Force IP or IPv6 name resolution
+	-4		Force IPv4 (this build has no IPv6 ping)
 	-c CNT		Send only CNT pings
 	-s SIZE		Send SIZE data bytes in packets (default 56)
 	-i SECS		Seconds between pings

@@ -11,7 +11,7 @@ untrusted network the stick is plugged into.
 	-r FILE		host key file (ed25519)
 	-p ADDR:PORT	listen only on this address and port
 	-s		disable password logins (already off in this build)
-	-w		disable root password logins
+	-w		disallow root logins entirely (not just passwords)
 	-F		run in the foreground, do not fork
 	-E		log to stderr rather than the system log
 	-g		disable password logins for root
