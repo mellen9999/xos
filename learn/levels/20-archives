@@ -33,6 +33,7 @@ a: tar -tvf @archive@
 out: ^[-d][-rwx]{9}
 ref: tar
 teach: tar -v
+eg: tar -cvf notes.tar notes.txt
 hint: v adds the verbose per-entry detail, sizes and permissions
 ---
 q: %make% ``bundle.tar`` containing @dir@, with `tar`

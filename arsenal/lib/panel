@@ -1,0 +1,358 @@
+# panel -- the shell-syntax glosses and the corpus examples a reference panel
+# shows under a command's flags. both schools draw the same panel, so these
+# live here and arsenal carries a byte-identical copy (build.sh libparity):
+# the fort's lib/explain and arsenal's driver each build their card on top.
+# reads $SYNTAX (the grammar table, default $ROOT/syntax), $SYNALWAYS, the
+# level files under $LEVELS and the pools lib/ctx names; $SCENARIOS and
+# $CHAINS add the fort's missions and gauntlet to the examples when set.
+
+: "${SYNTAX:=$ROOT/syntax}"
+: "${SYNALWAYS:=$ROOT/syn}"
+
+# syn_of CMD -- the syntax labels that belong to this command's page whatever
+# the answer used, one per line. see learn/syn for why a glob is one of them
+# and a pipe is not.
+syn_of() {
+	awk -F'\t' -v c="$1" '
+		substr($1, 1, 1) == "#" { next }
+		$1 == c { for (i = 2; i <= NF; i++) if ($i != "") print $i; exit }
+	' "$SYNALWAYS" 2>/dev/null
+}
+
+# the panel's left column -- command names above, syntax labels below, one
+# column through both. as wide as the widest label PRINTED IN IT, and nothing
+# else: it was a hardcoded 9 that the first longer label sheared, then the
+# widest label in the whole table, which is `${NAME:-WORD}` -- so a panel
+# showing `[...]`, `*` and `?` stood them in a thirteen-wide column and paid
+# for it twice, eight columns of gap on the left of every gloss and eight cut
+# off the right of it. a column belongs to what is in it.
+#
+# _exp_w -- that width, from tab-separated rows on stdin, field one. two is the
+# floor: a column of `*` alone still reads as a column.
+_exp_w() {
+	awk -F'\t' '{ if (length($1) > w) w = length($1) } END { print (w < 2 ? 2 : w) }'
+}
+
+# explain_syntax LINE -- print a gloss for each shell construct the line uses,
+# longest form first. single-quoted spans (awk and sed scripts) are stripped
+# first, so an awk $1 or $NF or a sed \1 inside a script is never mistaken for a
+# shell positional parameter. returns 1 if the line used no shell syntax at all.
+#
+# quoting is three rows of the table like anything else. it was three cases
+# hardcoded here, which kept it out of the grammar ledger entirely -- the one
+# construct every shell bug is about was the one the build never checked was
+# taught. the strip leaves ' ' behind now so a quoting row survives it, and a
+# quote or backslash INSIDE a stripped span correctly stops counting: an awk
+# body's own \t is not a backslash the shell ever saw.
+#
+# every table match is replaced with a SPACE, not deleted -- deleting would
+# fuse the tokens on either side of it into one, and a later boundary-checked
+# row (--, a lone -) reads the fused result as a single token and misses it.
+# _syn_scan LINE -- label<TAB>gloss for each syntax-table row the line uses,
+# consumed order, quoting excluded. the one shell-side detector: the panel
+# formats its rows, and selftest checks it agrees with order_syntax's awk
+# reading of the same table.
+_syn_scan() {
+	local work label ere gloss tab
+	tab=$(printf '\t')
+	work=$(printf '%s' "$1" | sed "s/'[^']*'/ '' /g")
+	while IFS="$tab" read -r label ere gloss; do
+		case "$label" in ''|'#'*) continue ;; esac
+		# a row the command's page always carries counts as matched, and
+		# counts here rather than in a second loop so the output stays in
+		# table order -- the order the whole panel is read in.
+		case "
+${SYN_ALWAYS:-}
+" in *"
+$label
+"*) printf '%s\t%s\n' "$label" "$gloss"; continue ;; esac
+		if printf '%s' "$work" | grep -qE -- "$ere"; then
+			printf '%s\t%s\n' "$label" "$gloss"
+			# TAB delimits the s command: the table is tab-separated, so a
+			# tab is the one character no ERE can contain. (/ dies on the
+			# /dev/null row, @ died on $@ -- and that one shipped, caught
+			# by selftest's two-engine battery.)
+			work=$(printf '%s' "$work" | sed -E "s$tab$ere$tab $tab""g")
+		fi
+	done < "$SYNTAX"
+}
+
+# _exp_row LABEL GLOSS PAD -- one panel row: the label in a PAD-wide column,
+# the gloss folded to what the terminal leaves and hanging under itself. two
+# rows hold a construct that means two things (* is a glob and a quantifier
+# both), and the tail of one used to wrap at column 0, under the label, where
+# it read as a row of its own rather than the rest of one. _prows counts by raw
+# length, so it is exact here as well: every line printed is already inside the
+# width. PAD is the caller's, because only the caller knows every label the
+# column will hold -- see _exp_w.
+_exp_row() {
+	local w=${TERM_COLS:-${COLS:-80}} gw pad=${3:-2}
+	gw=$(( w - pad - 3 ))
+	[ "$gw" -ge 24 ] || gw=24
+	# one row per construct in the panel, cut with the same ".." the flag
+	# rows use. the glosses that mean two things -- * is a glob and a
+	# quantifier -- run to three rows each, and three of those is half the
+	# reference gone to prose the learner has already read once. the whole
+	# sentence is still on `learn explain` and on the page itself, which is
+	# where you go when the one line was not enough.
+	if [ "${SYN_ONEROW:-0}" = 1 ]; then
+		EXP_LAB="$1" EXP_GLOSS="$2" awk -v c="$C" -v n="$N" -v pad="$pad" -v gw="$gw" '
+			BEGIN {
+				# both through the environment: awk reads escapes in a -v
+				# value, and the gloss of the \; row lost its backslash to it
+				lab = ENVIRON["EXP_LAB"]; g = ENVIRON["EXP_GLOSS"]
+				if (length(g) > gw) {
+					g = substr(g, 1, gw - 2)
+					sub(/[ ,][^ ,]*$/, "", g); sub(/[ .,|]+$/, "", g)
+					g = g ".."
+				}
+				printf "  %s%-" pad "s%s %s\n", c, lab, n, g
+			}'
+		return 0
+	fi
+	# the label rides in the environment, not in -v: awk processes escape
+	# sequences in a -v assignment, so the row whose label IS a backslash
+	# arrived as nothing and printed a nameless gloss.
+	printf '%s' "$2" | wrap "$gw" | EXP_LAB="$1" awk -v c="$C" -v n="$N" -v pad="$pad" '
+		BEGIN { lab = ENVIRON["EXP_LAB"] }
+		{ sub(/[ \t]+$/, "") }
+		NR == 1 { printf "  %s%-" pad "s%s %s\n", c, lab, n, $0; next }
+		{ printf "  %" pad "s %s\n", "", $0 }'
+}
+
+# _exp_rows PAD -- label<TAB>gloss rows on stdin, one panel row each, in a
+# PAD-wide column. returns 1 if there were none.
+_exp_rows() {
+	local found=0 label gloss tab
+	tab=$(printf '\t')
+	while IFS="$tab" read -r label gloss; do
+		[ -n "$label" ] || continue
+		found=1
+		_exp_row "$label" "$gloss" "$1"
+	done
+	return $(( 1 - found ))
+}
+
+# explain_syntax LINE [CMD] [ONEROW] -- the gloss rows for this line, plus the
+# ones CMD carries whatever you typed. the rows are scanned once and held,
+# because the column has to be measured before the first of them prints.
+explain_syntax() {
+	local rows SYN_ALWAYS= SYN_ONEROW=${3:-0}
+	[ -n "${2:-}" ] && SYN_ALWAYS=$(syn_of "$2")
+	rows=$(_syn_scan "$1" | grep .) || return 1
+	printf '%s\n' "$rows" | _exp_rows "$(printf '%s\n' "$rows" | _exp_w)"
+}
+
+# _prows WIDTH -- display rows the text on stdin takes at WIDTH, colour codes
+# not counted. the panel budget is in rows, and a line that wraps costs two.
+_prows() {
+	awk -v w="${1:-80}" '
+		{ t = $0; gsub(/\033\[[0-9;?]*[A-Za-z]/, "", t)
+		  n = length(t); rows += int((n > 0 ? n - 1 : 0) / w) + 1 }
+		END { print rows + 0 }'
+}
+
+# the example lines the corpus itself teaches for a command, cached once per
+# process: real lines, already graded, so an example can never drift from what
+# the trainer accepts. two sources per block. the FIRST answer, which is the
+# line the card stands behind -- later answers are the grader being generous
+# (`cp -R` is still right) and selftest lets them use a flag learn/skip retired,
+# so they are no example of anything. and `eg:`, a line an author wrote to show
+# the card's own flag somewhere its answer cannot: the card on screen must
+# never offer its own answer, so without eg: the one flag a card is ABOUT was
+# the one flag its examples could never show. built from the levels, the
+# missions and the gauntlet alike.
+examples_cached() {
+	[ -s "$TMP/examples.all" ] || {
+		# a sed script that fills every @token@ with the first value of its own
+		# pool. most listed answers are templated, and an example is worth more
+		# with a real filename in it than not shown at all -- these are the same
+		# lines the grader accepts, only settled on one roll. a token the roll
+		# fills some other way (@needle@ picks a severity in a case, not from a
+		# pool) has no entry, so any line still holding one is dropped: a
+		# literal @needle@ on a card would read as a typo in the trainer.
+		{ token_pools | while read -r _t _p; do
+			# the roll draws @x@ and @x2@ from one pool and guarantees they
+			# differ; settle them on the first two values, or an example reads
+			# "cp -i config.ini config.ini"
+			case "$_t" in
+				*2) _v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | sed -n 2p) ;;
+				*)  _v=$(grep -v '^#' "$POOLS/$_p" 2>/dev/null | grep . | head -1) ;;
+			esac
+			[ -n "$_v" ] && printf 's|@%s@|%s|g\n' "$_t" "$_v"
+		  done
+		  printf 's|@n@|3|g\ns|@n3@|5|g\n'; } > "$TMP/examples.sed"
+		awk '
+		function flush2(   i) {
+			# verbatim: a listed answer is already the exact line the grader
+			# accepts, braces and all. an awk program is not an alternation.
+			# the third field is where the line came from, so the card can
+			# refuse to show the very question it is open on top of; the
+			# fourth says whether it IS that question (a) or was written to
+			# stand beside it (eg), which the refusal lets through.
+			if (r != "") for (i = 1; i <= n; i++) print r "\t" A[i] "\t" base ":" idx "\t" K[i]
+			n = 0; r = ""; na = 0
+		}
+		FNR == 1 { if (NR > 1) flush2(); idx = 0; base = FILENAME; sub(/.*\//, "", base) }
+		/^---/    { flush2(); idx++; next }
+		/^a: /    { if (!na++) { l = $0; sub(/^a: /, "", l); A[++n] = l; K[n] = "a" }; next }
+		/^eg: /   { l = $0; sub(/^eg: /, "", l); A[++n] = l; K[n] = "eg"; next }
+		/^ref: /  { if (r == "") r = $2 }
+		END       { flush2() }
+		' "$LEVELS"/* ${SCENARIOS:+"$SCENARIOS"/*} ${CHAINS:+"$CHAINS"} 2>/dev/null \
+		| sed -f "$TMP/examples.sed" \
+		| grep -v '@[a-z0-9][a-z0-9]*@' \
+		| sort -u \
+		| awk -F'\t' '
+			# a line two different blocks both list cannot be shown as an
+			# example of either: whichever card is open, it would be handing
+			# over the line the learner is being asked to type
+			{ line[NR] = $0; seen[$2]++ }
+			END { for (i = 1; i <= NR; i++) {
+				split(line[i], f, "\t")
+				if (seen[f[2]] == 1) print line[i]
+			} }' > "$TMP/examples.all"
+	}
+	cat "$TMP/examples.all"
+}
+
+# paint -- an example line read the way the card reads a flag row. it was one
+# dim colour end to end, which hid the one thing an example is for: seeing
+# where the command stops and the arguments start. the split lib/ui draws
+# everywhere else -- the command, its flags and its operators are what you
+# TYPE (C); an argument is what they are pointed at and stays plain. a quoted
+# span is left alone on purpose: an awk program is not a list of tokens, and
+# painting inside one would be a lie about its structure.
+_PAINT_AWK='
+	function paint(l,   n, t, i, w, out, head) {
+		n = split(l, t, " ")
+		head = 1
+		for (i = 1; i <= n; i++) {
+			w = t[i]
+			# a pipe or a separator starts a new command; a redirection does
+			# not -- what follows > is a filename, and reading it as a
+			# command name is the one thing an example must not get wrong.
+			if (w ~ /^(\||;|&&|\|\|)$/) {
+				out = out C w N " "; head = 1; continue
+			}
+			if (w ~ /^([0-9]?>>?&?[0-9]?|<)$/) { out = out C w N " "; continue }
+			# the leading word is a command: syntax you type, the same as the
+			# flags and operators beside it. it was W, which said a command
+			# name is a NAME -- the thing syntax is pointed at -- and left
+			# every example with its verb the one unmarked-looking word on it.
+			if (head && w !~ /^-/ && w !~ /=/) { out = out C w N " "; head = 0; continue }
+			if (w ~ /^-/) { out = out C w N " "; continue }
+			out = out w " "
+		}
+		sub(/ $/, "", out)
+		return out
+	}'
+
+# ref_examples CMD [SKIP] [SRC] [PIN] [ONLY] -- up to two example lines for CMD, never
+# the answer to the question on screen. every line must RUN the command -- as
+# a pipeline's first word or after a | -- or it is an example of something
+# else that happens to mention it. the first slot goes to a line that uses a
+# flag the card is about (PIN, from pin_keys): the reference on a -c card that
+# shows -d and -r and never -c has answered every question but the one asked.
+# after that, one command beats a pipeline, a line with a flag beats a bare
+# one, and the shorter of two beats the longer -- see score(). ONLY keeps just
+# the lines using a PIN flag, and fails with none: selftest asks it whether
+# a card's own flag has an example at all.
+ref_examples() {
+	local out src=${3:-${Q_SRC:-}}
+	out=$(examples_cached | awk -F'\t' -v c="$1" -v skip="$2" -v src="$src" -v pin="${4:-}" -v only="${5:-}" \
+	                            -v w="${COLS:-80}" -v N="$N" -v C="$C" "$_PAINT_AWK"'
+		# whether the answer of another card RUNS the answer on screen as a whole
+		# command of its own -- `cc x.c -o x && ./x` on the card that asks for
+		# `cc x.c -o x` hands it over as surely as the line alone. compared a
+		# command at a time, so a bare `ls` card still shows ls -l. an eg: line
+		# is exempt: it was written to stand beside its card and show its flag.
+		function gives(l,   s, k, i, j, n, g, a) {
+			s = l; gsub(/\|\||&&|[|;]/, "\n", s)
+			k = split(s, g, "\n"); n = split(skip, a, "\n")
+			for (i = 1; i <= k; i++) {
+				gsub(/^ +| +$/, "", g[i]); gsub(/  +/, " ", g[i])
+				for (j = 1; j <= n; j++) {
+					gsub(/^ +| +$/, "", a[j]); gsub(/  +/, " ", a[j])
+					if (a[j] != "" && g[i] == a[j]) return 1
+				}
+			}
+			return 0
+		}
+		# the segments of a line that are this command running
+		function runs(l,   s, k, i, f) {
+			s = l; gsub(/\|\||&&|[|;`]|\$\(/, "\n", s)
+			k = split(s, seg, "\n"); nseg = 0
+			for (i = 1; i <= k; i++) {
+				f = seg[i]; sub(/^[ !(]+/, "", f)
+				if (index(f " ", c " ") == 1) segs[++nseg] = f
+			}
+			return nseg
+		}
+		# how many of the pinned flags the line passes CMD. short flags
+		# bundle, so -c is used by -cf as well as by -c; a long or word flag
+		# is a whole token. counted, not tested: a -quit card pins -name and
+		# -print too, and the line that shows all three beats a bare -name.
+		function pinned(l,   i, j, k, m, t, p, np, got, hits) {
+			if (pin == "" || !runs(l)) return 0
+			np = split(pin, p, " "); hits = 0
+			for (k = 1; k <= np; k++) {
+				got = 0
+				for (i = 1; i <= nseg && !got; i++) {
+					m = split(segs[i], t, " ")
+					for (j = 2; j <= m && !got; j++) {
+						if (t[j] == p[k] || index(t[j], p[k] "=") == 1) got = 1
+						else if (p[k] ~ /^-[A-Za-z0-9]$/ && t[j] ~ /^-[A-Za-z0-9]+$/ \
+						    && index(substr(t[j], 2), substr(p[k], 2))) got = 1
+						# a bare mode letter (tar c, x, t) rides in the first
+						# word after the command, dashed or not: -tf, tf
+						else if (p[k] ~ /^[A-Za-z]$/ && j == 2 && t[j] ~ /^-?[A-Za-z]+$/ \
+						    && index(t[j], p[k])) got = 1
+						# a range, as --help writes a level: -1..9 is any digit in it
+						else if (p[k] ~ /^-[0-9]\.\.[0-9]$/ && t[j] ~ /^-[A-Za-z0-9]+$/ \
+						    && match(t[j], "[" substr(p[k], 2, 1) "-" substr(p[k], 5, 1) "]")) got = 1
+					}
+				}
+				hits += got
+			}
+			return hits
+		}
+		# the flag a line leads with, for telling two examples apart
+		function lead(l,   t, m, i) {
+			m = split(l, t, " ")
+			for (i = 2; i <= m; i++) if (t[i] ~ /^-/) return t[i]
+			return ""
+		}
+		# a pinned flag first, then one command over a pipeline, then a line
+		# that shows a flag at all over a bare invocation, then the shorter:
+		# a forty-character regex is the pattern being taught, not the command
+		function score(l, withpin) {
+			return (withpin ? 100 * pinned(l) : 0) \
+			     + (l !~ /\||;|&&|\$\(|`/ ? 10 : 0) + (lead(l) != "" ? 5 : 0) \
+			     - length(l) / 1000
+		}
+		$1 == c && !($3 == src && $4 == "a") && index(skip, $2) == 0 && ($4 == "eg" || !gives($2)) \
+		  && length($2) <= w - 4 && runs($2) && (only == "" || pinned($2)) { L[++n] = $2 }
+		END {
+			if (!n) exit
+			best = 0
+			for (i = 1; i <= n; i++) if (!best || score(L[i], 1) > score(L[best], 1)) best = i
+			print "  " paint(L[best])
+			# the second must disagree with the first somewhere in its first
+			# three words, flag included -- two lines that differ in one
+			# argument teach one thing twice
+			split(L[best], a, " "); two = 0
+			for (i = 1; i <= n; i++) {
+				if (i == best) continue
+				split(L[i], b, " "); same = 0
+				for (f = 1; f <= 3; f++) if (a[f] == b[f]) same++
+				if (same >= 2) continue
+				# and a second flag, not the first one again
+				sc = score(L[i], 0) + (lead(L[i]) != lead(L[best]) ? 3 : 0)
+				if (!two || sc > sc2) { two = i; sc2 = sc }
+			}
+			if (two) print "  " paint(L[two])
+		}')
+	[ -n "$out" ] || return 1
+	printf '  %sexamples%s\n%s\n' "$U" "$N" "$out"
+}
