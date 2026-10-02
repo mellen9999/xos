@@ -1,0 +1,75 @@
+#!/bin/sh
+# push [HOST...] -- install or refresh the arsenal school on a remote host over
+# ssh. the sibling of learn/push.
+#
+# what ships is exactly what install.sh would install: it is run into a scratch
+# home here and that tree goes over the wire, so the two can never disagree
+# about what the school needs (build.sh ci's schoolship holds install.sh to
+# it). the tree's busybox is x86-64 and cannot go to a phone, so it stays
+# behind and the HOST's busybox runs the school instead -- answers are graded
+# by the commands that host really has. carried tools (nmap, httpx, ...) are
+# not shipped: they are built for the stick, and a card whose tool is absent
+# notes and skips rather than failing.
+#
+# hosts default to $ARSENAL_HOSTS, or titan. progress lives under
+# ~/.local/state on the host and is never touched: refreshing never costs a
+# streak.
+set -eu
+
+src=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+[ -x "$src/arsenal/learn" ] || { echo "push: no arsenal school at $src/arsenal" >&2; exit 1; }
+
+ver=$(git -C "$src" rev-parse --short HEAD 2>/dev/null || echo unknown)
+dirty=$(git -C "$src" status --porcelain -- arsenal learn/syntax 2>/dev/null | head -1)
+[ -z "$dirty" ] || ver="$ver-dirty"
+
+t=$(mktemp -d) || exit 1
+trap 'rm -rf "$t"' EXIT
+HOME="$t/home" XDG_DATA_HOME="$t/share" sh "$src/arsenal/install.sh" > "$t/log" 2>&1 \
+	|| { cat "$t/log" >&2; echo "push: install.sh failed -- fix that first" >&2; exit 1; }
+s="$t/share/xos-arsenal"
+rm -rf "$s/busybox" "$s/bb"
+# install.sh puts the wrapper in ~/.local/bin; the far end puts it wherever its
+# own bin is, so it rides along in the share dir (the tree keeps it there too).
+cp "$src/arsenal/wrapper" "$s/wrapper"
+printf '%s\n' "$ver" > "$s/VERSION"
+
+rc=0
+for host in ${*:-${ARSENAL_HOSTS:-titan}}; do
+	printf 'push: %s ... ' "$host"
+	if tar czf - -C "$t/share" xos-arsenal | ssh -o BatchMode=yes -o ConnectTimeout=10 "$host" "
+		set -eu
+		command -v busybox >/dev/null || { echo 'no busybox -- pkg install busybox' >&2; exit 3; }
+		R=\$HOME/.local/share/xos-arsenal
+		mkdir -p \"\$R\"
+		rm -rf \"\$R/.staging\"; mkdir -p \"\$R/.staging\"
+		tar xzmf - -C \"\$R/.staging\"
+		# swap each corpus item in with a rename, as install.sh does, so a
+		# school running mid-push never reads half a corpus -- and anything
+		# else in the share dir (a tool someone staged by hand) is left alone.
+		for it in \$(ls -A \"\$R/.staging/xos-arsenal\"); do
+			rm -rf \"\$R/.old.\$it\"
+			[ -e \"\$R/\$it\" ] && mv \"\$R/\$it\" \"\$R/.old.\$it\"
+			mv \"\$R/.staging/xos-arsenal/\$it\" \"\$R/\$it\"
+			rm -rf \"\$R/.old.\$it\"
+		done
+		rm -rf \"\$R/.staging\"
+		# the host's own applets, refreshed every push (see learn/push).
+		rm -rf \"\$R/bb\"; mkdir -p \"\$R/bb\"
+		busybox --install -s \"\$R/bb\" 2>/dev/null ||
+			for a in \$(busybox --list); do ln -sf \"\$(command -v busybox)\" \"\$R/bb/\$a\"; done
+		if [ -n \"\${PREFIX:-}\" ] && [ -d \"\$PREFIX/bin\" ]; then b=\$PREFIX/bin; else b=\$HOME/.local/bin; fi
+		mkdir -p \"\$b\"
+		cp \"\$R/wrapper\" \"\$b/arsenal\"
+		chmod +x \"\$b/arsenal\"
+		# not installed until it runs: the school must start and list its
+		# missions on this host's busybox.
+		ARSENAL_ROOT=\"\$R\" \"\$R/bb/ash\" \"\$R/learn\" list >/dev/null 2>&1 ||
+			{ echo 'arsenal learn does not run after the copy' >&2; exit 4; }
+		printf 'ok %s -> %s/arsenal\n' \"\$(cat \"\$R/VERSION\")\" \"\$b\"
+	"; then :; else
+		rc=1
+		echo "push: $host NOT updated -- its arsenal is stale" >&2
+	fi
+done
+exit $rc

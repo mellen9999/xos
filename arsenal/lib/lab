@@ -23,8 +23,16 @@ _lab_py() {
 	done
 }
 
-_lab_freeport() { p=$1; while netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$p "; do p=$((p + 1)); done; printf '%s' "$p"; }
-_lab_wait()     { i=0; while [ $i -lt 6 ]; do netstat -ltn 2>/dev/null | grep -q "127.0.0.1:$1 " && return 0; sleep 1; i=$((i + 1)); done; return 1; }
+# _lab_open PORT -- something answers on 127.0.0.1:PORT. asked by connecting,
+# with the python the lab already needs, not by reading netstat: android denies
+# an app /proc/net/tcp, so there netstat lists nothing and every target looked
+# like it never came up (and every port looked free).
+_lab_open() {
+	"$(_lab_py)" -c 'import socket, sys
+socket.create_connection(("127.0.0.1", int(sys.argv[1])), 1).close()' "$1" >/dev/null 2>&1
+}
+_lab_freeport() { p=$1; while _lab_open "$p"; do p=$((p + 1)); done; printf '%s' "$p"; }
+_lab_wait()     { i=0; while [ $i -lt 6 ]; do _lab_open "$1" && return 0; sleep 1; i=$((i + 1)); done; return 1; }
 
 # lab_seed -- the target tree the web server serves. planted so cards can assert
 # on real findings (a hidden /secret page, known words, a title).
