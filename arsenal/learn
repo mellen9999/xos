@@ -9,12 +9,13 @@
 # does in the fort. a miss is graded and revealed at once rather than held open
 # for retries -- as base learn's boss mode already does.
 #
-#   arsenal learn              pick up where you left off
+#   arsenal learn              the menu (continue, practice, review, daily, ...)
 #   arsenal learn 04-web       a mission by name (or `4` by number)
 #   arsenal learn review       the cards that are due, or the weakest
 #   arsenal learn daily        one card a day, under the clock
 #   arsenal learn stats        mastery, what is due, the streak, the leeches
 #   arsenal learn brief 4      reprint a mission's brief
+#   arsenal learn reset        erase all progress (--yes skips the question)
 #   arsenal learn selftest     check every card; run-grade the ones that carry
 #                              an assertion (out:/state:/status:), when the tool is present
 set -u
@@ -431,6 +432,8 @@ _panel_card() {
 show_ref() {
 	local _c=${1:-}
 	[ -n "$_c" ] || { echo "usage: arsenal learn ref TOOL" >&2; return 1; }
+	# a tool name, never a path: ../ would page any file the user can read.
+	case "$_c" in */*|.*) echo "arsenal learn: no reference for '$_c'" >&2; return 1 ;; esac
 	if [ ! -f "$REF/$_c" ]; then
 		echo "arsenal learn: no reference for '$_c'" >&2
 		echo "try: sh ~/tools/arsenal $_c   (its recipe playbook)" >&2
@@ -980,8 +983,169 @@ stats_report() {
 	fi
 }
 
+usage() {
+	printf 'usage: arsenal learn [mission|verb]\n'
+	printf '  (no arg)   the menu (piped: pick up where you left off)\n'
+	printf '  <name|n>   a mission by name or number\n'
+	printf '  review     the cards that are due, or the weakest\n'
+	printf '  daily      one card a day, under the clock\n'
+	printf '  stats      mastery, what is due, the streak, the leeches\n'
+	printf '  ref TOOL   the reference page for a carried tool (Tab opens it mid-drill)\n'
+	printf '  brief N    reprint a mission brief\n'
+	printf '  reset      erase all progress (--yes skips the question)\n'
+}
+
+# ---- the menu ---------------------------------------------------------------
+# ported from learn/learn's menu, cut to the modes arsenal has: no placement,
+# gauntlet, missions-as-scenarios, projects, shell or autopsy.
+
+# is there anything here to lose? the empty card file cards_init writes on a
+# first launch is not progress, so -s and not -e.
+progress_any() {
+	local f
+	for f in "$STATE"/*; do
+		case "${f##*/}" in cards.lock|'*') continue ;; esac
+		[ -s "$f" ] && return 0
+	done
+	return 1
+}
+
+# the only rm -rf here: the whole state directory, so a ledger added later can
+# never survive a wipe and seed the next game. STATE must be absolute, two
+# components deep and named arsenal-learn -- anything else is a bug or an env
+# var pointing somewhere real.
+state_wipe() {
+	case "$STATE" in /*/arsenal-learn) : ;; *) return 1 ;; esac
+	rm -rf "$STATE" 2>/dev/null || return 1
+	mkdir -p "$STATE" 2>/dev/null || return 1
+	# the card file and this session's seen-list are process state too.
+	cards_init
+	return 0
+}
+
+new_game() {
+	local k
+	printf '\n  %sa new game wipes every mission, card and saved place%s\n' "$Y" "$N"
+	printf '  %sthere is no undo -- y to wipe%s ' "$Y" "$N"
+	IFS= read -rsn1 k 2>/dev/null || return 1
+	echo
+	case "$k" in y|Y) : ;; *) return 1 ;; esac
+	state_wipe || { no "cannot clear $STATE"; pause_card; return 1; }
+	return 0
+}
+
+# every mission whose boss has not fallen, in order, until one is left
+# unfinished. each verdict holds the screen: the boss screen does not pause on
+# its own, and the next brief would wipe it unread.
+resume() {
+	local id rc ran=0
+	for id in $(level_ids); do
+		level_is_passed "$id" && continue
+		ran=1
+		run_level "$id"; rc=$?
+		[ "$rc" = 2 ] && return 0
+		pause_card || return 0
+		[ "$rc" = 0 ] || return 0
+	done
+	[ "$ran" = 1 ] && return 0
+	cls
+	hdr "arsenal learn" "every boss has fallen"
+	note "'r' brings back the cards that are due."
+	pause_card
+	return 0
+}
+
+# continue names the mission and the place before it commits, and n there is
+# the way to throw the run away and start over (on a blank install n is just
+# the way back: there is nothing to wipe).
+resume_confirm() {
+	local id k nq lname fresh=0
+	id=$(resume_target) || { resume; return 0; }
+	progress_any || fresh=1
+	nq=$(level_nq "$id"); lname=$(level_field "$id" name)
+	if inprog_load "$id" "$(level_fp "$id")" "$nq" && [ -z "$INPROG_LEFT" ]; then
+		printf '  %smission %s  %s%s %s-- at the boss, %s of %s correct%s\n' \
+			"$W" "$(level_no "$id")" "$lname" "$N" "$D" "$INPROG_RIGHT" "$nq" "$N"
+	elif [ -n "$INPROG_LEFT" ]; then
+		printf '  %smission %s  %s%s %s-- %s of %s answered, %s correct%s\n' \
+			"$W" "$(level_no "$id")" "$lname" "$N" "$D" "$INPROG_DONE" "$nq" "$INPROG_RIGHT" "$N"
+	else
+		printf '  %smission %s  %s%s %s-- %s questions, from the top%s\n' \
+			"$W" "$(level_no "$id")" "$lname" "$N" "$D" "$nq" "$N"
+	fi
+	if [ "$fresh" = 1 ]; then printf '  %snew game? (Y/n)%s ' "$W" "$N"
+	else printf '  %scontinue? (Y/n)%s ' "$W" "$N"; fi
+	IFS= read -rsn1 k 2>/dev/null || return 0
+	echo
+	case "$k" in
+		''|y|Y) resume ;;
+		n|N)    [ "$fresh" = 1 ] || { new_game && resume; } ;;
+	esac
+	return 0
+}
+
+_mi()     { printf '   %s%s%s   %s%-10s%s %s%s%s\n' "$C$B" "$1" "$N" "$W" "$2" "$N" "$D" "$3" "$N"; }
+
+# a full-screen home steered with one key; every mode returns here, not to the
+# shell. only a bare `arsenal learn` on a terminal reaches it.
+menu() {
+	local k p t h id rc due
+	level_ids > "$TMP/ids"
+	t=$(grep -c . "$TMP/ids")
+	while :; do
+		# recounted every loop: a boss just fought or a review just taken has
+		# moved all three.
+		p=$(awk 'NR == FNR { ids[$1] = 1; next } ($1 in ids) { c++ } END { print c + 0 }' \
+			"$TMP/ids" "$PASSED" 2>/dev/null); p=${p:-0}
+		held_ids > "$TMP/held" 2>/dev/null
+		h=$(awk 'NR == FNR { ids[$1] = 1; next } ($1 in ids) { c++ } END { print c + 0 }' \
+			"$TMP/ids" "$TMP/held" 2>/dev/null); h=${h:-0}
+		due=$(cards_ndue); due=${due:-0}
+
+		cls
+		hdr "arsenal learn" "the carried tools, one card at a time"
+		printf '  '; bar "$h" "$t" 20
+		printf ' %s%s/%s held%s  %s(%s beaten)%s\n\n' "$D" "$h" "$t" "$N" "$D" "$p" "$N"
+
+		if progress_any; then _mi c continue "where you left off"
+		else _mi c "new game" "start at mission 1"; fi
+		_mi p practice "any mission by number"
+		_mi r review   "$([ "$due" -gt 0 ] && echo "$due due" || echo "weakest cards first")"
+		_mi d daily    "one hard card, same for all"
+		_mi f find     "any tool's reference"
+		_mi s stats    "what you've mastered"
+		_mi h help     "usage and every command"
+		_mi q quit     ""
+		rule
+		printf '  %schoose%s ' "$D" "$N"
+		IFS= read -rsn1 k 2>/dev/null || break
+		echo
+		case "$k" in
+			c) resume_confirm ;;
+			p) cls; printf '  %spractice which mission? (1-%s)%s ' "$W" "$t" "$N"
+			   IFS= read -r k 2>/dev/null || continue
+			   id=$(resolve_level "$k")
+			   if [ -n "$id" ] && [ -f "$LEVELS/$id" ]; then
+			   	run_level "$id"; rc=$?
+			   	[ "$rc" = 2 ] || pause_card
+			   else no "no mission $k"; pause_card; fi ;;
+			# review's own empty-ledger note returns without a pause; caught
+			# here, or the menu redraws over it and r reads as a dead key.
+			r) if [ -s "$CARDS" ]; then cls; review 20
+			   else note "no cards yet -- answer some missions first"; pause_card; fi ;;
+			d) daily || pause_card ;;
+			f) cls; printf '  %swhich tool?%s ' "$W" "$N"
+			   IFS= read -r k 2>/dev/null || continue
+			   [ -n "$k" ] && { cls; show_ref "$k"; pause_card; } ;;
+			s) cls; stats_report; pause_card ;;
+			h|'?') cls; usage; pause_card ;;
+			q|Q|"$E_EOT") break ;;
+		esac
+	done
+}
+
 main() {
-	local arg=${1:-} lvl rc ndue
+	local arg=${1:-} lvl rc ndue k
 	case "$arg" in
 		selftest) selftest_graded; exit $? ;;
 		list)     level_ids; exit 0 ;;
@@ -994,17 +1158,23 @@ main() {
 		stats)    stats_report; exit 0 ;;
 		review)   shift; review "${1:-20}"; exit $? ;;
 		daily)    daily; exit $? ;;
-		-h|--help|help)
-			printf 'usage: arsenal learn [mission|verb]\n'
-			printf '  (no arg)   pick up where you left off\n'
-			printf '  <name|n>   a mission by name or number\n'
-			printf '  review     the cards that are due, or the weakest\n'
-			printf '  daily      one card a day, under the clock\n'
-			printf '  stats      mastery, what is due, the streak, the leeches\n'
-			printf '  ref TOOL   the reference page for a carried tool (Tab opens it mid-drill)\n'
-			printf '  brief N    reprint a mission brief\n'
-			exit 0 ;;
+		reset)    shift
+		          # never on a slip of the finger: it is one letter from `review`.
+		          if [ "${1:-}" = --yes ]; then k=y
+		          elif [ -t 0 ]; then
+		          	printf '  %serase all progress -- cards, beaten missions, saved places? [y/N]%s ' "$Y" "$N"
+		          	IFS= read -r k 2>/dev/null || k=
+		          else k=; fi
+		          case "$k" in
+		          	y|Y|yes) state_wipe || die "cannot clear $STATE"; ok "progress cleared" ;;
+		          	*)       note "nothing erased (arsenal learn reset --yes skips the question)" ;;
+		          esac
+		          exit 0 ;;
+		-h|--help|help) usage; exit 0 ;;
 	esac
+	# a person at a terminal gets the menu; piped (a probe, a script) keeps
+	# the old straight-in resume, so nothing automated waits on a keypress.
+	[ -z "$arg" ] && [ -t 0 ] && [ -t 1 ] && { menu; exit 0; }
 	if [ -z "$arg" ]; then
 		# bare `arsenal learn` resumes at the first mission whose boss has not
 		# fallen, not always the first one.

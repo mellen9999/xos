@@ -473,7 +473,7 @@ never coming. **not built** is buildable static-musl but not yet done (gdb, tsha
 -- the current toolset, not a promise of the next one.
 
 **learning it.** `arsenal learn` is the graded school for the toolkit -- the same
-engine as base `learn`, on the p3 side. Nine missions, from safety and the
+engine as base `learn`, on the p3 side, opening on the same one-key menu. Nine missions, from safety and the
 multiplexer through files, disks, the web, passwords, taking a thing apart, moving
 loot, the professional tools and the rest of the kit -- every carried tool drilled
 and graded by *running* what you type, with the same spaced-repetition cards -- and
