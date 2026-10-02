@@ -146,13 +146,15 @@ _ed_first() { _r=${1%"${1#?}"}; }
 # it ends up filling, then the text. a page longer than that is cut and the cut
 # is named -- "12 more lines -- learn ref ls" -- because a reference that
 # quietly stops three flags short of the one you needed is worse than no panel.
+# REF_CMD names the command that prints the whole page: arsenal's school sets
+# it, since there the page is `arsenal learn ref`, not the fort's `learn ref`.
 #
 # rows, not lines: colour escapes take up no cells and a line wider than the
 # terminal wraps onto further ones. get that count wrong and closing the panel
 # climbs to the wrong row and eats the question. one awk, once per open --
 # never per keystroke.
 _ed_panel_fit() {   # $1 width  $2 max rows  $3 marker prefix  $4 marker suffix
-	awk -v w="$1" -v max="$2" -v pre="$3" -v post="$4" -v e="$E_ESC" '
+	awk -v w="$1" -v max="$2" -v pre="$3" -v post="$4" -v e="$E_ESC" -v rc="${REF_CMD:-learn ref}" '
 		function rw(s,   t, n) {
 			t = s; gsub(e "\\[[0-9;?]*[A-Za-z]", "", t); n = length(t)
 			return int((n > 0 ? n - 1 : 0) / w) + 1
@@ -168,13 +170,13 @@ _ed_panel_fit() {   # $1 width  $2 max rows  $3 marker prefix  $4 marker suffix
 			# on the widest number it could carry -- reserving a flat one row
 			# let a marker that wrapped push the panel a row past its budget,
 			# and a panel a row taller than it claims closes onto the question.
-			mr = rw(sprintf("%s%d more lines -- learn ref %s", pre, NR, post))
+			mr = rw(sprintf("%s%d more lines -- %s %s", pre, NR, rc, post))
 			used = 0; out = ""
 			for (i = 1; i <= NR; i++) {
 				if (used + r[i] + mr > max) break
 				out = out l[i] "\n"; used += r[i]
 			}
-			m = sprintf("%s%d more lines -- learn ref %s", pre, NR - i + 1, post)
+			m = sprintf("%s%d more lines -- %s %s", pre, NR - i + 1, rc, post)
 			print used + rw(m)
 			printf "%s%s\n", out, m
 		}'

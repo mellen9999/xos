@@ -35,6 +35,7 @@ INPROG="$STATE/inprogress"
 DAILY="$STATE/daily"
 BRIEFED="$STATE/briefed"
 EDIT_HIST="$STATE/edit-hist"   # the vi line editor's own history
+REF_CMD="arsenal learn ref"    # what the panel's cut marker tells you to run
 
 die() { echo "learn: $*" >&2; exit 1; }
 
@@ -281,14 +282,104 @@ _prows() {
 		END { print rows + 0 }'
 }
 
-# ref_panel_text ANSWER -- the Tab panel: this card's reference page, keyed off
-# its ref:, drawn by lib/ui's ref_page -- the same coloured page the fort's
-# `learn ref` prints -- less its outer two rules, since the editor frames the
-# panel itself. the ANSWER arg is taken for signature parity with the editor's
-# caller (lib/edit's _ed_panel_load). _ed_panel_fit trims it to the rows left.
+# ref_panel_text ANSWER -- the Tab panel, held to the fort's contract
+# (learn/lib/explain): a card, not the page. per command the answer runs --
+# the card's ref: first -- its name and usage and its one-line summary, then
+# the rows for the flags this answer types pinned on top with a `>`, then the
+# rest as the room allows, cut with a count that names the whole page. never
+# the card's own answer: busybox pages list flags, but arsenal pages list
+# whole command lines, so a row that IS an accepted answer would hand it over
+# -- the panel drops it. the prose stays on the full page, `arsenal learn ref`.
 ref_panel_text() {
-	[ -n "${Q_REF:-}" ] && [ -f "$REF/$Q_REF" ] || { echo "no reference for this card"; return 0; }
-	ref_page "$REF/$Q_REF" | sed '1d;$d'
+	local refs r n each left budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
+	[ -n "${Q_REF:-}" ] && [ -f "$REF/$Q_REF" ] || { note "no reference for this one"; return 0; }
+	refs=$(_panel_refs "$1")
+	n=$(printf '%s\n' "$refs" | grep -c .)
+	printf '%s\n' "$1" | answer_flags > "$TMP/panel.flags"
+	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/panel.ans"
+	# names, usages and pinned rows always show; the other rows split what is
+	# left between the pages evenly, as the fort's panel does.
+	each=0
+	if [ "$budget" -gt 0 ]; then
+		left=$budget
+		for r in $refs; do left=$(( left - $(_panel_card "$r" -1 | _prows "$w") )); done
+		each=$(( left / n )); [ "$each" -ge 1 ] || each=1
+	fi
+	for r in $refs; do _panel_card "$r" "$each"; done
+}
+
+# _panel_refs ANSWER -- the pages the panel opens: the card's ref:, then the
+# commands the answer runs, deduplicated, and only the ones with a page.
+_panel_refs() {
+	{ printf '%s\n' "$Q_REF"; printf '%s\n' "$1" | answer_cmds; } |
+		awk -v r="$REF" 'NF && !seen[$1]++ { f = r "/" $1; if ((getline j < f) >= 0) { close(f); print $1 } }'
+}
+
+# _panel_card CMD MAX -- one command's card. MAX caps the unpinned rows (0 all,
+# -1 none -- the fixed part only, for measuring). a row's keys are its dashed
+# words, as the fort keys them; a key matches an answer's flag with any
+# `=value` taken off both, so --format=raw-md5 pins the --format=TYPE row.
+_panel_card() {
+	_ref_rows "$REF/$1" |
+	awk -v c="$1" -v max="$2" -v cols="${TERM_COLS:-${COLS:-80}}" -v rc="${REF_CMD:-learn ref}" \
+	    -v fl="$TMP/panel.flags" -v an="$TMP/panel.ans" \
+	    -v B="$B" -v N="$N" -v D="$D" -v C="$C" '
+		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
+		function norm(s) { gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s); return s }
+		function bare(k) { sub(/=.*/, "", k); return k }
+		function clip(s, w) {
+			if (w < 4 || length(s) <= w) return substr(s, 1, w < 1 ? 0 : w)
+			s = substr(s, 1, w - 2); sub(/[ ,][^ ,]*$/, "", s)
+			sub(/[ .,|]+$/, "", s); return s ".."
+		}
+		function typed(s) { gsub(/[A-Z][A-Z_0-9]+/, D "&" C, s); return C s N }
+		function pinned(f,   t, k, i) {
+			k = split(f, t, /[ ,]+/)
+			for (i = 1; i <= k; i++) if (t[i] ~ /^-./ && (bare(t[i]) in pin)) return 1
+			return 0
+		}
+		function row(p, f, d,   w) {
+			w = (length(f) > fw ? length(f) + 2 : fw + 2)
+			if (d == "") printf "%s%s%s%s\n", p, C, f, N
+			else printf "%s%s%s%s%s\n", p, C, pad(f, w), N, clip(d, cols - w - 4)
+		}
+		BEGIN {
+			while ((getline l < fl) > 0) { split(l, t, " "); if (t[1] == c) pin[bare(t[2])] = 1 }
+			while ((getline l < an) > 0) if (norm(l) != "") ans[norm(l)] = 1
+		}
+		{ line[NR] = $0 }
+		END {
+			for (i = 2; i <= NR; i++) {
+				l = line[i]
+				if (l ~ /^Usage:/) { usage = substr(l, 8); continue }
+				if (l == "") { blank = 1; if (para != "") done = 1; continue }
+				# the summary is the first sentence of the first prose paragraph:
+				# arsenal pages wrap their prose, so its first LINE stops
+				# mid-clause where a fort page ends a sentence.
+				if (l !~ /^\t[^\t]/) { if (blank && !done) para = para (para == "" ? "" : " ") l; continue }
+				sub(/^\t/, "", l); f = l; d = ""
+				if (match(l, /\t+/)) { f = substr(l, 1, RSTART - 1); d = substr(l, RSTART + RLENGTH) }
+				gsub(/`/, "", f); gsub(/`/, "", d)
+				if (norm(f) in ans) continue          # the answer itself
+				if (pinned(f)) { np++; PF[np] = f; PD[np] = d }
+				else { n++; F[n] = f; Dd[n] = d }
+				if (length(f) > fw && length(f) <= 16) fw = length(f)
+			}
+			summary = para
+			if (match(summary, /[.!?]( |$)/)) summary = substr(summary, 1, RSTART)
+			gsub(/`/, "", summary)
+			gsub(/[ \t]+/, " ", usage)
+			if (usage == c) usage = ""
+			else if (index(usage, c " ") == 1) usage = substr(usage, length(c) + 2)
+			if (usage == "") printf "  %s%s%s\n", B, c, N
+			else printf "  %s%s%s  %s\n", B, c, N, typed(clip(usage, cols - length(c) - 6))
+			if (summary != "") print "  " clip(summary, cols - 4)
+			for (i = 1; i <= np; i++) row("> ", PF[i], PD[i])
+			if (max < 0) exit
+			shown = (max == 0 || n <= max ? n : max - 1)
+			for (i = 1; i <= shown; i++) row("  ", F[i], Dd[i])
+			if (n > shown) printf "  %s+%d more -- %s %s%s\n", D, n - shown, rc, c, N
+		}'
 }
 
 # show_ref TOOL -- print a whole reference page, framed and coloured. `arsenal learn ref TOOL`
@@ -631,6 +722,31 @@ selftest_graded() {
 			if [ -n "$first" ] && ! correct "$first"; then
 				echo "FAIL $id/$i: own answer does not grade correct -- '$first'"; bad=$((bad + 1))
 			fi
+			# the Tab panel is the fort's card: it opens on the card's ref, its
+			# rows are aligned (no raw tab), and no row is an accepted answer --
+			# a reference that prints the line the card asks for is a cheat sheet.
+			if [ -f "$REF/${Q_REF:-}" ]; then
+				ref_panel_text "$first" | sed "s/$(printf '\033')\[[0-9;]*m//g" > "$TMP/st.panel"
+				! grep -q "$(printf '\t')" "$TMP/st.panel" \
+					|| { echo "FAIL $id/$i: the Tab panel has a raw tab"; bad=$((bad + 1)); }
+				[ "$(awk 'NR == 1 { print $1 }' "$TMP/st.panel")" = "$Q_REF" ] \
+					|| { echo "FAIL $id/$i: the Tab panel does not open on $Q_REF"; bad=$((bad + 1)); }
+				# each card's name line names the command, and may BE the answer
+				# (`abduco`); it is the title, not a row, so it is set aside once.
+				for _r in $(_panel_refs "$first"); do _panel_card "$_r" -1 | head -1; done \
+					| sed "s/$(printf '\033')\[[0-9;]*m//g" > "$TMP/st.heads"
+				_leak=$(printf '%s\n' "$Q_ANSWERS" | awk -v pf="$TMP/st.panel" -v hf="$TMP/st.heads" '
+					function norm(s) { gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s); return s }
+					BEGIN {
+						while ((getline l < hf) > 0) head[l]++
+						while ((getline l < pf) > 0) {
+							if (head[l] > 0) { head[l]--; continue }
+							sub(/^(  |> )/, "", l); sub(/   *.*/, "", l); row[norm(l)] = 1
+						}
+					}
+					norm($0) != "" && (norm($0) in row) { print; exit }')
+				[ -z "$_leak" ] || { echo "FAIL $id/$i: the Tab panel shows the answer -- '$_leak'"; bad=$((bad + 1)); }
+			fi
 			# tier-2 TRUTH: a listed answer matches tier 1 by text alone, so that
 			# never exercises out:/state:/tools. run the answer for real and hold
 			# its observable against the assertion -- this is what proves the
@@ -726,15 +842,6 @@ selftest_graded() {
 		  printf '%s\n' "$_o" | grep -qF "$(level_field "$_first" brief | head -1 | tr -d '`' | cut -c1-24)" || exit 1
 		  level_is_briefed "$_first" || exit 1
 		) || { echo "FAIL brief: a saved place skipped the mission brief"; bad=$((bad + 1)); }
-		# the Tab panel draws the page through ref_page, not the raw file: no
-		# hard tab left (the flag column is aligned), and the page's own title
-		# on top -- the panel frames itself, so ref_page's outer rule is gone.
-		( Q_REF=$(ls "$REF" 2>/dev/null | head -1)
-		  [ -n "$Q_REF" ] || exit 1
-		  _o=$(ref_panel_text x)
-		  case "$_o" in *"$(printf '\t')"*) exit 1 ;; esac
-		  printf '%s\n' "$_o" | head -1 | grep -qF "$(head -1 "$REF/$Q_REF")"
-		) || { echo "FAIL ref panel: the page is not drawn by ref_page"; bad=$((bad + 1)); }
 		# stats reads the ledger and the level files -- prove it runs clean on a
 		# seeded row (a broken held_scan join or leech format would error here).
 		( CARDS="$TMP/stc"; printf '%s/1#x\t2\t%s\t%s\t7\t2\t3\n' "$_first" "$(now)" "$(now)" > "$CARDS"
