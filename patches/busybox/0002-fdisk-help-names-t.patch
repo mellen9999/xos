@@ -1,0 +1,17 @@
+fdisk's help names a flag the binary does not take.
+
+The flag list says -T PARTTYPE, but getopt32 is given "t:" and the synopsis
+already says [-t PARTTYPE]: only -t parses, -T is "unrecognized option". A
+learner reading `fdisk --help` on the stick is taught the one spelling that
+fails. This makes the flag list agree with the synopsis and the parser.
+--- a/util-linux/fdisk.c
++++ b/util-linux/fdisk.c
+@@ -104,7 +104,7 @@
+ //but in fact, util-linux 2.41.1 shows the size in KILOBYTES!
+ //usage:	)
+ //usage:     "\n	-b 2048		(for certain MO disks) use 2048-byte sectors"
+-//usage:     "\n	-T PARTTYPE	Force 'dos' partition if 'gpt' also present"
++//usage:     "\n	-t PARTTYPE	Force 'dos' partition if 'gpt' also present"
+ //usage:     "\n	-C CYLINDERS	Set number of cylinders/heads/sectors"
+ //usage:     "\n	-H HEADS	Typically 255"
+ //usage:     "\n	-S SECTORS	Typically 63"

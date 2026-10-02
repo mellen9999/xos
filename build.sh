@@ -3756,6 +3756,10 @@ G51
     || { g46=FAIL; printf '    built busybox does not look up PS1_CMD\n' >&2; }
   grep -q 'PS1_CMD=' root/etc/shrc 2>/dev/null \
     || { g46=FAIL; printf '    /etc/shrc never sets PS1_CMD\n' >&2; }
+  # 0002: fdisk's flag list says -t, the spelling its parser takes
+  ./busybox fdisk --help 2>&1 | grep -q '^[[:space:]]*-t PARTTYPE' \
+    && ! ./busybox fdisk --help 2>&1 | grep -q '^[[:space:]]*-T PARTTYPE' \
+    || { g46=FAIL; printf '    built fdisk --help still names -T, a flag it rejects\n' >&2; }
   g "G46 carried patches applied and in effect" "$g46"
 
   # G47 -- the arsenal is not the signed image, but README calls it "built and

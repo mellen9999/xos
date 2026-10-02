@@ -385,8 +385,7 @@ udhcpc -a        # arping duplicate check; udhcpc reconfigures the live nic
 # refcheck (G24) stopped the build on these; each is a lookup, not by-heart
 cut --output-delimiter   # output separator knob; -d is the taught half
 fdisk -s                 # print sizes and exit; blockdev/lsblk territory
-fdisk -T                 # force dos over a hybrid gpt; one-off recovery knob
-fdisk -t                 # partition type selector at creation; not drilled
+fdisk -t                 # force dos over a hybrid gpt; one-off recovery knob
 watch -x                 # exec instead of sh -c; quoting nuance, look it up
 
 # ── 2026-09-13 cull: real, supported, and not worth a card ──
