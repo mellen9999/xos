@@ -35,8 +35,10 @@ items="arsenal learn lib levels pools phrases ref rekeys arsenal-catalog arsenal
 stage="$share/.staging.$$"
 rm -rf "$stage"; mkdir -p "$stage"
 cp -a "$src/busybox" "$stage/busybox"
+# the shell-grammar table the Tab panel glosses is the fort's own; one source.
+cp -a "$src/learn/syntax" "$stage/syntax"
 for it in $items; do cp -a "$a/$it" "$stage/$it"; done
-for it in busybox $items; do
+for it in busybox syntax $items; do
 	rm -rf "$share/.old.$it" 2>/dev/null || true
 	[ -e "$share/$it" ] && mv "$share/$it" "$share/.old.$it"
 	mv "$stage/$it" "$share/$it"

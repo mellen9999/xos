@@ -52,7 +52,11 @@ trap cleanup EXIT
 trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
-for _l in ui ctx cards coach jail grade lab edit; do
+# the shell grammar the panel glosses is the fort's own table: one source, read
+# from beside the school once installed, from the repo's learn/ in a dev tree.
+SYNTAX="$AROOT/syntax"
+[ -f "$SYNTAX" ] || SYNTAX="$AROOT/../learn/syntax"
+for _l in ui ctx cards coach jail grade lab edit panel; do
 	[ -f "$AROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$AROOT/lib/$_l"
 done
@@ -224,6 +228,9 @@ blk_load() {
 	roll
 	seed=$(( RANDOM + $2 ))
 
+	# where the card lives, so the panel never offers this card's own line as
+	# an example of its command (lib/panel's ref_examples refuses its source).
+	Q_SRC="${1##*/}:$2"
 	blk="$TMP/blk"
 	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$1" > "$blk"
 
@@ -271,42 +278,61 @@ $Q_SEED
 # same as base learn's boss/daily modes already do. the vi editor (lib/edit) is
 # here now, so `?` opens the hint panel and Tab opens the reference page for the
 # card's tool, either key again closing it -- the same two panels the fort has.
-# _prows TEXT -- how many terminal rows a block takes at width $1, escapes not
-# counted. ported from learn/lib/explain; the tab panel needs it to know how
-# many rows the prompt above it spent, so a long question shrinks the panel
-# rather than pushing it off the bottom of the screen.
-_prows() {
-	awk -v w="${1:-80}" '
-		{ t = $0; gsub(/\033\[[0-9;?]*[A-Za-z]/, "", t)
-		  n = length(t); rows += int((n > 0 ? n - 1 : 0) / w) + 1 }
-		END { print rows + 0 }'
-}
-
 # ref_panel_text ANSWER -- the Tab panel, held to the fort's contract
-# (learn/lib/explain): a card, not the page. per command the answer runs --
-# the card's ref: first -- its name and usage and its one-line summary, then
-# the rows for the flags this answer types pinned on top with a `>`, then the
-# rest as the room allows, cut with a count that names the whole page. never
-# the card's own answer: busybox pages list flags, but arsenal pages list
-# whole command lines, so a row that IS an accepted answer would hand it over
-# -- the panel drops it. the prose stays on the full page, `arsenal learn ref`.
+# (learn/lib/explain): a card, not the page. the name and usage of every
+# command the answer runs (the card's ref: first) and its one-line summary;
+# the rows for the flags this answer types, pinned with a `>`; then, as the
+# room allows, two example lines from other cards (lib/panel), the shell
+# syntax the answer uses (lib/panel), and the remaining rows, cut with a count
+# that names the whole page. never the card's own answer: busybox pages list
+# flags, but arsenal pages list whole command lines, so a row that IS an
+# accepted answer would hand it over -- the panel drops it, and the examples
+# refuse this card's lines the same way. the prose stays on `arsenal learn ref`.
 ref_panel_text() {
-	local refs r n each left budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
+	local refs r n each left rows head pinned syn ex budget=${PANEL_ROWS:-0} w=${TERM_COLS:-${COLS:-80}}
 	[ -n "${Q_REF:-}" ] && [ -f "$REF/$Q_REF" ] || { note "no reference for this one"; return 0; }
 	refs=$(_panel_refs "$1")
 	n=$(printf '%s\n' "$refs" | grep -c .)
 	printf '%s\n' "$1" | answer_flags > "$TMP/panel.flags"
 	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/panel.ans"
-	# names, usages and pinned rows always show; the other rows split what is
-	# left between the pages evenly, as the fort's panel does.
+	printf '%s\n' "$1" > "$TMP/panel.line"
+	head=""; pinned=""
+	for r in $refs; do
+		head="${head:+$head
+}$(_panel_card "$r" head)"
+		pinned="$pinned$(_panel_card "$r" pinned)"
+	done
+	syn=$(explain_syntax "$1" "" 1) || syn=
+	ex=$(ref_examples "$Q_REF" "${Q_ANSWERS:-}" "" "$(_answer_pins "$Q_REF")") || ex=
+	# the fort's budget, in the fort's order: the names and pinned rows always
+	# show, a row per page is held for its other rows, then the syntax and the
+	# examples each fit whole or not at all, and what is left of the rows is
+	# split evenly between the pages.
 	each=0
 	if [ "$budget" -gt 0 ]; then
-		left=$budget
-		for r in $refs; do left=$(( left - $(_panel_card "$r" -1 | _prows "$w") )); done
-		each=$(( left / n )); [ "$each" -ge 1 ] || each=1
+		left=$(( budget - $(printf '%s\n' "$head" | _prows "$w") - n ))
+		[ -z "$pinned" ] || left=$(( left - $(printf '%s' "$pinned" | _prows "$w") ))
+		rows=0; [ -z "$syn" ] || rows=$(( 1 + $(printf '%s\n' "$syn" | _prows "$w") ))
+		if [ "$rows" -le "$left" ]; then left=$(( left - rows )); else syn=; fi
+		if [ -n "$ex" ]; then
+			rows=$(printf '%s\n' "$ex" | _prows "$w")
+			if [ "$rows" -le "$left" ]; then left=$(( left - rows )); else ex=; fi
+		fi
+		each=$(( (left + n) / n )); [ "$each" -ge 1 ] || each=1
 	fi
-	for r in $refs; do _panel_card "$r" "$each"; done
+	printf '%s\n' "$head"
+	for r in $refs; do
+		_panel_card "$r" pinned
+		_panel_card "$r" "$each"
+	done
+	[ -n "$ex" ] && printf '%s\n' "$ex"
+	[ -n "$syn" ] && printf '  %sshell syntax%s\n%s\n' "$U" "$N" "$syn"
+	return 0
 }
+
+# _answer_pins CMD -- the flags the answer passes CMD, space-separated: what
+# ref_examples puts first, as the fort's pin_keys does for a busybox page.
+_answer_pins() { awk -v c="$1" '$1 == c { printf "%s ", $2 }' "$TMP/panel.flags" 2>/dev/null; }
 
 # _panel_refs ANSWER -- the pages the panel opens: the card's ref:, then the
 # commands the answer runs, deduplicated, and only the ones with a page.
@@ -315,14 +341,19 @@ _panel_refs() {
 		awk -v r="$REF" 'NF && !seen[$1]++ { f = r "/" $1; if ((getline j < f) >= 0) { close(f); print $1 } }'
 }
 
-# _panel_card CMD MAX -- one command's card. MAX caps the unpinned rows (0 all,
-# -1 none -- the fixed part only, for measuring). a row's keys are its dashed
+# _panel_card CMD head|pinned|MAX -- one part of a command's card: the name
+# line and summary, the pinned rows, or up to MAX of the other rows (0 all),
+# the last row spent saying how many were cut. a row's keys are its dashed
 # words, as the fort keys them; a key matches an answer's flag with any
-# `=value` taken off both, so --format=raw-md5 pins the --format=TYPE row.
+# `=value` taken off both, so --format=raw-md5 pins the --format=TYPE row. an
+# arsenal row can be a whole usage (gobuster `dir -u URL -w LIST` beside
+# `vhost -u URL -w LIST`), so it pins only when the answer passes EVERY flag
+# in it, types its subcommand word if it leads with one, and uses its && or |
+# if it chains commands.
 _panel_card() {
 	_ref_rows "$REF/$1" |
 	awk -v c="$1" -v max="$2" -v cols="${TERM_COLS:-${COLS:-80}}" -v rc="${REF_CMD:-learn ref}" \
-	    -v fl="$TMP/panel.flags" -v an="$TMP/panel.ans" \
+	    -v fl="$TMP/panel.flags" -v an="$TMP/panel.ans" -v al="$TMP/panel.line" \
 	    -v B="$B" -v N="$N" -v D="$D" -v C="$C" '
 		function pad(s, w,   r) { r = s; while (length(r) < w) r = r " "; return r }
 		function norm(s) { gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s); return s }
@@ -333,10 +364,18 @@ _panel_card() {
 			sub(/[ .,|]+$/, "", s); return s ".."
 		}
 		function typed(s) { gsub(/[A-Z][A-Z_0-9]+/, D "&" C, s); return C s N }
-		function pinned(f,   t, k, i) {
-			k = split(f, t, /[ ,]+/)
-			for (i = 1; i <= k; i++) if (t[i] ~ /^-./ && (bare(t[i]) in pin)) return 1
-			return 0
+		function pinned(f,   t, k, i, j, hit) {
+			k = split(f, t, /[ ,]+/); hit = 0; j = 1
+			if (t[1] == c) j = 2
+			# a row that chains commands is that whole chain, not its flags
+			if (match(f, /&&|\|\||[|;]/) && !index(aline, substr(f, RSTART, RLENGTH))) return 0
+			# a leading lowercase word is a subcommand: the answer must type it
+			if (j <= k && t[j] ~ /^[a-z][a-z0-9-]*$/ && !(t[j] in aw)) return 0
+			for (i = j; i <= k; i++) if (t[i] ~ /^-./) {
+				if (!(bare(t[i]) in pin)) return 0
+				hit = 1
+			}
+			return hit
 		}
 		function row(p, f, d,   w) {
 			w = (length(f) > fw ? length(f) + 2 : fw + 2)
@@ -346,6 +385,7 @@ _panel_card() {
 		BEGIN {
 			while ((getline l < fl) > 0) { split(l, t, " "); if (t[1] == c) pin[bare(t[2])] = 1 }
 			while ((getline l < an) > 0) if (norm(l) != "") ans[norm(l)] = 1
+			while ((getline l < al) > 0) { aline = aline " " l; k = split(l, t, " "); for (i = 1; i <= k; i++) aw[t[i]] = 1 }
 		}
 		{ line[NR] = $0 }
 		END {
@@ -371,11 +411,14 @@ _panel_card() {
 			gsub(/[ \t]+/, " ", usage)
 			if (usage == c) usage = ""
 			else if (index(usage, c " ") == 1) usage = substr(usage, length(c) + 2)
-			if (usage == "") printf "  %s%s%s\n", B, c, N
-			else printf "  %s%s%s  %s\n", B, c, N, typed(clip(usage, cols - length(c) - 6))
-			if (summary != "") print "  " clip(summary, cols - 4)
-			for (i = 1; i <= np; i++) row("> ", PF[i], PD[i])
-			if (max < 0) exit
+			if (max == "head") {
+				if (usage == "") printf "  %s%s%s\n", B, c, N
+				else printf "  %s%s%s  %s\n", B, c, N, typed(clip(usage, cols - length(c) - 6))
+				if (summary != "") print "  " clip(summary, cols - 4)
+				exit
+			}
+			if (max == "pinned") { for (i = 1; i <= np; i++) row("> ", PF[i], PD[i]); exit }
+			max += 0
 			shown = (max == 0 || n <= max ? n : max - 1)
 			for (i = 1; i <= shown; i++) row("  ", F[i], Dd[i])
 			if (n > shown) printf "  %s+%d more -- %s %s%s\n", D, n - shown, rc, c, N
@@ -733,7 +776,7 @@ selftest_graded() {
 					|| { echo "FAIL $id/$i: the Tab panel does not open on $Q_REF"; bad=$((bad + 1)); }
 				# each card's name line names the command, and may BE the answer
 				# (`abduco`); it is the title, not a row, so it is set aside once.
-				for _r in $(_panel_refs "$first"); do _panel_card "$_r" -1 | head -1; done \
+				for _r in $(_panel_refs "$first"); do _panel_card "$_r" head | head -1; done \
 					| sed "s/$(printf '\033')\[[0-9;]*m//g" > "$TMP/st.heads"
 				_leak=$(printf '%s\n' "$Q_ANSWERS" | awk -v pf="$TMP/st.panel" -v hf="$TMP/st.heads" '
 					function norm(s) { gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s); return s }

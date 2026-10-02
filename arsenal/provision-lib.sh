@@ -22,15 +22,22 @@ populate() {
   # artifact and lands beside it through the $ARSENAL loop below, same as any
   # other flat static binary.
   install -m 0755 "${SELF:-$(dirname "$0")}/qr" "$H/tools/qr"
-  # the graded school (arsenal learn): the engine + its libs, pools, phrases and
-  # levels. reads them relative to its own dir, so all under $H/tools.
+  # the graded school (arsenal learn): the engine + its libs, pools, phrases,
+  # levels, the reference pages its Tab panel opens, the rekeys ledger its SRS
+  # rehome reads, and the fort's shell-grammar table the panel glosses (one
+  # source, learn/syntax). reads them relative to its own dir, so all under
+  # $H/tools. the same set install.sh ships off-stick; build.sh ci holds the
+  # two to it.
   S="${SELF:-$(dirname "$0")}"
   install -m 0755 "$S/learn" "$H/tools/learn"                                                # the graded, from-zero school
   install -m 0644 "$S/phrases" "$H/tools/phrases"
-  mkdir -p "$H/tools/lib" "$H/tools/pools" "$H/tools/levels"
+  install -m 0644 "$S/rekeys" "$H/tools/rekeys"
+  install -m 0644 "$S/../learn/syntax" "$H/tools/syntax"
+  mkdir -p "$H/tools/lib" "$H/tools/pools" "$H/tools/levels" "$H/tools/ref"
   for f in "$S"/lib/*;    do install -m 0644 "$f" "$H/tools/lib/$(basename "$f")"; done
   for f in "$S"/pools/*;  do install -m 0644 "$f" "$H/tools/pools/$(basename "$f")"; done
   for f in "$S"/levels/*; do install -m 0644 "$f" "$H/tools/levels/$(basename "$f")"; done
+  for f in "$S"/ref/*;    do install -m 0644 "$f" "$H/tools/ref/$(basename "$f")"; done
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
     for f in "$ARSENAL"/*; do
       b=$(basename "$f")

@@ -4698,6 +4698,46 @@ libparity() {
   return $bad
 }
 
+# schoolship -- both arsenal installers ship every file the school reads. the
+# stick's populate() once copied the libs, levels and pools but never ref/ or
+# rekeys, so on the stick every Tab panel said "no reference" while install.sh
+# (off-stick, where it was tested) shipped them -- and nothing compared the two.
+# the list is read off arsenal/learn itself (the libs its source loop names)
+# plus the corpus it opens, then each installer is run into a scratch home and
+# every item must land non-empty. buildless: install.sh gets a stand-in
+# busybox, populate() no tool dir, so neither needs a build or the network.
+schoolship() {
+  say "arsenal installers ship the whole school (stick + standalone)"
+  local t libs items it bad=0
+  t=$(mktemp -d) || return 1
+  libs=$(sed -n 's/^for _l in \(.*\); do$/\1/p' arsenal/learn | head -1)
+  [ -n "$libs" ] || { echo "  FAIL: cannot read the lib list off arsenal/learn" >&2; rm -rf "$t"; return 1; }
+  items="learn phrases rekeys syntax levels pools ref"
+  for it in $libs; do items="$items lib/$it"; done
+  # the stick: populate() into a scratch p3
+  mkdir -p "$t/p3"
+  SELF="$PWD/arsenal" ARSENAL="$t/none" bash -c 'set -eu; . arsenal/provision-lib.sh; populate "$1"' _ "$t/p3" >/dev/null 2>&1 \
+    || { echo "  FAIL: provision-lib.sh populate errored" >&2; bad=1; }
+  # off-stick: install.sh from a scratch copy of the tree, into a scratch home
+  mkdir -p "$t/src/learn" "$t/home"
+  cp -r arsenal "$t/src/arsenal"; cp learn/syntax "$t/src/learn/syntax"
+  # the stand-in installs one applet, ash, as the host's sh: enough for the
+  # installer's own does-it-run check, and nothing a card would grade by.
+  printf '#!/bin/sh\n[ "$1" = --install ] && ln -sf "$(command -v sh)" "$3/ash"\nexit 0\n' > "$t/src/busybox"
+  chmod +x "$t/src/busybox"
+  HOME="$t/home" XDG_DATA_HOME="$t/home/share" sh "$t/src/arsenal/install.sh" >/dev/null 2>&1 \
+    || { echo "  FAIL: arsenal/install.sh errored" >&2; bad=1; }
+  # landed = a non-empty file, or a directory with something in it
+  _landed() { if [ -d "$1" ]; then [ -n "$(ls -A "$1" 2>/dev/null)" ]; else [ -s "$1" ]; fi; }
+  for it in $items; do
+    _landed "$t/p3/tools/$it" || { echo "  FAIL: the stick (provision-lib.sh) does not ship $it" >&2; bad=1; }
+    _landed "$t/home/share/xos-arsenal/$it" || { echo "  FAIL: install.sh does not ship $it" >&2; bad=1; }
+  done
+  rm -rf "$t"
+  [ "$bad" = 0 ] && printf '  \033[1;32mboth installers ship: %s\033[0m\n' "$items"
+  return $bad
+}
+
 # outdated -- is any pinned dependency behind its upstream? this ONLY LOOKS: it
 # never changes a byte, never touches the stick. runs on your own box (needs the
 # network). xos does not auto-update -- on purpose (immutable signed image) --
@@ -5007,6 +5047,7 @@ ci() {
   # the copied engine libs must still match the fort's -- the one gate that
   # stops a fix landing in one tree and not the other (the drift this session found).
   [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }
+  [ -x arsenal/learn ] && { schoolship || rc=1; }
   [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
                   || printf '\033[1;31m  ci: FAILED\033[0m\n'
   return $rc
