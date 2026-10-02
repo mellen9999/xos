@@ -169,25 +169,6 @@ explain_syntax() {
 	printf '%s\n' "$rows" | _exp_rows "$(printf '%s\n' "$rows" | _exp_w)"
 }
 
-# _ref_rows FILE -- the page with every flag row tab-separated. busybox writes
-# most of them as "\t-n N\tdescription", but a dozen use a plain space instead
-# ("-k N[,M] Sort by Nth field"), and a renderer that trusts the tab prints
-# those as one long flag and lands the next column ragged. the split: the flag,
-# then any following word carrying no lowercase letter (CMD, ARG, N[,M], +, ;)
-# belongs to it -- the description starts at the first real word.
-_ref_rows() {
-	awk '
-		/^\t/ && $0 !~ /\t.*\t/ {
-			l = $0; sub(/^\t+/, "", l)
-			n = split(l, t, " "); f = t[1]; i = 2
-			while (i <= n && t[i] !~ /[a-z]/) { f = f " " t[i]; i++ }
-			d = ""
-			for (; i <= n; i++) d = d (d == "" ? "" : " ") t[i]
-			print "\t" f (d == "" ? "" : "\t" d); next
-		}
-		{ print }' "$1"
-}
-
 # _prows WIDTH -- display rows the text on stdin takes at WIDTH, colour codes
 # not counted. the panel budget is in rows, and a line that wraps costs two.
 _prows() {

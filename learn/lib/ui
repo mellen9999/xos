@@ -524,6 +524,102 @@ say() {
 		| sed -e 's/ *$//' -e '/./s/^/  /' | expand
 }
 
+# _ref_rows FILE -- the page with every flag row tab-separated. busybox writes
+# most of them as "\t-n N\tdescription", but a dozen use a plain space instead
+# ("-k N[,M] Sort by Nth field"), and a renderer that trusts the tab prints
+# those as one long flag and lands the next column ragged. a row hand-aligned
+# with a run of spaces ("abduco -n NAME CMD   start ...", every arsenal page)
+# splits at the first such run: the author drew that gap as the column. else
+# the split: the flag, then any following word carrying no lowercase letter
+# (CMD, ARG, N[,M], +, ;) belongs to it -- the description starts at the first
+# real word. lives here, not in explain, because arsenal draws the same page.
+_ref_rows() {
+	awk '
+		/^\t/ && $0 !~ /\t.*\t/ {
+			l = $0; sub(/^\t+/, "", l)
+			if (match(l, /[^ ]   */)) {
+				print "\t" substr(l, 1, RSTART) "\t" substr(l, RSTART + RLENGTH); next
+			}
+			n = split(l, t, " "); f = t[1]; i = 2
+			while (i <= n && t[i] !~ /[a-z]/) { f = f " " t[i]; i++ }
+			d = ""
+			for (; i <= n; i++) d = d (d == "" ? "" : " ") t[i]
+			print "\t" f (d == "" ? "" : "\t" d); next
+		}
+		{ print }' "$1"
+}
+
+# ref_page FILE [VS] -- a reference page, framed and tab-aligned: `learn ref`
+# and arsenal's ref and Tab panel all draw it, so a page reads the same in both
+# schools. the raw file is busybox --help with hard tabs that render at whatever
+# tabstop the terminal happens to use; this pins the flag column to one width
+# and wraps the whole thing in rules, top and bottom.
+ref_page() {
+	_ref_rows "$1" |
+	awk -v B="$B" -v N="$N" -v D="$D" -v C="$C" -v M="$M" \
+	    -v LON="$LIT_ON" -v LOFF="$LIT_OFF$N" \
+	    -v RL="$RULE" -v vs="${2:-}" '
+		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
+		function fcol(s,w){ return pad(s,w-1) " " }
+		# a ref page has written its literals in backticks since it was
+		# written -- `command -v`, `set -u`. same mark here as in a brief,
+		# so the convention is one convention wherever prose is read. pairs
+		# only, and the page is already wrapped, so nothing is measured.
+		function lit(s,   o){
+			while (match(s, /`[^`]*`/)) {
+				o = o substr(s, 1, RSTART-1) LON substr(s, RSTART+1, RLENGTH-2) LOFF
+				s = substr(s, RSTART+RLENGTH)
+			}
+			return o s
+		}
+		{ line[NR]=$0 }
+		END {
+			# measure the flag column across every tab-led row
+			maxw=0
+			for(i=2;i<=NR;i++){
+				l=line[i]; if(l !~ /^\t/) continue
+				sub(/^\t+/,"",l)
+				if(match(l,/\t+/)) l=substr(l,1,RSTART-1)
+				if(length(l)>maxw) maxw=length(l)
+			}
+			if(maxw>18) maxw=18
+			col=maxw+2
+
+			print RL
+			printf "  %s%s%s\n", B, line[1], N            # what the page is about
+			for(i=2;i<=NR;i++) if(line[i] ~ /^Usage:/){
+				printf "  %susage:%s %s\n", D, N, substr(line[i],8); break }
+			# magenta, the same as the card in lib/explain draws it: the row
+			# holds this command against the one you might have reached for
+			# instead, and dim says the opposite -- that it is frame. the card
+			# was fixed and the page was not, so one string had two colours.
+			if(vs != "") printf "  %s%s%s\n", M, vs, N
+			print RL
+
+			started=0
+			for(i=2;i<=NR;i++){
+				l=line[i]
+				if(l ~ /^Usage:/) continue
+				if(l==""){ if(started) print ""; continue }   # no leading blank
+				started=1
+				if(l ~ /^\t/){                                 # a flag / example row
+					sub(/^\t+/,"",l)
+					if(match(l,/\t+/)){ f=substr(l,1,RSTART-1); d=substr(l,RSTART+RLENGTH) }
+					else { f=l; d="" }
+					# the flag column is already the typed colour, so a
+					# literal there needs no mark of its own -- only its
+					# fences go; the gloss marks its literals like prose.
+					gsub(/`/,"",f)
+					if(d=="") printf "  %s%s%s\n", C, f, N
+					else      printf "  %s%s%s%s\n", C, fcol(f,col), N, lit(d)
+				} else {                                       # prose
+					print "  " lit(l)                     # the meat: plain but for its literals
+				}
+			}
+			print RL
+		}'
+}
+
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
 no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
 note() { printf '  %s%s%s\n' "$D" "$1" "$N"; }

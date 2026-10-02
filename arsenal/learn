@@ -14,6 +14,7 @@
 #   arsenal learn review       the cards that are due, or the weakest
 #   arsenal learn daily        one card a day, under the clock
 #   arsenal learn stats        mastery, what is due, the streak, the leeches
+#   arsenal learn brief 4      reprint a mission's brief
 #   arsenal learn selftest     check every card; run-grade the ones that carry
 #                              an assertion (out:/state:/status:), when the tool is present
 set -u
@@ -26,11 +27,13 @@ SHELLBIN=/bin/sh
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/arsenal-learn"
 CARDS="$STATE/cards"
 # which bosses have actually fallen (resume reads this to find the next
-# mission), the mid-mission place ledger (one file per level), and the daily
-# streak. same shapes as the fort's; see the ported helpers below.
+# mission), the mid-mission place ledger (one file per level), the daily
+# streak, and which briefs have been read. same shapes as the fort's; see the
+# ported helpers below.
 PASSED="$STATE/passed"
 INPROG="$STATE/inprogress"
 DAILY="$STATE/daily"
+BRIEFED="$STATE/briefed"
 EDIT_HIST="$STATE/edit-hist"   # the vi line editor's own history
 
 die() { echo "learn: $*" >&2; exit 1; }
@@ -146,6 +149,12 @@ _ledger_add() { # FILE ID
 }
 level_passed()    { _ledger_add "$PASSED" "$1"; inprog_clear "$1"; }
 level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
+# which briefs have been read. the brief is the mission's teaching page, so it
+# is owed until it has been on screen once -- not merely until a place exists
+# on disk: keying it off the in-progress record skipped it for anyone whose
+# first run stopped before a card was answered. learn/learn's model.
+level_briefed()    { _ledger_add "$BRIEFED" "$1"; }
+level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
 # the first mission whose boss has not yet fallen -- where a bare `arsenal
 # learn` resumes, instead of always restarting at 01.
 resume_target()   { for _id in $(level_ids); do level_is_passed "$_id" || { printf '%s\n' "$_id"; return 0; }; done; return 1; }
@@ -273,15 +282,16 @@ _prows() {
 }
 
 # ref_panel_text ANSWER -- the Tab panel: this card's reference page, keyed off
-# its ref:, with backtick literals marked. the ANSWER arg is taken for signature
-# parity with the editor's caller (lib/edit's _ed_panel_load); the page itself is
-# what the panel shows. the editor's _ed_panel_fit trims it to the rows left.
+# its ref:, drawn by lib/ui's ref_page -- the same coloured page the fort's
+# `learn ref` prints -- less its outer two rules, since the editor frames the
+# panel itself. the ANSWER arg is taken for signature parity with the editor's
+# caller (lib/edit's _ed_panel_load). _ed_panel_fit trims it to the rows left.
 ref_panel_text() {
 	[ -n "${Q_REF:-}" ] && [ -f "$REF/$Q_REF" ] || { echo "no reference for this card"; return 0; }
-	sed 's/^/  /' "$REF/$Q_REF" | lit_expand
+	ref_page "$REF/$Q_REF" | sed '1d;$d'
 }
 
-# show_ref TOOL -- print a whole reference page, framed. `arsenal learn ref TOOL`
+# show_ref TOOL -- print a whole reference page, framed and coloured. `arsenal learn ref TOOL`
 # and the non-terminal Tab fallback both use it; the interactive Tab opens the
 # panel above instead.
 show_ref() {
@@ -292,9 +302,7 @@ show_ref() {
 		echo "try: sh ~/tools/arsenal $_c   (its recipe playbook)" >&2
 		return 1
 	fi
-	printf '%s\n' "$RULE"
-	sed 's/^/  /' "$REF/$_c" | lit_expand
-	printf '%s\n' "$RULE"
+	ref_page "$REF/$_c"
 }
 
 ask() {   # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
@@ -444,16 +452,22 @@ run_level() {
 	fp=$(level_fp "$id")
 	level_jail "$id"
 
+	# the brief teaches once, on its own screen; after that the header alone, so
+	# a resume is the questions, not the lecture. `arsenal learn brief N`
+	# reprints it.
+	if ! level_is_briefed "$id"; then
+		cls
+		hdr "$lname" "$lsub  ${nq} questions"
+		level_field "$id" brief | say
+		level_briefed "$id"
+		pause_card || return 2
+	fi
 	# a resumed mission keeps its order and its score and goes straight to the
-	# cards still owed; a fresh one shuffles and teaches the brief first.
+	# cards still owed; a fresh one shuffles.
 	if inprog_load "$id" "$fp" "$nq"; then
 		order=$INPROG_LEFT; right=$INPROG_RIGHT; total=$INPROG_DONE
 		lsub="$lsub  resumed"
 	else
-		cls
-		hdr "$lname" "$lsub  ${nq} questions"
-		level_field "$id" brief | say
-		pause_card || return 2
 		order=$(shuffle_n "$nq" "$nq")
 	fi
 	k=$total
@@ -700,6 +714,27 @@ selftest_graded() {
 			  printf 'quit\n' | review 1 2>&1 | grep -q '? hint'
 			) || { echo "FAIL srs: review skips a backtick card (stale-check too strict)"; bad=$((bad + 1)); }
 		fi
+		# the brief is owed until it has been shown, whatever the place ledger
+		# says: a first run quit before any answer left a place on disk, and
+		# keying the brief off that skipped the mission's teaching page.
+		( STATE="$TMP/brst"; PASSED="$STATE/passed"; INPROG="$STATE/inprogress"
+		  BRIEFED="$STATE/briefed"; CARDS="$STATE/cards"; SESSION_SEEN="$TMP/brst.seen"; mkdir -p "$STATE"
+		  # shellcheck disable=SC2046
+		  inprog_save "$_first" "$_fp" 0 0 $(seq 1 "$_nq")
+		  _o=$(printf 'quit\n' | run_level "$_first" 2>&1)
+		  jail_teardown 2>/dev/null; lab_down 2>/dev/null
+		  printf '%s\n' "$_o" | grep -qF "$(level_field "$_first" brief | head -1 | tr -d '`' | cut -c1-24)" || exit 1
+		  level_is_briefed "$_first" || exit 1
+		) || { echo "FAIL brief: a saved place skipped the mission brief"; bad=$((bad + 1)); }
+		# the Tab panel draws the page through ref_page, not the raw file: no
+		# hard tab left (the flag column is aligned), and the page's own title
+		# on top -- the panel frames itself, so ref_page's outer rule is gone.
+		( Q_REF=$(ls "$REF" 2>/dev/null | head -1)
+		  [ -n "$Q_REF" ] || exit 1
+		  _o=$(ref_panel_text x)
+		  case "$_o" in *"$(printf '\t')"*) exit 1 ;; esac
+		  printf '%s\n' "$_o" | head -1 | grep -qF "$(head -1 "$REF/$Q_REF")"
+		) || { echo "FAIL ref panel: the page is not drawn by ref_page"; bad=$((bad + 1)); }
 		# stats reads the ledger and the level files -- prove it runs clean on a
 		# seeded row (a broken held_scan join or leech format would error here).
 		( CARDS="$TMP/stc"; printf '%s/1#x\t2\t%s\t%s\t7\t2\t3\n' "$_first" "$(now)" "$(now)" > "$CARDS"
@@ -801,6 +836,10 @@ main() {
 		list)     level_ids; exit 0 ;;
 		lint)     lint_report; exit 0 ;;
 		ref)      shift; show_ref "${1:-}"; exit $? ;;
+		brief)    shift; lvl=$(resolve_level "${1:-}")
+		          [ -n "$lvl" ] || die "usage: arsenal learn brief N"
+		          hdr "$(level_field "$lvl" name)" "level $(level_no "$lvl")"
+		          level_field "$lvl" brief | say; exit 0 ;;
 		stats)    stats_report; exit 0 ;;
 		review)   shift; review "${1:-20}"; exit $? ;;
 		daily)    daily; exit $? ;;
@@ -812,6 +851,7 @@ main() {
 			printf '  daily      one card a day, under the clock\n'
 			printf '  stats      mastery, what is due, the streak, the leeches\n'
 			printf '  ref TOOL   the reference page for a carried tool (Tab opens it mid-drill)\n'
+			printf '  brief N    reprint a mission brief\n'
 			exit 0 ;;
 	esac
 	if [ -z "$arg" ]; then

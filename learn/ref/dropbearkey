@@ -8,7 +8,7 @@ Make an ssh key.
 	-y		read a private key and print its public half
 
 	dropbearkey -t ed25519 -f /state/id
-	dropbearkey -y -f /state/id        # print the public key to hand out
+	dropbearkey -y -f /state/id # print the public key to hand out
 
 The public half of the peer's key goes in xos's authorized_keys, baked into
 the read-only image; xos's own host key is made once, on the encrypted
