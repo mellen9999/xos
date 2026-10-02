@@ -542,13 +542,22 @@ boss_round() {
 	local id=$1 bname nq n right=0 asked=0 rc k=0
 	bname=$(level_field "$id" boss)
 	nq=$(level_nq "$id")
-	[ -n "$bname" ] || { note "level $id has no boss -- skipping"; return 0; }
-	[ "$nq" -ge 5 ] || { note "level $id has $nq questions -- a boss needs 5"; return 0; }
+	# returning 0 here marked the mission passed with no boss fought. loud
+	# instead, as the fort's; selftest fails the same two shapes at build time.
+	[ -n "$bname" ] || die "level $id has no boss: line"
+	[ "$nq" -ge 5 ] || die "level $id has $nq questions -- a boss draws 5"
 
 	BOSS_LIMIT=$(boss_limit "$id")
+	# the fort's splash, byte for byte: its own screen between two red bars,
+	# red because red is the thing that can go against you.
 	cls
-	hdr "BOSS: $bname" "no hints  ${BOSS_LIMIT}s each  pass: 4 of 5"
+	echo
+	printf '%s%s%s\n' "$R$B" "$BANNER" "$N"
+	printf '  %sBOSS%s  %s%s%s%s\n' "$R$B" "$N" "$B" "$bname" "$N" \
+		"$(printf '%*s' $(( COLS > 40 ? COLS - 32 - ${#bname} : 1 )) '')${D}${BOSS_LIMIT}s  pass: 4 of 5${N}"
 	level_field "$id" flavor | say
+	printf '%s%s%s\n' "$R" "$BANNER" "$N"
+	note "no hints. no reference. the clock does not stop."
 	pause_card || return 2
 
 	MODE=boss
@@ -571,6 +580,7 @@ boss_round() {
 		return 0
 	fi
 	statusbar "BOSS: $bname" "held" "$right" 5 ""
+	printf '\n'
 	no "$bname holds. $right of 5 -- need 4."
 	return 1
 }
@@ -637,9 +647,17 @@ run_level() {
 	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
 	echo
 
-	boss_round "$id"; rc=$?
-	[ "$rc" = 0 ] && level_passed "$id"
-	return "$rc"
+	while :; do
+		boss_round "$id"; rc=$?
+		[ "$rc" = 0 ] && { level_passed "$id"; return 0; }
+		[ "$rc" = 2 ] && return 2
+		# a fallen learner gets straight back in, or back out -- the fort's
+		# choice. EOF (a probe, a closed pipe) declines, so nothing hangs.
+		printf '  %sretry the boss? [y/N]%s ' "$D" "$N"
+		IFS= read -r k 2>/dev/null || k=""
+		case "$k" in y|Y|yes) echo; continue ;; esac
+		return "$rc"
+	done
 }
 
 # review [N] -- the due cards (soonest first), or the weakest when nothing is
@@ -753,7 +771,7 @@ selftest_graded() {
 		[ -n "$b" ] || { echo "FAIL $id: no boss"; bad=$((bad + 1)); }
 		case " $bosses " in *" $b "*) echo "FAIL $id: duplicate boss '$b'"; bad=$((bad + 1)) ;; esac
 		bosses="$bosses $b"
-		[ "$nq" -ge 5 ] || echo "note $id: $nq question(s) -- a boss needs 5"
+		[ "$nq" -ge 5 ] || { echo "FAIL $id: $nq question(s) -- a boss draws 5"; bad=$((bad + 1)); }
 		level_jail "$id"
 		i=1
 		while [ "$i" -le "$nq" ]; do
@@ -1035,17 +1053,17 @@ new_game() {
 }
 
 # every mission whose boss has not fallen, in order, until one is left
-# unfinished. each verdict holds the screen: the boss screen does not pause on
-# its own, and the next brief would wipe it unread.
+# unfinished. a win holds the screen before the next brief wipes it; a loss
+# already held it on the retry question.
 resume() {
 	local id rc ran=0
 	for id in $(level_ids); do
 		level_is_passed "$id" && continue
 		ran=1
 		run_level "$id"; rc=$?
-		[ "$rc" = 2 ] && return 0
-		pause_card || return 0
 		[ "$rc" = 0 ] || return 0
+		# a win is the one verdict nothing else holds on screen.
+		pause_card || return 0
 	done
 	[ "$ran" = 1 ] && return 0
 	cls
@@ -1127,7 +1145,7 @@ menu() {
 			   id=$(resolve_level "$k")
 			   if [ -n "$id" ] && [ -f "$LEVELS/$id" ]; then
 			   	run_level "$id"; rc=$?
-			   	[ "$rc" = 2 ] || pause_card
+			   	[ "$rc" = 0 ] && pause_card
 			   else no "no mission $k"; pause_card; fi ;;
 			# review's own empty-ledger note returns without a pause; caught
 			# here, or the menu redraws over it and r reads as a dead key.
