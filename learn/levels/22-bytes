@@ -149,6 +149,7 @@ hint: -l counts lines per output piece, split's default unit
 ---
 q: {you need to move @log@ in chunks under ``100`` bytes -- `split` it up|break @log@ into 100-byte pieces with `split`|cut @log@ into 100-byte chunks with `split`}
 a: split -b 100 @log@
+eg: split -b 4096 firmware.bin
 state: exists:xaa
 ref: split
 teach: split -b
