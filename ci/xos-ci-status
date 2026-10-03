@@ -1,0 +1,59 @@
+#!/bin/bash
+# xos-ci-status -- what the two CI tiers last said, one line each, read from
+# the per-machine logs ci/lib.sh keeps (not the journal, which rotates inside a
+# day on this box). a red CI nobody is told about is a decoration: the full
+# tier was red for two weeks (a host systemd upgrade against the stub pin) and
+# the repro tier for days (a stale image pin) before anyone opened a log. this
+# is what a session hook or a human runs to see it in two seconds -- no clone,
+# no key, and no network unless it is asked about the kernel.
+#
+#   repro   FAIL  2026-10-03 07:42Z  crepro rebuild, at 341815252de4
+#   full    PASS  2026-09-20 18:11Z  7f3a1c2
+#   kernel  6.18.54 pinned -- 6.18.55 is out: ./build.sh bump kernel 6.18.55
+#
+# the kernel line appears only inside an xos tree and only when kernel.org
+# answers within five seconds; XOS_CI_NOKERNEL=1 skips it (ci() does, it is
+# offline by contract). exit 1 when any tier's last run did not pass.
+set -uo pipefail
+LOGDIR=${XOS_CI_LOGDIR:-$HOME/.local/state/xos-ci}
+rc=0
+
+fmt() { # 2026-10-03T07:42:39Z -> 2026-10-03 07:42Z
+	local t=$1 hm=${1#*T}
+	printf '%s %sZ' "${t%%T*}" "${hm:0:5}"
+}
+
+tier() { # $1 runner name  $2 label
+	local f="$LOGDIR/$1.log" run when verdict
+	[ -f "$f" ] || { printf '%-7s ----  never ran on this machine\n' "$2"; rc=1; return; }
+	# the last run is everything after the last header lib.sh wrote for it
+	run=$(awk -v n="$1" '$1=="---" && $2==n {buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' "$f")
+	when=$(printf '%s' "$run" | awk '$1=="---" {print $3; exit}')
+	verdict=$(printf '%s' "$run" | grep -E "^$1: (PASS|FAIL)" | tail -1)
+	case "$verdict" in
+		"$1: PASS"*) printf '%-7s PASS  %s  %s\n' "$2" "$(fmt "$when")" "${verdict#"$1: PASS "}" ;;
+		"$1: FAIL"*) printf '%-7s FAIL  %s  %s\n' "$2" "$(fmt "$when")" "${verdict#"$1: FAIL "}"; rc=1 ;;
+		*)           printf '%-7s ????  %s  no verdict -- still running, or killed before it could say\n' "$2" "$(fmt "$when")"; rc=1 ;;
+	esac
+}
+
+tier xos-repro   repro
+tier xos-ci-full full
+
+# the kernel pin against its series' newest release, from kernel.org's one
+# machine-readable list. offline or slow must make this silent, never red.
+if [ -z "${XOS_CI_NOKERNEL:-}" ] && [ -f build.sh ] && [ -f kernel.config ]; then
+	# the ${KVER:-...} below is sed's pattern, not an expansion of ours
+	# shellcheck disable=SC2016
+	kver=$(sed -n 's/^KVER="${KVER:-\(.*\)}"$/\1/p' build.sh | head -1)
+	if [ -n "$kver" ]; then
+		latest=$(curl -fsS -m 5 https://www.kernel.org/releases.json 2>/dev/null \
+			| python3 -c 'import json,sys
+s=sys.argv[1]+"."
+print(next((r["version"] for r in json.load(sys.stdin)["releases"] if r["version"].startswith(s)), ""))' "${kver%.*}" 2>/dev/null)
+		if [ -z "$latest" ]; then printf '%-7s %s pinned\n' kernel "$kver"
+		elif [ "$latest" = "$kver" ]; then printf '%-7s %s pinned -- newest %s release\n' kernel "$kver" "${kver%.*}"
+		else printf '%-7s %s pinned -- %s is out: ./build.sh bump kernel %s\n' kernel "$kver" "$latest" "$latest"; fi
+	fi
+fi
+exit $rc

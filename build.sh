@@ -2400,7 +2400,7 @@ trustver() {
   # reads as a failed pipeline. feeding grep by here-string has no such pipe.
   local script_text nd
   script_text=$(cat build.sh selftest.sh githooks/pre-commit githooks/pre-push \
-                    ci/xos-ci-full ci/xos-repro ci/lib.sh arsenal/*.sh 2>/dev/null || true)
+                    ci/xos-ci-full ci/xos-repro ci/xos-ci-status ci/lib.sh arsenal/*.sh 2>/dev/null || true)
   while IFS= read -r nd; do
     [ -n "$nd" ] || continue
     grep -qxF "$nd" <<< "$deps_tools" && continue   # a build dep, covered by 1
@@ -3171,7 +3171,7 @@ G44EOF
   for f48 in githooks/pre-commit learn/install.sh learn/push learn/wrapper \
              arsenal/*.sh arsenal/push arsenal/wrapper arsenal/arsenal arsenal/xexec arsenal/qr \
              arsenal/learn arsenal/lib/* \
-             ci/lib.sh ci/xos-repro ci/xos-ci-full; do
+             ci/lib.sh ci/xos-repro ci/xos-ci-full ci/xos-ci-status; do
     [ -f "$f48" ] || continue
     case "$(head -1 "$f48")" in *bash) chk48="bash -n" ;; *) chk48="$bb35 ash -n" ;; esac
     e48=$($chk48 "$f48" 2>&1) \
@@ -4888,7 +4888,7 @@ lint() {
   # lint only scanned the files someone happened to list. they are first-party
   # bash that decides whether a push is accepted -- scan them.
   out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script \
-                    ci/xos-repro ci/xos-ci-full githooks/pre-commit githooks/pre-push; echo)
+                    ci/xos-repro ci/xos-ci-full ci/xos-ci-status githooks/pre-commit githooks/pre-push; echo)
   out+=$(shellcheck -s sh learn/lib/*; echo)
   # the arsenal tree was never shellchecked though it is the security-tooling
   # half of the codebase: the school driver, its libs, the xexec doorway and the
@@ -5132,6 +5132,13 @@ ci() {
   # whose tree this is. unverified is not a failure -- a stranger on a shallow
   # clone, or the repro container with no openssh, must still be able to run ci.
   vouch || [ "$?" -eq 2 ] || rc=1
+  # a red CI tier on THIS machine is not a defect of this tree, so it is not a
+  # failure here -- but a push from a box whose timers are red should not go
+  # out blind to it. one yellow line per red tier, from the per-machine logs.
+  if [ -x ci/xos-ci-status ]; then
+    local red; red=$(XOS_CI_NOKERNEL=1 ci/xos-ci-status 2>/dev/null | grep -E '^[a-z]+ +(FAIL|\?\?\?\?) ' || true)
+    [ -z "$red" ] || printf '\033[1;33m  warn: a CI tier on this machine is red (ci/xos-ci-status):\033[0m\n%s\n' "$(printf '%s\n' "$red" | sed 's/^/    /')"
+  fi
   # a check that could not run is not a check that passed. G13 may SKIP
   # because forcing it would prove nothing; shellcheck's absence proves
   # nothing either way and is one package away, so ci refuses rather than

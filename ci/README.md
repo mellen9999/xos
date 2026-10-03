@@ -72,6 +72,7 @@ caught by the build rather than by a timer firing into a rotated journal.
 install (systemd --user, survives reboot via linger):
 
     install -Dm644 ci/lib.sh "$HOME/.local/bin/lib.sh"   # both runners source it
+    install -Dm755 ci/xos-ci-status "$HOME/.local/bin/xos-ci-status"
     for u in xos-repro xos-ci-full; do
       install -Dm755 "ci/$u" "$HOME/.local/bin/$u"
       install -Dm644 "ci/$u.service" "$HOME/.config/systemd/user/$u.service"
@@ -87,10 +88,19 @@ installed:
     systemctl --user disable --now xos-ci.timer
     rm -f ~/.config/systemd/user/xos-ci.{service,timer} ~/.local/bin/xos-ci
 
-run one now, or read the last run:
+what the tiers last said, one line each (reads the per-machine logs under
+`~/.local/state/xos-ci/`, never the journal, which rotates inside a day here;
+exit 1 if a tier is red, so a hook or a prompt can show it). inside an xos tree
+it also says whether the pinned kernel is the newest of its series:
+
+    xos-ci-status
+
+a red tier is also printed, yellow and non-fatal, at the top of `./build.sh ci`
+-- so a push from this machine is never made blind to it. run one now, or read
+the whole last run:
 
     systemctl --user start xos-ci-full.service
-    journalctl --user -u xos-ci-full.service -e
+    less +G ~/.local/state/xos-ci/xos-ci-full.log
 
 needs a non-interactive git remote (an unencrypted deploy key, or an agent).
 point either elsewhere with `XOS_CI_REPO=/path` and `XOS_CI_BRANCH=name`.
