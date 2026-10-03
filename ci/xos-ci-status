@@ -23,6 +23,21 @@ fmt() { # 2026-10-03T07:42:39Z -> 2026-10-03 07:42Z
 	printf '%s %sZ' "${t%%T*}" "${hm:0:5}"
 }
 
+# a verdict names the commit it judged. when main has moved past it, say so:
+# a FAIL at an old commit is not a FAIL of the tree you are looking at, and a
+# PASS there is not a pass of it either. offline -- the local origin/main ref
+# is what the runners cloned, so a tree answers this without the network.
+moved() {
+	local sha n
+	sha=$(printf '%s' "$1" | grep -oE '\b[0-9a-f]{7,40}\b' | head -1)
+	[ -n "$sha" ] && [ -f build.sh ] || return 0
+	git rev-parse -q --verify "$sha^{commit}" >/dev/null 2>&1 || return 0
+	git rev-parse -q --verify origin/main >/dev/null 2>&1 || return 0
+	n=$(git rev-list --count "$sha..origin/main" 2>/dev/null) || return 0
+	[ "${n:-0}" -gt 0 ] && printf '  (main is %s commit(s) past this)' "$n"
+	return 0
+}
+
 tier() { # $1 runner name  $2 label
 	local f="$LOGDIR/$1.log" run when verdict
 	[ -f "$f" ] || { printf '%-7s ----  never ran on this machine\n' "$2"; rc=1; return; }
@@ -31,8 +46,8 @@ tier() { # $1 runner name  $2 label
 	when=$(printf '%s' "$run" | awk '$1=="---" {print $3; exit}')
 	verdict=$(printf '%s' "$run" | grep -E "^$1: (PASS|FAIL)" | tail -1)
 	case "$verdict" in
-		"$1: PASS"*) printf '%-7s PASS  %s  %s\n' "$2" "$(fmt "$when")" "${verdict#"$1: PASS "}" ;;
-		"$1: FAIL"*) printf '%-7s FAIL  %s  %s\n' "$2" "$(fmt "$when")" "${verdict#"$1: FAIL "}"; rc=1 ;;
+		"$1: PASS"*) printf '%-7s PASS  %s  %s%s\n' "$2" "$(fmt "$when")" "${verdict#"$1: PASS "}" "$(moved "$verdict")" ;;
+		"$1: FAIL"*) printf '%-7s FAIL  %s  %s%s\n' "$2" "$(fmt "$when")" "${verdict#"$1: FAIL "}" "$(moved "$verdict")"; rc=1 ;;
 		*)           printf '%-7s ????  %s  no verdict -- still running, or killed before it could say\n' "$2" "$(fmt "$when")"; rc=1 ;;
 	esac
 }

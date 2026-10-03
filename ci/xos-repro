@@ -30,7 +30,10 @@ STATE=${XOS_CI_STATE:-$HOME/.cache/xos-ci/last-repro}
 remote=$(git ls-remote "$REPO" "refs/heads/$BRANCH" | awk '{print $1}')
 [ -n "$remote" ] || { ci_shout "cannot read $BRANCH from $REPO"; exit 1; }
 if [ "$remote" = "$(cat "$STATE" 2>/dev/null || true)" ]; then
-  echo "xos-repro: ${remote:0:12} already verified -- nothing pushed since"
+  # still a verdict line: xos-ci-status reads the last run's PASS/FAIL, and a
+  # quiet night that printed neither showed as "no verdict" -- a red summary
+  # for the one night nothing could have broken.
+  echo "xos-repro: PASS ${remote:0:12} (unchanged since the last rebuild -- nothing pushed)"
   exit 0
 fi
 
