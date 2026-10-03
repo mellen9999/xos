@@ -150,12 +150,16 @@ boot_state() {
 }
 
 # boot with the hardware clock forced years into the past. proves the floor.
+# XOS_NONIC=1: no network device at all, for the branches that only exist when
+# the floored clock has nowhere to ask.
 boot_backclock() {
+	local nic=(-nic user,model=virtio-net-pci)
+	[ "${XOS_NONIC:-}" = 1 ] && nic=(-nic none)
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-rtc base=2010-01-01T00:00:00 \
 		"${QEMU_FW[@]}" \
 		-drive file="$1",if=virtio,format=raw,readonly=on \
-		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1
+		"${nic[@]}" -nographic -no-reboot < /dev/null 2>&1
 }
 
 # the same chain over an emulated xHCI USB mass-storage device -- the real
@@ -674,6 +678,15 @@ grep -qF "fingerprint: $want_fp" <<< "$backout" \
 	&& ok "fingerprint words identical across boots" \
 	|| bad "fingerprint words changed between boots of the same image"
 assert_complete "$backout" "A15 boot"
+# the same floored boot with no network device: the ladder must give up and
+# say so -- "unreachable", never "synced" and never the rtc-sane default.
+nonic=$(XOS_NONIC=1 boot_backclock stick.img)
+grep -q 'clock-not-before-floor: yes' <<< "$nonic" \
+	&& ok "no network: the floor still held" || bad "no network: the floor did not hold"
+grep -q 'tls-time: unreachable' <<< "$nonic" \
+	&& ok "no network: tls-time reports unreachable, not synced" \
+	|| bad "no network: tls-time did not say unreachable ($(grep -o 'tls-time: .*' <<< "$nonic" | head -1))"
+assert_complete "$nonic" "A15 no-nic boot"
 
 echo
 section "A16  state survives a real power cycle"
@@ -847,6 +860,19 @@ else
 	grep -q 'dhcp-client: none' <<< "$o19" \
 		&& ok "xos.nonet: no dhcp client was started" \
 		|| bad "xos.nonet: a dhcp client is running"
+	grep -q 'irc-nonet: refused (good)' <<< "$o19" \
+		&& ok "irc on a box with no network refuses instead of claiming a tunnel" \
+		|| bad "irc claimed success with no network (the socket alone used to pass for 'up')"
+	# the same opt-out image with the rtc in 2010: the floor holds, and tls-time
+	# says it was switched off rather than pretending the rtc was sane.
+	o19c=$(boot_backclock /tmp/xos-a19.img)
+	grep -q 'clock-not-before-floor: yes' <<< "$o19c" \
+		&& ok "xos.nonet + old rtc: the floor held with no network" \
+		|| bad "xos.nonet + old rtc: the floor did not hold"
+	grep -q 'tls-time: off (xos.nonet)' <<< "$o19c" \
+		&& ok "xos.nonet + old rtc: tls-time reports off (xos.nonet)" \
+		|| bad "xos.nonet + old rtc: tls-time did not report off ($(grep -o 'tls-time: .*' <<< "$o19c" | head -1))"
+	assert_complete "$o19c" "A19 nonet backclock boot"
 	grep -q 'mac-randomized: off (xos.realmac)' <<< "$o19" \
 		&& ok "xos.realmac: burned-in mac kept" \
 		|| bad "xos.realmac did not hold"
@@ -885,6 +911,55 @@ else
 		&& ok "the real state_open() scan found the partitioned luks disk and asked" \
 		|| bad "no unlock prompt -- the production state scan is not finding partitions"
 
+	# a boot stick whose OWN p3 header is gone. grow a copy of the production
+	# stick by 8 MiB, append a third partition, lay a LUKS header in it with the
+	# magic zeroed in both header copies. isLuks fails, so state_open used to
+	# drop it in silence: no prompt, no word. it must say so now.
+	a19h=/tmp/xos-a19h.img
+	cp /tmp/xos-a19p.img "$a19h"
+	truncate -s $(( $(stat -c%s "$a19h") + 8*1024*1024 )) "$a19h"
+	sfdisk --relocate gpt-bak-std "$a19h" >/dev/null 2>&1
+	printf ', , L\n' | sfdisk --append "$a19h" >/dev/null 2>&1
+	a19hst=$(sfdisk -d "$a19h" | sed -n 's/.*img3 : start= *\([0-9]*\),.*/\1/p')
+	if [ -n "$a19hst" ]; then
+		dd if="$a19luks" of="$a19h" bs=512 seek="$a19hst" count=64 conv=notrunc status=none
+		dd if=/dev/zero of="$a19h" bs=1 seek=$((a19hst*512)) count=6 conv=notrunc status=none
+		dd if=/dev/zero of="$a19h" bs=1 seek=$((a19hst*512 + 16384)) count=6 conv=notrunc status=none
+		o19h=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+			"${QEMU_FW[@]}" \
+			-drive file="$a19h",if=virtio,format=raw,readonly=on \
+			-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
+		grep -q 'p3 is there but its LUKS header is unreadable' <<< "$o19h" \
+			&& ok "a boot stick with an unreadable p3 header says so" \
+			|| bad "an unreadable p3 header was dropped in silence (no 'unreadable' line)"
+		grep -q 'unlock persistent state?' <<< "$o19h" \
+			&& bad "an unreadable p3 still produced an unlock prompt" \
+			|| ok "no unlock prompt for a p3 that cannot be opened"
+		grep -q 'this image is:' <<< "$o19h" \
+			&& ok "the boot carried on stateless after the unreadable p3" \
+			|| bad "the damaged-p3 boot never reached the banner"
+	else
+		bad "could not append a third partition to the test stick (sfdisk)"
+	fi
+	rm -f "$a19h"
+
+	# a malformed xos.epoch (the floor's one silent degradation) must be
+	# announced. appended last: cmdline_get takes the last occurrence.
+	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.epoch=abc" \
+		--stub="$stub" --output=/tmp/xos-a19x.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a19x-signed.efi /tmp/xos-a19x.efi >/dev/null 2>&1
+	cp stick.img /tmp/xos-a19x.img
+	mcopy -o -i /tmp/xos-a19x.img@@1M /tmp/xos-a19x-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	o19x=$(boot_backclock /tmp/xos-a19x.img)
+	grep -q 'clock floor SKIPPED: xos.epoch is not a number' <<< "$o19x" \
+		&& ok "a malformed xos.epoch is announced, not silently ignored" \
+		|| bad "a malformed xos.epoch skipped the floor without a word"
+	grep -q 'tls-time: skipped (rtc sane)' <<< "$o19x" \
+		&& ok "with no floor applied, tls-time stays out (the announced degradation, nothing more)" \
+		|| bad "tls-time ran or misreported under a malformed epoch ($(grep -o 'tls-time: .*' <<< "$o19x" | head -1))"
+	assert_complete "$o19x" "A19 malformed-epoch boot"
+
 	# same disk, same cmdline plus xos.nostate: the prompt must NOT appear.
 	ukify build --linux=bzImage --cmdline="$prodcmd xos.nostate" \
 		--stub="$stub" --output=/tmp/xos-a19n.efi >/dev/null 2>&1
@@ -922,13 +997,13 @@ else
 
 	# type the passphrase: qemu's stdin is a fifo; write only after the
 	# prompt has actually appeared in the log, the way a human waits.
-	boot_typed() { # $1=stick $2=disk $3=passphrase $4=log
+	boot_typed() { # $1=stick $2=disk $3=passphrase $4=log [$5=extra opts for the state disk]
 		local fifo=/tmp/xos-a19.fifo t=0
 		rm -f "$fifo" "$4"; mkfifo "$fifo"
 		timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 			"${QEMU_FW[@]}" \
 			-drive file="$1",if=virtio,format=raw,readonly=on \
-			-drive file="$2",if=virtio,format=raw \
+			-drive file="$2",if=virtio,format=raw"${5:-}" \
 			-nic user,model=virtio-net-pci -nographic -no-reboot < "$fifo" > "$4" 2>&1 &
 		qp19=$!
 		# rdwr: a write-only open of a fifo blocks until a reader appears, and
@@ -992,6 +1067,35 @@ else
 	grep -aq 'wrong passphrase -- continuing without persistence' "$a19log" \
 		&& ok "three wrong passphrases are refused out loud, and the boot goes on" \
 		|| bad "wrong passphrase was not refused loudly"
+
+	# the RIGHT passphrase on a p3 that unlocks but holds no filesystem (the
+	# a19disk is LUKS with nothing inside): both mount paths must name the
+	# damage, not fall through as "wrong passphrase" by omission. once with the
+	# disk writable (the rw path), once read-only (the vault path).
+	boot_typed /tmp/xos-a19p.img "$a19disk" testpass "$a19log"
+	grep -aq 'state unlocked but the filesystem would not mount -- p3 is damaged' "$a19log" \
+		&& ok "right passphrase, no filesystem: the rw path says p3 is damaged" \
+		|| bad "a p3 that unlocks but will not mount was not called damaged (rw path)"
+	grep -aq 'this image is:' "$a19log" \
+		&& ok "the boot carried on after the damaged rw mount" || bad "the damaged-rw boot never reached the banner"
+	boot_typed /tmp/xos-a19p.img "$a19disk" testpass "$a19log" ",readonly=on"
+	grep -aq 'state unlocked but the read-only filesystem would not mount -- p3 is damaged' "$a19log" \
+		&& ok "right passphrase, no filesystem, write-protected: the vault path says p3 is damaged" \
+		|| bad "a write-protected p3 that unlocks but will not mount was not called damaged (vault path)"
+
+	# NOT driven here: corrupting the ledger from the console and powering off
+	# cleanly. the console is a non-tty fifo under qemu, and busybox ash job
+	# control backgrounds every EXTERNAL command typed into it -- `sync` and
+	# `poweroff` both return exit 2 without doing their work, so the junk write
+	# never reaches the virtio disk before the VM is killed and the next boot
+	# sees the ledger intact. ledger_note's CORRUPT/evidence/restart logic
+	# (init, `ledger_note`) is a few lines of string handling, read-verified and
+	# proven by hand (printf junk + reboot through a real console shows
+	# `ledger CORRUPT -- kept as evidence, count restarts` then
+	# `was found CORRUPT`); driving it in CI needs a test hook that corrupts the
+	# ledger in init's own context, which is more fort surface than the bug it
+	# would guard. A16 already proves the ledger counts and persists across a
+	# real power cycle; A18 drives a real init poweroff.
 
 	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks" "$a19log"
 fi
@@ -1103,7 +1207,7 @@ else
 	a21t=0
 	while [ "$a21t" -lt 45 ] && ! grep -aqE 'vault mode:|continuing without persistence|would not mount' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
 	sleep 3
-	printf '%s\n' 'touch /tmp/p3ro/vaultprobe 2>&1 | grep -qi read-only && echo VAULT-P3-RO; touch "$HOME/vaultprobe" 2>/dev/null && echo VAULT-HOME-OK; echo VAULT-PROBE-DONE' >&9
+	printf '%s\n' 'touch /tmp/p3ro/vaultprobe 2>&1 | grep -qi read-only && echo VAULT-P3-RO; touch "$HOME/vaultprobe" 2>/dev/null && echo VAULT-HOME-OK; . /etc/shrc 2>/dev/null; recon_accept 2>&1 | grep -q "vault mode" && echo VAULT-ACCEPT-REFUSED; echo VAULT-PROBE-DONE' >&9
 	a21t=0
 	while [ "$a21t" -lt 30 ] && ! grep -aq 'VAULT-PROBE-DONE' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
 	sleep 2
@@ -1118,6 +1222,24 @@ else
 	grep -aq 'VAULT-HOME-OK' "$a21log" \
 		&& ok "the RAM \$HOME still takes writes -- work continues, nothing persists" \
 		|| bad "the RAM home was not writable in vault mode"
+	# what init SAYS in vault mode must be true: no persistence claim, a ledger
+	# that reports and does not count, recon that records nothing, and a
+	# recon_accept that refuses.
+	grep -aq 'vault mode -- .* is RAM: nothing you do persists' "$a21log" \
+		&& ok "the banner says nothing persists in vault mode" \
+		|| bad "vault mode did not say that nothing persists"
+	grep -aq 'persists across reboots' "$a21log" \
+		&& bad "vault mode still claimed persistence across reboots" \
+		|| ok "no persistence claim was made in vault mode"
+	grep -aq 'ledger: vault mode -- this boot is not counted' "$a21log" \
+		&& ok "the ledger reports the stick's count and counts nothing in vault mode" \
+		|| bad "the ledger counted a vault boot (a number the stick never stores)"
+	grep -aqE 'recon: .*(vault mode|is as you left it)' "$a21log" \
+		&& ok "recon records nothing in vault mode (or found the machine unchanged)" \
+		|| bad "recon claimed to record a baseline in vault mode"
+	grep -aq 'VAULT-ACCEPT-REFUSED' "$a21log" \
+		&& ok "recon_accept refuses in vault mode and says why" \
+		|| bad "recon_accept did not refuse in vault mode"
 	rm -f /tmp/xos-a21*.efi /tmp/xos-a21*.img "$a21disk" "$a21log"
 fi
 
@@ -1159,7 +1281,35 @@ else
 		bad "the spare's bytes do not match the stick -- clone was not faithful"
 	fi
 	assert_complete "$a22out" "A22 clone boot"
-	rm -f /tmp/xos-a22*.efi /tmp/xos-a22-signed.efi "$a22spare" /tmp/xos-a22.img
+	# the refusals, which are most of what clone is: a spare too small to hold
+	# the stick, and two spares at once. neither may write a byte.
+	a22small=/tmp/xos-a22-small.img; truncate -s $((a22ssz - 8*1024*1024)) "$a22small"
+	a22s=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
+		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
+		-device qemu-xhci,id=xhci \
+		-drive if=none,id=small,format=raw,file="$a22small" \
+		-device usb-storage,bus=xhci.0,drive=small,removable=on \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
+	grep -q 'clone-test: clone: the spare (.*) is smaller than this stick' <<< "$a22s" \
+		&& ok "clone refuses a spare smaller than the stick, and says the sizes" \
+		|| bad "clone did not refuse a too-small spare"
+	cmp -s -n 1048576 /dev/zero "$a22small" 2>/dev/null \
+		&& ok "the too-small spare was not written" || bad "clone wrote to a spare it should have refused"
+	a22two=/tmp/xos-a22-two.img; truncate -s $((a22ssz + 8*1024*1024)) "$a22two"
+	a22t=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
+		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
+		-device qemu-xhci,id=xhci \
+		-drive if=none,id=sp1,format=raw,file="$a22spare" \
+		-device usb-storage,bus=xhci.0,drive=sp1,removable=on \
+		-drive if=none,id=sp2,format=raw,file="$a22two" \
+		-device usb-storage,bus=xhci.0,drive=sp2,removable=on \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
+	grep -q 'clone-test: clone: more than one spare is plugged in' <<< "$a22t" \
+		&& ok "clone refuses to guess between two spares" \
+		|| bad "clone did not refuse with two spares attached"
+	cmp -s -n 1048576 /dev/zero "$a22two" 2>/dev/null \
+		&& ok "neither spare was written when two were present" || bad "clone wrote with two spares attached"
+	rm -f /tmp/xos-a22*.efi /tmp/xos-a22-signed.efi "$a22spare" "$a22small" "$a22two" /tmp/xos-a22.img
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
