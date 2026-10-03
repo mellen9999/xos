@@ -5786,10 +5786,62 @@ flash() {
   sudo "$(readlink -f "$0")" install "$@"
 }
 
-case "${1:-all}" in
+help() {
+  cat <<'HELP'
+usage: ./build.sh <verb> [args]      (no verb prints this; `all` is the build)
+
+  make a stick
+    all                   build everything: sources, kernel, image, keys, signed uki, gates
+    flash                 build as you, then sudo only for the write (asks which stick)
+    install /dev/sdX      the same, you handle root
+    usb /dev/sdX          write the built image to a stick (install wraps this)
+    addstate /dev/sdX     add the encrypted state partition (p3) to a written stick
+    clone /dev/SRC /dev/DST   copy a whole stick, p3 and all, to a spare
+
+  try it with no hardware
+    boot                  boot the signed image in qemu, secure boot on
+    bootusb               the same, through an emulated usb stick
+    ./selftest.sh         the qemu rounds (A1..A22) -- a separate script
+
+  check the tree
+    gates                 every build gate against the built tree (G1..G67)
+    ci                    the buildless tier: shellcheck, parse, learn corpus, pins -- no key, no build
+    lint                  shellcheck alone
+    vouch                 every commit since the epoch is signed by the pinned key
+    verify                re-derive this build's attestation: docker + git + gpg, nothing else
+    verify_log            the attestation chain alone (prints its head), no docker
+    verify_sigs           the upstream signatures over the pinned sources
+    repro / crepro        rebuild a clean clone (host / pinned container) and compare to the pin
+    outdated              which pinned upstream has a newer stable release (looks only)
+    trustver / toolver    the trust manifest / the host toolchain, against their pins
+
+  keys and signing
+    keys                  mint a secure-boot keyset (once per tree)
+    seal / reseal         encrypt the keys under a passphrase / change it
+    unlock / lock         decrypt the keys into ram / wipe that copy
+    ramkeys               where the unlocked copy lives
+    sign EFI              db-sign another os's efi (docs/carrier.md)
+    revoke IMAGE          retire a superseded image through dbx
+    attest                mint the next attestation for committed HEAD
+
+  pins -- what the tree trusts
+    pin / cpin            record the built image's digests (host / pinned container)
+    bump NAME VER         move one upstream pin to a new release, signature-checked
+    blobpin PKGVER        re-derive the efi stub pin from the arch archive
+    toolpin               regenerate the container toolchain pin
+
+  single steps, in the order `all` runs them
+    deps fetch kernel headers busybox tls ii_ abduco cryptsetup_ wg_ dropbear_
+    rootfs verity uki stick   and: dbx ta ovmf blob stub blobver seed
+    libparity learnship xexecproof build_repro   (pieces of ci)
+HELP
+}
+
+case "${1:-help}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
+  help|-h|--help) help ;;
   deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|learnship|xexecproof|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin <pkgver>|attest|verify|toolver|toolpin|trustver|lint|ci|outdated|bump <name> <ver>|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "unknown verb: $1" >&2; help >&2; exit 1 ;;
 esac

@@ -16,7 +16,7 @@ set -eu
 
 src=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)        # the repo root (arsenal/..)
 a="$src/arsenal"
-[ -f "$src/busybox" ] || { echo "install: no busybox at $src -- run ./build.sh fetch busybox" >&2
+[ -f "$src/busybox" ] || { echo "install: no busybox at $src -- run ./build.sh fetch && ./build.sh busybox" >&2
 	echo "install: that is the only part of the image the arsenal school needs to run" >&2; exit 1; }
 [ -x "$a/learn" ] || { echo "install: no arsenal school at $a/learn" >&2; exit 1; }
 

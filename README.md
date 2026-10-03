@@ -549,8 +549,8 @@ the tree's own busybox, no stick needed. progress lives under `~/.local/state` a
 re-installing never costs you it. from a fresh clone that is two commands, and
 neither builds a kernel, a key or an image:
 
-    ./build.sh fetch busybox    # the one binary learn grades against
-    ./learn/install.sh          # -> ~/.local/bin/learn
+    ./build.sh fetch && ./build.sh busybox   # the one binary learn grades against
+    ./learn/install.sh                       # -> ~/.local/bin/learn
 
 it is not a repo of its own, and that is the point. every claim learn makes is
 checked against the busybox THIS tree builds -- G24 holds the corpus to the

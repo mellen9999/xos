@@ -26,7 +26,7 @@ MNT=/run/xosprov.$$
 [ "$(id -u)" = 0 ] || exec sudo -E "$0" "$@"
 [ -b "$DEV" ] || { echo "not a block device: $DEV" >&2; exit 1; }
 cryptsetup isLuks "$DEV" || { echo "$DEV is not LUKS -- is that p3?" >&2; exit 1; }
-# identity guard: addstate luksFormats p3 with label XOS-STATE (build.sh:4040).
+# identity guard: build.sh's addstate() luksFormats p3 with the label XOS-STATE.
 # isLuks alone would happily open a typo'd device -- your own encrypted home,
 # another stick -- and populate() would then overwrite it. require the label, so
 # only an xos state volume is ever opened. fail-safe: a missing/unreadable label
