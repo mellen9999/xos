@@ -2054,6 +2054,53 @@ toolchain() { toolchain_versions | sha256sum | awk '{print $1}'; }
 # were built. prints one line per mismatch, returns 1 if any differ or any is
 # unpinned -- an unpinned value is a FAIL, never a skip, because a pin taken
 # before a line existed is stale, not permissive.
+# IMAGE_SRC -- every tracked path whose bytes end up in the four pinned
+# artifacts, in ONE list. pin() records a digest of them (`source`), ci refuses
+# a HEAD whose digest moved since the pin, and srcpin_cover() proves rootfs()
+# copies nothing tracked that this list leaves out. the pin drifted FOUR times
+# before this existed (2f0698a fb7e3f1 619b2de, then 3 README commits after
+# d22d3a5), each one a day of red repro CI that nothing at push time refused:
+# README.md ships in the image, so a docs commit moves the squashfs.
+# build.sh is in the list because rootfs()'s shrc heredoc and every build flag
+# live in it; a gate-only edit therefore also asks for a re-pin. that is the
+# honest cost -- cpin is three minutes, a wrong pin is a false claim.
+IMAGE_SRC="README.md init tutorial overlay
+  learn/learn learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects
+  learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains
+  learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys
+  build.sh kernel.config busybox.config.applets busybox.config.features patches
+  dropbear.localoptions.h abduco.config.h tlstunnel.c trust musl-static-pie.specs sources.sha256"
+
+# the source digest: blob ids + paths of every IMAGE_SRC entry at HEAD -- the
+# COMMITTED bytes, which is what a clone rebuilds. safe.directory because cpin
+# runs this as root inside the container on a tree the host user owns.
+# shellcheck disable=SC2086
+srcpin() {
+  git -c safe.directory='*' ls-tree -r HEAD -- $IMAGE_SRC | awk '{print $3, $4}' | sha256sum | awk '{print $1}'
+}
+srcpin_covers() { local p; for p in $IMAGE_SRC; do [ "$1" = "$p" ] && return 0; case "$1" in "$p"/*) return 0 ;; esac; done; return 1; }
+# every tracked operand of a cp/install inside rootfs() must be in IMAGE_SRC.
+# untracked operands are build outputs (busybox, dropbearmulti) and are what
+# IMAGE_SRC's listed inputs produce, so they are skipped; a quoted or $-bearing
+# operand is a variable the static read cannot resolve, skipped too.
+srcpin_cover() {
+  local body line t bad=0
+  body=$(sed -n '/^rootfs() {/,/^}/p' build.sh | sed -e ':a' -e '/\\$/N; s/\\\n//; ta')
+  while read -r line; do
+    # shellcheck disable=SC2086
+    set -- $line
+    while [ $# -gt 1 ]; do                # the last word is the destination
+      t=$1; shift
+      case "$t" in -m) shift; continue ;; -*) continue ;; esac
+      case "$t" in *'$'*|'"'*|"'"*) continue ;; esac
+      t=${t%/.}
+      git ls-files --error-unmatch -- "$t" >/dev/null 2>&1 || continue
+      srcpin_covers "$t" || { bad=1; printf '    rootfs() copies %s into the image but IMAGE_SRC leaves it out\n' "$t" >&2; }
+    done
+  done <<< "$(printf '%s\n' "$body" | grep -E '^[[:space:]]*(cp|install) ' | sed -E 's/^[[:space:]]*(cp|install) //')"
+  return $bad
+}
+
 cmp_pin() { # $1 dir holding xos.img/rootfs.squashfs/verity.roothash/bzImage
   local d="${1:-.}" k want have rc=0
   for k in image squashfs roothash kernel; do
@@ -2513,6 +2560,9 @@ pin() {
     # match while bzImage differs -- and the kernel is what enforces every
     # hardening claim the other three rest on. pin it too.
     printf 'kernel    %s\n'   "$(sha256sum < bzImage | awk '{print $1}')"
+    # the committed source these bytes were built from, so ci can refuse a HEAD
+    # that moved an image-affecting path without re-pinning (see IMAGE_SRC).
+    printf 'source    %s\n'   "$(srcpin)"
     printf 'toolchain %s\n'   "$(toolchain)"
     # the fingerprint above is opaque; these comment lines say what it is, so a
     # stranger can install the same toolchain and rebuild the exact bytes. read
@@ -2829,9 +2879,9 @@ gates() {
     # can never equal the real fingerprint, so the SKIP below would fire every
     # run and G13 would quietly stop comparing digests forever. repro() has
     # guarded this since it was written; this gate never did.
-    if [ -z "$want_tc" ]; then
+    if [ -z "$want_tc" ] || ! grep -q '^source ' image.sha256; then
       g "G13 image digest pinned" FAIL
-      printf '    image.sha256 has no toolchain line -- truncated pin, run ./build.sh cpin\n' >&2
+      printf '    image.sha256 has no toolchain or source line -- truncated pin, run ./build.sh cpin\n' >&2
     elif [ "$want_tc" != "$have_tc" ]; then
       g "G13 reproducible (needs the pinned toolchain)" SKIP
       printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
@@ -5285,6 +5335,30 @@ ci() {
   # that are exact file-or-corpus facts and make the prose match. the applet
   # count is left out here: it is `busybox --list` on the BUILT binary, which a
   # buildless runner may not have, and a host busybox has a different set.
+  # the pin is a claim about COMMITTED source; refuse to let a HEAD that moved
+  # an image-affecting path travel with a pin taken from an older one. buildless:
+  # it compares tree ids, not bytes -- the byte check is crepro, which is where
+  # this used to be caught, weekly, after the push.
+  if [ -f image.sha256 ] && git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+    say "image pin is taken from this source"
+    local want_src have_src pin_at
+    want_src=$(awk '$1=="source"{print $2}' image.sha256)
+    have_src=$(srcpin)
+    if [ -z "$want_src" ]; then
+      printf '  \033[1;31mimage.sha256 has no source line -- truncated pin, run ./build.sh cpin\033[0m\n' >&2; rc=1
+    elif [ "$want_src" != "$have_src" ]; then
+      pin_at=$(git log -1 --format=%h -- image.sha256 2>/dev/null)
+      printf '  \033[1;31mimage.sha256 was pinned at %s; image-affecting source moved since:\033[0m\n' "${pin_at:-?}" >&2
+      # shellcheck disable=SC2086
+      [ -n "$pin_at" ] && git diff --stat "$pin_at..HEAD" -- $IMAGE_SRC 2>/dev/null | sed 's/^/    /' >&2
+      printf '    the committed pin describes bytes this source no longer builds.\n' >&2
+      printf '    ./build.sh cpin, then commit image.sha256 (alone).\n' >&2
+      rc=1
+    else
+      printf '  source digest %s... matches the pin\n' "${have_src:0:16}"
+    fi
+    srcpin_cover || { printf '  \033[1;31mIMAGE_SRC is missing an input rootfs() ships -- the staleness check above has a blind spot\033[0m\n' >&2; rc=1; }
+  fi
   if [ -f README.md ] && [ -d learn/ref ] && [ -d learn/levels ]; then
     say "README counts match the tree"
     local rc_cmd rc_lvl rc_q claim_cmd claim_lvl claim_q
