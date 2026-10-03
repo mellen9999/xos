@@ -2525,7 +2525,7 @@ TODO: write this entry by hand.
 # ────────────────────────────────────────────────────────────────────────────
 gates() {
   say "gates"
-  local bad=0 ran=0 skipped=0 saw=""
+  local bad=0 ran=0 skipped=0 saw="" skipped_names=""
   # the roster above is the list, and this reads it back: an unstarred
   # G-number is one this run must emit, so the count follows from the roster
   # instead of being retyped beside it and left to rot.
@@ -2539,7 +2539,7 @@ gates() {
   # indistinguishable from "verified" for as long as that line existed.
   g() { printf '  %-42s %s\n' "$1" "$2"; ran=$((ran+1)); saw="$saw ${1%% *}"
         LASTGATE=${1%% *}
-        case "$2" in ok) ;; SKIP) skipped=$((skipped+1)) ;; *) bad=1 ;; esac; }
+        case "$2" in ok) ;; SKIP) skipped=$((skipped+1)); skipped_names="$skipped_names ${1%% *}" ;; *) bad=1 ;; esac; }
   # the roster check at the end of this function is supposed to catch a gate
   # that dies mid-run -- but it is INSIDE the function that died, so it never
   # ran, and G62 aborting looked like a build that simply stopped talking. the
@@ -4076,9 +4076,14 @@ G51
   # "all green" when one check could not run -- that is the very claim G13's
   # old `ok` made falsely. say the count in yellow so a foreign-toolchain
   # build reads as "verified as far as it can be", never as "reproducible".
+  # NAME the skipped gates, never assert one cause: this line used to hardcode
+  # "(toolchain differs)", which is G13's reason -- but G52 skips for its own
+  # reasons (no ssh-keygen, a shallow clone), and the line then misattributed
+  # a provenance gap to the toolchain. each gate already printed its real
+  # reason above; the summary points there instead of lying about which.
   if [ "$skipped" -gt 0 ]; then
-    printf '\033[1;33m  %d gates green, %d unverified (toolchain differs) -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
-      "$((ran - skipped))" "$skipped" "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))"
+    printf '\033[1;33m  %d gates green, %d unverified (%s -- reasons above) -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
+      "$((ran - skipped))" "$skipped" "${skipped_names# }" "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))"
   else
     printf '\033[1;32m  all gates green -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
       "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))"
