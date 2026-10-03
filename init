@@ -44,7 +44,14 @@ cmdline_get() { printf ' %s\n' "$CMDLINE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 # one source of truth for the hardening sysctls: the setter below applies them,
 # and the xos.test probe re-reads this same list to prove every one took (a
 # deleted or silently-failed line is otherwise invisible).
-HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/tcp_timestamps=0"
+# arp_ignore/arp_announce=2 force the STRONG host model: a NIC answers ARP only
+# for addresses configured on that same NIC. this is what structurally holds the
+# "xos never opens a port on the network it is plugged into" promise -- ssh binds
+# the wireguard inside-address, which rides wg0 (a NOARP link), so without the
+# strong model a LAN peer could still reach it via the plugged-in NIC's weak-host
+# ARP reply whenever the wg Address overlaps the LAN subnet. with it, the LAN NIC
+# never answers for the tunnel address, whatever wg0.conf says.
+HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/conf/all/arp_ignore=2 net/ipv4/conf/all/arp_announce=2 net/ipv4/conf/default/arp_ignore=2 net/ipv4/conf/default/arp_announce=2 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/tcp_timestamps=0"
 for kv in $HARDEN_SYSCTLS
 do
   p=/proc/sys/${kv%=*}; v=${kv#*=}
