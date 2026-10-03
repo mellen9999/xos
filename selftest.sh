@@ -4,7 +4,7 @@
 # no network exploit. each check asserts an EXPECTED FAILURE: the harness fails
 # if a tampered image is accepted.
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 
@@ -95,9 +95,9 @@ assert_complete() {
 # secure-boot firmware with the enrolled keyset, written once. every qemu boot
 # below is this plus however it attaches the disk.
 QEMU_FW=(
-	-global driver=cfi.pflash01,property=secure,value=on
+	-global "driver=cfi.pflash01,property=secure,value=on"
 	-drive "if=pflash,format=raw,unit=0,readonly=on,file=$OVMF_CODE"
-	-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd
+	-drive "if=pflash,format=raw,unit=1,file=ovmf-vars.fd"
 )
 
 # boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
@@ -153,7 +153,7 @@ boot_state() {
 # XOS_NONIC=1: no network device at all, for the branches that only exist when
 # the floored clock has nowhere to ask.
 boot_backclock() {
-	local nic=(-nic user,model=virtio-net-pci)
+	local nic=(-nic "user,model=virtio-net-pci")
 	[ "${XOS_NONIC:-}" = 1 ] && nic=(-nic none)
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-rtc base=2010-01-01T00:00:00 \

@@ -175,7 +175,7 @@ export SOURCE_DATE_EPOCH=1788652800
 # busybox renders its banner timestamp in LOCAL time, so without a pinned TZ
 # the same source builds differently in a different timezone.
 export TZ=UTC
-export KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null)"
+KBUILD_BUILD_TIMESTAMP=$(date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null); export KBUILD_BUILD_TIMESTAMP
 export KBUILD_BUILD_USER=xos
 export KBUILD_BUILD_HOST=xos
 
@@ -683,18 +683,18 @@ kernel() {
     done <<< "$disables"
     make -C "$d" olddefconfig >/dev/null
   done
-  local missing=() present=()
+  local kmiss=() present=()
   while read -r opt; do
     [ -n "$opt" ] || continue
-    grep -q "^$opt=y" "$d/.config" || missing+=("$opt")
+    grep -q "^$opt=y" "$d/.config" || kmiss+=("$opt")
   done <<< "$enables"
   # a `=n` opt that is present as =y is a hardening request that silently lost
   while read -r opt; do
     [ -n "$opt" ] || continue
     grep -q "^$opt=y" "$d/.config" && present+=("$opt")
   done <<< "$disables"
-  if [ "${#missing[@]}" -gt 0 ]; then
-    echo "FAIL: kernel options requested but not enabled: ${missing[*]}" >&2
+  if [ "${#kmiss[@]}" -gt 0 ]; then
+    echo "FAIL: kernel options requested but not enabled: ${kmiss[*]}" >&2
     return 1
   fi
   if [ "${#present[@]}" -gt 0 ]; then
@@ -789,11 +789,11 @@ busybox() {
   # oldconfig can silently drop a symbol whose dependencies were trimmed away.
   # a feature that vanishes here is exactly the quiet shrink this repo exists to
   # catch, so read it back out of the config we just compiled.
-  local missing=""
+  local bbmiss=""
   for feat in $(sed 's/#.*//' busybox.config.features); do
-    grep -qx "CONFIG_$feat=y" "$d/.config" || missing="$missing $feat"
+    grep -qx "CONFIG_$feat=y" "$d/.config" || bbmiss="$bbmiss $feat"
   done
-  [ -z "$missing" ] || { echo "FAIL: busybox dropped requested features:$missing" >&2; return 1; }
+  [ -z "$bbmiss" ] || { echo "FAIL: busybox dropped requested features:$bbmiss" >&2; return 1; }
   printf '  busybox binary: %d bytes (musl static-pie, runs)\n' "$(stat -c%s busybox)"
 }
 
@@ -3802,8 +3802,8 @@ G37
   # told a learner to stop writing a line that works -- which is worse than
   # teaching nothing, and is exactly the class of error no amount of reading
   # catches.
-  local bz_bad=0 bz_n=0 bz_l bz_e bz_p bz_g bz_ao bz_ar bz_bo bz_br
-  while IFS=$'\t' read -r bz_l bz_e bz_p bz_g; do
+  local bz_bad=0 bz_n=0 bz_l bz_p bz_ao bz_ar bz_bo bz_br
+  while IFS=$'\t' read -r bz_l _ bz_p _; do
     case "$bz_l" in ''|'#'*) continue ;; esac
     bz_n=$((bz_n + 1))
     # `x=$(cmd)` takes the status of cmd, so under set -e a probe that FAILS
@@ -4343,12 +4343,12 @@ addstate() {
   [ -b "$dev" ] || { echo "usage: $0 addstate /dev/sdX  (the whole stick, not a partition)" >&2; return 1; }
   # tools addstate needs that a plain build does not -- check them here so it
   # fails with a clear message up front, never half way through partitioning.
-  local t miss=""
+  local t asmiss=""
   for t in cryptsetup:cryptsetup mkfs.ext4:e2fsprogs partx:util-linux sfdisk:util-linux \
            partprobe:parted lsblk:util-linux; do
-    command -v "${t%%:*}" >/dev/null 2>&1 || miss="$miss ${t%%:*}(${t##*:})"
+    command -v "${t%%:*}" >/dev/null 2>&1 || asmiss="$asmiss ${t%%:*}(${t##*:})"
   done
-  [ -z "$miss" ] || { echo "FAIL: addstate needs:$miss" >&2; return 1; }
+  [ -z "$asmiss" ] || { echo "FAIL: addstate needs:$asmiss" >&2; return 1; }
   # this rewrites a partition table and luksFormats: every guard usb() has, it
   # has -- literally the same two functions. it used to have one (removable), so
   # a removable sd card of photos with two partitions qualified, with no prompt.
@@ -4555,7 +4555,7 @@ h256() { sha256sum < "$1" | awk '{print $1}'; }
 # prints the HEAD hash -- sha256 of the last line's bytes -- which is the one
 # short string that commits to the entire history.
 verify_log() {
-  local f="$ATTEST/log" n=0 seq mh link prev="" expect="$ZERO" want line
+  local f="$ATTEST/log" n=0 seq mh link expect="$ZERO" want line
   [ -f "$f" ] || { echo "FAIL: $f is missing -- there is nothing to verify" >&2; return 1; }
   while IFS= read -r line; do
     case "$line" in ''|\#*) continue ;; esac
@@ -4580,7 +4580,6 @@ verify_log() {
       return 1; }
     # the next link is taken over THESE bytes plus the newline read() stripped.
     expect=$(printf '%s\n' "$line" | sha256sum | awk '{print $1}')
-    prev="$seq"
   done < "$f"
   [ "$n" -gt 0 ] || { echo "FAIL: $f holds no entries -- an empty log is not a verified one" >&2; return 1; }
   # $expect is now the hash of the last line: the head.
@@ -4908,27 +4907,39 @@ lint() {
     printf '  \033[1;33mshellcheck not installed -- NOT CHECKED (paru -S shellcheck)\033[0m\n'
     return 2
   fi
-  local out=""
+  local out="" outb=""
   # the ci runners and the commit wall were outside this for as long as it
   # existed: a shellcheck error planted in ci/xos-ci was never seen, because
   # lint only scanned the files someone happened to list. they are first-party
   # bash that decides whether a push is accepted -- scan them.
-  out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script \
+  # the bash tier is held at WARNING, not just error: it reached zero warnings
+  # on 2026-10-03 (an unused variable, an array/string name clash, two ls|grep,
+  # a masked return value) and a ratchet is the only thing that keeps a zero.
+  # the ash tier below stays at error -- shellcheck has no busybox-ash dialect,
+  # so `local`, `read -s` and RANDOM are warnings there by design, not defects
+  # (G35 parses every one of those scripts under the ash that actually ships).
+  outb=$(shellcheck -S warning build.sh selftest.sh overlay/usr/share/udhcpc/default.script \
                     ci/xos-repro ci/xos-ci-full ci/xos-ci-status githooks/pre-commit githooks/pre-push; echo)
+  out+=$(shellcheck init learn/learn; echo)
   out+=$(shellcheck -s sh learn/lib/*; echo)
   # the arsenal tree was never shellchecked though it is the security-tooling
   # half of the codebase: the school driver, its libs, the xexec doorway and the
   # provisioning scripts. PARITY/rekeys are data, not scripts, and live outside
   # arsenal/lib so this glob does not reach them.
   out+=$(shellcheck -s sh arsenal/learn arsenal/arsenal arsenal/xexec arsenal/qr arsenal/push arsenal/*.sh arsenal/lib/*; echo)
-  printf '%s\n' "$out"
-  # warnings/info are noise until they aren't; only error-severity fails the
-  # run, so a bump in shellcheck's own defaults can't silently red the tree.
+  printf '%s\n' "$outb" "$out"
+  # info/style are noise until they aren't; the bash tier fails on any warning,
+  # the ash tier only on error-severity, so a bump in shellcheck's own defaults
+  # cannot silently red the tree on a class it never held before.
+  if printf '%s' "$outb" | has '(error):' || printf '%s' "$outb" | has '(warning):'; then
+    printf '  \033[1;31mshellcheck found warnings in the bash tier (held at zero)\033[0m\n'
+    return 1
+  fi
   if printf '%s' "$out" | has '(error):'; then
     printf '  \033[1;31mshellcheck found errors\033[0m\n'
     return 1
   fi
-  printf '  \033[1;32mno shellcheck errors\033[0m\n'
+  printf '  \033[1;32mshellcheck clean (bash tier: no warnings; ash tier: no errors)\033[0m\n'
   return 0
 }
 
@@ -5149,7 +5160,7 @@ _bump_apply() { # $1=const $2=old $3=new $4=pre $5=newhash $6=tb
 }
 
 bump() {
-  local name=$1 new=$2 const old signed=0 url sign key fpr tb pre
+  local name=$1 new=$2 const old signed=0 url key fpr tb pre
   # per-dep: constant, tarball URL, whether/where its maintainer signs. the three
   # kernel.org-signed ones + busybox are verified; the rest are trust-on-first-use
   # (SOURCES.md says which), pinned from TLS with a warning.
@@ -5475,8 +5486,8 @@ ci() {
   if [ -f README.md ] && [ -d learn/ref ] && [ -d learn/levels ]; then
     say "README counts match the tree"
     local rc_cmd rc_lvl rc_q claim_cmd claim_lvl claim_q
-    rc_cmd=$(ls learn/ref 2>/dev/null | grep -c .)
-    rc_lvl=$(ls learn/levels 2>/dev/null | grep -c .)
+    rc_cmd=$(find learn/ref -mindepth 1 -maxdepth 1 -type f | grep -c .)
+    rc_lvl=$(find learn/levels -mindepth 1 -maxdepth 1 -type f | grep -c .)
     # the question total the way learn lint counts it (the authoritative source
     # the README number is meant to equal)
     rc_q=$(LEARN_ROOT="$PWD/learn" NO_COLOR=1 "${bb:-busybox}" ash learn/learn lint 2>/dev/null \
@@ -5711,7 +5722,7 @@ in_toolchain() {
   [ -f "$src/repro/Dockerfile" ] || { echo "FAIL: $src/repro/Dockerfile missing" >&2; return 1; }
   # and tag by the Dockerfile's content, so two commits with different
   # toolchains cannot clobber each other's image behind one fixed tag.
-  local tag="$CTAG:$(sha256sum < "$src/repro/Dockerfile" | cut -c1-12)"
+  local tag; tag="$CTAG:$(sha256sum < "$src/repro/Dockerfile" | cut -c1-12)"
   say "building the pinned toolchain container ($tag)"
   docker build --network=host -q -t "$tag" -f "$src/repro/Dockerfile" "$src/repro" >/dev/null \
     || { echo "FAIL: could not build the toolchain container" >&2; return 1; }
