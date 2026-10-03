@@ -116,7 +116,8 @@ no hostname, no vendor string (busybox would otherwise announce `udhcp <version>
 in every request). what remains is the shape of the request itself -- a linux
 client asking for an address -- which no dhcp client can hide.
 
-enable it with two files at the root of p3 (mounts at `/tmp/home`):
+enable it with two files at the root of p3 (mounts at `/tmp/home`); a complete
+worked example, both sides, is step 8 of `docs/first-stick.md`:
 
     wg0.conf          your private key, the peer's public key + endpoint, Address =
     authorized_keys   the peer's public ssh key -- or bake it into the image
@@ -263,7 +264,7 @@ each release announcement carries the chain **head**. pin it and a history
 rewritten for you alone stops working:
 
 ```sh
-XOS_EXPECT_HEAD=<the head you were told> ./build.sh verify
+XOS_EXPECT_HEAD=<the 64-hex head printed in the announcement you were sent> ./build.sh verify
 ```
 
 building on a distro that is not arch: `docs/building.md`. `verify` and
