@@ -1054,8 +1054,14 @@ rootfs() {
   install -m 0755 tutorial root/bin/tutorial
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
+  # acts (the level groupings the climb is narrated by) and syn (the syntax
+  # labels every page carries) were read by the engine and never shipped: on
+  # the stick both opened as nothing, 2>/dev/null, while the dev host -- where
+  # every grader runs -- had them. ci's "learn ships what the engine reads"
+  # check now derives this list's floor from the engine itself.
   cp learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains \
-     learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys root/usr/share/learn/
+     learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys \
+     learn/acts learn/syn root/usr/share/learn/
   # the full operator narrative -- boot ledger, refusals, the arsenal, the verbs
   # -- shipped offline so a booted stranger can read what this machine is, not
   # only how each command works. the curriculum is the how; this is the why.
@@ -2067,7 +2073,7 @@ toolchain() { toolchain_versions | sha256sum | awk '{print $1}'; }
 IMAGE_SRC="README.md init tutorial overlay
   learn/learn learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects
   learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains
-  learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys
+  learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys learn/acts learn/syn
   build.sh kernel.config busybox.config.applets busybox.config.features patches
   dropbear.localoptions.h abduco.config.h tlstunnel.c trust musl-static-pie.specs sources.sha256"
 
@@ -4954,6 +4960,30 @@ libparity() {
 # plus the corpus it opens, then each installer is run into a scratch home and
 # every item must land non-empty. buildless: install.sh gets a stand-in
 # busybox, populate() no tool dir, so neither needs a build or the network.
+# learnship -- every $ROOT/<name> the learn engine reads is a name rootfs()
+# ships to /usr/share/learn. otherwise the stick opens it as nothing (2>/dev/null)
+# while the dev host, where every grader runs, has it: acts (the level groupings
+# the climb is narrated by) and syn (the labels every page carries) were exactly
+# that for months. the floor is derived from the engine's own text, so a file
+# the engine starts reading fails here until rootfs() ships it. two dev-only
+# exceptions, named: compose (a build-time ledger, G63) and learn itself (lint
+# greps its own source for stray escapes); no verb on the stick reads either.
+learnship() {
+  say "learn ships what the engine reads"
+  local lref lship f lmiss=""
+  lref=$(grep -ohE '\$\{?ROOT\}?/[A-Za-z0-9_.-]+' learn/learn learn/lib/* 2>/dev/null | sed -E 's/^\$\{?ROOT\}?\///' | sort -u)
+  lship=$(sed -n '/^rootfs() {/,/^}/p' build.sh | sed -e ':a' -e '/\\$/N; s/\\\n//; ta' \
+            | grep -E '^[[:space:]]*cp ' | grep -F 'root/usr/share/learn/' | grep -oE 'learn/[A-Za-z0-9_.-]+' | sed 's|^learn/||' | sort -u)
+  [ -n "$lref" ] && [ -n "$lship" ] || { echo "  FAIL: could not read the engine's references or rootfs()'s learn copies" >&2; return 1; }
+  for f in $lref; do
+    case "$f" in compose|learn) continue ;; esac
+    printf '%s\n' "$lship" | grep -qxF -- "$f" || lmiss="$lmiss $f"
+  done
+  if [ -z "$lmiss" ]; then printf '  %s names read by the engine, all shipped\n' "$(printf '%s\n' "$lref" | grep -c .)"; return 0; fi
+  printf '  \033[1;31mthe learn engine reads $ROOT/{%s } but rootfs() never ships it\033[0m\n' "$lmiss" >&2
+  return 1
+}
+
 schoolship() {
   say "arsenal installers ship the whole school (stick + standalone)"
   local t libs items it bad=0
@@ -5342,6 +5372,7 @@ ci() {
   # that are exact file-or-corpus facts and make the prose match. the applet
   # count is left out here: it is `busybox --list` on the BUILT binary, which a
   # buildless runner may not have, and a host busybox has a different set.
+  learnship || rc=1
   # the pin is a claim about COMMITTED source; refuse to let a HEAD that moved
   # an image-affecting path travel with a pin taken from an older one. buildless:
   # it compares tree ids, not bytes -- the byte check is crepro, which is where
@@ -5672,7 +5703,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|learnship|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
   *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin <pkgver>|attest|verify|toolver|toolpin|trustver|lint|ci|outdated|bump <name> <ver>|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac
