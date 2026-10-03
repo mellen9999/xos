@@ -29,6 +29,30 @@ erasing whatever you did since. the current bytes are kept beside the count, not
 overwritten. assume p3 isn't what you left; anything written since the rolled-back
 boot is gone.
 
+**`p3 is there but its LUKS header is unreadable -- continuing without state`** or
+**`state unlocked but the filesystem would not mount -- p3 is damaged`** (also the
+`read-only filesystem` form, with the switch on). the boot stick's third partition
+is there but can't be opened (header gone), or opened but holds nothing mountable.
+not necessarily tampering -- a failing medium or an interrupted `addstate` does the
+same -- but p3 is unusable this boot and the boot goes on stateless, on purpose,
+instead of asking for a passphrase it could not use. recover from a `clone` if you
+made one (a clone carries p3), else re-create p3 with `./build.sh addstate /dev/sdX`
+on the build host; the old state is gone either way.
+
+**`vault mode -- /tmp/home is RAM: nothing you do persists`**, then `ledger: vault
+mode -- this boot is not counted`, `recon: ... vault mode, baseline NOT recorded`,
+and `recon_accept: vault mode` if you try it. the write-protect switch is on and
+nothing is wrong: the stick is being kept unalterable, and these lines say exactly
+what that costs -- no boot count, no recon baseline, nothing accepted. the banner
+used to claim persistence here; it no longer does. switch write-protect off and
+reboot to record anything.
+
+**`irc: tls to <host>:6697 did not come up`**, followed by tlstunnel's own lines.
+`resolve` or `connect`: no network or no route (plug the uplink in before boot; the
+banner's `net-` lines say what came up). `ssl error N`: the server's certificate did
+not chain to a compiled-in anchor, or the clock is wrong -- read `tls-time` in the
+banner. nothing was joined, and nothing is left running.
+
 **the machine powers off within seconds of unplugging.** the dead-man switch,
 working as designed -- the boot device left the usb bus. plug it back in and boot
 again. to run without it (a machine that renumbers usb under load), boot
@@ -51,7 +75,7 @@ auth attempts land in `/tmp/ssh.log` (tmpfs, gone at reboot).
 mismatch; nothing was flashed. common ones: `G13 ... image matches committed digest
 FAIL` after an intentional change means the pin is stale -- `./build.sh pin` if this
 build is the one you meant. `G13 reproducible (needs the pinned toolchain) SKIP`
-(yellow, not a failure) means this gcc/systemd isn't the one the pin was taken with,
+(yellow, not a failure) means this gcc/binutils/squashfs-tools isn't the one the pin was taken with,
 so reproducibility couldn't be checked here.
 
 **the self-test prints `RESTORE FAILED -- the tree may still hold a TEST
@@ -94,4 +118,22 @@ the medium is full, failing, or was pulled), `recon FAILED: empty inventory` (th
 hardware probe returned nothing), and `note: boot device unknown` (init couldn't
 tell which disk it booted, so it won't prefer any for state). each says the state
 partition is unreliable this boot -- treat what it holds as suspect until a clean
-boot writes it again.
+boot writes it again. one more is a build-side defect, not a runtime event:
+`sysctl MISSING: <key>` means init's hardening list names a `/proc/sys` entry this
+kernel does not have -- the list and `kernel.config` disagree, and the self-test
+fails on it.
+
+**`./build.sh ci` refuses: `image.sha256 was pinned at <commit>; image-affecting
+source moved since`.** a path that ends up in the image (the README ships in it,
+`init`, the learn corpus, `build.sh` itself, the configs) changed after the pin was
+taken, so the committed pin describes bytes this source no longer builds. it lists
+the files. `./build.sh cpin`, then commit `image.sha256` on its own. the push hook
+runs this, so a stale pin never leaves the machine.
+
+**`could not fetch systemd-<ver>-x86_64.pkg.tar.zst from the arch linux archive`.**
+the EFI stub is cut from that package (`blobs.sha256`); the archive or the wayback
+machine was unreachable. the url is not the trust anchor -- fetch the same file from
+any arch mirror or machine, drop it at the path the message gives, rerun. `cut from
+... does not match blobs.sha256` with a verified package means the pin names a member
+that package never held: a deliberate change is `./build.sh blobpin <pkgver>`, in a
+commit.
