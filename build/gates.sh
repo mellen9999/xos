@@ -1620,8 +1620,10 @@ G51
     fi
     # fail-closed ordering: sigver must be called before the pin surgery, so a
     # bad signature aborts with nothing changed. read it out of the bump body.
-    local sline aline; sline=$(fnbody bump | awk '/sigver /{print NR; exit}')
-    aline=$(fnbody bump | awk '/_bump_apply /{print NR; exit}')
+    # awk reads the whole body: an early exit would SIGPIPE fnbody's sed, and
+    # under pipefail that 141 ends the gate run (it did, right after G65).
+    local sline aline; sline=$(fnbody bump | awk '/sigver / && !s { s = NR } END { print s }')
+    aline=$(fnbody bump | awk '/_bump_apply / && !s { s = NR } END { print s }')
     { [ -n "$sline" ] && [ -n "$aline" ] && [ "$sline" -lt "$aline" ]; }       || { g66=FAIL; printf "    G66: bump does not verify the signature before committing pins\n" >&2; }
     rm -rf "$bd"
   fi

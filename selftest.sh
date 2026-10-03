@@ -1088,19 +1088,23 @@ if signed_ready A19; then
 		done
 		t=0
 		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|continuing without persistence|would not mount' "$4"; do sleep 1; t=$((t+1)); done
-		# an optional command typed at the shell once the verdict landed; its
-		# echo and output land in the log for the caller to read. read-only
+		sleep 5   # let the wg/ssh lines land before the kill
+		# an optional command typed at the shell once the verdict and the wg/ssh
+		# lines have landed (the shell is spawned after them); the caller names
+		# a marker the command prints last, and this waits for it. read-only
 		# commands only: this console is a fifo, not a tty, so job control is
 		# off and a backgrounded sync never reaches the disk.
-		[ -n "${6:-}" ] && { sleep 2; printf '%s\n' "$6" >&9; }
-		sleep 5   # let the wg/ssh lines land before the kill
+		if [ -n "${6:-}" ]; then
+			printf '%s\n' "$6" >&9
+			t=0; while [ "$t" -lt 30 ] && ! grep -aq "${7:-PROBE-DONE}" "$4"; do sleep 1; t=$((t+1)); done
+		fi
 		exec 9>&-
 		kill "$qp19" 2>/dev/null; wait "$qp19" 2>/dev/null
 		rm -f "$fifo"
 	}
 
 	a19log=$XT/xos-a19-typed.log
-	boot_typed $XT/xos-a19p.img "$a19e" testpass "$a19log" "" 'stat -c %a /tmp/home; stat -f -c %T /tmp/home; echo HOME-PROBE-DONE'
+	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log" "" 'stat -c %a /tmp/home; stat -f -c %T /tmp/home; echo HOME-PROBE-DONE' HOME-PROBE-DONE
 	# the only boot where the real p3 is the home: it must be root-only on its
 	# own filesystem (busybox stat -f names ext4 "ext2/ext3").
 	grep -aq 'HOME-PROBE-DONE' "$a19log" && grep -aqE '^700' "$a19log" && grep -aqE '^ext2/ext3' "$a19log" \
