@@ -1,6 +1,12 @@
-# prebuilt host binaries that enter the SIGNED image but are not built here.
-# ONE digest per path. regenerate with ./build.sh blobpin; blobver() checks
-# this before uki() wraps anything, and G57 checks that it still does.
-# these bytes come from a distro's build servers -- pinning makes them fixed
-# and visible in a diff, it does not make them trustworthy. see trust.manifest.
-fc152c3707d54f2a4d8fa1e8d159ab9fde560460a89521737fb93b1cc85f06c3  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+# prebuilt bytes that enter the SIGNED image but are not built here: the
+# systemd EFI stub, cut from ONE arch package fetched by name from the arch
+# linux archive -- the frozen archive the repro toolchain is pinned to --
+# never from whatever the build host has installed, so a host upgrade can
+# neither move the signed bytes nor halt the build. ONE digest per line: the
+# package, then each member blob() cuts from it. regenerate with
+# ./build.sh blobpin <pkgver>; blob() fetches + verifies both, blobver()
+# re-checks before uki() wraps anything, and G58 checks that it still does.
+# pinning fixes the bytes and names them in a diff; it does not make them
+# trustworthy. see trust.manifest.
+8bb07794de615af02d07c672ac38bbb4833793a3c5a9c9af5b4e7667da4b2a4d  systemd-261.3-1-x86_64.pkg.tar.zst
+fc152c3707d54f2a4d8fa1e8d159ab9fde560460a89521737fb93b1cc85f06c3  linuxx64.efi.stub

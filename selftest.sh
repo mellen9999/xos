@@ -417,10 +417,11 @@ section "A11  a superseded but validly-signed image must be refused"
 # release stays bootable forever: drop it on the ESP -- plain FAT, because
 # something has to boot -- and the firmware runs it, signature valid, every gate
 # green. this asserts dbx actually closes that.
-stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
+# the stub comes from the pinned arch package, same as uki() -- one path rule.
+stub=$(./build.sh stub 2>/dev/null) || stub=
 if ! R=$(./build.sh ramkeys); then
 	skipped_crit "no stub or unlocked key -- A11 not evaluated (ramkeys failed)"
-elif [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+elif [ -z "$stub" ] || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
 	skipped_crit "no stub or unlocked key -- A11 not evaluated"
 else
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.rel=old" \

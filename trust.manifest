@@ -63,6 +63,7 @@ tool   veritysetup                                  repro            arch:crypts
 tool   virt-fw-vars                                 lab              arch:virt-firmware -- enrolls PK/KEK/db into the qemu firmware
 tool   wipefs                                       lab              arch:util-linux -- clears a stick before writing
 tool   xz                                           repro            arch:xz -- kernel tarball
+tool   zstd                                         lab              arch:zstd -- cuts the EFI stub out of the pinned arch package
 
 # ---- the trust-doers ---------------------------------------------------------
 # the tools that DO the trusting -- sign, hash, clone, verify, write the disk.
@@ -122,7 +123,8 @@ pkg    which                                        ala:2026/09/12
 pkg    xz                                           ala:2026/09/12   
 
 # ---- prebuilt binaries inside the signed image --------------------------------
-blob   /usr/lib/systemd/boot/efi/linuxx64.efi.stub  blobs.sha256     the systemd EFI stub. runs before dm-verity covers anything
+blob   systemd-261.3-1-x86_64.pkg.tar.zst           blobs.sha256     the arch package the stub is cut from -- fetched by name from the archive, never read off the host
+blob   linuxx64.efi.stub                            blobs.sha256     the systemd EFI stub. runs before dm-verity covers anything
 
 # ---- host paths the build reads -----------------------------------------------
 host   /usr/lib/musl/                               UNPINNED         the libc every shipped binary statically links. see "the frontier"
@@ -185,6 +187,10 @@ out    attest/NNNN.manifest                         RELEASE_FPRS     the release
 # building the EFI stub from systemd source: SCOPED AND REJECTED. it trades one
 # digest-pinned 134 KB blob for meson, ninja, jinja, the systemd tree and three
 # new unpinned host deps -- the opposite of shrinking this table.
+# what WAS done instead (2026-10-03): the stub is cut from a named arch package
+# fetched from the arch linux archive, the same frozen archive the toolchain
+# rows above rest on, so the build host's systemd is no longer in this table at
+# all. the blob is still a distro build; it is no longer a HOST one.
 #
 # deleting the stub and using the kernel's own EFI stub: SCOPED AND REJECTED,
 # and this one is not close. systemd-stub refuses a firmware-supplied cmdline

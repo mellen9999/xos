@@ -6,9 +6,9 @@
 # every package the Dockerfile names explicitly is checked against this file
 # before a single one is installed.
 #
-# what it does NOT cover, said plainly: the dependency CLOSURE of these 22.
+# what it does NOT cover, said plainly: the dependency CLOSURE of these.
 # those still rest on the archive day plus pacman's own signature checking.
-# regenerate with ./build.sh toolpin; G58 checks this file against the
+# regenerate with ./build.sh toolpin; G59 checks this file against the
 # Dockerfile's package list in both directions.
 b9e5f0d61a674c9be1a0608f3fcab766d989d9a002c37e55a74ccfc8e87027ab  bc-1.08.2-1-x86_64.pkg.tar.zst
 d9508ad848fd6c31473ac0925cf8c3ec0d2a71bbbb5c7e39274186338a285660  binutils-2.47-4-x86_64.pkg.tar.zst

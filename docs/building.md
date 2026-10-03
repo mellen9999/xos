@@ -41,11 +41,16 @@ asked about, and it rots the moment nobody is watching. `deps()` names the
 ## the efi stub is pinned by bytes
 
 `blobs.sha256` pins the exact systemd EFI stub that gets wrapped into the
-signed image. a different distro builds those bytes differently, so
-`./build.sh uki` will refuse on one. that is correct: the pin says *these exact
-bytes*, and the alternative is a signed image whose first-running component
-changed without anyone deciding it should. re-pin deliberately with
-`./build.sh blobpin`, in a commit someone can read.
+signed image -- and the arch package it is cut from. `blob()` fetches that
+package by name from the arch linux archive (the same frozen archive the
+repro toolchain is pinned to), checks its digest, cuts the stub out, checks
+that digest too, and parks it under `$XOS_CACHE/blobs/`. nothing reads the
+build host's systemd, so a host upgrade can neither move the signed bytes nor
+halt the build -- which it did, for two weeks, when the stub still came from
+`/usr/lib/systemd/`. the pin says *these exact bytes*; the alternative is a
+signed image whose first-running component changed without anyone deciding it
+should. re-pin deliberately with `./build.sh blobpin <pkgver>`, in a commit
+someone can read. `./build.sh stub` fetches on demand and prints the path.
 
 `verify` and `crepro` never run `uki()`, so none of this touches them.
 

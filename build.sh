@@ -16,6 +16,9 @@ fi
 # holds only EXTRACTED trees, which make writes into and so must stay per-tree:
 # four sessions build at once. XOS_CACHE=src restores the old single-dir layout.
 XOS_CACHE="${XOS_CACHE:-$HOME/.cache/xos/tarballs}"
+# prebuilt blobs blob() cuts out of a pinned arch package (the EFI stub). same
+# sharing rule as the tarballs: immutable, digest-checked, fetched once.
+XOS_BLOBS="${XOS_BLOBS:-$XOS_CACHE/blobs}"
 
 KVER="${KVER:-6.18.54}"
 BBVER="${BBVER:-1.38.0}"
@@ -282,7 +285,9 @@ luks_at() { # $1 device or image  $2 sector
 
 # a missing host tool used to surface as a mid-build failure -- the exact fail
 # mode this repo eliminates everywhere else. name every one up front instead.
-STUB=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
+# the stub is NOT a host path any more: blob() cuts it out of the arch package
+# blobs.sha256 pins and parks it here, so the host's systemd is irrelevant.
+STUB="$XOS_BLOBS/linuxx64.efi.stub"
 # OVMF ships as MATCHED PAIRS, and only the .secboot CODE build enforces
 # signatures at all. these two paths used to be independent literals pointing
 # into Arch's layout, which is two problems in one line. the portability half
@@ -372,7 +377,7 @@ deps() {
   # never by the repro path -- so `deps repro` skips them, and the repro
   # container need not ship qemu/ovmf/sbsign, staying lean and free of the
   # package drift that a fat toolchain image invites.
-  local extra="sbsign:sbsigntools sbverify:sbsigntools ukify:systemd
+  local extra="sbsign:sbsigntools sbverify:sbsigntools ukify:systemd zstd:zstd
     virt-fw-vars:virt-firmware mcopy:mtools mmd:mtools mkfs.fat:dosfstools
     sfdisk:util-linux wipefs:util-linux lsblk:util-linux
     qemu-system-x86_64:qemu-base partprobe:parted"
@@ -387,7 +392,6 @@ deps() {
     # without it prints nothing and the guard would pass on a mounted stick.
     lsblk -nro MOUNTPOINTS >/dev/null 2>&1 \
       || miss+=("lsblk with MOUNTPOINTS column (util-linux >= 2.37)")
-    [ -f "$STUB" ]      || miss+=("$STUB (systemd)")
     # one entry, not two: the halves are only ever useful together.
     [ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] \
       || miss+=("a matched OVMF secure-boot pair (edk2-ovmf / ovmf) -- see ./build.sh ovmf")
@@ -1596,9 +1600,10 @@ uki() {
   say "building + signing unified kernel image"
   [ -f cmdline.txt ] || { echo "FAIL: run verity first" >&2; return 1; }
   local stub="$STUB"
-  [ -f "$stub" ] || { echo "FAIL: systemd-stub missing" >&2; return 1; }
-  # hard fail HERE, before the stub is wrapped -- not in gates(), which runs
-  # after the signed image already exists.
+  # fetch-and-cut from the pinned package, then hard fail HERE, before the stub
+  # is wrapped -- not in gates(), which runs after the signed image exists.
+  blob || return 1
+  [ -f "$stub" ] || { echo "FAIL: systemd-stub missing at $stub" >&2; return 1; }
   blobver || return 1
   grep -q '^CONFIG_EFI_STUB=y' "src/linux-$KVER/.config" || {
     echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
@@ -2088,34 +2093,114 @@ cmp_pin() { # $1 dir holding xos.img/rootfs.squashfs/verity.roothash/bzImage
 # and visible in a diff -- so the stub cannot change under a signed image
 # without someone deciding to change it. that is the whole claim.
 #
-# a different distro lays these bytes out identically but builds them
-# differently, so blobver fails there. that is honest: the pin says "these
-# exact bytes". crepro and verify are unaffected -- neither runs uki().
+# WHERE THE BYTES COME FROM. the stub used to be read off the build host's
+# own systemd install, which made the signed build hostage to the
+# host's systemd: one `pacman -Syu` and every signed build halted on a digest
+# the host could no longer produce -- which is exactly what happened on
+# 2026-09-28, and took the full CI tier down with it. so the pin now names the
+# arch PACKAGE the stub is cut from, and blob() fetches that package by name
+# from the arch linux archive -- the same frozen archive the repro toolchain is
+# pinned to -- verifies it, extracts the member, verifies that too. the host's
+# systemd can be anything or absent; the signed bytes do not move. the package
+# digest is the anchor; the url, as with get(), only says where bytes arrive.
+# crepro and verify are unaffected -- neither runs uki().
+#
+# blobs.sha256 lines are "<sha256>  <name>": one package (*.pkg.tar.zst, lives
+# in $XOS_CACHE like the tarballs) and then each member taken from it, by
+# basename, landing in $XOS_BLOBS. blob_path() is the one place that mapping is
+# written down.
+blob_path() { case "$1" in *.pkg.tar.zst) printf '%s/%s' "$XOS_CACHE" "$1" ;; *) printf '%s/%s' "$XOS_BLOBS" "$1" ;; esac; }
+blob_pkg()  { awk '!/^[[:space:]]*(#|$)/ && $2 ~ /\.pkg\.tar\.zst$/ {print $2}' blobs.sha256; }
+# archive.archlinux.org/packages/<first letter>/<pkgname>/<file>. the pkgname is
+# the file name less "-<ver>-<rel>-<arch>.pkg.tar.zst", i.e. the last three
+# dash-groups -- so a dashed pkgname (systemd-ukify) still resolves.
+ala_pkg_url() { local n=${1%-*-*-*}; printf 'https://archive.archlinux.org/packages/%s/%s/%s' "${n:0:1}" "$n" "$1"; }
+
+blob() {
+  local f=blobs.sha256 pkg want have name member tmp n=0
+  [ -f "$f" ] || { echo "FAIL: blobs.sha256 is missing -- nothing says where the stub comes from" >&2; return 1; }
+  pkg=$(blob_pkg)
+  [ "$(printf '%s\n' "$pkg" | grep -c .)" -eq 1 ] || {
+    echo "FAIL: blobs.sha256 must pin exactly ONE package (*.pkg.tar.zst), found:" >&2
+    printf '%s\n' "${pkg:-none}" | sed 's/^/  /' >&2; return 1; }
+  mkdir -p "$XOS_CACHE" "$XOS_BLOBS"
+  if [ ! -f "$XOS_CACHE/$pkg" ]; then
+    pull "$(ala_pkg_url "$pkg")" "$pkg" || {
+      printf '  %s: archive.archlinux.org unreachable -- trying the wayback machine\n' "$pkg" >&2
+      pull "https://web.archive.org/web/2999id_/$(ala_pkg_url "$pkg")" "$pkg"
+    } || {
+      echo "FAIL: could not fetch $pkg from the arch linux archive or the wayback machine" >&2
+      printf '      the url is not the trust anchor. fetch %s from ANY arch mirror or\n' "$pkg" >&2
+      printf '      machine, drop it at %s, and rerun -- the pinned digest decides.\n' "$XOS_CACHE/$pkg" >&2
+      return 1
+    }
+  fi
+  want=$(awk -v n="$pkg" '$2==n{print $1}' "$f")
+  have=$(sha256sum < "$XOS_CACHE/$pkg" | awk '{print $1}')
+  [ -n "$want" ] && [ "$want" = "$have" ] || {
+    echo "FAIL: $pkg does not match blobs.sha256 -- refusing to extract anything from it" >&2
+    printf '  pinned %s\n  found  %s\n  delete %s and rerun; blob() refetches it.\n' "$want" "$have" "$XOS_CACHE/$pkg" >&2
+    return 1; }
+  while read -r want name; do
+    case "$want" in ''|\#*) continue ;; esac
+    case "$name" in ''|*.pkg.tar.zst) continue ;; esac
+    # already cut and still the pinned bytes: nothing to do.
+    [ -f "$XOS_BLOBS/$name" ] && [ "$(sha256sum < "$XOS_BLOBS/$name" | awk '{print $1}')" = "$want" ] && { n=$((n + 1)); continue; }
+    # by basename, and it must be unique inside the package -- two candidates
+    # would make "the stub" ambiguous, so that is a refusal, not a pick.
+    member=$(tar --zstd -tf "$XOS_CACHE/$pkg" | grep -E "(^|/)$name\$" || true)
+    [ "$(printf '%s\n' "$member" | grep -c .)" -eq 1 ] || {
+      echo "FAIL: $pkg holds $(printf '%s\n' "$member" | grep -c .) member(s) named $name -- need exactly one" >&2
+      return 1; }
+    tmp="$XOS_BLOBS/.$name.tmp"
+    tar --zstd -xOf "$XOS_CACHE/$pkg" "$member" > "$tmp" || { rm -f "$tmp"; echo "FAIL: could not extract $member from $pkg" >&2; return 1; }
+    have=$(sha256sum < "$tmp" | awk '{print $1}')
+    [ "$want" = "$have" ] || {
+      rm -f "$tmp"
+      echo "FAIL: $name cut from $pkg does not match blobs.sha256" >&2
+      printf '  pinned %s\n  found  %s\n' "$want" "$have" >&2
+      printf '  the package verified, so the pin names a member this package never held.\n' >&2
+      printf '  re-pin deliberately with ./build.sh blobpin <pkgver>, in a commit.\n' >&2
+      return 1; }
+    mv -f "$tmp" "$XOS_BLOBS/$name"
+    printf '  %s: cut from %s, matches blobs.sha256\n' "$name" "$pkg"
+    n=$((n + 1))
+  done < "$f"
+  [ "$n" -gt 0 ] || { echo "FAIL: blobs.sha256 names no member to cut from $pkg" >&2; return 1; }
+}
+
+# `./build.sh stub` -- make sure the stub is here and say where. selftest.sh
+# builds its own superseded UKI from it (A11) and must not grow a second copy of
+# the path rule.
+stub() { blob >&2 || return 1; printf '%s\n' "$STUB"; }
+
 blobver() {
-  local f=blobs.sha256 n=0 want path have
+  local f=blobs.sha256 n=0 want name path have
   [ -f "$f" ] || {
     echo "FAIL: blobs.sha256 is missing -- the signed image would wrap an unpinned blob" >&2
     return 1; }
-  while read -r want path; do
+  while read -r want name; do
     case "$want" in ''|\#*) continue ;; esac
-    [ -n "$path" ] || { echo "FAIL: blobs.sha256: malformed line: $want" >&2; return 1; }
+    [ -n "$name" ] || { echo "FAIL: blobs.sha256: malformed line: $want" >&2; return 1; }
+    path=$(blob_path "$name")
     [ -f "$path" ] || {
-      echo "FAIL: $path is pinned in blobs.sha256 but is not on this host" >&2
+      echo "FAIL: $name is pinned in blobs.sha256 but is not at $path -- run ./build.sh blob" >&2
       return 1; }
     have=$(sha256sum < "$path" | awk '{print $1}')
     [ "$want" = "$have" ] || {
-      echo "FAIL: $path does not match blobs.sha256" >&2
+      echo "FAIL: $name does not match blobs.sha256" >&2
       printf '  pinned %s\n  found  %s\n' "$want" "$have" >&2
-      printf '  this blob is wrapped into the SIGNED image. if the change is one you\n' >&2
-      printf '  made deliberately (a systemd upgrade), re-pin it with ./build.sh blobpin\n' >&2
-      printf '  so it lands in a commit someone can read.\n' >&2
+      printf '  these bytes are wrapped into the SIGNED image. a cached copy has changed\n' >&2
+      printf '  under the pin: delete %s and rerun (blob() refetches\n' "$path" >&2
+      printf '  from the archive). a deliberate change is ./build.sh blobpin <pkgver>.\n' >&2
       return 1; }
     n=$((n + 1))
   done < "$f"
   # an emptied or reformatted file must be a hard refusal, never a vacuous
   # zero-of-zero pass -- the same floor the gate roster and the ELF sweep keep.
-  [ "$n" -gt 0 ] || { echo "FAIL: blobs.sha256 pins nothing" >&2; return 1; }
-  printf '  %d host blob(s) match blobs.sha256\n' "$n"
+  # 2, not 1: the package AND at least one member cut from it.
+  [ "$n" -ge 2 ] || { echo "FAIL: blobs.sha256 pins nothing (need the package and a member)" >&2; return 1; }
+  printf '  %d pinned blob(s) match blobs.sha256\n' "$n"
 }
 
 # the container's package list, read from the ONE place it is written. the
@@ -2356,30 +2441,51 @@ trustver() {
   return $rc
 }
 
-# re-pin the host blobs. mirrors pin(): a pin is a claim about what gets
-# signed, so it refuses a dirty tree and the result belongs in a commit.
+# re-pin the blobs to a named arch package. mirrors pin(): a pin is a claim
+# about what gets signed, so it refuses a dirty tree and the result belongs in
+# a commit. usage: ./build.sh blobpin <pkgver>   e.g. blobpin 261.3-1
+# -- the systemd package version as the archive names it. nothing here reads
+# the host's systemd: the bytes come from the archive, every time.
 blobpin() {
-  say "pinning the host blobs this build signs into the image"
+  local ver="$1" pkg want_pkg want_m name member
+  [ -n "$ver" ] || { echo "FAIL: usage: ./build.sh blobpin <pkgver>   e.g. 261.3-1 (see archive.archlinux.org/packages/s/systemd/)" >&2; return 1; }
+  say "pinning the blobs this build signs into the image, from systemd-$ver"
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
      && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
     echo "FAIL: tracked files are modified -- commit (or discard) before pinning:" >&2
     git status --porcelain --untracked-files=no >&2
     return 1
   fi
-  # the set of host blobs, in one place. one entry today; a second one is a
-  # single edit here, and blobver picks it up from the file without changing.
-  local b blobs=("$STUB")
-  for b in "${blobs[@]}"; do
-    [ -f "$b" ] || { echo "FAIL: $b is not on this host -- nothing to pin" >&2; return 1; }
-  done
-  { echo "# prebuilt host binaries that enter the SIGNED image but are not built here."
-    echo "# ONE digest per path. regenerate with ./build.sh blobpin; blobver() checks"
-    echo "# this before uki() wraps anything, and G58 checks that it still does."
-    echo "# these bytes come from a distro's build servers -- pinning makes them fixed"
-    echo "# and visible in a diff, it does not make them trustworthy. see trust.manifest."
-    for b in "${blobs[@]}"; do printf '%s  %s\n' "$(sha256sum < "$b" | awk '{print $1}')" "$b"; done
-  } > blobs.sha256
+  pkg="systemd-$ver-x86_64.pkg.tar.zst"
+  # the members this build cuts out, in one place. one today; a second is one
+  # more word here, and blob()/blobver() read the file.
+  local members=(linuxx64.efi.stub)
+  mkdir -p "$XOS_CACHE" "$XOS_BLOBS"
+  [ -f "$XOS_CACHE/$pkg" ] || pull "$(ala_pkg_url "$pkg")" "$pkg" \
+    || { echo "FAIL: could not fetch $pkg from $(ala_pkg_url "$pkg")" >&2; return 1; }
+  want_pkg=$(sha256sum < "$XOS_CACHE/$pkg" | awk '{print $1}')
+  { echo "# prebuilt bytes that enter the SIGNED image but are not built here: the"
+    echo "# systemd EFI stub, cut from ONE arch package fetched by name from the arch"
+    echo "# linux archive -- the frozen archive the repro toolchain is pinned to --"
+    echo "# never from whatever the build host has installed, so a host upgrade can"
+    echo "# neither move the signed bytes nor halt the build. ONE digest per line: the"
+    echo "# package, then each member blob() cuts from it. regenerate with"
+    echo "# ./build.sh blobpin <pkgver>; blob() fetches + verifies both, blobver()"
+    echo "# re-checks before uki() wraps anything, and G58 checks that it still does."
+    echo "# pinning fixes the bytes and names them in a diff; it does not make them"
+    echo "# trustworthy. see trust.manifest."
+    printf '%s  %s\n' "$want_pkg" "$pkg"
+    for name in "${members[@]}"; do
+      member=$(tar --zstd -tf "$XOS_CACHE/$pkg" | grep -E "(^|/)$name\$" || true)
+      [ "$(printf '%s\n' "$member" | grep -c .)" -eq 1 ] || { echo "FAIL: $pkg holds no unique member $name" >&2; return 1; }
+      want_m=$(tar --zstd -xOf "$XOS_CACHE/$pkg" "$member" | sha256sum | awk '{print $1}')
+      printf '%s  %s\n' "$want_m" "$name"
+    done
+  } > blobs.sha256.tmp || { rm -f blobs.sha256.tmp; return 1; }
+  mv -f blobs.sha256.tmp blobs.sha256
   cat blobs.sha256
+  # cut the members now so the next uki() finds them already pinned-and-present.
+  blob
 }
 
 pin() {
@@ -3904,22 +4010,24 @@ G51
   log_selftest || g57=FAIL
   g "G57 a rewritten chain is refused" "$g57"
 
-  # G58 -- structural, in the G45/G47 mould. blobver() only helps while uki()
-  # still calls it, and it is one line someone debugging a systemd upgrade
+  # G58 -- structural, in the G45/G47 mould. blob()/blobver() only help while
+  # uki() still calls them, and each is one line someone debugging a fetch
   # would comment out in thirty seconds. so check the SHAPE: blobs.sha256 names
-  # the stub, and uki()'s body calls blobver before it reaches ukify. checking
-  # the digest here instead would be the wrong gate -- gates() runs after the
-  # image is already built and signed.
+  # the stub AND the package it is cut from, and uki()'s body runs blob, then
+  # blobver, before it reaches ukify. checking the digest here instead would be
+  # the wrong gate -- gates() runs after the image is already built and signed.
   local g58=ok body58
   body58=$(sed -n '/^uki() {/,/^}/p' build.sh)
-  grep -qF -- "$STUB" blobs.sha256 2>/dev/null \
+  grep -qE -- "[[:space:]]${STUB##*/}\$" blobs.sha256 2>/dev/null \
     || { g58=FAIL; printf '    the EFI stub is not pinned in blobs.sha256\n' >&2; }
+  [ "$(blob_pkg 2>/dev/null | grep -c .)" -eq 1 ] \
+    || { g58=FAIL; printf '    blobs.sha256 does not name exactly one package to cut the stub from\n' >&2; }
   # anchored: a commented-out call, or the word appearing in prose, must not
   # satisfy this. it has to be a statement that actually runs.
-  printf '%s\n' "$body58" | awk '/^[[:space:]]*blobver([[:space:]]|$)/{b=NR} /ukify[[:space:]]/{u=NR} END{exit !(b && u && b < u)}' \
-    || { g58=FAIL; printf '    uki() no longer calls blobver before ukify -- the signed image\n' >&2
-         printf '    would wrap an unchecked blob\n' >&2; }
-  g "G58 host blobs checked before they are signed" "$g58"
+  printf '%s\n' "$body58" | awk '/^[[:space:]]*blob([[:space:]]|$)/{f=NR} /^[[:space:]]*blobver([[:space:]]|$)/{b=NR} /ukify[[:space:]]/{u=NR} END{exit !(f && b && u && f < b && b < u)}' \
+    || { g58=FAIL; printf '    uki() no longer runs blob then blobver before ukify -- the signed\n' >&2
+         printf '    image would wrap an unfetched or unchecked blob\n' >&2; }
+  g "G58 pinned blobs fetched and checked before they are signed" "$g58"
 
   # G59 -- the container's packages by content, not by the path they came from.
   local g59=ok
@@ -5483,7 +5591,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blobver|blobpin|attest|verify|toolver|toolpin|trustver|lint|ci|outdated|bump <name> <ver>|vouch|repro|cpin|crepro|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin <pkgver>|attest|verify|toolver|toolpin|trustver|lint|ci|outdated|bump <name> <ver>|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac
