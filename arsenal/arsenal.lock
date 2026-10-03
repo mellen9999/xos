@@ -43,3 +43,4 @@ mandoc      mandoc@1.14.6(musl-static)  631056  82240abf03655323d89aed05a1243400
 minisign    minisign@0.12(musl-static)  278272  fc0b718dcac6db56c43fa8c4477753f2321ef28829ca6740b7ffaef49e999748
 dvtm        dvtm@0.15(musl-static)  339904  5352f5b26ed9aefcc5d88383e89272d2d05753e1b556c23705830f85ad125807
 rsync       rsync@3.5.1(musl-static)  849360  ad6456fc8364a74acfe784910163d6e9f6529dd1f5ea1f112ed75f8a5ec4d44c
+qrencode    github.com/fukuchi/libqrencode@715e29f(musl-static)  108544  b1f2465838cb42a04a3f335a4e80cde2ff7f7141b44b182bbc5e22fed1682e1c

@@ -5092,6 +5092,30 @@ ci() {
       printf '  every field tool is drilled\n'
     fi
   fi
+  # arsenal.lock attests the BUILD OUTPUT; its sha drifts per build (build-ids),
+  # so nothing can gate the hash -- but the SET of rows must still track what is
+  # carried. a tool pinned, built and catalogued yet missing from the lock ships
+  # unattested, which is exactly how qrencode slipped in with no gate to catch
+  # it. hold the roster both ways: every catalogued compiled tool has a lock row,
+  # every lock row is catalogued. the four presentation WRAPPERS
+  # (atlas/chart/qr/view) ship as arsenal/ scripts, not compiled binaries, so
+  # they carry no lock row; qrencode IS the real binary the `qr` wrapper drives,
+  # so it does. file.mgc is file's magic db, attested beside it, not a tool.
+  if [ -f arsenal/arsenal-catalog ] && [ -f arsenal/arsenal.lock ]; then
+    say "arsenal.lock attests every carried tool"
+    local _lk_cat _lk_lock _lk_a _lk_b
+    _lk_cat=$(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | grep -vxE 'atlas|chart|qr|view' | sort -u)
+    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vx 'file.mgc' | sort -u)
+    _lk_a=$(comm -23 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
+    _lk_b=$(comm -13 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
+    if [ -n "$_lk_a" ]; then
+      printf '  \033[1;31mcatalogued but not in arsenal.lock\033[0m (built but unattested): %s\n' "$(echo $_lk_a)" >&2; rc=1
+    fi
+    if [ -n "$_lk_b" ]; then
+      printf '  \033[1;31min arsenal.lock but not catalogued\033[0m (attesting a tool nothing lists): %s\n' "$(echo $_lk_b)" >&2; rc=1
+    fi
+    [ -z "$_lk_a$_lk_b" ] && printf '  every carried tool is attested in arsenal.lock\n'
+  fi
   # every card's ref: names a real reference page, and every page names a tool a
   # card drills -- the Tab panel and `arsenal learn ref` both read these, so a
   # ref: with no page is a dead panel and an orphan page is a claim nothing uses.
