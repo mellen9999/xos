@@ -356,11 +356,13 @@ the set rides the hash tree.
   defaults; a registered nick's password rides `IRC_PASS` from the environment,
   never argv or history
 
-the one attack surface this knowingly accepts: the usb-net drivers (rndis,
-cdc-ether) that make tethering work, and the usb-serial drivers (ftdi, cp210x,
-ch341, pl2303, cdc-acm) that reach a hardware terminal, parse whatever a
-plugged-in device claims to be. reachable only by physically plugging something
-in, and none of them can bind a disk.
+the one attack surface this knowingly accepts: the usb-net drivers (cdc-ether,
+cdc-ncm, rndis, and the asix ax88179_178a / ax8817x dongle drivers) that make
+tethering work, and the usb-serial drivers (ftdi, cp210x, ch341, pl2303,
+cdc-acm) that reach a hardware terminal, parse whatever a plugged-in device
+claims to be. that is the full set `kernel.config` enables (G14/G28 pin the
+built kernel to it); reachable only by physically plugging something in, and
+none of them can bind a disk.
 
 ## when it refuses
 

@@ -56,9 +56,11 @@ naming these is the point -- it's what keeps the effort honest.
 - **rubber-hose / coercion.** there is no deniability layer and no hidden volume
   by design. a passphrase you can be forced to give up isn't a defense we pretend
   to offer.
-- **the usb-net parsers (rndis, cdc-ether) and usb-serial parsers (ftdi, cp210x,
-  ch341, pl2303, cdc-acm).** knowingly accepted attack surface, reachable only by
-  physically plugging a device in, and none can bind a disk. documented, not
+- **the usb-net parsers (cdc-ether, cdc-ncm, rndis, asix ax88179_178a / ax8817x)
+  and usb-serial parsers (ftdi, cp210x, ch341, pl2303, cdc-acm).** that is the
+  full usb-net set `kernel.config` enables, no more. knowingly accepted attack
+  surface, reachable only by physically plugging a device in, and none can bind
+  a disk. documented, not
   defended.
 - **the author's own machine while it is signing.** the build host is trusted
   here by definition -- it holds the sealed image key and now the ssh signing
