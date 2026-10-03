@@ -1119,331 +1119,13 @@ rootfs() {
   # machine on the spot (that is the alarm working), a clean pass means every
   # byte still matches the signed hash tree. a function, not a binary: the
   # command surface (and the learn corpus that must cover it) stays fixed.
-  cat > root/etc/shrc <<'SHRC'
-set -o vi
-# which vi mode you are in, written where you are already looking. busybox
-# does not change the cursor shape and echoes nothing on Esc, so on a terminal
-# without a block cursor -- a vt320 down a serial line most of all -- the two
-# modes are indistinguishable until a keystroke does the wrong thing. the
-# patched line editor wears PS1_CMD in command mode and PS1 while inserting.
-#
-# \[ \] fence the escapes out of the prompt's measured width, or every redraw
-# lands short. the mark is reverse video on every terminal that has attributes
-# -- one look on a vt320 and on a modern one, the same rule learn/lib/ui keeps
-# for the names in a question. no model list here: reverse is the one attribute
-# every terminal from the vt100 on has, so there is nothing to sort terminals
-# into, and the copy of that list this file used to carry could drift from the
-# one in lib/ui unwatched. 0 before the 7 so a program that exited with an
-# attribute still set cannot bleed into the mark.
-_e=$(printf '\033')
-case "${TERM:-dumb}" in
-	dumb|'') _m=""          ;;
-	*)       _m="$_e[0;7m"  ;;
-esac
-PS1='\w \$ '
-[ -n "$_m" ] && PS1_CMD="\\w \\[$_m\\]\\\$\\[$_e[0m\\] "
-unset _e _m
-# the command you got wrong at the real prompt is the best thing learn could
-# ask you about, and it is readable for exactly one instant -- the moment the
-# next prompt is drawn, when $? still holds the status and the line you ran is
-# already the last line of the history file. ash has no precmd hook, so the
-# prompt itself is the hook: CONFIG_ASH_EXPAND_PRMT sends $PS1 through the
-# shell's own expansion, and a command substitution in it runs once per prompt.
-#
-# what is written: a command NAME, one per line, and only when this image
-# ships a reference page for that name. never an argument, never the line,
-# never a path, never a time, never the status. the corpus is an allowlist, so
-# a mistyped password, a hostname, or a command that does not exist here is
-# not a name that can be written -- that is the mechanism, not a filter
-# someone has to keep ahead of.
-#
-# OFF unless the queue file exists, and then the hook is not even in $PS1: no
-# file, no command substitution, no fork per prompt. `learn fumbles on`
-# creates it, `learn fumbles off` removes it, and the test inside the function
-# means off takes effect at the next prompt in shells already running.
-#
-# the history read is a builtin loop and not `tail`, so a failed command costs
-# no process at all. it reads the whole file to keep the last line -- a
-# thousand lines of a tmpfs file, once, only when something failed.
-_fumble() {
-	local q="${XDG_STATE_HOME:-$HOME/.local/state}/learn/fumbles" s="${1:-0}" l= p=
-	[ "$s" = 0 ] && return 0
-	[ -f "$q" ] || return 0
-	# the last successful read, not the variable the loop leaves behind: the
-	# read that meets EOF returns nonzero AND blanks its variable, so a loop
-	# that reads straight into l ends holding an empty string every time.
-	while IFS= read -r p; do l=$p; done < "${HISTFILE:-$HOME/.ash_history}" 2>/dev/null
-	set -- $l
-	l=
-	# the command is the first word that is not a flag, an assignment or a
-	# wrapper -- `FOO=1 env sed ...` is a sed line. same rule lib/autopsy
-	# reads history by, because two rules for "what command is this" is two
-	# answers to it.
-	for p in "$@"; do
-		case "$p" in
-			-*|*=*|env|time|nice|command|builtin|exec) continue ;;
-		esac
-		l=${p##*/}; break
-	done
-	case "$l" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
-	# a nonzero status is not always a mistake. these are asked a question and
-	# 1 is them answering no: a grep that matched nothing, a cmp of two files
-	# that differ, a pgrep for something not running. recording those would
-	# bury the real misses under the most-used tools on the machine. a usage
-	# error from the same commands is 2, and that still counts.
-	case "$l:$s" in
-		false:*|test:*|'[':*) return 0 ;;
-		grep:1|egrep:1|fgrep:1|cmp:1|diff:1|expr:1|pgrep:1|pkill:1|ping:1|which:1|kill:1) return 0 ;;
-	esac
-	[ -f "${LEARN_ROOT:-/usr/share/learn}/ref/$l" ] && echo "$l" >> "$q"
-	return 0
-}
-[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/learn/fumbles" ] && PS1='$(_fumble $?)'"$PS1"
-scrub() {
-	echo "reading every verity-covered byte -- a rotten block panics the machine, and that is the alarm working"
-	local d dev=""
-	for d in /sys/block/dm-*; do
-		[ "$(cat "$d/dm/name" 2>/dev/null)" = vroot ] && dev="/dev/${d##*/}" && break
-	done
-	if [ -n "$dev" ] && dd if="$dev" of=/dev/null bs=1M 2>/dev/null; then
-		echo "scrub clean: every byte on this stick still matches the signed hash tree"
-	else
-		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
-	fi
-}
-# recon reports a changed machine on every boot until a human says this is
-# the machine now. that is this: the reported inventory becomes the baseline.
-recon_accept() {
-	local f n=0
-	# vault mode: the recon dir is a RAM copy of p3's. moving a file in it would
-	# print "accepted" over a change the stick never sees. refuse, and say how.
-	[ -e /tmp/.xos-vault ] && { echo "recon_accept: vault mode -- the stick is write-protected, so nothing can be accepted. switch write-protect off and reboot to accept."; return 1; }
-	for f in /tmp/home/recon/*.new; do
-		[ -f "$f" ] || continue
-		mv "$f" "${f%.new}" && sync && n=$((n + 1)) && echo "accepted: machine ${f##*/recon/} is the baseline now"
-	done
-	[ "$n" -gt 0 ] || echo "nothing to accept -- no machine is reported as changed"
-}
-# clone -- copy THIS whole stick (boot code, root, and your encrypted p3) onto a
-# spare you plug in, then read every byte back to prove the copy is exact. no
-# build host, no keys: a stick is just bytes, and this copies all of them. the
-# spare boots on the same enrolled keys and unlocks p3 with the same passphrase,
-# so keep it somewhere safe and apart. for a perfect copy, do this with the
-# write-protect switch ON (vault mode) so nothing changes mid-copy.
-clone() {
-	local d bpart bootdisk
-	for d in /sys/block/dm-*; do
-		[ "$(cat "$d/dm/name" 2>/dev/null)" = vroot ] || continue
-		bpart=$(ls "$d/slaves" 2>/dev/null | head -1); break
-	done
-	bootdisk=$(printf '%s' "$bpart" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
-	[ -n "$bootdisk" ] && [ -b "/dev/$bootdisk" ] \
-		|| { echo "clone: could not tell which stick this booted from -- not safe to copy"; return 1; }
-	# a spare is a whole removable disk that is not this stick. usb sticks show up
-	# here; the host's own disks never do (xos ships no driver that can see them).
-	local c name spares="" n=0
-	for c in /sys/block/*; do
-		name=${c##*/}
-		case "$name" in loop*|dm-*|ram*|zram*|sr*|md*) continue ;; esac
-		[ "$name" = "$bootdisk" ] && continue
-		[ "$(cat "$c/removable" 2>/dev/null)" = 1 ] || continue
-		[ -b "/dev/$name" ] || continue
-		spares="$spares $name"; n=$((n + 1))
-	done
-	if [ "$n" -eq 0 ]; then
-		echo "clone: plug in the spare stick first -- nothing removable is attached yet."
-		return 1
-	fi
-	if [ "$n" -gt 1 ]; then
-		echo "clone: more than one spare is plugged in. leave ONLY the target in, then run clone again:"
-		for name in $spares; do echo "  /dev/$name  ($(cat "/sys/block/$name/device/model" 2>/dev/null))"; done
-		return 1
-	fi
-	local dst; dst=$(printf '%s' "$spares" | tr -d ' ')
-	grep -q "^/dev/$dst" /proc/mounts && { echo "clone: /dev/$dst is in use (mounted) -- unmount it first"; return 1; }
-	local bmodel dmodel bsec dsec
-	# sysfs pads the model field; trim trailing spaces so what you type matches
-	bmodel=$(cat "/sys/block/$bootdisk/device/model" 2>/dev/null | sed 's/[[:space:]]*$//')
-	dmodel=$(cat "/sys/block/$dst/device/model" 2>/dev/null | sed 's/[[:space:]]*$//')
-	bsec=$(cat "/sys/block/$bootdisk/size" 2>/dev/null)
-	dsec=$(cat "/sys/block/$dst/size" 2>/dev/null)
-	[ -n "$bsec" ] && [ -n "$dsec" ] || { echo "clone: could not read the disk sizes"; return 1; }
-	[ "$dsec" -ge "$bsec" ] \
-		|| { echo "clone: the spare ($((dsec/2048)) MiB) is smaller than this stick ($((bsec/2048)) MiB) -- it cannot hold a full copy"; return 1; }
-	echo
-	echo "  this stick   /dev/$bootdisk  ($((bsec/2048)) MiB, ${bmodel:-unknown})   -- read only"
-	echo "  the spare    /dev/$dst  ($((dsec/2048)) MiB, ${dmodel:-unknown})   -- ERASED and overwritten"
-	echo
-	echo "  everything on the spare is destroyed and replaced with an exact copy of this stick."
-	printf "  to go ahead, type the spare's model exactly (%s): " "${dmodel:-unknown}"
-	local ans; IFS= read -r ans
-	[ "$ans" = "${dmodel:-unknown}" ] || { echo "  that did not match -- nothing was written."; return 1; }
-	sync
-	echo "  copying $((bsec/2048)) MiB -- this takes a while (very roughly a minute per 500 MiB)."
-	echo "  do NOT pull either stick until it says done."
-	if ! dd if="/dev/$bootdisk" of="/dev/$dst" bs=4M 2>/dev/null; then
-		echo "  clone: the copy did not finish -- do not trust /dev/$dst"; return 1
-	fi
-	sync
-	# drop the page cache so the read-back comes off the medium, not the copy we
-	# just wrote -- busybox dd has no iflag=direct, so without this h2 could be
-	# served from cache and prove nothing. best-effort, root-only procfs.
-	echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
-	echo "  reading it back to prove the copy is exact..."
-	local h1 h2 full rem
-	# hash EXACTLY the source's byte count on both sticks: the full 4M blocks,
-	# then the sub-4M tail (where p3 ends) that a 4M-only count silently drops.
-	full=$((bsec/8192)); rem=$((bsec - full*8192))
-	h1=$({ dd if="/dev/$bootdisk" bs=4M count=$full 2>/dev/null; dd if="/dev/$bootdisk" bs=512 skip=$((full*8192)) count=$rem 2>/dev/null; } | sha256sum | cut -d' ' -f1)
-	h2=$({ dd if="/dev/$dst"      bs=4M count=$full 2>/dev/null; dd if="/dev/$dst"      bs=512 skip=$((full*8192)) count=$rem 2>/dev/null; } | sha256sum | cut -d' ' -f1)
-	if [ -n "$h1" ] && [ "$h1" = "$h2" ]; then
-		echo "  done -- /dev/$dst is an exact copy of this stick, p3 and all."
-		echo "  it boots on the same keys and unlocks p3 with the same passphrase. store it apart."
-	else
-		echo "  clone: the read-back did NOT match -- the copy is bad, do not rely on /dev/$dst"
-		return 1
-	fi
-}
-# one channel, one screen, from the same two fifos. the top rows are a scroll
-# region fed by tail -f on the channel's out; the row above the bottom is where
-# you type; the very bottom row is a spacer, so the newline Enter itself echoes
-# never scrolls the whole screen out from under the region. every incoming line
-# is bracketed by save- and restore-cursor, so it lands in the region without
-# eating the half-typed line you are on. a line starting with / is an irc
-# command to the server; anything else is a message to the channel, shown
-# locally as well because a server never sends your own line back. Ctrl-C or
-# /quit resets the region and the cursor. nothing new ships for any of this --
-# ii's files, an ash read loop, and the scroll region every terminal from the
-# vt100 on has.
-_ircui() {
-	local dir="$1" chan="$2" out="$1/$2/out" in="$1/$2/in" srv="$1/in"
-	local e r rows n line tpf rpid
-	e=$(printf '\033')
-	rows=$(stty size 2>/dev/null | cut -d' ' -f1)
-	case "${rows:-}" in ''|*[!0-9]*) rows=${LINES:-24} ;; esac
-	case "$rows" in ''|*[!0-9]*) rows=24 ;; esac
-	[ "$rows" -lt 6 ] && rows=24
-	r=$((rows - 2))
-	# ii makes the server in first and the channel out only once joined. wait
-	# for the server fifo, join if the channel is not already open, then wait
-	# for its out to appear before painting anything.
-	n=0; while [ ! -e "$srv" ] && [ "$n" -lt 10 ]; do sleep 1; n=$((n + 1)); done
-	[ -e "$out" ] || printf '/j %s\n' "$chan" > "$srv"
-	n=0; while [ ! -e "$out" ] && [ "$n" -lt 10 ]; do sleep 1; n=$((n + 1)); done
-	[ -e "$out" ] || { echo "irc: $chan never opened (joined? $out)"; return 1; }
-	tpf="/tmp/.ircui.$$"
-	printf '%s[2J%s[H%s[1;%dr' "$e" "$e" "$e" "$r"
-	# the reader runs in the background writing only the region; its tail pid is
-	# stashed so both halves are reaped on the way out (an EXIT trap would fire
-	# on the whole login shell, not this function, so cleanup is explicit).
-	( tail -n 200 -f "$out" 2>/dev/null & echo $! > "$tpf"; wait ) | while IFS= read -r line; do
-		printf '%s7%s[%d;1H\n%s%s8' "$e" "$e" "$r" "$line" "$e"
-	done &
-	rpid=$!
-	trap 'printf "%s[r%s[?25h%s[%d;1H\r%s[2K" "$e" "$e" "$e" "$rows" "$e"; kill "$rpid" 2>/dev/null; kill "$(cat "$tpf" 2>/dev/null)" 2>/dev/null; rm -f "$tpf"; return 0' INT TERM
-	while :; do
-		printf '%s[%d;1H%s[2K%s> ' "$e" "$((r + 1))" "$e" "$chan"
-		IFS= read -r line || break
-		case "$line" in
-			/quit|/q) break ;;
-			/*) printf '%s\n' "$line" > "$srv" ;;
-			'') : ;;
-			*)  printf '%s\n' "$line" > "$in"
-			    printf '%s7%s[%d;1H\n<you> %s%s8' "$e" "$e" "$r" "$line" "$e" ;;
-		esac
-	done
-	printf '%s[r%s[?25h%s[%d;1H\r%s[2K' "$e" "$e" "$e" "$rows" "$e"
-	kill "$rpid" 2>/dev/null
-	kill "$(cat "$tpf" 2>/dev/null)" 2>/dev/null
-	rm -f "$tpf"
-	trap - INT TERM
-}
-
-# irc brings the whole tls-irc plumbing up as one word, and is safe to type
-# again -- typing it twice must not spawn a second reader on the same fifos, and
-# a tunnel that died leaving its socket file behind must not make ii hang against
-# nothing. tlstunnel does the TLS behind a unix socket; ii speaks plaintext to
-# it, so a channel stays a directory you tail and an `in` you echo to -- every
-# text tool on this system still works on the log. `irc #chan` opens that same
-# directory as a live one-screen chat; with no channel it just prints the paths.
-# no client, nothing new in the image: the two binaries that already ship, wired
-# the one way that reaches a real network. libera by default; a leading #channel,
-# then a nick, then a server override, each read the way it looks. a registered
-# nick's password rides IRC_PASS, read from the environment by name so it never
-# lands in argv or the shell history. tlstunnel's own output goes to a log so the
-# console stays clean and the refusal reason is still there to read.
-irc() {
-	# an arg beginning with # is a channel to open in one screen; the rest, in
-	# order, stay [nick] [host] exactly as before.
-	local chan="" nick="" host="" _a
-	for _a in "$@"; do
-		case "$_a" in
-			\#*) chan="$_a" ;;
-			*)   if [ -z "$nick" ]; then nick="$_a"; elif [ -z "$host" ]; then host="$_a"; fi ;;
-		esac
-	done
-	nick="${nick:-${IRC_NICK:-xos}}"; host="${host:-irc.libera.chat}"
-	local port=6697 sock="/tmp/$host.sock" dir="$HOME/irc/$host" log="/tmp/irc-$host.log" n=0 kflag=""
-	command -v tlstunnel >/dev/null && command -v ii >/dev/null \
-		|| { echo "irc: tlstunnel or ii is missing from this image"; return 1; }
-	# reuse a live tunnel; it validates the cert against the compiled-in anchors
-	# at the current clock. if none is running, clear any stale socket a dead one
-	# left (ii would hang against it), then open one. no socket after the wait
-	# means the clock never synced or the CA is not one of ours -- say so.
-	if ! pgrep -f "tlstunnel $sock " >/dev/null 2>&1; then
-		[ -e "$sock" ] && rm -f "$sock"
-		echo "irc: opening tls to $host:$port ..."
-		tlstunnel "$sock" "$host" "$port" >>"$log" 2>&1 &
-		while [ ! -S "$sock" ] && [ "$n" -lt 10 ]; do sleep 1; n=$((n + 1)); done
-		[ -S "$sock" ] \
-			|| { echo "irc: tls to $host:$port never came up -- clock unsynced or cert refused (see $log)"; return 1; }
-	fi
-	# one ii per tree. if it is already up, fall through and just print the paths.
-	if ! pgrep -f "ii -s $host " >/dev/null 2>&1; then
-		[ -n "${IRC_PASS:-}" ] && kflag="-k IRC_PASS"
-		ii -s "$host" -u "$sock" -n "$nick" $kflag -i "$HOME/irc" &
-		# ii connecting is what makes tlstunnel dial out, so only now can a tls
-		# verdict exist -- the socket above is bound before any tcp or tls
-		# happens and proved nothing (this verb used to call it "up"). wait for
-		# the first evidence either way: the server's text landing in ii's out
-		# file, tlstunnel's error in the log, or ii giving up.
-		n=0
-		while [ "$n" -lt 20 ]; do
-			[ -s "$dir/out" ] && break
-			grep -qE '^tlstunnel: (resolve|connect|ssl error|session ended)' "$log" 2>/dev/null && break
-			pgrep -f "ii -s $host " >/dev/null 2>&1 || break
-			sleep 1; n=$((n + 1))
-		done
-		if ! [ -s "$dir/out" ]; then
-			echo "irc: tls to $host:$port did not come up -- no network, clock unsynced, or cert refused:"
-			grep -E '^tlstunnel:' "$log" 2>/dev/null | tail -3 | sed 's/^/  /'
-			pkill -f "ii -s $host " 2>/dev/null; pkill -f "tlstunnel $sock " 2>/dev/null; rm -f "$sock"
-			return 1
-		fi
-	fi
-	[ -n "$chan" ] && { _ircui "$dir" "$chan"; return; }
-	echo "irc: $nick on $host"
-	echo "  chat:  irc #chan            -- one screen, type to send"
-	echo "  join:  echo /j #chan > $dir/in"
-	echo "  send:  echo hi      > $dir/#chan/in"
-	echo "  read:  tail -f $dir/#chan/out"
-}
-# start here. a booted stranger has a prompt and no way to know the tutorial,
-# the curriculum or the reference exist -- so the first shell of the boot runs
-# the tutorial: three short pages, then it points at learn. printed once per
-# boot, not per shell: /tmp is the tmpfs init creates, so the flag is gone at
-# the next boot and back for exactly one session. only on a real terminal (a
-# pipe or a non-interactive shell gets nothing), and never twice, because the
-# console respawns and every subshell re-sources this file. if tutorial is
-# somehow absent, fall back to the one line that at least names learn.
-case "$-" in
-	*i*) if [ -t 1 ] && [ ! -e /tmp/.xos-greeted ]; then
-		: > /tmp/.xos-greeted 2>/dev/null
-		if command -v tutorial >/dev/null 2>&1; then tutorial
-		else echo "xos -- run learn to start, or learn ref ls for every command"; fi
-	fi ;;
-esac
-SHRC
+  # /etc/shrc ships from overlay/etc/shrc, copied in with the rest of the
+  # overlay above. it was a quoted heredoc here until 2026-10-03; a shell file
+  # of its own parses, shellchecks and diffs as one, and the gates that read a
+  # build.sh function body by its closing brace no longer stop at a brace
+  # inside the shrc text (the rootfs() range read ended 250 lines early, and
+  # G64's /^clone() {/ matched the on-stick clone before the host one).
+  [ -f root/etc/shrc ] || { echo "FAIL: overlay/etc/shrc did not land in root/etc" >&2; return 1; }
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
@@ -2087,7 +1769,7 @@ toolchain() { toolchain_versions | sha256sum | awk '{print $1}'; }
 # before this existed (2f0698a fb7e3f1 619b2de, then 3 README commits after
 # d22d3a5), each one a day of red repro CI that nothing at push time refused:
 # README.md ships in the image, so a docs commit moves the squashfs.
-# build.sh is in the list because rootfs()'s shrc heredoc and every build flag
+# build.sh is in the list because rootfs()'s file layout and every build flag
 # live in it; a gate-only edit therefore also asks for a re-pin. that is the
 # honest cost -- cpin is three minutes, a wrong pin is a false claim.
 IMAGE_SRC="README.md init tutorial overlay
@@ -3155,14 +2837,14 @@ G44EOF
   # so the gate simply read FAIL with nothing to say why. type -P already
   # returns an absolute path, so both branches agree.
   bb35=$PWD/busybox; [ -x "$bb35" ] || bb35=$(type -P busybox 2>/dev/null)
-  for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script; do
+  for f35 in init learn/learn learn/lib/* overlay/usr/share/udhcpc/default.script overlay/etc/shrc; do
     e35=$("$bb35" ash -n "$f35" 2>&1) \
       || { g35=FAIL; printf '    %s does not parse: %s\n' "$f35" "$e35" >&2; }
   done
-  # /etc/shrc is written by a quoted heredoc, so `bash -n build.sh` never looks
-  # inside it and nothing else did either. it is the first file every
-  # interactive shell on the stick sources: a syntax error in it is a broken
-  # prompt on every console, at once, with the build green.
+  # /etc/shrc is the first file every interactive shell on the stick sources:
+  # a syntax error in it is a broken prompt on every console, at once, with the
+  # build green. its source (overlay/etc/shrc) is in the list above; this is
+  # the shipped copy, parsed again so a copy that was not made is not a pass.
   if [ -f root/etc/shrc ]; then
     e35=$("$bb35" ash -n root/etc/shrc 2>&1) \
       || { g35=FAIL; printf '    root/etc/shrc does not parse: %s\n' "$e35" >&2; }
@@ -5260,7 +4942,7 @@ ci() {
   bb=./busybox; [ -x "$bb" ] || bb=$(type -P busybox 2>/dev/null || true)
   say "parsing every first-party script"
   for f in build.sh selftest.sh init learn/learn learn/lib/* \
-           overlay/usr/share/udhcpc/default.script githooks/pre-commit githooks/pre-push \
+           overlay/usr/share/udhcpc/default.script overlay/etc/shrc githooks/pre-commit githooks/pre-push \
            learn/install.sh learn/push learn/wrapper ci/xos-* \
            arsenal/*.sh arsenal/push arsenal/wrapper arsenal/arsenal arsenal/xexec arsenal/qr \
            arsenal/learn arsenal/lib/*; do
