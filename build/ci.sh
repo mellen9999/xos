@@ -327,6 +327,28 @@ bump() {
   echo "next:  ./build.sh all   then flash the stick.   to undo:  ./build.sh bump $name $old"
 }
 
+# ci_reconcile ROSTER RAN SKIPPED -- every rostered check ran or said why it
+# did not, and nothing ran that the roster does not name (a new check must be
+# rostered to count). a function of its own so the rule is provable in a
+# harness without a four-minute ci run.
+ci_reconcile() {
+  local roster=$1 ran=$2 skipped=$3 c nran=0 nskip=0 lost="" stray="" rc=0
+  for c in $roster; do
+    case " $ran " in *" $c "*) nran=$((nran + 1)); continue ;; esac
+    case " $skipped " in *" $c "*) nskip=$((nskip + 1)); continue ;; esac
+    lost="$lost $c"
+  done
+  for c in $ran $skipped; do
+    case " $roster " in *" $c "*) ;; *) stray="$stray $c" ;; esac
+  done
+  [ -z "$lost" ]  || { printf '  \033[1;31mrostered checks that neither ran nor skipped:%s\033[0m\n' "$lost" >&2; rc=1; }
+  [ -z "$stray" ] || { printf '  \033[1;31mchecks ran that the roster does not name:%s\033[0m\n' "$stray" >&2; rc=1; }
+  # shellcheck disable=SC2086
+  printf '  %d checks rostered: %d ran, %d skipped%s\n' "$(echo $roster | wc -w)" "$nran" "$nskip" \
+    "$([ -n "$skipped" ] && printf ' (%s)' "$(echo $skipped)")"
+  return $rc
+}
+
 ci() {
   # the checks that need neither the signing key nor a full image build, in one
   # command a self-hosted runner, a timer, or the pre-push hook can call. the
@@ -336,10 +358,24 @@ ci() {
   # parse, a shellcheck error, a corpus authoring defect. no network, no root.
   say "ci -- buildless checks (no key, no image)"
   local rc=0 f chk bb f48py
+  # the run-roster. gates() reconciles what ran against its roster; ci() had
+  # no such thing, so a check whose guard was false ([ -d arsenal/levels ] on a
+  # partial tree, a missing Dockerfile) simply never appeared, and nothing said
+  # so. every check now registers by name as it runs (cic) or as it is skipped
+  # (cis, with the reason, in yellow); the summary reconciles both against this
+  # list. a rostered name that did neither is a FAIL -- the check vanished.
+  local CI_ROSTER="provenance shellcheck parse pyparse dockerfile trust
+    learn-ledger learn-corpus arsenal-selftest arsenal-ledger arsenal-order xexec
+    one-q tool-cards lock-roster ref-pages libparity schoolship learnship
+    pin-source readme-counts"
+  CI_ROSTER=$(echo $CI_ROSTER)   # one line, single spaces: the matches below are word-bounded by spaces
+  local CI_RAN="" CI_SKIPPED=""
+  cic() { CI_RAN="$CI_RAN $1"; }
+  cis() { CI_SKIPPED="$CI_SKIPPED $1"; printf '  \033[1;33mSKIP\033[0m %s -- %s\n' "$1" "$2"; }
   # provenance first: it is the cheapest check here and the one that says
   # whose tree this is. unverified is not a failure -- a stranger on a shallow
   # clone, or the repro container with no openssh, must still be able to run ci.
-  vouch || [ "$?" -eq 2 ] || rc=1
+  cic provenance; vouch || [ "$?" -eq 2 ] || rc=1
   # a red CI tier on THIS machine is not a defect of this tree, so it is not a
   # failure here -- but a push from a box whose timers are red should not go
   # out blind to it. one yellow line per red tier, from the per-machine logs.
@@ -351,7 +387,7 @@ ci() {
   # because forcing it would prove nothing; shellcheck's absence proves
   # nothing either way and is one package away, so ci refuses rather than
   # printing "buildless checks pass" over an unlinted tree.
-  local lrc=0; lint || lrc=$?
+  local lrc=0; cic shellcheck; lint || lrc=$?
   case $lrc in
     0) ;;
     2) printf '  \033[1;31mci needs shellcheck -- it cannot certify what it did not run\033[0m\n' >&2; rc=1 ;;
@@ -364,6 +400,7 @@ ci() {
   # of parsing). -P forces a PATH lookup for the real binary.
   bb=./busybox; [ -x "$bb" ] || bb=$(type -P busybox 2>/dev/null || true)
   say "parsing every first-party script"
+  cic parse
   for f in build.sh build/*.sh selftest.sh init learn/learn learn/lib/* \
            overlay/usr/share/udhcpc/default.script overlay/etc/shrc githooks/pre-commit githooks/pre-push \
            learn/install.sh learn/push learn/wrapper ci/xos-* \
@@ -383,6 +420,7 @@ ci() {
   # atlas, view, chart and the canvas.py engine are python, not shell -- ash
   # -n would reject them for the wrong reason, so they get the interpreter's
   # own syntax check, same as gates() G48.
+  cic pyparse
   for f48py in arsenal/atlas arsenal/view arsenal/chart arsenal/canvas.py; do
     [ -f "$f48py" ] || continue
     python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], doraise=True)" "$f48py" \
@@ -394,6 +432,7 @@ ci() {
   # a tag or a live-mirror slip silently breaks reproducibility -- catch it here.
   if [ -f repro/Dockerfile ]; then
     say "repro toolchain pinned"
+    cic dockerfile
     local dok=1
     grep -qE '^FROM[[:space:]]+\S+@sha256:[0-9a-f]{64}' repro/Dockerfile \
       || { printf '  \033[1;31mFROM is not pinned by digest\033[0m\n' >&2; dok=0; rc=1; }
@@ -401,17 +440,24 @@ ci() {
       || { printf '  \033[1;31mALA is not a frozen YYYY/MM/DD day\033[0m\n' >&2; dok=0; rc=1; }
     toolver || { dok=0; rc=1; }
     [ "$dok" -eq 1 ] && printf '  base pinned by digest, packages frozen to one ALA day\n'
+  else
+    cis dockerfile "no repro/Dockerfile in this tree"
   fi
   # the trust surface. buildless by construction -- it reads committed files
   # and nothing else -- and the class of regression it catches (a new host
   # tool, a new source, a new container package with nobody accounting for it)
   # is exactly the kind you want named on the push, not six days later.
   say "trust surface"
-  trustver || rc=1
+  cic trust; trustver || rc=1
   # the learn authoring ledger: pure static analysis, no busybox needed. it is
   # advisory by design (see lib/lint) -- printed so drift shows in the ci log,
   # never a hard fail, so it cannot breed filler.
-  [ -d learn/ref ] && { say "learn authoring ledger"; LEARN_ROOT="$PWD/learn" ./learn/learn lint 2>&1 || true; }
+  if [ -d learn/ref ]; then
+    say "learn authoring ledger"; cic learn-ledger
+    LEARN_ROOT="$PWD/learn" ./learn/learn lint 2>&1 || true
+  else
+    cis learn-ledger "no learn/ref"
+  fi
   # order and coverage, on the other hand, ARE hard -- and they belong here
   # rather than only in the weekly signed tier, because neither needs a built
   # image: both read the committed corpus and ref pages and nothing else. a
@@ -420,6 +466,7 @@ ci() {
   # that made it, not six days later.
   if [ -d learn/ref ] && [ -n "$bb" ]; then
     say "learn corpus order and coverage"
+    cic learn-corpus
     local cv_out cv_rc=0
     LEARN_ROOT="$PWD/learn" "$bb" ash learn/learn order || rc=1
     # captured rather than piped: a pipe hands back the exit status of the
@@ -428,6 +475,8 @@ ci() {
     cv_out=$(LEARN_ROOT="$PWD/learn" "$bb" ash learn/learn coverage -q 2>&1) || cv_rc=1
     printf '%s\n' "$cv_out" | sed -n '3,5p'
     [ "$cv_rc" -eq 0 ] || { printf '%s\n' "$cv_out" >&2; rc=1; }
+  else
+    cis learn-corpus "no learn/ref or no busybox to run the engine"
   fi
   # the graded arsenal school, the same static net G25 gives base learn: render
   # every card, grade each card's own answer, and hold unique-boss / >=5-per-boss.
@@ -438,6 +487,7 @@ ci() {
   # is caught on the push, while a merely-absent tool is not mistaken for a defect.
   if [ -d arsenal/levels ] && [ -n "$bb" ]; then
     say "arsenal school selftest"
+    cic arsenal-selftest
     # the answers' PATH: an applet dir built from the fort busybox, so a card is
     # graded against the commands the stick has -- not the host's gnu set, which
     # hid the rabin2 stick-only failure. with no built busybox (a fresh clone),
@@ -458,25 +508,32 @@ ci() {
     # the authoring ledger: advisory like learn's (never gated -- a hard rule on
     # wording breeds filler), printed so single-phrasing/same-words drift shows.
     say "arsenal authoring ledger"
+    cic arsenal-ledger
     ARSENAL_ROOT="$PWD/arsenal" "$bb" ash arsenal/learn lint 2>&1 || true
     # order: a mission may only lean on a tool an earlier (or this) mission has
     # taught -- the base school's G27, which the arsenal school never had. a HARD
     # gate (not advisory like the ledger): a card reaching for a not-yet-taught
     # tool is a dead end for the learner, the exact defect G27 forbids base-side.
     say "arsenal missions teach before they use"
+    cic arsenal-order
     local ao_out ao_rc=0
     ao_out=$(ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn order 2>&1) || ao_rc=1
     printf '  %s\n' "$ao_out"
     [ "$ao_rc" -eq 0 ] || rc=1
     [ -n "$abb" ] && rm -rf "$abb"
+  else
+    cis arsenal-selftest "no arsenal/levels or no busybox to run the engine"
+    cis arsenal-ledger "same"; cis arsenal-order "same"
   fi
-  xexecproof || rc=1
+  if [ -x ./busybox ]; then cic xexec; xexecproof || rc=1
+  else cis xexec "no built busybox to stage (./build.sh busybox first)"; fi
   # one q: per card, across every corpus that becomes SRS cards. the card key
   # is the q: template, stored one tab-separated row per card; a second q: line
   # gives held_keys (which reads only the first) a different key than blk_load
   # (which reads them all), so the card would never register as held -- the same
   # grade-time-vs-read-time split as the review bug. forbid it at the source.
   say "one q: per card"
+  cic one-q
   local q2
   q2=$(awk '
     FNR==1{ blk=0; q=0 }
@@ -495,6 +552,7 @@ ci() {
   # exempt by name -- and a sixth one added later fails this until someone says so.
   if [ -f arsenal/arsenal-catalog ] && [ -d arsenal/levels ]; then
     say "every field tool has a card"
+    cic tool-cards
     local _cov_miss
     _cov_miss=$(comm -23 \
       <(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | sort -u) \
@@ -508,6 +566,8 @@ ci() {
     else
       printf '  every field tool is drilled\n'
     fi
+  else
+    cis tool-cards "no arsenal catalog or levels"
   fi
   # arsenal.lock attests the BUILD OUTPUT; its sha drifts per build (build-ids),
   # so nothing can gate the hash -- but the SET of rows must still track what is
@@ -520,6 +580,7 @@ ci() {
   # so it does. file.mgc is file's magic db, attested beside it, not a tool.
   if [ -f arsenal/arsenal-catalog ] && [ -f arsenal/arsenal.lock ]; then
     say "arsenal.lock attests every carried tool"
+    cic lock-roster
     local _lk_cat _lk_lock _lk_a _lk_b
     _lk_cat=$(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | grep -vxE 'atlas|chart|qr|view' | sort -u)
     _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vx 'file.mgc' | sort -u)
@@ -532,12 +593,15 @@ ci() {
       printf '  \033[1;31min arsenal.lock but not catalogued\033[0m (attesting a tool nothing lists): %s\n' "$(echo $_lk_b)" >&2; rc=1
     fi
     [ -z "$_lk_a$_lk_b" ] && printf '  every carried tool is attested in arsenal.lock\n'
+  else
+    cis lock-roster "no arsenal catalog or lock"
   fi
   # every card's ref: names a real reference page, and every page names a tool a
   # card drills -- the Tab panel and `arsenal learn ref` both read these, so a
   # ref: with no page is a dead panel and an orphan page is a claim nothing uses.
   if [ -d arsenal/ref ] && [ -d arsenal/levels ]; then
     say "arsenal reference pages cover the cards"
+    cic ref-pages
     local _rf_refs _rf_have _rf_miss _rf_orphan
     _rf_refs=$( { grep -h '^ref:' arsenal/levels/* 2>/dev/null | sed 's/^ref: *//'
                   grep -h '^teach:' arsenal/levels/* 2>/dev/null | sed 's/^teach: *//'; } \
@@ -552,24 +616,29 @@ ci() {
       printf '  \033[1;31mreference page no card names\033[0m (remove it or point a ref: at it): %s\n' "$(echo $_rf_orphan)" >&2; rc=1
     fi
     [ -z "$_rf_miss$_rf_orphan" ] && printf '  every ref: has a page, every page a card\n'
+  else
+    cis ref-pages "no arsenal/ref or levels"
   fi
   # the copied engine libs must still match the fort's -- the one gate that
   # stops a fix landing in one tree and not the other (the drift this session found).
-  [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }
-  [ -x arsenal/learn ] && { schoolship || rc=1; }
+  if [ -d arsenal/lib ] && [ -d learn/lib ]; then cic libparity; libparity || rc=1
+  else cis libparity "no arsenal/lib or learn/lib"; fi
+  if [ -x arsenal/learn ]; then cic schoolship; schoolship || rc=1
+  else cis schoolship "no arsenal/learn"; fi
   # the README states counts the reader trusts -- the command surface, the level
   # and question totals. nothing checked them, so they drifted release after
   # release (202 vs 203 ref pages, 894 vs 963 questions). re-derive the three
   # that are exact file-or-corpus facts and make the prose match. the applet
   # count is left out here: it is `busybox --list` on the BUILT binary, which a
   # buildless runner may not have, and a host busybox has a different set.
-  learnship || rc=1
+  cic learnship; learnship || rc=1
   # the pin is a claim about COMMITTED source; refuse to let a HEAD that moved
   # an image-affecting path travel with a pin taken from an older one. buildless:
   # it compares tree ids, not bytes -- the byte check is crepro, which is where
   # this used to be caught, weekly, after the push.
   if [ -f image.sha256 ] && git rev-parse --verify -q HEAD >/dev/null 2>&1; then
     say "image pin is taken from this source"
+    cic pin-source
     local want_src have_src pin_at
     want_src=$(awk '$1=="source"{print $2}' image.sha256)
     have_src=$(srcpin)
@@ -587,9 +656,12 @@ ci() {
       printf '  source digest %s... matches the pin\n' "${have_src:0:16}"
     fi
     srcpin_cover || { printf '  \033[1;31mIMAGE_SRC is missing an input rootfs() ships -- the staleness check above has a blind spot\033[0m\n' >&2; rc=1; }
+  else
+    cis pin-source "no image.sha256 or not a git tree"
   fi
   if [ -f README.md ] && [ -d learn/ref ] && [ -d learn/levels ]; then
     say "README counts match the tree"
+    cic readme-counts
     local rc_cmd rc_lvl rc_q claim_cmd claim_lvl claim_q
     rc_cmd=$(find learn/ref -mindepth 1 -maxdepth 1 -type f | grep -c .)
     rc_lvl=$(find learn/levels -mindepth 1 -maxdepth 1 -type f | grep -c .)
@@ -609,7 +681,10 @@ ci() {
       [ "$claim_q" = "$rc_q" ] || { printf '  \033[1;31mREADME says %s questions, learn lint counts %s\033[0m\n' "${claim_q:-?}" "$rc_q" >&2; cnt_bad=1; }
     fi
     if [ "$cnt_bad" -eq 0 ]; then printf '  %s commands, %s levels, %s questions -- README matches\n' "$rc_cmd" "$rc_lvl" "${rc_q:-?}"; else rc=1; fi
+  else
+    cis readme-counts "no README or learn corpus"
   fi
+  ci_reconcile "$CI_ROSTER" "$CI_RAN" "$CI_SKIPPED" || rc=1
   [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
                   || printf '\033[1;31m  ci: FAILED\033[0m\n'
   return $rc
