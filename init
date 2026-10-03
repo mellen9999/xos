@@ -1001,7 +1001,10 @@ if state_open; then
 		# reaches the stick, by design. say that, not the opposite.
 		printf '  vault mode -- %s is RAM: nothing you do persists, and nothing on the stick changes\n' "$HOME" > /dev/console
 	else
-		printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
+		# the mode and filesystem are read back after the mount and the chmod,
+		# so the line reports what is, not what was asked for.
+		printf '  state unlocked -- %s persists across reboots (0%s, %s)\n' "$HOME" \
+			"$(stat -c %a "$HOME" 2>/dev/null)" "$(stat -f -c %T "$HOME" 2>/dev/null)" > /dev/console
 	fi
 	recon_check "$STATE_DIR"
 	ledger_note "$STATE_DIR"

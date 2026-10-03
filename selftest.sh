@@ -1096,27 +1096,21 @@ if signed_ready A19; then
 		t=0
 		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|continuing without persistence|would not mount' "$4"; do sleep 1; t=$((t+1)); done
 		sleep 5   # let the wg/ssh lines land before the kill
-		# an optional command typed at the shell once the verdict and the wg/ssh
-		# lines have landed (the shell is spawned after them); the caller names
-		# a marker the command prints last, and this waits for it. read-only
-		# commands only: this console is a fifo, not a tty, so job control is
-		# off and a backgrounded sync never reaches the disk.
-		if [ -n "${6:-}" ]; then
-			printf '%s\n' "$6" >&9
-			t=0; while [ "$t" -lt 30 ] && ! grep -aq "${7:-PROBE-DONE}" "$4"; do sleep 1; t=$((t+1)); done
-		fi
 		exec 9>&-
 		kill "$qp19" 2>/dev/null; wait "$qp19" 2>/dev/null
 		rm -f "$fifo"
 	}
 
 	a19log=$XT/xos-a19-typed.log
-	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log" "" 'stat -c %a /tmp/home; stat -f -c %T /tmp/home; echo HOME-PROBE-DONE' HOME-PROBE-DONE
-	# the only boot where the real p3 is the home: it must be root-only on its
-	# own filesystem (busybox stat -f names ext4 "ext2/ext3").
-	grep -aq 'HOME-PROBE-DONE' "$a19log" && grep -aqE '^700' "$a19log" && grep -aqE '^ext2/ext3' "$a19log" \
+	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log"
+	# the only boot where the real p3 is the home: init's own unlock line now
+	# states the mode and the filesystem it found, read back after the chmod
+	# (busybox stat -f names ext4 "ext2/ext3"). nothing is typed at the shell:
+	# the lab console is a fifo with no controlling terminal, and a typed
+	# command there is backgrounded and never runs.
+	grep -aq 'state unlocked -- /tmp/home persists across reboots (0700, ext2/ext3)' "$a19log" \
 		&& ok "the unlocked p3 home is root-only (0700) on its own filesystem" \
-		|| bad "after a real unlock the p3 home is not 0700 ext4 ($(grep -aE '^(700|[0-7]{3}|ext)' "$a19log" | head -2 | tr '\n' ' '))"
+		|| bad "after a real unlock init did not report the p3 home as 0700 ext4 ($(grep -ao 'state unlocked -- [^\n]*' "$a19log" | head -1))"
 	# match the SUCCESS line, not the substring both outcomes share. init says
 	# "state unlocked -- <home> persists across reboots" when it worked and
 	# "state unlocked but the filesystem would not mount -- p3 is damaged" when
