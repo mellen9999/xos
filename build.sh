@@ -1263,10 +1263,17 @@ clone() {
 		echo "  clone: the copy did not finish -- do not trust /dev/$dst"; return 1
 	fi
 	sync
+	# drop the page cache so the read-back comes off the medium, not the copy we
+	# just wrote -- busybox dd has no iflag=direct, so without this h2 could be
+	# served from cache and prove nothing. best-effort, root-only procfs.
+	echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
 	echo "  reading it back to prove the copy is exact..."
-	local h1 h2
-	h1=$(dd if="/dev/$bootdisk" bs=4M count=$((bsec/8192)) 2>/dev/null | sha256sum | cut -d' ' -f1)
-	h2=$(dd if="/dev/$dst"      bs=4M count=$((bsec/8192)) 2>/dev/null | sha256sum | cut -d' ' -f1)
+	local h1 h2 full rem
+	# hash EXACTLY the source's byte count on both sticks: the full 4M blocks,
+	# then the sub-4M tail (where p3 ends) that a 4M-only count silently drops.
+	full=$((bsec/8192)); rem=$((bsec - full*8192))
+	h1=$({ dd if="/dev/$bootdisk" bs=4M count=$full 2>/dev/null; dd if="/dev/$bootdisk" bs=512 skip=$((full*8192)) count=$rem 2>/dev/null; } | sha256sum | cut -d' ' -f1)
+	h2=$({ dd if="/dev/$dst"      bs=4M count=$full 2>/dev/null; dd if="/dev/$dst"      bs=512 skip=$((full*8192)) count=$rem 2>/dev/null; } | sha256sum | cut -d' ' -f1)
 	if [ -n "$h1" ] && [ "$h1" = "$h2" ]; then
 		echo "  done -- /dev/$dst is an exact copy of this stick, p3 and all."
 		echo "  it boots on the same keys and unlocks p3 with the same passphrase. store it apart."
@@ -1453,8 +1460,10 @@ seal() {
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key" ] || continue
-    XOS_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:XOS_PASS || return 1
+    openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "keys/$k.key" -out "keys/$k.key.enc" -pass fd:3 3<<EOF || return 1
+$pass
+EOF
     shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
   done
   chmod 600 keys/*.enc
@@ -1474,8 +1483,10 @@ reseal() {
   local k ok=0
   for k in PK KEK db; do
     [ -f "$RAMKEYS/$k.key" ] || continue
-    XOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:XOS_PASS && continue
+    openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass fd:3 3<<EOF && continue
+$newpass
+EOF
     ok=1; break
   done
   if [ "$ok" -ne 0 ]; then
@@ -1525,9 +1536,11 @@ unlock() {
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key.enc" ] || continue
-    XOS_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:XOS_PASS 2>/dev/null \
+    openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass fd:3 2>/dev/null 3<<EOF \
       || { rm -rf "$RAMKEYS"; echo "FAIL: wrong passphrase" >&2; return 1; }
+$pass
+EOF
   done
   chmod 600 "$RAMKEYS"/*.key
   openssl rsa -in "$RAMKEYS/db.key" -noout 2>/dev/null \
@@ -2805,7 +2818,14 @@ G44EOF
   # switching the protection off, and the cmdline is signed, so it must be
   # caught here before it ships inside the signature.
   local c15b=0 deny15
-  for deny15 in 'mitigations=off' 'init_on_alloc=0' 'init_on_free=0' 'nokaslr' 'lockdown=none' 'nosmep' 'nosmap' 'nopti' 'no_hash_pointers' 'page_alloc.shuffle=0' 'random.trust_cpu=0'; do
+  # this is a denylist, which is only ever as complete as the list. it is
+  # tolerable ONLY because cmdline.txt is a fixed printf template in verity()
+  # with no per-boot or per-install input -- the one variable token is $testflag
+  # (G31). so this guards an EDITED template landing in a signed commit, not a
+  # typo'd boot param. keep the obvious hardening-off spellings covered; the
+  # alternate spellings (pti=off vs nopti, spectre_v2=off vs the per-bug knobs)
+  # each neuter a compiled-in mitigation from a signed cmdline just the same.
+  for deny15 in 'mitigations=off' 'mitigations=auto,nosmt' 'init_on_alloc=0' 'init_on_free=0' 'nokaslr' 'kaslr.disable' 'lockdown=none' 'lockdown=integrity' 'nosmep' 'nosmap' 'nopti' 'pti=off' 'spectre_v2=off' 'spectre_v2_user=off' 'spec_store_bypass_disable=off' 'l1tf=off' 'mds=off' 'tsx_async_abort=off' 'retbleed=off' 'srbds=off' 'gather_data_sampling=off' 'reg_file_data_sampling=off' 'no_hash_pointers' 'page_alloc.shuffle=0' 'random.trust_cpu=0' 'slab_nomerge=0' 'noexec=off' 'nosmt=force_off'; do
     grep -qF "$deny15" cmdline.txt && { c15b=$((c15b+1)); printf '    cmdline FORBIDDEN: %s\n' "$deny15" >&2; }
   done
   g "G15 cmdline hardening params ($c15 missing, $c15b forbidden)" \
@@ -3101,7 +3121,10 @@ G41EOF
   # append a second line and the gate label came out as "(0\n0".
   nrev42=$(grep -cE '^[0-9a-f]{64}' revoked 2>/dev/null || true); nrev42=${nrev42:-0}
   if [ "${nrev42:-0}" -eq 0 ]; then
-    g "G42 revocation shipped enrollably (nothing revoked)" ok
+    # nothing revoked -> the enroll-onto-stick path is UNEXERCISED, not proven.
+    # green ok here would count an untested production path as passing; SKIP is
+    # the honest verdict (A11 proves the firmware side when something is revoked).
+    g "G42 revocation shipped enrollably (nothing revoked)" SKIP
   else
     [ -s dbxauth/dbx.auth ] \
       || { g42=FAIL; printf '    %s revoked but no dbxauth/dbx.auth -- run ./build.sh dbx\n' "$nrev42" >&2; }
