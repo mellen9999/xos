@@ -1083,6 +1083,15 @@ rootfs() {
   mkdir -p root/etc/dropbear
   if [ -n "${XOS_SSH_KEY:-}" ]; then
     [ -f "$XOS_SSH_KEY" ] || { echo "FAIL: XOS_SSH_KEY=$XOS_SSH_KEY not found" >&2; return 1; }
+    # this file rides the verity root -- world-readable and attested. it MUST be
+    # a public key. a fat-fingered private key here would bake a secret into the
+    # signed image (G67 would then fail the build), so reject it now, at the one
+    # site that knows the path, naming the file. KEYPAT is the same private-key
+    # marker G11/G67 and the commit hook carry.
+    if grep -qE "$KEYPAT" "$XOS_SSH_KEY"; then
+      echo "FAIL: XOS_SSH_KEY=$XOS_SSH_KEY is a PRIVATE key -- bake the .pub, never the private half" >&2; return 1; fi
+    grep -qE '^[^#]*(ssh-ed25519|ssh-rsa|ssh-dss|ecdsa-sha2-nistp[0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp[0-9]+@openssh\.com)[[:space:]]' "$XOS_SSH_KEY" \
+      || { echo "FAIL: XOS_SSH_KEY=$XOS_SSH_KEY does not look like an ssh public key (no ssh-ed25519/ssh-rsa/ecdsa/sk- line)" >&2; return 1; }
     install -m 0600 "$XOS_SSH_KEY" root/etc/dropbear/authorized_keys
     # init concatenates this with the p3 key file. a baked key with no final
     # newline fused with the first p3 line into one unparseable key -- and
@@ -2510,6 +2519,7 @@ TODO: write this entry by hand.
 #   G64 clone is guarded and proves the spare is a faithful copy
 #   G65 every carried map layer is pinned by sha256 and licensed public-domain
 #   G66 bump edits exactly the two pins it should and reverses byte-clean
+#   G67 no private key in the shipped image (root/ = the squashfs, 1:1)
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -2636,6 +2646,32 @@ gates() {
          printf '    as this gate -- one wall was fixed and the other was not\n' >&2; }
   g "G11 no plaintext private key on disk ($plain)" \
     "$([ "$plain" -eq 0 ] && [ "$plain_rc" -eq 0 ] && echo ok || echo FAIL)"
+
+  # G67 -- the tree that actually SHIPS, scanned. G11 sweeps the repo but
+  # EXCLUDES root/ (build output; its wall is the commit hook, which only sees
+  # git-tracked files, and root/ is gitignored). so nothing looked at root/ --
+  # which mksquashfs packs 1:1 into the verity-covered image -- and a private
+  # key baked in (a mis-set XOS_SSH_KEY, a stray dropped file) would ride the
+  # signed root, attested and all. "no secrets in the image" (threat-model.md)
+  # was prose nothing checked. scan it with the same marker, same stderr-is-red
+  # discipline as G11. NOT a generic high-entropy sweep: the trust-anchor PEMs
+  # and the static binaries would drown it in false positives; a PRIVATE KEY
+  # PEM block is the concrete, bulletproof target.
+  local imgk=0 imgerr
+  imgerr=$(mktemp)
+  if [ -d root ]; then
+    imgk=$(grep -rlE "$KEYPAT" root 2>"$imgerr" | grep -c . || true)
+  else
+    imgk=1; printf '    root/ is absent -- the image staging tree did not build\n' >&2
+  fi
+  if [ -s "$imgerr" ]; then
+    imgk=1
+    printf '    the image key-scan wrote to stderr -- it may not have run:\n' >&2
+    sed 's/^/      /' "$imgerr" >&2
+  fi
+  rm -f "$imgerr"
+  g "G67 no private key in the shipped image ($imgk)" \
+    "$([ "$imgk" -eq 0 ] && echo ok || echo FAIL)"
 
   # G12 -- the image contains everything the manifest declares. component
   # copies were `[ -f x ] && cp x`, so a component that failed to build made
