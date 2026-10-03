@@ -1215,6 +1215,9 @@ scrub() {
 # the machine now. that is this: the reported inventory becomes the baseline.
 recon_accept() {
 	local f n=0
+	# vault mode: the recon dir is a RAM copy of p3's. moving a file in it would
+	# print "accepted" over a change the stick never sees. refuse, and say how.
+	[ -e /tmp/.xos-vault ] && { echo "recon_accept: vault mode -- the stick is write-protected, so nothing can be accepted. switch write-protect off and reboot to accept."; return 1; }
 	for f in /tmp/home/recon/*.new; do
 		[ -f "$f" ] || continue
 		mv "$f" "${f%.new}" && sync && n=$((n + 1)) && echo "accepted: machine ${f##*/recon/} is the baseline now"
@@ -1399,7 +1402,24 @@ irc() {
 	if ! pgrep -f "ii -s $host " >/dev/null 2>&1; then
 		[ -n "${IRC_PASS:-}" ] && kflag="-k IRC_PASS"
 		ii -s "$host" -u "$sock" -n "$nick" $kflag -i "$HOME/irc" &
-		sleep 1
+		# ii connecting is what makes tlstunnel dial out, so only now can a tls
+		# verdict exist -- the socket above is bound before any tcp or tls
+		# happens and proved nothing (this verb used to call it "up"). wait for
+		# the first evidence either way: the server's text landing in ii's out
+		# file, tlstunnel's error in the log, or ii giving up.
+		n=0
+		while [ "$n" -lt 20 ]; do
+			[ -s "$dir/out" ] && break
+			grep -qE '^tlstunnel: (resolve|connect|ssl error|session ended)' "$log" 2>/dev/null && break
+			pgrep -f "ii -s $host " >/dev/null 2>&1 || break
+			sleep 1; n=$((n + 1))
+		done
+		if ! [ -s "$dir/out" ]; then
+			echo "irc: tls to $host:$port did not come up -- no network, clock unsynced, or cert refused:"
+			grep -E '^tlstunnel:' "$log" 2>/dev/null | tail -3 | sed 's/^/  /'
+			pkill -f "ii -s $host " 2>/dev/null; pkill -f "tlstunnel $sock " 2>/dev/null; rm -f "$sock"
+			return 1
+		fi
 	fi
 	[ -n "$chan" ] && { _ircui "$dir" "$chan"; return; }
 	echo "irc: $nick on $host"

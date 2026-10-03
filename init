@@ -372,6 +372,12 @@ recon_check() { # $1 = root of the unlocked state filesystem
 	else mid=$(grep '^cpu' "$now" | sha256sum | cut -c1-16); fi
 	old="$dir/$mid"
 	if [ ! -f "$old" ]; then
+		if [ "${XOS_VAULT:-}" = 1 ]; then
+			# the recon dir is a RAM copy in vault mode: a baseline written here
+			# is gone at poweroff. say so instead of "recorded".
+			printf '  recon: first visit to machine %s -- vault mode, baseline NOT recorded\n' "$mid" > /dev/console
+			rm -f "$now"; return
+		fi
 		printf '  recon: first visit to machine %s -- baseline recorded\n' "$mid" > /dev/console
 	elif cmp -s "$old" "$now"; then
 		printf '  recon: machine %s is as you left it\n' "$mid" > /dev/console
@@ -388,6 +394,10 @@ recon_check() { # $1 = root of the unlocked state filesystem
 		# every boot until then repeats the alarm.
 		printf '  recon: MACHINE %s CHANGED since your last visit:\n' "$mid" > /dev/console
 		diff "$old" "$now" | sed -n 's/^-\([^-]\)/    gone: \1/p;s/^+\([^+]\)/    new:  \1/p' | head -40 > /dev/console
+		if [ "${XOS_VAULT:-}" = 1 ]; then
+			printf '    (vault mode: nothing can be accepted or recorded -- switch write-protect off for that)\n' > /dev/console
+			rm -f "$now"; return
+		fi
 		printf '    (baseline kept -- `recon_accept` at the shell accepts this machine as it is now)\n' > /dev/console
 		cp "$now" "$old.new" 2>/dev/null
 		rm -f "$now"; return
@@ -412,6 +422,23 @@ ledger_note() { # $1 = root of the unlocked state filesystem
 		printf '  ledger: was found CORRUPT on %s UTC -- treat this state as replayed\n' \
 			"$(date -u -d "@${bad##*.}" '+%Y-%m-%d %H:%M' 2>/dev/null)" > /dev/console
 	done
+	if [ "${XOS_VAULT:-}" = 1 ]; then
+		# the ledger is a RAM copy here: counting this boot would print a
+		# number the stick never stores, and the next work-mode boot would
+		# print the same number again -- the rollback signal muddied by our
+		# own hand. report what the stick says; count nothing.
+		if [ -f "$f" ]; then
+			n=$(cut -d' ' -f1 "$f" 2>/dev/null); last=$(cut -d' ' -f2 "$f" 2>/dev/null)
+			case "$n" in
+				''|*[!0-9]*) printf '  ledger CORRUPT -- vault mode, left exactly as found\n' > /dev/console ;;
+				*) printf '  ledger: vault mode -- this boot is not counted; the stick says boot %s (last was %s UTC)\n' \
+					"$n" "$(date -u -d "@$last" '+%Y-%m-%d %H:%M' 2>/dev/null)" > /dev/console ;;
+			esac
+		else
+			printf '  ledger: vault mode -- this boot is not counted; the stick has no ledger yet\n' > /dev/console
+		fi
+		return
+	fi
 	if [ -f "$f" ]; then
 		n=$(cut -d' ' -f1 "$f" 2>/dev/null)
 		last=$(cut -d' ' -f2 "$f" 2>/dev/null)
@@ -750,6 +777,13 @@ if cmdline_has xos.test; then
 		fi
 	fi
 
+	if cmdline_has xos.nonet; then
+		# irc must not claim a tunnel on a box with no network: the unix socket
+		# exists before any tcp or tls happens, and that once passed for "up".
+		printf 'irc-nonet: '
+		if ( . /etc/shrc; irc ) 2>&1 | grep -q 'did not come up'; then echo "refused (good)"; else echo "claimed success (BAD)"; fi
+	fi
+
 	[ -n "${_prevprintk:-}" ] && echo "$_prevprintk" > /proc/sys/kernel/printk 2>/dev/null
 	echo "XOS-TEST-END"
 	sync
@@ -806,7 +840,16 @@ state_open() {
 		name=$(basename "$(dirname "$p")")
 		cand="/dev/$name"
 		[ -b "$cand" ] || continue
-		cryptsetup isLuks "$cand" 2>/dev/null || continue
+		if ! cryptsetup isLuks "$cand" 2>/dev/null; then
+			# the boot stick's own third partition is p3 by construction
+			# (addstate). one that is not LUKS is a p3 whose header is gone:
+			# say so, or the boot goes on stateless with no prompt and no word,
+			# and "it never asked" reads exactly like "there is no p3".
+			case "$name" in "${bootdisk}3"|"${bootdisk}p3")
+				[ -n "$bootdisk" ] && printf '  p3 is there but its LUKS header is unreadable -- continuing without state\n' > /dev/console ;;
+			esac
+			continue
+		fi
 		disk=$(printf '%s' "$name" | sed 's/p\{0,1\}[0-9]\{1,\}$//')
 		if [ -n "$bootdisk" ] && [ "$disk" != "$bootdisk" ]; then
 			late="$late $cand"
@@ -877,6 +920,10 @@ state_open() {
 			cryptsetup close xosstate 2>/dev/null
 			return 1
 		fi
+		# the fact every later line has to respect: recon, the ledger and the
+		# shell verbs (recon_accept) all read this, and /tmp/.xos-vault is the
+		# same fact for a shell that did not inherit init's environment.
+		XOS_VAULT=1; : > /tmp/.xos-vault
 		chmod 700 "$STATE_DIR" 2>/dev/null
 		# copy the tiny read-write files so downstream may rewrite them in RAM;
 		# symlink the bulk trees (tools/docs are read-only by their nature).
@@ -913,7 +960,14 @@ if state_open; then
 	# the xdg dirs on it; everything written here -- learn progress included --
 	# survives a reboot.
 	mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
-	printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
+	if [ "${XOS_VAULT:-}" = 1 ]; then
+		# this line used to claim persistence in vault mode too. $HOME is the
+		# RAM tmpfs with p3's small files COPIED in; nothing written here
+		# reaches the stick, by design. say that, not the opposite.
+		printf '  vault mode -- %s is RAM: nothing you do persists, and nothing on the stick changes\n' "$HOME" > /dev/console
+	else
+		printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
+	fi
 	recon_check "$STATE_DIR"
 	ledger_note "$STATE_DIR"
 

@@ -73,15 +73,21 @@ tcp_connect(const char *host, const char *port)
 		fprintf(stderr, "tlstunnel: resolve %s: %s\n", host, gai_strerror(e));
 		return -1;
 	}
+	e = 0;
 	for (p = ai; p; p = p->ai_next) {
 		if ((fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
 			continue;
 		if (connect(fd, p->ai_addr, p->ai_addrlen) == 0)
 			break;
+		e = errno;
 		close(fd);
 		fd = -1;
 	}
 	freeaddrinfo(ai);
+	/* a resolve failure is reported above; a connect failure was silent, so a
+	 * caller watching the log (irc) could not tell "no route" from "fine" */
+	if (fd < 0)
+		fprintf(stderr, "tlstunnel: connect %s:%s: %s\n", host, port, strerror(e));
 	if (fd >= 0) {
 		int one = 1;
 		setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
