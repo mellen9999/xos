@@ -364,6 +364,11 @@ grep -q 'devport-node: absent'  <<< "$out" && ok "/dev/port absent"           ||
 # the product thesis: no driver in this kernel can bind the host's own disks.
 grep -q 'host-disk-drivers: none' <<< "$out" && ok "no sata/nvme/mmc driver in the running kernel" \
 	|| bad "a host-disk driver is registered (sata/nvme/mmc)"
+# ipv4-only: a compiled-in v6 stack would auto-configure a SLAAC address, the
+# stable network identity this stick refuses. /proc/net/if_inet6 exists iff
+# CONFIG_IPV6 was built, so its absence proves the README's "no ipv6 stack".
+grep -q 'ipv6-stack: absent' <<< "$out" && ok "no ipv6 stack in the running kernel" \
+	|| bad "an ipv6 stack is present (SLAAC would leak a stable address to the LAN)"
 grep -q 'mem-autoinit: heap alloc:on, heap free:on' <<< "$out" \
 	&& ok "memory zeroed on both alloc and free" || bad "init_on_free not active"
 
