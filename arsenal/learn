@@ -1162,12 +1162,52 @@ menu() {
 	done
 }
 
+# order -- a mission may only lean on a tool an earlier (or this) mission has
+# already taught. the base school gates this as G27; the arsenal school never
+# did, so a card could reach for a tool first taught two missions later. same
+# method as base learn's order(): walk the missions in sequence building the
+# taught set from teach:, and for every tool a card's ANSWER reaches for that
+# has its own ref page -- i.e. an arsenal tool, not a base busybox command the
+# base course owns and this school may assume -- require it to be taught by now.
+# a base command has no arsenal/ref page, so it is foundation, never flagged.
+order() {
+	local id c bad=0
+	: > "$TMP/seen"
+	for id in $(level_ids); do
+		sed -n 's/^teach: \{0,1\}//p' "$(level_path "$id")" | awk '{ print $1 }' >> "$TMP/seen"
+		# r2/rabin2/rax2 are argv0 aliases of radare2 (one blob), not tools in
+		# their own right -- the catalog and `arsenal` treat them so. teaching
+		# radare2 makes its aliases available in the same breath.
+		grep -qx radare2 "$TMP/seen" && printf 'r2\nrabin2\nrax2\n' >> "$TMP/seen"
+		sort -u "$TMP/seen" -o "$TMP/seen" 2>/dev/null \
+			|| { sort -u "$TMP/seen" > "$TMP/seen2"; mv "$TMP/seen2" "$TMP/seen"; }
+		# skip the xexec DOORWAY lines: xexec exists to run any carried tool, so
+		# the tool it is shown running is an illustration, not a prerequisite the
+		# learner must already know (and the prompt names it outright). a tool
+		# that is a real dependency appears in a bare answer form too, which is
+		# still checked.
+		sed -n 's/^a: \{0,1\}//p' "$(level_path "$id")" | grep -v xexec | answer_cmds | sort -u | while read -r c; do
+			[ -n "$c" ] || continue
+			# only judge arsenal tools -- a token with its own ref page
+			[ -f "$REF/$c" ] || continue
+			grep -qxF -- "$c" "$TMP/seen" \
+				|| echo "OUT OF ORDER $id: uses '$c' before any mission teaches it"
+		done
+	done > "$TMP/ord" 2>&1
+	bad=$(awk 'END { print NR }' "$TMP/ord")
+	[ "$bad" -eq 0 ] || cat "$TMP/ord" >&2
+	printf 'arsenal: %d mission(s) checked for order, %d violation(s)\n' \
+		"$(level_ids | grep -c .)" "$bad"
+	[ "$bad" -eq 0 ]
+}
+
 main() {
 	local arg=${1:-} lvl rc ndue k
 	case "$arg" in
 		selftest) selftest_graded; exit $? ;;
 		list)     level_ids; exit 0 ;;
 		lint)     lint_report; exit 0 ;;
+		order)    order; exit $? ;;
 		ref)      shift; show_ref "${1:-}"; exit $? ;;
 		brief)    shift; lvl=$(resolve_level "${1:-}")
 		          [ -n "$lvl" ] || die "usage: arsenal learn brief N"

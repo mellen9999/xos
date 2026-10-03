@@ -5053,6 +5053,15 @@ ci() {
     # wording breeds filler), printed so single-phrasing/same-words drift shows.
     say "arsenal authoring ledger"
     ARSENAL_ROOT="$PWD/arsenal" "$bb" ash arsenal/learn lint 2>&1 || true
+    # order: a mission may only lean on a tool an earlier (or this) mission has
+    # taught -- the base school's G27, which the arsenal school never had. a HARD
+    # gate (not advisory like the ledger): a card reaching for a not-yet-taught
+    # tool is a dead end for the learner, the exact defect G27 forbids base-side.
+    say "arsenal missions teach before they use"
+    local ao_out ao_rc=0
+    ao_out=$(ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn order 2>&1) || ao_rc=1
+    printf '  %s\n' "$ao_out"
+    [ "$ao_rc" -eq 0 ] || rc=1
   fi
   # one q: per card, across every corpus that becomes SRS cards. the card key
   # is the q: template, stored one tab-separated row per card; a second q: line
