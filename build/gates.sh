@@ -82,6 +82,7 @@
 #   G65 every carried map layer is pinned by sha256 and licensed public-domain
 #   G66 bump edits exactly the two pins it should and reverses byte-clean
 #   G67 no private key in the shipped image (root/ = the squashfs, 1:1)
+#   G68 the README's applet count is the built busybox's
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -232,6 +233,18 @@ gates() {
     sed 's/^/      /' "$imgerr" >&2
   fi
   rm -f "$imgerr"
+  # G68 -- the last README number nothing checked. ci re-derives the command,
+  # level and question counts buildless; the applet count is `busybox --list`
+  # on the BUILT binary, which only this tier has. the sentence is the README's
+  # own: "N applets in one binary". || true on both reads: an empty grep is
+  # exit 1, and under set -e/pipefail that would end the run, not this gate.
+  local ap68 claim68
+  ap68=$(./busybox --list 2>/dev/null | grep -c . || true)
+  claim68=$(grep -oE '[0-9]+ applets in one binary' README.md | grep -oE '^[0-9]+' | head -1 || true)
+  [ -n "$claim68" ] && [ "$claim68" = "$ap68" ] \
+    || printf '    README says %s applets, the built busybox lists %s\n' "${claim68:-?}" "$ap68" >&2
+  g "G68 README applet count is the built busybox's ($ap68)" \
+    "$([ -n "$claim68" ] && [ "$claim68" = "$ap68" ] && echo ok || echo FAIL)"
   g "G67 no private key in the shipped image ($imgk)" \
     "$([ "$imgk" -eq 0 ] && echo ok || echo FAIL)"
 
