@@ -2252,7 +2252,29 @@ trustver() {
   deps_tools=$(awk '/local (base|extra)="/{i=1} i{print} i&&/"[[:space:]]*$/{i=0}' build.sh \
                | grep -oE '[a-z0-9_.+-]+:[a-z0-9_.+-]+' | awk -F: '{print $1}' | sort -u || true)
   _d "deps() needs a host tool with no trust.manifest row" "$deps_tools" "$tm_tool"
-  _d "trust.manifest names a tool deps() no longer needs" "$tm_tool" "$deps_tools"
+
+  # 1b. the reverse, widened to the trust-doers. deps() lists the BUILD
+  # toolchain; it never lists the tools that sign, hash, clone, verify and write
+  # the disk (gpg, git, docker, the hashers, dd, sudo...) because they are
+  # assumed-present, not build inputs. so the old "tool deps() no longer needs"
+  # check flagged those legitimate rows, and before them this index -- meant to
+  # hold the WHOLE trust surface -- simply omitted the tools the trust rests on.
+  # the honest reverse: a tool row is stale only if it is NEITHER a deps() tool
+  # NOR invoked by name in a first-party script. a build dep consumed by a
+  # sub-build (bison, bc) is covered by the deps() arm and never needs to appear
+  # by name; a trust-doer must appear, since nothing else accounts for it.
+  # here-strings, not pipes: `printf "$big" | grep -q` trips pipefail -- grep -q
+  # exits on the first match and printf takes a SIGPIPE, so a SUCCESSFUL match
+  # reads as a failed pipeline. feeding grep by here-string has no such pipe.
+  local script_text nd
+  script_text=$(cat build.sh selftest.sh githooks/pre-commit githooks/pre-push \
+                    ci/xos-ci-full ci/xos-repro ci/lib.sh arsenal/*.sh 2>/dev/null || true)
+  while IFS= read -r nd; do
+    [ -n "$nd" ] || continue
+    grep -qxF "$nd" <<< "$deps_tools" && continue   # a build dep, covered by 1
+    grep -qE "(^|[^a-zA-Z0-9_.-])$nd([^a-zA-Z0-9_.-]|$)" <<< "$script_text" \
+      || { printf '    trust.manifest names tool %s that is neither a deps() tool nor invoked by any first-party script\n' "$nd" >&2; rc=1; }
+  done <<< "$tm_tool"
 
   # 2. pinned sources, by version-stripped name so a bump is not a churn.
   local src_names

@@ -64,6 +64,25 @@ tool   virt-fw-vars                                 lab              arch:virt-f
 tool   wipefs                                       lab              arch:util-linux -- clears a stick before writing
 tool   xz                                           repro            arch:xz -- kernel tarball
 
+# ---- the trust-doers ---------------------------------------------------------
+# the tools that DO the trusting -- sign, hash, clone, verify, write the disk.
+# deps() does not list them (they are assumed-present, not build inputs), so for
+# a long time G60 could not see them and this index -- meant to hold the WHOLE
+# trust surface -- omitted the very tools the signature and the clone rest on.
+# G60 now requires every tool row deps() does not account for to be invoked by a
+# first-party script, so none of these can go stale.
+tool   gpg                                          repro            arch:gnupg -- verifies every pinned source's maintainer signature in fetch()
+tool   sha256sum                                    repro            arch:coreutils -- the digest check under every source, blob and image pin
+tool   sha512sum                                    repro            arch:coreutils -- the lvm2 + popt digest anchors
+tool   git                                          repro            arch:git -- assembles the tree the build runs on; snap/vouch/clone_pinned
+tool   docker                                       repro            arch:docker -- runs the pinned-toolchain container for crepro/cpin/verify
+tool   ssh-keygen                                   lab              arch:openssh -- verifies the commit-signing key in vouch()/G52
+tool   cryptsetup                                   lab              arch:cryptsetup -- host side, luksFormat of p3 in addstate()
+tool   dd                                           lab              arch:coreutils -- writes the stick and reads it back in usb()/clone()
+tool   blockdev                                     lab              arch:util-linux -- the direct-io readback size in usb()/clone()
+tool   sudo                                         lab              arch:sudo -- escalates ONLY the device write in flash
+tool   shellcheck                                   lab              arch:shellcheck -- lints every first-party script in ci()/lint()
+
 # ---- pinned upstream sources --------------------------------------------------
 source LVM2                                         sig:LVM_FPR      libdevmapper.a only. key EXPIRED 2022-06-09 and is extended nowhere; the waiver is dated (lapses 2027-03-31) and G45 enforces it. second anchor: LVM_SHA512, fedora rawhide's digest for the identical tarball
 source abduco                                       tofu             session detach. no upstream signature
