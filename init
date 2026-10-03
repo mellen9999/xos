@@ -683,6 +683,19 @@ if cmdline_has xos.test; then
 		ts_release() {
 			recon_check /tmp/ts
 			ledger_note /tmp/ts
+			# test-only hooks (A16 boots 4-7): accept the recon baseline the
+			# way the shell verb does -- the real recon_accept, pointed at the
+			# test volume -- or junk the ledger AFTER this boot was counted, so
+			# the NEXT boot proves the accept and the CORRUPT paths. the console
+			# is a fifo in the lab, where a typed sync never reaches the disk;
+			# init's own hand does. G31 keeps every xos.test* word off a
+			# production cmdline.
+			if cmdline_has xos.testaccept; then
+				printf 'testaccept: '; sh -c '. /etc/shrc; recon_accept /tmp/ts' 2>&1 | tail -1
+			fi
+			if cmdline_has xos.testledger; then
+				printf 'junk\n' > /tmp/ts/ledger && sync && echo "testledger: corrupted"
+			fi
 			umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
 		}
 		if cryptsetup isLuks "$tsdev" 2>/dev/null; then
@@ -1220,7 +1233,7 @@ if cmdline_has xos.test; then
 	# the tmpfs when nothing was unlocked (A9). root-only either way -- the
 	# earlier home-mode probe runs before state_open and can only see the tmpfs.
 	printf 'home-final: %s %s\n' "$(stat -c %a "$HOME" 2>/dev/null || echo '?')" \
-		"$(awk -v h="$HOME" '$2 == h { t = $3 } END { print t }' /proc/mounts 2>/dev/null)"
+		"$(stat -f -c %T "$HOME" 2>/dev/null || echo '?')"
 	echo "XOS-TEST-DONE"
 	sync
 	# PID 1 no longer exits, so a test boot would otherwise run until the

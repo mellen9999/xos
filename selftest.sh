@@ -173,7 +173,7 @@ boot_state() {
 	local disk="$1"; shift
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
-		-drive file=stick.img,if=virtio,format=raw,readonly=on \
+		-drive file="${XOS_STICK:-stick.img}",if=virtio,format=raw,readonly=on \
 		-drive file="$disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot "$@" < /dev/null 2>&1
 }
@@ -777,9 +777,12 @@ grep -q 'new:  pci' <<< "$b2" \
 	|| bad "recon said 'changed' but not what changed"
 # the persistent home carries whatever mode mkfs gave its root (0755); init
 # chmods it 700 after the mount, and that chmod used to fail in silence.
-grep -q 'home-final: 700 ext4' <<< "$b2" && ! grep -q 'home is not root-only' <<< "$b2" \
-	&& ok "the p3 home is root-only (0700) once mounted" \
-	|| bad "the p3 home is not 0700 after the mount"
+# A16's p3 is a whole disk the real state_open() scan never matches (A19 has
+# the partitioned one), so the home here is still the tmpfs; it must stay
+# root-only through the teststate open/close, and no chmod may have failed.
+grep -q 'home-final: 700 tmpfs' <<< "$b2" && ! grep -q 'home is not root-only' <<< "$b2" \
+	&& ok "the home stayed root-only (0700) through a p3 open and release" \
+	|| bad "the home is not 0700 after the p3 round trip"
 assert_complete "$b2" "A16 boot 2"
 # boot 3 is the same machine AND the same hardware as boot 2 -- recon must now
 # report NO change. the other half of the guarantee: a feature that cried
@@ -794,6 +797,47 @@ grep -q 'ledger: boot 3 on this state' <<< "$b3" \
 	&& ok "boot 3 counted on -- the ledger is monotonic" \
 	|| bad "the ledger lost count on boot 3"
 assert_complete "$b3" "A16 boot 3"
+# boots 4-7: the branches three boots never reached. a variant stick carries a
+# test-only word (G31 keeps them off production): xos.testaccept runs the real
+# recon_accept on the test volume after boot 4 counted, xos.testledger junks
+# the ledger after boot 5 counted -- init's own hand, because the lab console
+# is a fifo where a typed sync never reaches the disk. then the accepted
+# baseline must hold, the junk must be caught and kept, the count restarted,
+# the removed controller named, and the corruption still warned about a boot
+# later. the sticks are signed here like A11's superseded image.
+if signed_ready "A16 boots 4-7"; then
+	mk_uki a16a "$(cat cmdline.txt) xos.testaccept"; mk_stick a16a
+	mk_uki a16l "$(cat cmdline.txt) xos.testledger"; mk_stick a16l
+	b4=$(XOS_STICK=/tmp/xos-a16a.img boot_state "$p3disk" -device qemu-xhci)
+	grep -q 'still CHANGED' <<< "$b4" && grep -q 'testaccept: accepted: machine' <<< "$b4" \
+		&& ok "boot 4 was still alarmed, then recon_accept took the new baseline" \
+		|| bad "boot 4 did not accept the changed baseline"
+	grep -q 'ledger: boot 4 on this state' <<< "$b4" && ok "boot 4 counted" || bad "boot 4 lost count"
+	assert_complete "$b4" "A16 boot 4"
+	b5=$(XOS_STICK=/tmp/xos-a16l.img boot_state "$p3disk" -device qemu-xhci)
+	grep -qE 'recon: machine [0-9a-f]{16} is as you left it' <<< "$b5" \
+		&& ok "boot 5: the accepted baseline holds -- 'as you left it'" \
+		|| bad "boot 5 did not say 'as you left it' after the accept"
+	grep -q 'ledger: boot 5 on this state' <<< "$b5" && grep -q 'testledger: corrupted' <<< "$b5" \
+		&& ok "boot 5 counted, then the ledger was junked for the next boot" \
+		|| bad "boot 5 did not count, or did not corrupt the ledger"
+	assert_complete "$b5" "A16 boot 5"
+	# no xhci now: the controller accepted in boot 4 is gone, and the diff must say so
+	b6=$(boot_state "$p3disk")
+	grep -q 'ledger CORRUPT -- kept as evidence, count restarts' <<< "$b6" \
+		&& grep -q 'ledger: first boot recorded on this state' <<< "$b6" \
+		&& ok "boot 6 found the junked ledger, kept it as evidence, restarted the count" \
+		|| bad "boot 6 did not catch the corrupt ledger"
+	grep -qE 'recon: MACHINE [0-9a-f]{16} CHANGED since your last visit' <<< "$b6" && grep -q 'gone: ' <<< "$b6" \
+		&& ok "boot 6 named the device that disappeared (gone:)" \
+		|| bad "recon did not report the removed controller"
+	assert_complete "$b6" "A16 boot 6"
+	b7=$(boot_state "$p3disk")
+	grep -q 'ledger: was found CORRUPT on' <<< "$b7" && grep -q 'ledger: boot 2 on this state' <<< "$b7" \
+		&& ok "boot 7 still warns of the kept corruption, and counts on from the restart" \
+		|| bad "boot 7 forgot the corruption, or lost the restarted count"
+	assert_complete "$b7" "A16 boot 7"
+fi
 rm -f "$p3disk"
 
 echo
@@ -1039,6 +1083,11 @@ if signed_ready A19; then
 		done
 		t=0
 		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|continuing without persistence|would not mount' "$4"; do sleep 1; t=$((t+1)); done
+		# an optional command typed at the shell once the verdict landed; its
+		# echo and output land in the log for the caller to read. read-only
+		# commands only: this console is a fifo, not a tty, so job control is
+		# off and a backgrounded sync never reaches the disk.
+		[ -n "${6:-}" ] && { sleep 2; printf '%s\n' "$6" >&9; }
 		sleep 5   # let the wg/ssh lines land before the kill
 		exec 9>&-
 		kill "$qp19" 2>/dev/null; wait "$qp19" 2>/dev/null
@@ -1046,7 +1095,12 @@ if signed_ready A19; then
 	}
 
 	a19log=/tmp/xos-a19-typed.log
-	boot_typed /tmp/xos-a19p.img "$a19e" testpass "$a19log"
+	boot_typed /tmp/xos-a19p.img "$a19e" testpass "$a19log" "" 'stat -c %a /tmp/home; stat -f -c %T /tmp/home; echo HOME-PROBE-DONE'
+	# the only boot where the real p3 is the home: it must be root-only on its
+	# own filesystem (busybox stat -f names ext4 "ext2/ext3").
+	grep -aq 'HOME-PROBE-DONE' "$a19log" && grep -aqE '^700' "$a19log" && grep -aqE '^ext2/ext3' "$a19log" \
+		&& ok "the unlocked p3 home is root-only (0700) on its own filesystem" \
+		|| bad "after a real unlock the p3 home is not 0700 ext4 ($(grep -aE '^(700|[0-7]{3}|ext)' "$a19log" | head -2 | tr '\n' ' '))"
 	# match the SUCCESS line, not the substring both outcomes share. init says
 	# "state unlocked -- <home> persists across reboots" when it worked and
 	# "state unlocked but the filesystem would not mount -- p3 is damaged" when
@@ -1162,6 +1216,17 @@ else
 		       bad "the serial geometry is $_ssz, not 24x80 -- G50's brief budget no longer matches it (full serout: /tmp/xos-a20.serout)" ;;
 	esac
 	assert_complete "$serout" "A20 usb-serial boot"
+	# the two knobs README documents for other hardware, never passed by any
+	# round until now: a vt100 at 9600 on the signed cmdline must reach the
+	# line the loop set up, in both the baud and the TERM it picked.
+	if signed_ready "A20 knobs"; then
+		mk_uki a20v "$(cat cmdline.txt) xos.term=vt100 xos.baud=9600"; mk_stick a20v
+		servar=$(boot_usbserial /tmp/xos-a20v.img)
+		grep -q 'serial-baud: 9600' <<< "$servar" && grep -q 'serial-term-picked: vt100' <<< "$servar" \
+			&& ok "xos.term and xos.baud on the signed cmdline reach the serial line (vt100, 9600)" \
+			|| bad "the serial knobs did not take ($(grep -oE 'serial-(baud|term-picked): [^ ]*' <<< "$servar" | tr '\n' ' '))"
+		assert_complete "$servar" "A20 knobs boot"
+	fi
 fi
 
 section "A21  vault mode: a write-protected stick runs from RAM, untouched"

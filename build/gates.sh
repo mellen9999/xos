@@ -1372,7 +1372,7 @@ G51
   # build afterward, but a hard gate here means that restore is enforced,
   # not just intended.
   local tf=0 tfword
-  for tfword in xos.test xos.teststate xos.testwg xos.testtether xos.testclone; do
+  for tfword in xos.test xos.teststate xos.testwg xos.testtether xos.testclone xos.testaccept xos.testledger; do
     grep -qF "$tfword" cmdline.txt && tf=$((tf+1))
   done
   g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"

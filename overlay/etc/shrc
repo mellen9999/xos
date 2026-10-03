@@ -96,7 +96,8 @@ recon_accept() {
 	# vault mode: the recon dir is a RAM copy of p3's. moving a file in it would
 	# print "accepted" over a change the stick never sees. refuse, and say how.
 	[ -e /tmp/.xos-vault ] && { echo "recon_accept: vault mode -- the stick is write-protected, so nothing can be accepted. switch write-protect off and reboot to accept."; return 1; }
-	for f in /tmp/home/recon/*.new; do
+	# the state root is the home unless named (init's test hook names its own)
+	for f in "${1:-/tmp/home}"/recon/*.new; do
 		[ -f "$f" ] || continue
 		mv "$f" "${f%.new}" && sync && n=$((n + 1)) && echo "accepted: machine ${f##*/recon/} is the baseline now"
 	done
