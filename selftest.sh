@@ -5,6 +5,11 @@
 # if a tampered image is accepted.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
+# every temp file of a run -- test sticks, state disks, logs, fifos -- lives in
+# a directory of its own. two selftests on one box (the ci timer and a hand
+# run, two worktrees) used to share /tmp/xos-a*.img, and restore() in the one
+# that finished first removed the other's images mid-round.
+XT=$(mktemp -d /tmp/xos-selftest.XXXXXX) || exit 1
 
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 
@@ -51,11 +56,11 @@ restore() {
 	if ! ./build.sh verity >/dev/null 2>&1 || ! ./build.sh uki >/dev/null 2>&1 || ! ./build.sh stick >/dev/null 2>&1; then
 		printf '\033[1;31m  RESTORE FAILED -- the tree may still hold a TEST uki/stick (xos.test xos.teststate xos.testwg). rebuild before shipping anything.\033[0m\n' >&2
 		./build.sh lock >/dev/null 2>&1
-		rm -f /tmp/xos-a*.img /tmp/xos-a*.efi
+		rm -rf "$XT"
 		exit 1
 	fi
 	./build.sh lock >/dev/null 2>&1
-	rm -f /tmp/xos-a*.img /tmp/xos-a*.efi
+	rm -rf "$XT"
 }
 # INT/TERM too: a ctrl-c at minute six of A19 must still put the production
 # uki/stick back and discard A11's throwaway dbx entry, or the tree is left
@@ -89,19 +94,19 @@ signed_ready() {
 		|| { skipped_crit "no stub or unlocked key -- $1 not evaluated"; return 1; }
 }
 # mk_uki TAG CMDLINE -- a uki from this tree's kernel and CMDLINE, signed by
-# the unlocked db key: /tmp/xos-TAG-signed.efi (the unsigned one beside it).
-# mk_stick TAG -- stick.img with that uki as its boot loader: /tmp/xos-TAG.img.
+# the unlocked db key: $XT/xos-TAG-signed.efi (the unsigned one beside it).
+# mk_stick TAG -- stick.img with that uki as its boot loader: $XT/xos-TAG.img.
 # the eight test images selftest builds all went through these two commands
 # by hand; a build that fails is now a bad line, not a boot that mysteriously
 # refuses later.
 mk_uki() {
-	ukify build --linux=bzImage --cmdline="$2" --stub="$stub" --output="/tmp/xos-$1.efi" >/dev/null 2>&1 \
-		&& sbsign --key "$R/db.key" --cert keys/db.crt --output "/tmp/xos-$1-signed.efi" "/tmp/xos-$1.efi" >/dev/null 2>&1 \
+	ukify build --linux=bzImage --cmdline="$2" --stub="$stub" --output="$XT/xos-$1.efi" >/dev/null 2>&1 \
+		&& sbsign --key "$R/db.key" --cert keys/db.crt --output "$XT/xos-$1-signed.efi" "$XT/xos-$1.efi" >/dev/null 2>&1 \
 		|| bad "could not build and sign the $1 test uki"
 }
 mk_stick() {
-	cp stick.img "/tmp/xos-$1.img" \
-		&& mcopy -o -i "/tmp/xos-$1.img@@1M" "/tmp/xos-$1-signed.efi" ::/EFI/BOOT/BOOTX64.EFI \
+	cp stick.img "$XT/xos-$1.img" \
+		&& mcopy -o -i "$XT/xos-$1.img@@1M" "$XT/xos-$1-signed.efi" ::/EFI/BOOT/BOOTX64.EFI \
 		|| bad "could not place the $1 test uki on a stick image"
 }
 
@@ -151,7 +156,7 @@ boot_img() {
 # exist to catch), and kill it the moment one lands. prints the log, so
 # callers grep it exactly like boot_img output.
 boot_refused() {
-	local log=/tmp/xos-refused.$$.log t=0 qp
+	local log=$XT/xos-refused.$$.log t=0 qp
 	rm -f "$log"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
@@ -226,9 +231,9 @@ flip() { python3 -c "import pathlib;p=pathlib.Path('$1');b=bytearray(p.read_byte
 
 echo
 section "A1  flip one byte in the root filesystem -- boot must refuse"
-cp stick.img /tmp/xos-a1.img
-flip /tmp/xos-a1.img $((ROOT_OFF + 100000))
-out=$(boot_img /tmp/xos-a1.img)
+cp stick.img $XT/xos-a1.img
+flip $XT/xos-a1.img $((ROOT_OFF + 100000))
+out=$(boot_img $XT/xos-a1.img)
 # verity detects lazily, when the block is actually read, so the machine may
 # execute briefly first. what must be true is that it dies rather than
 # continuing -- panic_on_corruption makes that unconditional.
@@ -237,12 +242,12 @@ if grep -q 'is corrupted' <<< "$out" && grep -q 'dm-verity device corrupted' <<<
 else
 	bad "corrupted image did not panic (verity error present: $(grep -c 'is corrupted' <<< "$out"))"
 fi
-rm -f /tmp/xos-a1.img
+rm -f $XT/xos-a1.img
 
 echo
 section "A2  clean stick -- must boot, and root must be unwritable"
-rm -f /tmp/xos-a2.pcap
-out=$(XOS_PCAP=/tmp/xos-a2.pcap boot_img stick.img)
+rm -f $XT/xos-a2.pcap
+out=$(XOS_PCAP=$XT/xos-a2.pcap boot_img stick.img)
 # the kernel's own verdict (arch/x86 setup.c, from boot_params.secure_boot),
 # not the efi stub's console line: since 6.18 the stub logs at notice level
 # by default and its "UEFI Secure Boot is enabled" info line no longer prints.
@@ -295,12 +300,12 @@ grep -q 'dhcp-client: running' <<< "$out" && ok "the dhcp client stayed up to re
 # what the stick SAID on the wire, from the capture, not from init's own
 # account. positive control first: a dhcp exchange must be in there at all
 # (the magic cookie 63 82 53 63), or "no vendor string" is vacuous.
-if [ -s /tmp/xos-a2.pcap ] && LC_ALL=C grep -aqF "$(printf '\143\202\123\143')" /tmp/xos-a2.pcap; then
+if [ -s $XT/xos-a2.pcap ] && LC_ALL=C grep -aqF "$(printf '\143\202\123\143')" $XT/xos-a2.pcap; then
 	ok "the capture holds the dhcp exchange"
-	LC_ALL=C grep -aq 'udhcp' /tmp/xos-a2.pcap \
+	LC_ALL=C grep -aq 'udhcp' $XT/xos-a2.pcap \
 		&& bad "the dhcp request names the stack (udhcp vendor class) to the LAN" \
 		|| ok "the dhcp request carries no vendor string"
-	LC_ALL=C grep -aqi 'xos' /tmp/xos-a2.pcap \
+	LC_ALL=C grep -aqi 'xos' $XT/xos-a2.pcap \
 		&& bad "the wire carries the name xos" \
 		|| ok "nothing on the wire says xos"
 else
@@ -331,26 +336,26 @@ assert_complete "$out" "A2 boot"
 
 echo
 section "A3  unsigned UKI -- firmware must refuse it"
-cp stick.img /tmp/xos-a3.img
-mcopy -o -i /tmp/xos-a3.img@@1M xos.efi ::/EFI/BOOT/BOOTX64.EFI
-o3=$(boot_refused /tmp/xos-a3.img)
+cp stick.img $XT/xos-a3.img
+mcopy -o -i $XT/xos-a3.img@@1M xos.efi ::/EFI/BOOT/BOOTX64.EFI
+o3=$(boot_refused $XT/xos-a3.img)
 if grep -q XOS-TEST-BEGIN <<< "$o3"; then
 	bad "unsigned kernel booted -- secure boot is not enforcing"
 else
 	grep -qi 'access denied' <<< "$o3" && ok "firmware rejected the unsigned image" \
 		|| bad "unsigned image did not boot, but not visibly refused by secure boot"
 fi
-rm -f /tmp/xos-a3.img
+rm -f $XT/xos-a3.img
 
 echo
 section "A4  tamper the signed UKI -- signature must break"
-cp xos-signed.efi /tmp/xos-a4.efi
-flip /tmp/xos-a4.efi $(( $(stat -c%s xos-signed.efi) / 2 ))
-sbverify --cert keys/db.crt /tmp/xos-a4.efi >/dev/null 2>&1 \
+cp xos-signed.efi $XT/xos-a4.efi
+flip $XT/xos-a4.efi $(( $(stat -c%s xos-signed.efi) / 2 ))
+sbverify --cert keys/db.crt $XT/xos-a4.efi >/dev/null 2>&1 \
 	&& bad "tampered UKI still verified" || ok "one flipped bit invalidates the signature"
-cp stick.img /tmp/xos-a4.img
-mcopy -o -i /tmp/xos-a4.img@@1M /tmp/xos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
-o4=$(boot_refused /tmp/xos-a4.img)
+cp stick.img $XT/xos-a4.img
+mcopy -o -i $XT/xos-a4.img@@1M $XT/xos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
+o4=$(boot_refused $XT/xos-a4.img)
 if grep -q XOS-TEST-BEGIN <<< "$o4"; then
 	bad "tampered UKI booted"
 else
@@ -358,7 +363,7 @@ else
 	grep -qi 'access denied' <<< "$o4" && ok "firmware refused the tampered image" \
 		|| bad "tampered image did not boot, but not visibly refused by secure boot"
 fi
-rm -f /tmp/xos-a4.efi /tmp/xos-a4.img
+rm -f $XT/xos-a4.efi $XT/xos-a4.img
 
 echo
 section "A5  no dynamic loader to preload into"
@@ -401,12 +406,12 @@ section "A7  flip a byte in the verity HASH TREE -- boot must refuse"
 # NOT covered -- dm-mod.create ignores it -- which is the one honest gap here.
 blocks=$(grep -oE '4096 4096 [0-9]+ [0-9]+' cmdline.txt | head -1 | awk '{print $3}')
 if [ -n "${blocks:-}" ]; then
-	cp stick.img /tmp/xos-a7.img
-	flip /tmp/xos-a7.img $((ROOT_OFF + (blocks + 1) * 4096 + 16))
-	o7=$(boot_img /tmp/xos-a7.img)
+	cp stick.img $XT/xos-a7.img
+	flip $XT/xos-a7.img $((ROOT_OFF + (blocks + 1) * 4096 + 16))
+	o7=$(boot_img $XT/xos-a7.img)
 	grep -q 'dm-verity device corrupted' <<< "$o7" && ok "hash-tree corruption panicked the kernel" \
 		|| bad "a flipped hash-tree byte did not panic"
-	rm -f /tmp/xos-a7.img
+	rm -f $XT/xos-a7.img
 else
 	bad "could not parse data-block count from cmdline.txt"
 fi
@@ -490,11 +495,11 @@ section "A11  a superseded but validly-signed image must be refused"
 stub=$(./build.sh stub 2>/dev/null) || stub=
 if signed_ready A11; then
 	mk_uki a11 "$(cat cmdline.txt) xos.rel=old"
-	if ! sbverify --cert keys/db.crt /tmp/xos-a11-signed.efi >/dev/null 2>&1; then
+	if ! sbverify --cert keys/db.crt $XT/xos-a11-signed.efi >/dev/null 2>&1; then
 		bad "could not build a validly-signed superseded image to test with"
 	else
 		ok "the superseded image is validly signed by db"
-		h=$(python3 pehash.py --verify /tmp/xos-a11-signed.efi) \
+		h=$(python3 pehash.py --verify $XT/xos-a11-signed.efi) \
 			&& ok "authenticode digest agrees with its own signature" \
 			|| bad "pehash.py disagrees with the signature -- dbx would revoke nothing"
 		# revoke it in firmware only; the tracked `revoked` file is untouched.
@@ -502,9 +507,9 @@ if signed_ready A11; then
 			--add-dbx-hash "$SBGUID_T" "$h" >/dev/null 2>&1 \
 			|| bad "could not enroll the test revocation into dbx"
 		# drop the revoked image into a copy of the stick's ESP and boot that
-		cp stick.img /tmp/xos-a11.img
-		mcopy -o -i /tmp/xos-a11.img@@1M /tmp/xos-a11-signed.efi ::/EFI/BOOT/BOOTX64.EFI
-		o11=$(boot_refused /tmp/xos-a11.img)
+		cp stick.img $XT/xos-a11.img
+		mcopy -o -i $XT/xos-a11.img@@1M $XT/xos-a11-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+		o11=$(boot_refused $XT/xos-a11.img)
 		if grep -q XOS-TEST-BEGIN <<< "$o11"; then
 			bad "a revoked image still booted -- dbx is not being enforced"
 		else
@@ -522,7 +527,7 @@ if signed_ready A11; then
 			bad "dbx enrollment broke the image we actually ship"
 		fi
 	fi
-	rm -f /tmp/xos-a11.efi /tmp/xos-a11-signed.efi /tmp/xos-a11.img
+	rm -f $XT/xos-a11.efi $XT/xos-a11-signed.efi $XT/xos-a11.img
 fi
 
 echo
@@ -732,7 +737,7 @@ section "A16  state survives a real power cycle"
 # boot 2 gets the SAME disk and must read the marker back. the file is a plain
 # image (no host root needed); xos, which is root inside qemu, does every
 # privileged step. this is "reboot and your work is still there", proven.
-p3disk=/tmp/xos-p3test.img
+p3disk=$XT/xos-p3test.img
 rm -f "$p3disk"; truncate -s 64M "$p3disk"
 b1=$(boot_state "$p3disk")
 grep -q 'ledger: first boot recorded' <<< "$b1" \
@@ -808,13 +813,13 @@ assert_complete "$b3" "A16 boot 3"
 if signed_ready "A16 boots 4-7"; then
 	mk_uki a16a "$(cat cmdline.txt) xos.testaccept"; mk_stick a16a
 	mk_uki a16l "$(cat cmdline.txt) xos.testledger"; mk_stick a16l
-	b4=$(XOS_STICK=/tmp/xos-a16a.img boot_state "$p3disk" -device qemu-xhci)
+	b4=$(XOS_STICK=$XT/xos-a16a.img boot_state "$p3disk" -device qemu-xhci)
 	grep -q 'still CHANGED' <<< "$b4" && grep -q 'testaccept: accepted: machine' <<< "$b4" \
 		&& ok "boot 4 was still alarmed, then recon_accept took the new baseline" \
 		|| bad "boot 4 did not accept the changed baseline"
 	grep -q 'ledger: boot 4 on this state' <<< "$b4" && ok "boot 4 counted" || bad "boot 4 lost count"
 	assert_complete "$b4" "A16 boot 4"
-	b5=$(XOS_STICK=/tmp/xos-a16l.img boot_state "$p3disk" -device qemu-xhci)
+	b5=$(XOS_STICK=$XT/xos-a16l.img boot_state "$p3disk" -device qemu-xhci)
 	grep -qE 'recon: machine [0-9a-f]{16} is as you left it' <<< "$b5" \
 		&& ok "boot 5: the accepted baseline holds -- 'as you left it'" \
 		|| bad "boot 5 did not say 'as you left it' after the accept"
@@ -875,11 +880,11 @@ section "A18  yank the boot stick -- the machine must die"
 # hot-remove the usb device the way a hand does and assert the poweroff.
 if signed_ready A18; then
 	mk_uki a18 "$(cat cmdline.txt) xos.testtether"; mk_stick a18
-	a18log=/tmp/xos-a18.log; a18qmp=/tmp/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
+	a18log=$XT/xos-a18.log; a18qmp=$XT/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
 		-device qemu-xhci,id=xhci \
-		-drive if=none,id=stick,format=raw,readonly=on,file=/tmp/xos-a18.img \
+		-drive if=none,id=stick,format=raw,readonly=on,file=$XT/xos-a18.img \
 		-device usb-storage,bus=xhci.0,drive=stick,id=stickdev \
 		-qmp unix:"$a18qmp",server,nowait \
 		-nic user,model=virtio-net-pci -nographic -no-reboot </dev/null >"$a18log" 2>&1 &
@@ -906,7 +911,7 @@ PY
 		fi
 	fi
 	wait "$qpid" 2>/dev/null
-	rm -f /tmp/xos-a18.efi /tmp/xos-a18-signed.efi /tmp/xos-a18.img "$a18log" "$a18qmp"
+	rm -f $XT/xos-a18.efi $XT/xos-a18-signed.efi $XT/xos-a18.img "$a18log" "$a18qmp"
 fi
 
 echo
@@ -921,7 +926,7 @@ section "A19  every opt-out knob holds, and the state prompt is real"
 # scan never sees it -- this is the only place the production path runs.
 if signed_ready A19; then
 	mk_uki a19 "$(cat cmdline.txt) xos.nonet xos.realmac xos.notether xos.nostate"; mk_stick a19
-	o19=$(boot_img /tmp/xos-a19.img)
+	o19=$(boot_img $XT/xos-a19.img)
 	grep -q 'net-has-address: no' <<< "$o19" \
 		&& ok "xos.nonet: no address was configured" \
 		|| bad "xos.nonet did not hold -- the box got a lease"
@@ -936,7 +941,7 @@ if signed_ready A19; then
 		|| bad "irc claimed success with no network (the socket alone used to pass for 'up')"
 	# the same opt-out image with the rtc in 2010: the floor holds, and tls-time
 	# says it was switched off rather than pretending the rtc was sane.
-	o19c=$(boot_backclock /tmp/xos-a19.img)
+	o19c=$(boot_backclock $XT/xos-a19.img)
 	grep -q 'clock-not-before-floor: yes' <<< "$o19c" \
 		&& ok "xos.nonet + old rtc: the floor held with no network" \
 		|| bad "xos.nonet + old rtc: the floor did not hold"
@@ -955,7 +960,7 @@ if signed_ready A19; then
 	# the partitioned luks disk, built host-side: gpt with one partition at
 	# 1MiB, a luks2 header dd'd into it. in the guest it enumerates as vdb1
 	# WITH a partition attr -- exactly what the real scan looks for.
-	a19disk=/tmp/xos-a19-state.img; a19luks=/tmp/xos-a19.luks
+	a19disk=$XT/xos-a19-state.img; a19luks=$XT/xos-a19.luks
 	truncate -s 48M "$a19disk"
 	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a19disk" >/dev/null 2>&1
 	truncate -s 40M "$a19luks"
@@ -970,7 +975,7 @@ if signed_ready A19; then
 	mk_uki a19p "$prodcmd"; mk_stick a19p
 	o19p=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
-		-drive file=/tmp/xos-a19p.img,if=virtio,format=raw,readonly=on \
+		-drive file=$XT/xos-a19p.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a19disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
 	grep -q 'unlock persistent state?' <<< "$o19p" \
@@ -981,8 +986,8 @@ if signed_ready A19; then
 	# stick by 8 MiB, append a third partition, lay a LUKS header in it with the
 	# magic zeroed in both header copies. isLuks fails, so state_open used to
 	# drop it in silence: no prompt, no word. it must say so now.
-	a19h=/tmp/xos-a19h.img
-	cp /tmp/xos-a19p.img "$a19h"
+	a19h=$XT/xos-a19h.img
+	cp $XT/xos-a19p.img "$a19h"
 	truncate -s $(( $(stat -c%s "$a19h") + 8*1024*1024 )) "$a19h"
 	sfdisk --relocate gpt-bak-std "$a19h" >/dev/null 2>&1
 	printf ', , L\n' | sfdisk --append "$a19h" >/dev/null 2>&1
@@ -1012,7 +1017,7 @@ if signed_ready A19; then
 	# a malformed xos.epoch (the floor's one silent degradation) must be
 	# announced. appended last: cmdline_get takes the last occurrence.
 	mk_uki a19x "$(cat cmdline.txt) xos.epoch=abc"; mk_stick a19x
-	o19x=$(boot_backclock /tmp/xos-a19x.img)
+	o19x=$(boot_backclock $XT/xos-a19x.img)
 	grep -q 'clock floor SKIPPED: xos.epoch is not a number' <<< "$o19x" \
 		&& ok "a malformed xos.epoch is announced, not silently ignored" \
 		|| bad "a malformed xos.epoch skipped the floor without a word"
@@ -1025,7 +1030,7 @@ if signed_ready A19; then
 	mk_uki a19n "$prodcmd xos.nostate"; mk_stick a19n
 	o19n=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
-		-drive file=/tmp/xos-a19n.img,if=virtio,format=raw,readonly=on \
+		-drive file=$XT/xos-a19n.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a19disk",if=virtio,format=raw \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
 	if grep -q 'unlock persistent state?' <<< "$o19n"; then
@@ -1043,7 +1048,7 @@ if signed_ready A19; then
 	# console -- the same keystrokes a hand would make. everything after is
 	# the path real hardware runs: scan, prompt, cryptsetup open, mount,
 	# ledger, wireguard from the conf, dropbear bound to the tunnel address.
-	a19e=/tmp/xos-a19e.img
+	a19e=$XT/xos-a19e.img
 	truncate -s 48M "$a19e"
 	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a19e" >/dev/null 2>&1
 	prov=$(boot_state "$a19e")
@@ -1054,7 +1059,7 @@ if signed_ready A19; then
 	# type the passphrase: qemu's stdin is a fifo; write only after the
 	# prompt has actually appeared in the log, the way a human waits.
 	boot_typed() { # $1=stick $2=disk $3=passphrase $4=log [$5=extra opts for the state disk]
-		local fifo=/tmp/xos-a19.fifo t=0
+		local fifo=$XT/xos-a19.fifo t=0
 		rm -f "$fifo" "$4"; mkfifo "$fifo"
 		timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 			"${QEMU_FW[@]}" \
@@ -1094,8 +1099,8 @@ if signed_ready A19; then
 		rm -f "$fifo"
 	}
 
-	a19log=/tmp/xos-a19-typed.log
-	boot_typed /tmp/xos-a19p.img "$a19e" testpass "$a19log" "" 'stat -c %a /tmp/home; stat -f -c %T /tmp/home; echo HOME-PROBE-DONE'
+	a19log=$XT/xos-a19-typed.log
+	boot_typed $XT/xos-a19p.img "$a19e" testpass "$a19log" "" 'stat -c %a /tmp/home; stat -f -c %T /tmp/home; echo HOME-PROBE-DONE'
 	# the only boot where the real p3 is the home: it must be root-only on its
 	# own filesystem (busybox stat -f names ext4 "ext2/ext3").
 	grep -aq 'HOME-PROBE-DONE' "$a19log" && grep -aqE '^700' "$a19log" && grep -aqE '^ext2/ext3' "$a19log" \
@@ -1126,7 +1131,7 @@ if signed_ready A19; then
 		&& ok "off-stick state is announced (boot-disk-first ordering held)" \
 		|| bad "state opened off the boot stick without saying so"
 
-	boot_typed /tmp/xos-a19p.img "$a19e" wrongpass "$a19log"
+	boot_typed $XT/xos-a19p.img "$a19e" wrongpass "$a19log"
 	grep -aq 'wrong passphrase -- 2 attempt(s) left' "$a19log" \
 		&& ok "a typo gets a retry instead of costing the whole session" \
 		|| bad "no retry after a wrong passphrase"
@@ -1138,13 +1143,13 @@ if signed_ready A19; then
 	# a19disk is LUKS with nothing inside): both mount paths must name the
 	# damage, not fall through as "wrong passphrase" by omission. once with the
 	# disk writable (the rw path), once read-only (the vault path).
-	boot_typed /tmp/xos-a19p.img "$a19disk" testpass "$a19log"
+	boot_typed $XT/xos-a19p.img "$a19disk" testpass "$a19log"
 	grep -aq 'state unlocked but the filesystem would not mount -- p3 is damaged' "$a19log" \
 		&& ok "right passphrase, no filesystem: the rw path says p3 is damaged" \
 		|| bad "a p3 that unlocks but will not mount was not called damaged (rw path)"
 	grep -aq 'this image is:' "$a19log" \
 		&& ok "the boot carried on after the damaged rw mount" || bad "the damaged-rw boot never reached the banner"
-	boot_typed /tmp/xos-a19p.img "$a19disk" testpass "$a19log" ",readonly=on"
+	boot_typed $XT/xos-a19p.img "$a19disk" testpass "$a19log" ",readonly=on"
 	grep -aq 'state unlocked but the read-only filesystem would not mount -- p3 is damaged' "$a19log" \
 		&& ok "right passphrase, no filesystem, write-protected: the vault path says p3 is damaged" \
 		|| bad "a write-protected p3 that unlocks but will not mount was not called damaged (vault path)"
@@ -1163,7 +1168,7 @@ if signed_ready A19; then
 	# would guard. A16 already proves the ledger counts and persists across a
 	# real power cycle; A18 drives a real init poweroff.
 
-	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks" "$a19log"
+	rm -f $XT/xos-a19*.efi $XT/xos-a19*.img "$a19luks" "$a19log"
 fi
 
 section "A20  a usb-serial adapter becomes a vt320 login line"
@@ -1212,8 +1217,8 @@ else
 	case "$_ssz" in
 		24x80) ok "the serial line is 80x24, the screen G50 measures briefs against" ;;
 		'')    skipped "serial-size unreadable on the qemu null-chardev ftdi (winsize needs a real tty backing) -- 24x80 pin verified on real usb-serial hardware" ;;
-		*)     printf '%s\n' "$serout" > /tmp/xos-a20.serout
-		       bad "the serial geometry is $_ssz, not 24x80 -- G50's brief budget no longer matches it (full serout: /tmp/xos-a20.serout)" ;;
+		*)     printf '%s\n' "$serout" > $XT/xos-a20.serout
+		       bad "the serial geometry is $_ssz, not 24x80 -- G50's brief budget no longer matches it (full serout: $XT/xos-a20.serout)" ;;
 	esac
 	assert_complete "$serout" "A20 usb-serial boot"
 	# the two knobs README documents for other hardware, never passed by any
@@ -1221,7 +1226,7 @@ else
 	# line the loop set up, in both the baud and the TERM it picked.
 	if signed_ready "A20 knobs"; then
 		mk_uki a20v "$(cat cmdline.txt) xos.term=vt100 xos.baud=9600"; mk_stick a20v
-		servar=$(boot_usbserial /tmp/xos-a20v.img)
+		servar=$(boot_usbserial $XT/xos-a20v.img)
 		grep -q 'serial-baud: 9600' <<< "$servar" && grep -q 'serial-term-picked: vt100' <<< "$servar" \
 			&& ok "xos.term and xos.baud on the signed cmdline reach the serial line (vt100, 9600)" \
 			|| bad "the serial knobs did not take ($(grep -oE 'serial-(baud|term-picked): [^ ]*' <<< "$servar" | tr '\n' ' '))"
@@ -1241,7 +1246,7 @@ if signed_ready A21; then
 	a21cmd=$(tr ' ' '\n' < cmdline.txt | grep -v '^xos\.test' | tr '\n' ' ')
 	mk_uki a21 "$a21cmd"; mk_stick a21
 	# provision a p3 (ext4 + wg0.conf), exactly the way A19's crown-jewel does
-	a21disk=/tmp/xos-a21-state.img
+	a21disk=$XT/xos-a21-state.img
 	truncate -s 48M "$a21disk"
 	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a21disk" >/dev/null 2>&1
 	prov=$(boot_state "$a21disk")
@@ -1249,11 +1254,11 @@ if signed_ready A21; then
 		&& ok "provision boot laid down a p3 to run vault mode against" \
 		|| bad "could not provision the p3 for the vault test"
 	# boot production with that SAME disk attached READ-ONLY -- the switch is on.
-	a21log=/tmp/xos-a21.log a21fifo=/tmp/xos-a21.fifo
+	a21log=$XT/xos-a21.log a21fifo=$XT/xos-a21.fifo
 	rm -f "$a21fifo" "$a21log"; mkfifo "$a21fifo"
 	timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
-		-drive file=/tmp/xos-a21.img,if=virtio,format=raw,readonly=on \
+		-drive file=$XT/xos-a21.img,if=virtio,format=raw,readonly=on \
 		-drive file="$a21disk",if=virtio,format=raw,readonly=on \
 		-nic user,model=virtio-net-pci -nographic -no-reboot < "$a21fifo" > "$a21log" 2>&1 &
 	qp21=$!
@@ -1315,7 +1320,7 @@ if signed_ready A21; then
 	grep -aq 'VAULT-ACCEPT-REFUSED' "$a21log" \
 		&& ok "recon_accept refuses in vault mode and says why" \
 		|| bad "recon_accept did not refuse in vault mode"
-	rm -f /tmp/xos-a21*.efi /tmp/xos-a21*.img "$a21disk" "$a21log"
+	rm -f $XT/xos-a21*.efi $XT/xos-a21*.img "$a21disk" "$a21log"
 fi
 
 
@@ -1329,7 +1334,7 @@ section "A22  clone: a booted stick copies itself onto a plugged-in spare"
 # from outside the guest, so the copy is proven twice.
 if signed_ready A22; then
 	mk_uki a22 "$(cat cmdline.txt) xos.testclone"; mk_stick a22
-	a22stick=/tmp/xos-a22.img a22spare=/tmp/xos-a22-spare.img
+	a22stick=$XT/xos-a22.img a22spare=$XT/xos-a22-spare.img
 	a22ssz=$(stat -c%s "$a22stick"); truncate -s $((a22ssz + 8*1024*1024)) "$a22spare"
 	a22out=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
 		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
@@ -1351,7 +1356,7 @@ if signed_ready A22; then
 	assert_complete "$a22out" "A22 clone boot"
 	# the refusals, which are most of what clone is: a spare too small to hold
 	# the stick, and two spares at once. neither may write a byte.
-	a22small=/tmp/xos-a22-small.img; truncate -s $((a22ssz - 8*1024*1024)) "$a22small"
+	a22small=$XT/xos-a22-small.img; truncate -s $((a22ssz - 8*1024*1024)) "$a22small"
 	a22s=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
 		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
 		-device qemu-xhci,id=xhci \
@@ -1363,7 +1368,7 @@ if signed_ready A22; then
 		|| bad "clone did not refuse a too-small spare"
 	cmp -s -n 1048576 /dev/zero "$a22small" 2>/dev/null \
 		&& ok "the too-small spare was not written" || bad "clone wrote to a spare it should have refused"
-	a22two=/tmp/xos-a22-two.img; truncate -s $((a22ssz + 8*1024*1024)) "$a22two"
+	a22two=$XT/xos-a22-two.img; truncate -s $((a22ssz + 8*1024*1024)) "$a22two"
 	a22t=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
 		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
 		-device qemu-xhci,id=xhci \
@@ -1377,7 +1382,7 @@ if signed_ready A22; then
 		|| bad "clone did not refuse with two spares attached"
 	cmp -s -n 1048576 /dev/zero "$a22two" 2>/dev/null \
 		&& ok "neither spare was written when two were present" || bad "clone wrote with two spares attached"
-	rm -f /tmp/xos-a22*.efi /tmp/xos-a22-signed.efi "$a22spare" "$a22small" "$a22two" /tmp/xos-a22.img
+	rm -f $XT/xos-a22*.efi $XT/xos-a22-signed.efi "$a22spare" "$a22small" "$a22two" $XT/xos-a22.img
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
