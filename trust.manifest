@@ -133,7 +133,6 @@ host   /usr/share/OVMF/                             lab              the same, l
 host   /usr/share/qemu/                             lab              the same again
 
 # ---- paths inside the built image, not host inputs ----------------------------
-img    /usr/local                                   -                the prefix upstream configures install into
 img    /usr/share/learn                             -                the learn corpus, shipped in the squashfs
 img    /usr/share/xos                               -                the fingerprint wordlist
 img    /usr/share/udhcpc                            -                the dhcp hook script

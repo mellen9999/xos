@@ -322,7 +322,7 @@ toolpin() {
 # needs it too: a trust-surface regression should be named on the push that
 # caused it, not on the next full build.
 trustver() {
-  local f=trust.manifest rc=0 x
+  local f=trust.manifest rc=0 x k
   [ -f "$f" ] || { echo "FAIL: trust.manifest is missing" >&2; return 1; }
   local rows tm_tool tm_source tm_pkg tm_blob tm_ca tm_prefix
   rows=$(grep -vE '^[[:space:]]*(#|$)' "$f" || true)
@@ -446,6 +446,73 @@ trustver() {
       printf '    a prefix of it -- say whether it is a blob, a host path, or in the image\n' >&2
       rc=1; }
   done
+  # 7. the anchor column means something, per kind. until now only a source's
+  # sig:VAR was checked; a tool row could say anything in column three and the
+  # index would still read as complete. each kind has a closed set, and a pkg
+  # row's archive day must be the day repro/Dockerfile actually freezes.
+  local kind name anchor ala
+  ala=$(sed -n 's/^ARG ALA=//p' repro/Dockerfile 2>/dev/null | head -1)
+  while read -r kind name anchor _; do
+    [ -n "$kind" ] || continue
+    case "$kind:$anchor" in
+      tool:repro|tool:lab) ;;
+      source:sig:*|source:dsc:*|source:urlsha512|source:tofu) ;;
+      pkg:ala:*) [ "${anchor#ala:}" = "$ala" ] \
+        || { printf '    pkg %s is anchored to archive day %s but repro/Dockerfile freezes %s\n' "$name" "${anchor#ala:}" "${ala:-?}" >&2; rc=1; } ;;
+      blob:blobs.sha256) ;;
+      host:lab|host:UNPINNED) ;;
+      img:-) ;;
+      ca:tofu|ca:sig:*) ;;
+      out:image.sha256|out:keys/db|out:RELEASE_FPRS) ;;
+      *) printf '    %s %s has anchor %s, which is not one this kind can have\n' "$kind" "$name" "$anchor" >&2; rc=1 ;;
+    esac
+  done <<< "$rows"
+
+  # 8. the img and out rows name things the build produces. an img prefix must
+  # exist in the built root when there is one (buildless ci has no root/, and
+  # says so rather than passing on nothing); an out row must be a path the
+  # build text produces by name (attest/NNNN.manifest is the pattern attest()
+  # writes), and one anchored to image.sha256 must be a line of that pin.
+  if [ -d root ]; then
+    for name in $(printf '%s\n' "$rows" | awk '$1=="img"{print $2}'); do
+      [ -e "root$name" ] || { printf '    img row %s: nothing at root%s in the built image\n' "$name" "$name" >&2; rc=1; }
+    done
+  else
+    printf '  note: no root/ here -- the img rows are checked at build time (G60), not now\n'
+  fi
+  while read -r kind name anchor _; do
+    [ "$kind" = out ] || continue
+    # by basename: attest() spells its file "$ATTEST/$seq.manifest", so NNNN
+    # stands for a number, a variable, or a printf width in the script text.
+    local base=${name##*/} pat
+    pat=$(printf '%s' "$base" | sed 's/\./\\./g; s/NNNN/([0-9]+|[$][a-z_]+|%0?[0-9]*d)/')
+    grep -qE "(^|[^a-zA-Z0-9_-])${pat}([^a-zA-Z0-9_-]|$)" <<< "$script_text" \
+      || { printf '    out row %s: no first-party script produces or names it\n' "$name" >&2; rc=1; }
+    if [ "$anchor" = image.sha256 ]; then
+      case "$name" in
+        xos.img) k=image ;; rootfs.squashfs) k=squashfs ;; verity.roothash) k=roothash ;; bzImage) k=kernel ;; *) k= ;;
+      esac
+      [ -n "$k" ] && grep -qE "^$k " image.sha256 2>/dev/null \
+        || { printf '    out row %s claims image.sha256 pins it, but the pin has no %s line\n' "$name" "${k:-?}" >&2; rc=1; }
+    fi
+  done <<< "$rows"
+
+  # 9. the trust-doers, forward. 1b above only says a tool ROW must be invoked
+  # somewhere; nothing said an invoked trust tool must have a row -- a new
+  # `gpg --verify` or `sbsign` call in a script, with no row, was exactly the
+  # omission this file exists to refuse. the set is curated: the verbs that
+  # sign, hash, verify, clone, seal, or write a disk. a build dep (deps() arm)
+  # is already covered; these are the ones deps() never lists.
+  # the list's own line is cut from the corpus, or every verb would count as
+  # invoked by the line that names it.
+  local tv trust_text TRUST_VERBS="gpg sbsign sbverify ssh-keygen cryptsetup veritysetup sha256sum sha512sum git docker zstd ukify openssl dd sudo blockdev"
+  trust_text=$(grep -v 'TRUST_VERBS=' <<< "$script_text")
+  for tv in $TRUST_VERBS; do
+    grep -qE "(^|[[:space:]|(;!&])$tv([[:space:]]|$)" <<< "$trust_text" || continue
+    grep -qxF "$tv" <<< "$tm_tool" \
+      || { printf '    %s does trust work in a first-party script and trust.manifest has no tool row for it\n' "$tv" >&2; rc=1; }
+  done
+
   [ "$rc" -eq 0 ] && printf '  trust.manifest accounts for %d row(s) against the tree\n' \
     "$(printf '%s\n' "$rows" | grep -c .)"
   return $rc
