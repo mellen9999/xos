@@ -495,9 +495,9 @@ live tool can touch nothing real.
 
 the first boot greets you with `tutorial` -- three short pages that say where you
 are, how to keep more than one shell alive, and to run `learn` when ready. from
-there `learn` teaches the whole shipped command surface -- the 202 commands: applets,
+there `learn` teaches the whole shipped command surface -- the 203 commands: applets,
 builtins, binaries and xos's own verbs (`irc`, `scrub`, `recon_accept`) this image contains --
-in dependency order. 35 levels, 894 questions, generated
+in dependency order. 35 levels, 963 questions, generated
 not fixed: each rolls its own filenames, values and file contents, and is graded by
 *running* what you type as `nobody` in a throwaway sandbox, so `sort -u` and
 `sort | uniq` both pass.

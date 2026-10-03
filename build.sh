@@ -5149,6 +5149,34 @@ ci() {
   # stops a fix landing in one tree and not the other (the drift this session found).
   [ -d arsenal/lib ] && [ -d learn/lib ] && { libparity || rc=1; }
   [ -x arsenal/learn ] && { schoolship || rc=1; }
+  # the README states counts the reader trusts -- the command surface, the level
+  # and question totals. nothing checked them, so they drifted release after
+  # release (202 vs 203 ref pages, 894 vs 963 questions). re-derive the three
+  # that are exact file-or-corpus facts and make the prose match. the applet
+  # count is left out here: it is `busybox --list` on the BUILT binary, which a
+  # buildless runner may not have, and a host busybox has a different set.
+  if [ -f README.md ] && [ -d learn/ref ] && [ -d learn/levels ]; then
+    say "README counts match the tree"
+    local rc_cmd rc_lvl rc_q claim_cmd claim_lvl claim_q
+    rc_cmd=$(ls learn/ref 2>/dev/null | grep -c .)
+    rc_lvl=$(ls learn/levels 2>/dev/null | grep -c .)
+    # the question total the way learn lint counts it (the authoritative source
+    # the README number is meant to equal)
+    rc_q=$(LEARN_ROOT="$PWD/learn" NO_COLOR=1 "${bb:-busybox}" ash learn/learn lint 2>/dev/null \
+             | grep -oE '[0-9]+ questions' | head -1 | awk '{print $1}')
+    claim_cmd=$(grep -oE 'the [0-9]+ commands' README.md | grep -oE '[0-9]+' | head -1)
+    claim_lvl=$(grep -oE '[0-9]+ levels' README.md | grep -oE '[0-9]+' | head -1)
+    claim_q=$(grep -oE '[0-9]+ questions' README.md | grep -oE '[0-9]+' | head -1)
+    local cnt_bad=0
+    [ "$claim_cmd" = "$rc_cmd" ] || { printf '  \033[1;31mREADME says %s commands, the tree has %s ref pages\033[0m\n' "${claim_cmd:-?}" "$rc_cmd" >&2; cnt_bad=1; }
+    [ "$claim_lvl" = "$rc_lvl" ] || { printf '  \033[1;31mREADME says %s levels, the tree has %s\033[0m\n' "${claim_lvl:-?}" "$rc_lvl" >&2; cnt_bad=1; }
+    # only check questions when lint could produce a number (it needs the corpus,
+    # always here, but guard against an empty read rather than fail spuriously)
+    if [ -n "$rc_q" ]; then
+      [ "$claim_q" = "$rc_q" ] || { printf '  \033[1;31mREADME says %s questions, learn lint counts %s\033[0m\n' "${claim_q:-?}" "$rc_q" >&2; cnt_bad=1; }
+    fi
+    if [ "$cnt_bad" -eq 0 ]; then printf '  %s commands, %s levels, %s questions -- README matches\n' "$rc_cmd" "$rc_lvl" "${rc_q:-?}"; else rc=1; fi
+  fi
   [ "$rc" -eq 0 ] && printf '\033[1;32m  ci: buildless checks pass\033[0m\n' \
                   || printf '\033[1;31m  ci: FAILED\033[0m\n'
   return $rc
