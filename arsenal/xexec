@@ -29,6 +29,10 @@ if [ "${1:-}" = "-t" ]; then
 	[ "$#" -ge 2 ] || die "usage: xexec -t <dir> <relative-entrypoint> [args...]"
 	src=$1; entry=$2; shift 2
 	[ -d "$src" ] || die "no such dir: $src"
+	# the entry runs from the SEALED copy, so it must name a path inside it:
+	# a leading / or a .. would run something outside the surface this exists
+	# to confine, with the surface's name on it.
+	case "/$entry/" in /*/../*|//*) die "entrypoint must be a plain path inside $src (no leading / or ..)" ;; esac
 	[ -f "$src/$entry" ] || die "no entrypoint $entry under $src"
 else
 	[ "$#" -ge 1 ] || die "usage: xexec <binary> [args...]   |   xexec -t <dir> <entry> [args...]"
@@ -37,7 +41,14 @@ else
 fi
 
 mp=$(mktemp -d "${TMPDIR:-/tmp}/.xexec.XXXXXX") || die "cannot make a mountpoint"
-cleanup() { umount "$mp" 2>/dev/null; rmdir "$mp" 2>/dev/null; }
+# a child the tool left behind keeps the surface busy; detach it then (the
+# mount goes when the last user exits) and say so if even that fails -- an
+# exec surface that quietly outlives its run is the one thing this must not do.
+cleanup() {
+	umount "$mp" 2>/dev/null || umount -l "$mp" 2>/dev/null \
+		|| printf 'xexec: WARNING: exec surface %s is still mounted\n' "$mp" >&2
+	rmdir "$mp" 2>/dev/null
+}
 trap cleanup EXIT INT TERM
 
 # exec, but nosuid+nodev, size-capped so a runaway cannot eat RAM. a tree may

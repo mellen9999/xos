@@ -17,8 +17,10 @@ set -eu
 DEV="${1:-}"
 SELF="$(cd "$(dirname "$0")" && pwd)"
 ARSENAL="${XOS_ARSENAL:-$HOME/.local/share/xos-arsenal}"
-MAP=xosprov
-MNT=/run/xosprov
+# per-run names: two provisions at once (two sticks, two terminals) must not
+# share a device-mapper name or a mountpoint.
+MAP=xosprov.$$
+MNT=/run/xosprov.$$
 
 [ -n "$DEV" ] || { echo "usage: provision.sh /dev/sdX3   (the p3 partition)" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || exec sudo -E "$0" "$@"

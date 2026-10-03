@@ -52,6 +52,8 @@ rm -rf "$stage"
 rm -rf "$share/bb"; mkdir -p "$share/bb"
 "$share/busybox" --install -s "$share/bb" 2>/dev/null ||
 	for ap in $("$share/busybox" --list); do ln -sf "$share/busybox" "$share/bb/$ap"; done
+# the multicall binary by its own name too, as /bin/busybox is on the stick
+ln -sf "$share/busybox" "$share/bb/busybox"
 
 # what this corpus is, written where it can be read back.
 (cd "$src" && git rev-parse --short HEAD 2>/dev/null || echo unknown) > "$share/VERSION"

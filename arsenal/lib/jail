@@ -30,6 +30,18 @@ fi
 
 JAIL_BASE=""; JAIL_EXEC=""; JAIL_SCRATCH=""; JAIL_MOUNTED=0
 
+# the PATH an answer sees behind the staged tools. on the stick every command
+# is a busybox applet and $PATH holds nothing else; a dev host's $PATH is gnu
+# coreutils plus whatever is installed, and that masked a stick-only failure
+# for weeks (the rabin2 card passed on a host that had one in /usr/bin). so an
+# applet dir stands in for the stick when one exists -- ARSENAL_BB names it,
+# else the installed share's bb/ (install.sh builds it) -- and the answer runs
+# under its sh. with neither, the host PATH, and selftest says so once.
+JAIL_PATH=""
+for _d in "${ARSENAL_BB:-}" "${ARSENAL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/xos-arsenal}/bb"; do
+	[ -n "$_d" ] && [ -x "$_d/sh" ] && { JAIL_PATH="$_d"; break; }
+done
+
 # tree_spec NAME -- for a tool that ships as a directory tree (an interpreter +
 # its stdlib + .so's, not one static binary), print "ENTRY|SHIM...": the path to
 # run RELATIVE to the staged tree, and the command name(s) to expose on the jail
@@ -118,10 +130,16 @@ jail_run() {
 	rm -rf "$JAIL_SCRATCH" 2>/dev/null; mkdir -p "$JAIL_SCRATCH"
 	[ -n "$_seed" ] && ( cd "$JAIL_SCRATCH" 2>/dev/null && "$_seed" )
 	[ -n "$JAIL_DROP" ] && chown -R nobody "$JAIL_SCRATCH" 2>/dev/null
+	# the default shell is the applet dir's when one stands in for the stick;
+	# a caller that chose a shell explicitly keeps it.
+	_sh=${SHELLBIN:-/bin/sh}
+	[ "$_sh" = /bin/sh ] && [ -n "$JAIL_PATH" ] && _sh="$JAIL_PATH/sh"
 	( cd "$JAIL_SCRATCH" 2>/dev/null || exit 1
+	  # env, so timeout and the privilege drop are also looked up on the
+	  # answer's PATH (the applet ones), not the host's.
 	  # shellcheck disable=SC2086
-	  PATH="$JAIL_EXEC:$PATH" HOME="$JAIL_SCRATCH" TMPDIR="$JAIL_SCRATCH" \
-	    timeout 10 $JAIL_DROP "${SHELLBIN:-/bin/sh}" -c "$_ans" </dev/null 2>&1 )
+	  env PATH="$JAIL_EXEC:${JAIL_PATH:-$PATH}" HOME="$JAIL_SCRATCH" TMPDIR="$JAIL_SCRATCH" \
+	    timeout 10 $JAIL_DROP "$_sh" -c "$_ans" </dev/null 2>&1 )
 }
 
 # jail_scratch -- absolute path of the writable scratch, for state: assertions.

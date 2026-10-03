@@ -4980,6 +4980,48 @@ libparity() {
 # plus the corpus it opens, then each installer is run into a scratch home and
 # every item must land non-empty. buildless: install.sh gets a stand-in
 # busybox, populate() no tool dir, so neither needs a build or the network.
+# xexecproof -- the carried executor, behaving, not just parsing. xexec is the
+# only way carried code runs on the stick (p3 is noexec), and until this it was
+# parse-checked and shellchecked and never once run by anything: the seal, the
+# teardown, the tree entry check were claims. a user namespace gives an
+# unprivileged host root-enough to mount a tmpfs, which is all xexec needs, so
+# every behaviour runs here: a staged binary executes; the surface refuses a
+# write once sealed; a child the tool leaves behind does not keep the surface
+# mounted; an entry that escapes the tree is refused. no userns -> SKIP, named.
+xexecproof() {
+  say "xexec: run, seal, tear down, refuse an escaping entry"
+  [ -x ./busybox ] || { printf '  skipped: no built busybox to stage (./build.sh busybox first)\n'; return 0; }
+  unshare -rm true 2>/dev/null \
+    || { printf '  \033[1;33mskipped: no user namespaces on this host -- xexec behaviour unverified here\033[0m\n'; return 0; }
+  local out bad=0
+  # the probe the staged busybox runs: find its own surface in /proc/mounts and
+  # try to write to it. a file, not a quoted one-liner -- three quoting layers
+  # deep is where a probe stops meaning what it says.
+  local t; t=$(mktemp -d) || return 1
+  cat > "$t/seal.sh" <<'EOF'
+d=$(grep -o ' [^ ]*/\.xexec\.[^ ]* ' /proc/mounts | tail -1 | tr -d ' ')
+[ -n "$d" ] && [ -d "$d" ] || { echo SEAL-NOSURFACE; exit 0; }
+touch "$d/new" 2>/dev/null && echo SEAL-WRITABLE || echo SEAL-OK
+EOF
+  out=$(unshare -rm sh -c '
+    cd "$1" || exit 9
+    sh arsenal/xexec ./busybox echo RUN-OK 2>&1
+    sh arsenal/xexec ./busybox sh "$2/seal.sh" 2>&1
+    sh arsenal/xexec ./busybox sh -c "sleep 15 >/dev/null 2>&1 & exit 0" 2>&1
+    echo "MOUNTS-LEFT $(grep -c /.xexec. /proc/mounts)"
+    mkdir -p "$2/tree/bin"; cp ./busybox "$2/tree/bin/"
+    sh arsenal/xexec -t "$2/tree" ../../bin/sh 2>&1 | grep -q "plain path inside" && echo ESCAPE-REFUSED || echo ESCAPE-ALLOWED
+    sh arsenal/xexec -t "$2/tree" bin/busybox echo TREE-OK 2>&1' _ "$PWD" "$t" 2>&1)
+  rm -rf "$t"
+  for want in RUN-OK SEAL-OK "MOUNTS-LEFT 0" ESCAPE-REFUSED TREE-OK; do
+    printf '%s\n' "$out" | grep -qxF -- "$want" || { bad=1; printf '    xexec: expected "%s", did not see it\n' "$want" >&2; }
+  done
+  printf '%s\n' "$out" | grep -qE 'SEAL-WRITABLE|SEAL-NOSURFACE|ESCAPE-ALLOWED|WARNING' && bad=1
+  if [ "$bad" = 0 ]; then printf '  xexec runs, seals, tears down and refuses an escaping entry\n'; return 0; fi
+  printf '  \033[1;31mxexec misbehaved:\033[0m\n%s\n' "$(printf '%s\n' "$out" | sed 's/^/    /')" >&2
+  return 1
+}
+
 # learnship -- every $ROOT/<name> the learn engine reads is a name rootfs()
 # ships to /usr/share/learn. otherwise the stick opens it as nothing (2>/dev/null)
 # while the dev host, where every grader runs, has it: acts (the level groupings
@@ -5280,10 +5322,21 @@ ci() {
   # is caught on the push, while a merely-absent tool is not mistaken for a defect.
   if [ -d arsenal/levels ] && [ -n "$bb" ]; then
     say "arsenal school selftest"
+    # the answers' PATH: an applet dir built from the fort busybox, so a card is
+    # graded against the commands the stick has -- not the host's gnu set, which
+    # hid the rabin2 stick-only failure. with no built busybox (a fresh clone),
+    # the jail falls back to the host PATH and says so.
+    local abb=""
+    if [ -x ./busybox ]; then
+      abb=$(mktemp -d) && ./busybox --install -s "$abb" 2>/dev/null || abb=""
+      # the stick has /bin/busybox itself too (cards call `busybox true`)
+      [ -n "$abb" ] && ln -sf "$PWD/busybox" "$abb/busybox"
+      [ -n "$abb" ] && printf '  answers run on the fort busybox applets, nothing else on PATH\n'
+    fi
     # captured, not piped: a pipe returns grep's status, so a real selftest
     # failure would sail past (the same trap the learn coverage block names).
     local as_out as_rc=0
-    as_out=$(ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn selftest 2>&1) || as_rc=1
+    as_out=$(ARSENAL_BB="$abb" ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn selftest 2>&1) || as_rc=1
     printf '%s\n' "$as_out" | grep -vE '^note ' >&2 || true
     [ "$as_rc" -eq 0 ] || rc=1
     # the authoring ledger: advisory like learn's (never gated -- a hard rule on
@@ -5299,7 +5352,9 @@ ci() {
     ao_out=$(ARSENAL_ROOT="$PWD/arsenal" NO_COLOR=1 "$bb" ash arsenal/learn order 2>&1) || ao_rc=1
     printf '  %s\n' "$ao_out"
     [ "$ao_rc" -eq 0 ] || rc=1
+    [ -n "$abb" ] && rm -rf "$abb"
   fi
+  xexecproof || rc=1
   # one q: per card, across every corpus that becomes SRS cards. the card key
   # is the q: template, stored one tab-separated row per card; a second q: line
   # gives held_keys (which reads only the first) a different key than blk_load
@@ -5723,7 +5778,7 @@ flash() {
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|learnship|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|learnship|xexecproof|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
   *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign EFI|uki|dbx|revoke IMAGE|stick|usb <dev>|install <dev>|flash|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin <pkgver>|attest|verify|toolver|toolpin|trustver|lint|ci|outdated|bump <name> <ver>|vouch|repro|cpin|crepro|all}"; exit 1 ;;
 esac

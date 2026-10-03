@@ -77,6 +77,11 @@ tcp_connect(const char *host, const char *port)
 	for (p = ai; p; p = p->ai_next) {
 		if ((fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
 			continue;
+		/* linux applies the send timeout to connect(): a blackholed host
+		 * costs 15 s, not the kernel's minutes -- in socket mode the single
+		 * accept loop would otherwise sit there, deaf to every other client */
+		struct timeval tv = { 15, 0 };
+		setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
 		if (connect(fd, p->ai_addr, p->ai_addrlen) == 0)
 			break;
 		e = errno;
