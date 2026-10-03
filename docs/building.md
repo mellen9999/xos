@@ -1,5 +1,8 @@
 # building xos on a distro that is not arch
 
+(`./build.sh help` lists every verb, grouped by what it is for. the first-time
+path, start to finish, is `docs/first-stick.md`.)
+
 two of the three things you might want to do need **nothing but docker**, and
 have never been Arch-bound:
 

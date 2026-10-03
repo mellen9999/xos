@@ -16,6 +16,10 @@ compute: its disks never enumerate, and pulling the stick leaves nothing behind.
 
 ## quickstart
 
+never done this before? `docs/first-stick.md` is the whole path in order --
+clone, build, write the stick, enroll the key, boot, reach it from elsewhere --
+with every command spelled out and every term explained where it first appears.
+
     ./build.sh flash          # newbie one-word: build as you, sudo only the flash
     ./build.sh install        # same, but you handle root yourself
     ./build.sh all            # build only
