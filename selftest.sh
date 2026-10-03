@@ -60,7 +60,14 @@ restore() {
 		exit 1
 	fi
 	./build.sh lock >/dev/null 2>&1
-	rm -rf "$XT"
+	# a red run keeps its logs and says where: the typed-console rounds in
+	# particular cannot be understood from the verdict line alone.
+	if [ "${fail:-0}" -gt 0 ]; then
+		printf '  logs of this run kept at %s (remove it when read)\n' "$XT" >&2
+		find "$XT" -name '*.img' -delete 2>/dev/null
+	else
+		rm -rf "$XT"
+	fi
 }
 # INT/TERM too: a ctrl-c at minute six of A19 must still put the production
 # uki/stick back and discard A11's throwaway dbx entry, or the tree is left
