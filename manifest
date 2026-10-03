@@ -42,6 +42,8 @@ usr/share/learn/syntax
 usr/share/learn/bashisms
 usr/share/learn/lib/projects
 usr/share/learn/lib/fumble
+usr/share/learn/lib/corpus
+usr/share/learn/lib/selftest
 usr/share/learn/projects/01-triage
 usr/share/learn/projects/03-parcel
 usr/share/learn/scenarios/01-first-blood

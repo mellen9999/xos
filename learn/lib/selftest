@@ -1,0 +1,1769 @@
+# selftest -- the corpus proves itself under the shipped busybox: every block
+# loads, every listed answer grades correct in a fresh sandbox, cmp:ref answers
+# agree with themselves, the fixtures roll what the questions need, and the
+# panel/explain engines match on a fixed battery. G25 runs it at build time;
+# A12 runs it on the booted stick, offline. split out of the driver on
+# 2026-10-03 -- same text, its own file.
+
+selftest() {
+	local id nq i bad=0 nq_lvl=0 nq_chain=0 nq_scn=0 sid a
+	sandbox_build || die "cannot build sandbox at $SANDBOX"
+
+	for id in $(level_ids); do
+		nq=$(level_nq "$id")
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			q_load "$id" "$i" || { echo "FAIL $id/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+			nq_lvl=$((nq_lvl + 1))
+			st_block "$id/$i"
+			i=$((i + 1))
+		done
+
+		# the boss path never used to run under selftest, and that is how a
+		# fatal arithmetic error in its clock shipped. walk it for every level:
+		# with stdin closed each read times out instantly, so the whole round
+		# -- banner, clock, scoring, verdict -- completes in milliseconds. the
+		# subshell contains a fatal error AND keeps the probe's card writes out
+		# of real state.
+		boss_limit "$id" 2>/dev/null | grep -qE '^[0-9]+$' \
+			|| { echo "FAIL $id: boss_limit is not a number" >&2; bad=$((bad+1)); }
+		[ -n "$(level_field "$id" boss)" ] \
+			|| { echo "FAIL $id: no boss: line -- run_level would die here" >&2; bad=$((bad+1)); }
+		[ "$nq" -ge 5 ] \
+			|| { echo "FAIL $id: $nq questions -- a boss draws 5" >&2; bad=$((bad+1)); }
+		if [ -n "$(level_field "$id" boss)" ] && [ "$nq" -ge 5 ]; then
+			( CARDS="$TMP/bosscards"; SESSION_SEEN="$TMP/bosssession"
+			  : > "$CARDS"; : > "$SESSION_SEEN"
+			  boss_round "$id" </dev/null ) > "$TMP/boss.$$" 2>&1
+			grep -qE 'holds|falls' "$TMP/boss.$$" \
+				|| { echo "FAIL $id: boss round did not complete" >&2
+				     sed 's/^/  /' "$TMP/boss.$$" | tail -3 >&2; bad=$((bad+1)); }
+			rm -f "$TMP/boss.$$"
+		fi
+	done
+
+	# the challenge chains get the same per-block treatment. they are always
+	# reference-graded, so the determinism and agreement checks apply to
+	# every one of them.
+	if [ -f "$CHAINS" ]; then
+		nq=$(chal_nq)
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			blk_load "$CHAINS" "$i" || { echo "FAIL chain/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+			Q_CMP=ref
+			nq_chain=$((nq_chain + 1))
+			st_block "chain/$i"
+			i=$((i + 1))
+		done
+	fi
+
+	# scenarios get the same per-block treatment. they grade against real
+	# machine state rather than the sandbox fixtures, so the out:/state:
+	# checks below run against whatever this build machine actually is --
+	# which is exactly the state the mission is describing.
+	for sid in $(scenario_ids); do
+		nq=$(scn_nq "$sid")
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			blk_load "$(scn_path "$sid")" "$i" || { echo "FAIL $sid/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+			nq_scn=$((nq_scn + 1))
+			st_block "$sid/$i"
+			i=$((i + 1))
+		done
+	done
+
+	# a boss is a level's identity: two levels sharing a name or a flavor is
+	# an authoring slip thirty files wide that no eye catches. (it shipped.)
+	local dup
+	dup=$(sed -n 's/^boss: //p' "$LEVELS"/* | sort | uniq -d)
+	[ -z "$dup" ] || { echo "FAIL boss name duplicated across levels: $dup" >&2; bad=$((bad+1)); }
+	dup=$(sed -n 's/^flavor: //p' "$LEVELS"/* | sort | uniq -d)
+	[ -z "$dup" ] || { echo "FAIL boss flavor duplicated across levels: $dup" >&2; bad=$((bad+1)); }
+
+	# the syntax table has two consumers: explain's panel matches with
+	# grep/sed, order_syntax gates with awk. same table, two regex engines --
+	# prove they read a fixed battery identically, so a dialect difference
+	# can never let the gate and the panel drift apart. the battery covers
+	# every tricky row class: consumed-order longest-first, boundary-anchored
+	# (-- and lone -), slash-bearing (/dev/null), space-bearing ([ ]), and
+	# the quoted-span strip.
+	local bl g1 g2 hits=0
+	while IFS= read -r bl; do
+		[ -n "$bl" ] || continue
+		g1=$(_syn_scan "$bl" | cut -f1 | sort)
+		printf 'name: synbattery\n---\nq: x\na: %s\n' "$bl" > "$TMP/synlvl"
+		g2=$(order_syntax gate "$TMP/synlvl" | sed 's/.*needs //;s/ before any level.*//' | sort)
+		[ "$g1" = "$g2" ] || { echo "FAIL syntax engines disagree on: $bl" >&2
+			printf '  panel: %s\n  gate:  %s\n' "$(echo $g1)" "$(echo $g2)" >&2; bad=$((bad+1)); }
+		[ -n "$g1" ] && hits=$((hits+1))
+	done <<-'EOF'
+	[ -f x ] && echo y || echo n
+	find . -name '*.log' -exec rm {} +
+	wc -l < in > out 2>&1 &
+	x=5; echo $((x+1))
+	sort -u f | tee -a g >> h
+	grep -q e f 2>/dev/null
+	echo -- -
+	[ $# -gt 0 ] && echo "$@" $1 ${#v} ${v:-d}
+	sh -c "echo \$0" x
+	awk '{print "|" $1 "\t"}' f
+	EOF
+	[ "$hits" -ge 6 ] || { echo "FAIL syntax battery went dark ($hits lines matched)" >&2; bad=$((bad+1)); }
+
+	# every word in pools/terms is in every log the fixture builds. a card
+	# greps for a rolled @term@, so a term the log only sometimes carries is a
+	# card that only sometimes has an answer -- it grades empty against empty
+	# and passes, or fails the build at whatever hour the roll came up short.
+	# three of the twelve were emitted under a rand() until this asked.
+	( _tbad=
+	  for _fs in 1 7 40 99; do
+		FX_SEED=$_fs SANDBOX_DIRTY=1
+		sandbox_build || exit 1
+		for _t in $(grep . "$POOLS/terms"); do
+			grep -qF -- "$_t" "$SANDBOX/$(sed -n 1p "$POOLS/logs")" 2>/dev/null \
+				|| _tbad="$_tbad $_t@$_fs"
+		done
+	  done
+	  [ -z "$_tbad" ] || { echo "  missing:$_tbad" >&2; exit 1; }
+	  exit 0 ) \
+		|| { echo "FAIL fixtures: a pools/terms word is not in every log" >&2; bad=$((bad+1)); }
+	SANDBOX_DIRTY=1
+
+	# a row's label reaches the panel intact. the label that IS a backslash
+	# printed as nothing: it was handed to awk with -v, and awk processes
+	# escape sequences in a -v assignment, so the gloss arrived nameless.
+	( C=; N=; TERM_COLS=80
+	  case "$(_exp_row '\' 'protects the next character' 9)" in *'\'*) exit 0 ;; esac
+	  exit 1 ) \
+		|| { echo "FAIL explain: a row label does not survive to the panel" >&2; bad=$((bad+1)); }
+
+	# the label column is as wide as the labels IN it. it used to be cut for
+	# the widest label in the whole table, ${NAME:-WORD}, so a panel of `*`
+	# and `?` opened with eight columns of gap and lost eight off the gloss.
+	( C=; N=; TERM_COLS=80
+	  _w=$(explain_syntax 'ls *' | awk 'NR==1 { print index($0, "a filename") }')
+	  [ "${_w:-0}" -ge 3 ] && [ "$_w" -le 8 ] ) \
+		|| { echo "FAIL explain: the label column is not sized to its labels" >&2; bad=$((bad+1)); }
+
+	# and it widens to hold one, across both halves of `learn explain`: the
+	# command names and the syntax labels are one column, not two that agree
+	# by luck.
+	( C=; N=; W=; U=; D=; TERM_COLS=80
+	  _t=$(explain 'grep x "${f:-log}"')
+	  _a=$(printf '%s\n' "$_t" | awk '/^  grep /   { print index($0, "Search"); exit }')
+	  _b=$(printf '%s\n' "$_t" | awk '/^  \$\{NAME/ { print index($0, "a variable"); exit }')
+	  [ -n "$_a" ] && [ "$_a" = "$_b" ] ) \
+		|| { echo "FAIL explain: the names and the labels are not one column" >&2; bad=$((bad+1)); }
+
+	# every label a level DECLARES must be a row in the table. order_syntax
+	# only ever asks whether a required construct was declared, so a label
+	# renamed in the table and missed in a header declares nothing and says
+	# nothing -- until the day a question needs it.
+	local undecl
+	cut -f1 "$SYNTAX" | grep -v '^#' > "$TMP/synlab"
+	undecl=$(sed -n 's/^syntax: *//p' "$LEVELS"/* | tr ',' '\n' \
+		| sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u \
+		| grep -vxF -f "$TMP/synlab" || true)
+	[ -z "$undecl" ] || { echo "FAIL syntax: declared but not in the table: $(echo $undecl)" >&2; bad=$((bad+1)); }
+
+	# and the other direction: every row of the table is drilled by some level
+	# or retired in learn/skip-syntax. without this the surface claim covered
+	# the commands and not the shell -- a third of the grammar was claimed by
+	# no level, and sh is one page in ref/ so the flag gate could never see it.
+	local _syn
+	# a state: the card's own redirect guarantees grades the redirect, not the
+	# lesson -- both orders of `> f 2>&1` created the file, and both passed
+	local _selfmade
+	_selfmade=$(state_selfmade)
+	[ -z "$_selfmade" ] || { printf '%s\n' "$_selfmade" >&2
+		echo "FAIL: $(printf '%s\n' "$_selfmade" | grep -c 'redirect in the answer') state: check(s) assert only that a redirect was typed" >&2
+		bad=$((bad+1)); }
+
+	_syn=$(syntax_coverage)
+	[ -z "$_syn" ] || { printf '%s\n' "$_syn" >&2
+		echo "FAIL: $(printf '%s\n' "$_syn" | grep -c .) syntax row(s) neither drilled nor retired" >&2
+		bad=$((bad+1)); }
+
+	# the one tokenizer, pinned. _answer_walk decides which command an answer
+	# invokes, and the ref: gate turns that into a verdict -- but a walker that
+	# stops seeing `read` rejects every honest spelling of a read loop while the
+	# corpus goes on passing, because tier 1 still matches the card's own text.
+	# that is how it drifted unnoticed. every row is a shape the gate depends on.
+	local _tl _want _line _have
+	while IFS= read -r _tl; do
+		[ -n "$_tl" ] || continue
+		_want=${_tl%%	*}; _line=${_tl#*	}
+		_have=$(printf '%s\n' "$_line" | answer_cmds | grep . | sort -u | tr '\n' ' ')
+		[ "$(echo $_have)" = "$_want" ] \
+			|| { echo "FAIL answer_cmds: '$_line' gave '$(echo $_have)', wanted '$_want'" >&2
+			     bad=$((bad+1)); }
+	done <<-'EOF'
+	echo read	while read -r line; do echo "$line"; done < f
+	echo read	while IFS=, read -r a b c d; do echo "$a"; done < f
+	set shift	set -- a b c; shift
+	echo f local	f(){ local v=1; echo $v; }; f
+	echo grep	if grep -q x f; then echo yes; else echo no; fi
+	[ break echo seq	for i in $(seq 1 5); do [ $i -eq 3 ] && break; echo $i; done
+	[ echo	i=0; while [ $i -lt 3 ]; do echo $i; i=$((i + 1)); done
+	getopts set	set -- -a x; getopts a o
+	echo exec	exec 2>&1; echo x
+	echo trap	trap "echo bye" EXIT; echo x
+	awk	awk -F, 'NR > 1 {s += $4} END {print s}' f
+	cut printf sha256sum	printf '%s\n' "$(sha256sum x | cut -d' ' -f1)"
+	printf set	set -- -n; printf '%s\n' "$1"
+	EOF
+
+	# the unsafe() fence is what makes execution grading survivable: prove it
+	# refuses what must never run and still admits what the lessons teach.
+	# both directions matter -- an over-eager fence silently downgrades honest
+	# answers to string matching.
+	while IFS= read -r a; do
+		want=${a%%	*}; a=${a#*	}
+		if [ "$want" = y ]; then
+			printf '%s\n' "$a" | unsafe \
+				|| { echo "FAIL unsafe: would run: $a" >&2; bad=$((bad+1)); }
+		else
+			printf '%s\n' "$a" | unsafe \
+				&& { echo "FAIL unsafe: refuses to run: $a" >&2; bad=$((bad+1)); }
+		fi
+	done <<-EOF
+	y	mke2fs /dev/mapper/state
+	y	cryptsetup luksFormat /dev/sda3
+	y	kill -9 12345
+	y	pkill -f httpd
+	y	ip link set eth0 down
+	y	udhcpc -i eth0
+	y	mount -o remount,rw /
+	y	mount /dev/vdb1 /mnt
+	y	echo x > \$HOME/y
+	y	tee \$HOME/.profile
+	y	cp a \${HOME}/b
+	y	echo x > "\$HOME/y"
+	y	cd \$HOME && rm -rf *
+	y	cd ~ && rm -rf *
+	y	sh -c "rm -rf ~"
+	y	find / -delete
+	y	exec rm -rf \$HOME
+	y	eval rm /etc/x
+	y	exec dd of=/dev/sda
+	n	exec 2>&1
+	n	eval echo hi
+	y	sed -i s/a/b/ ~/.ssh/authorized_keys
+	y	xargs rm /etc/x
+	y	timeout 5 rm -rf /tmp/home
+	n	find . -name *.tmp -delete
+	n	sed -i s/a/b/ notes.txt
+	n	cd logs && wc -l app.log
+	n	kill -l
+	n	killall -l
+	n	mount
+	n	mount | grep tmpfs
+	n	ip addr | grep -c inet
+	n	rm x.txt
+	n	cat /proc/cmdline
+	n	echo hi > out.txt
+	EOF
+
+	# the grader must build its own sandbox: it used to test a flag only this
+	# selftest ever set, so in play tier 2 never ran. a fresh process with no
+	# build behind it must accept an unlisted-but-correct answer.
+	( SANDBOX_OK=0; FX_BUILT=""
+	  q_load 05-counting 1 || exit 1
+	  a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+	  correct "$a" ) \
+		|| { echo "FAIL grade: correct() does not build its own sandbox" >&2; bad=$((bad+1)); }
+
+	# the mid-level place is the one ledger that indexes INTO a level, so a
+	# file it wrongly trusts asks a card that is not there. round-trip it, then
+	# hand it four kinds of wrong and require a refusal (and a cleared file)
+	# each time. the subshell keeps these writes out of real state.
+	( STATE="$TMP/st"; INPROG="$STATE/inprogress"; mkdir -p "$STATE"
+	  inprog_load L fp1 6 && exit 1                     # nothing saved yet
+	  inprog_save L fp1 2 3 4 5 6
+	  inprog_load L fp1 6 || exit 1
+	  [ "$INPROG_LEFT" = "4 5 6" ] && [ "$INPROG_RIGHT" = 2 ] && [ "$INPROG_DONE" = 3 ] || exit 1
+	  inprog_load L fp2 6 && exit 1                     # the level was edited
+	  [ -f "$INPROG.L" ] && exit 1                      # ...and the file is gone
+	  inprog_save L fp1 2 3 4 5 9; inprog_load L fp1 6 && exit 1   # card past the end
+	  inprog_save L fp1 2 3 4 5;   inprog_load L fp1 6 && exit 1   # counts do not add up
+	  inprog_save L fp1 9 3 4 5 6; inprog_load L fp1 6 && exit 1   # more right than asked
+	  inprog_save L fp1 x 3 4 5 6; inprog_load L fp1 6 && exit 1   # not a number
+	  inprog_save L fp1 2 3 4 5 6; inprog_clear L
+	  inprog_load L fp1 6 && exit 1                     # cleared means cleared
+	  exit 0 ) \
+		|| { echo "FAIL inprog: mid-level place round-trip or rejection" >&2; bad=$((bad+1)); }
+
+	# the terminal place: every card answered, nothing owed. that is where a
+	# learner standing at the boss is, and it has to survive on disk or a boss
+	# walked away from costs the whole level. the rejections still hold
+	# around it -- three fields is a record, two is not.
+	( STATE="$TMP/st2"; INPROG="$STATE/inprogress"; mkdir -p "$STATE"
+	  inprog_save L fp1 4 6
+	  inprog_load L fp1 6 || exit 1                     # a terminal record loads
+	  [ -z "$INPROG_LEFT" ] || exit 1                   # and owes nothing
+	  [ "$INPROG_DONE" = 6 ] && [ "$INPROG_RIGHT" = 4 ] || exit 1
+	  inprog_save L fp1 4 5; inprog_load L fp1 6 && exit 1   # answered is not the level
+	  inprog_save L fp1 7 6; inprog_load L fp1 6 && exit 1   # more right than asked
+	  inprog_save L fp1 4;   inprog_load L fp1 6 && exit 1   # two fields is not a place
+	  inprog_save L fp1;     inprog_load L fp1 6 && exit 1   # nor is one
+	  inprog_save L fp2 4 6; inprog_load L fp1 6 && exit 1   # the level was edited
+	  exit 0 ) \
+		|| { echo "FAIL inprog: the place at the boss does not survive" >&2; bad=$((bad+1)); }
+
+	# and the transition that loses it. the boss decides whether the level is
+	# passed; it does not decide whether the order is kept. stub the boss --
+	# what is under test is what run_level writes, not a fight.
+	( STATE="$TMP/rl"; INPROG="$STATE/inprogress"; PASSED="$STATE/passed"
+	  PLACED="$STATE/placed"; BRIEFED="$STATE/briefed"; mkdir -p "$STATE"
+	  cls() { :; }; statusbar() { :; }; hdr() { :; }; note() { :; }; say() { cat >/dev/null; }
+	  pause_card() { return 0; }; scn_announce() { return 1; }; prj_announce() { return 1; }
+	  ask() { return 0; }
+	  _id=$(level_ids | head -1); _nq=$(level_nq "$_id"); _fp=$(level_fp "$_id")
+
+	  boss_round() { return 2; }                        # walked away from
+	  run_level "$_id" >/dev/null 2>&1 </dev/null
+	  inprog_load "$_id" "$_fp" "$_nq" || exit 1        # the place survived
+	  [ -z "$INPROG_LEFT" ] || exit 1                   # and it resumes AT the boss
+	  [ "$INPROG_DONE" = "$_nq" ] || exit 1
+	  level_is_passed "$_id" && exit 1                  # an unbeaten boss is no pass
+
+	  boss_round() { return 1; }                        # fought and lost
+	  run_level "$_id" >/dev/null 2>&1 </dev/null
+	  inprog_load "$_id" "$_fp" "$_nq" || exit 1        # still kept
+	  level_is_passed "$_id" && exit 1
+
+	  boss_round() { return 0; }                        # beaten
+	  run_level "$_id" >/dev/null 2>&1 </dev/null
+	  inprog_load "$_id" "$_fp" "$_nq" && exit 1        # beaten clears the place
+	  level_is_passed "$_id" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL run_level: the boss decides the pass, not the place" >&2; bad=$((bad+1)); }
+
+	# continue's confirm names a level before opening it, and a name that is
+	# not the level resume walks to is worse than no name at all. both must
+	# skip a beaten level and a placed one, and agree on the first survivor.
+	( STATE="$TMP/rt"; PASSED="$STATE/passed"; PLACED="$STATE/placed"; mkdir -p "$STATE"
+	  LEVELS="$TMP/rtl"; mkdir -p "$LEVELS"; : > "$LEVELS/01-a"; : > "$LEVELS/02-b"; : > "$LEVELS/03-c"
+	  [ "$(resume_target)" = 01-a ] || exit 1
+	  printf '01-a\n' > "$PASSED"
+	  [ "$(resume_target)" = 02-b ] || exit 1
+	  printf '02-b\n' > "$PLACED"
+	  [ "$(resume_target)" = 03-c ] || exit 1
+	  printf '03-c\n' >> "$PASSED"
+	  resume_target && exit 1                           # nothing left to open
+	  exit 0 ) \
+		|| { echo "FAIL resume: target disagrees with the walk" >&2; bad=$((bad+1)); }
+
+	# the new game. progress_any decides whether continue's confirm warns at
+	# all, and state_wipe is the only rm -rf in the tree: a wipe that leaves
+	# one ledger behind seeds the next game with the last one's progress, and
+	# a wipe that believes a stray STATE takes the user's home with it.
+	( STATE="$TMP/nst/learn"; mkdir -p "$STATE"
+	  progress_any && exit 1                            # empty is not progress
+	  : > "$STATE/schema"; : > "$STATE/cards.lock"; : > "$STATE/passed"
+	  progress_any && exit 1                            # nor is a first launch
+	  printf '01-a\n' > "$STATE/passed"
+	  progress_any || exit 1
+	  printf 'x\n' > "$STATE/inprogress.01-a"; rm -f "$STATE/passed"
+	  progress_any || exit 1                            # a saved place counts
+	  state_wipe || exit 1
+	  [ -d "$STATE" ] || exit 1                          # ...and is left usable
+	  progress_any && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL newgame: progress_any or state_wipe" >&2; bad=$((bad+1)); }
+	( keep="$TMP/guard"; mkdir -p "$keep"; : > "$keep/f"
+	  for STATE in "" / /etc "${HOME:-/root}" rel/ative "$keep" "$keep/learn/"; do
+	  	state_wipe && exit 1
+	  done
+	  [ -f "$keep/f" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL newgame: state_wipe trusted a path it must refuse" >&2; bad=$((bad+1)); }
+
+	# migrate rewrites saved state when a level is renamed. it must move a
+	# boss-fall rather than drop it, drop one outright when the level was
+	# merged away, run exactly once, and do nothing at all on a fresh
+	# install -- a migration that reruns would rename an already renamed
+	# level onto whatever now holds the old name.
+	( STATE="$TMP/mst"; ROOT="$TMP/mig"
+	  PASSED="$STATE/passed"; PLACED="$STATE/placed"; BRIEFED="$STATE/briefed"
+	  CARDS="$STATE/cards"; SCHEMA="$STATE/schema"; INPROG="$STATE/inprogress"
+	  mkdir -p "$STATE" "$ROOT"
+	  printf '1\taa-old\tab-new\n1\tac-gone\t-\n' | tr '\t' ' ' > "$ROOT/migrations"
+	  printf 'aa-old\nac-gone\n' > "$PASSED"
+	  printf 'aa-old/4#x\t2\t123\nac-gone/1#y\t2\t123\n' > "$CARDS"
+	  : > "$(_inprog_file aa-old)"; : > "$(_inprog_file ac-gone)"
+	  migrate
+	  grep -qxF -- ab-new "$PASSED" || exit 1
+	  grep -qxF -- aa-old "$PASSED" && exit 1
+	  grep -q '^ab-new/4#x' "$CARDS" || exit 1
+	  [ ! -f "$(_inprog_file aa-old)" ] || exit 1
+	  # a merged-away level is dropped outright, ledger and cards both
+	  grep -qxF -- ac-gone "$PASSED" && exit 1
+	  grep -q '^ac-gone/' "$CARDS" && exit 1
+	  [ ! -f "$(_inprog_file ac-gone)" ] || exit 1
+	  [ "$(cat "$SCHEMA")" = 1 ] || exit 1
+	  # idempotent: a second run must not touch the already-renamed ledger
+	  printf 'ab-new\n' > "$PASSED"
+	  migrate
+	  grep -qxF -- ab-new "$PASSED" || exit 1
+	  # fresh install: nothing to rewrite, version simply stamped
+	  rm -rf "$STATE"; mkdir -p "$STATE"
+	  migrate
+	  [ "$(cat "$SCHEMA")" = 1 ] || exit 1
+	  [ ! -s "$PASSED" ] 2>/dev/null || [ ! -f "$PASSED" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL migrate: rename, drop, idempotence or fresh install" >&2; bad=$((bad+1)); }
+
+	# cards_rehome follows a card that moved: a cut above it shifted its block
+	# index, or a rewording (learn/rekeys) replaced its template. a template
+	# two blocks share is ambiguous and a key already held is a duplicate --
+	# both stay orphans. a ledger with nothing to move is not rewritten.
+	( STATE="$TMP/rst"; ROOT="$TMP/rhm"; LEVELS="$ROOT/levels"; KEYS="$TMP/rhm.keys"
+	  CARDS="$STATE/cards"; mkdir -p "$STATE" "$LEVELS"; rm -f "$KEYS"
+	  printf 'name: t\n---\nq: alpha\n---\nq: `beta` new\n---\nq: twin\n---\nq: twin\n---\nq: held\n' > "$LEVELS/zz-t"
+	  printf '# c\nzz-t\tbeta old\tbeta new\n' > "$ROOT/rekeys"
+	  printf 'zz-t/3#alpha\t2\t1\nzz-t/9#beta old\t1\t1\nzz-t/1#twin\t2\t1\nzz-t/2#held\t2\t1\nzz-t/5#held\t1\t1\n' > "$CARDS"
+	  cards_rehome
+	  grep -q '^zz-t/1#alpha	2	1$' "$CARDS" || exit 1
+	  grep -q '^zz-t/2#beta new	1	1$' "$CARDS" || exit 1
+	  grep -q '^zz-t/1#twin	' "$CARDS" || exit 1
+	  grep -q '^zz-t/2#held	2	1$' "$CARDS" || exit 1
+	  [ "$(grep -c '^zz-t/5#held' "$CARDS")" = 1 ] || exit 1
+	  _m=$(ls -l --full-time "$CARDS" 2>/dev/null || cksum < "$CARDS")
+	  cards_rehome
+	  [ "$(ls -l --full-time "$CARDS" 2>/dev/null || cksum < "$CARDS")" = "$_m" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards_rehome: a moved card lost its reviews, or a guess was made" >&2; bad=$((bad+1)); }
+
+	# the home screen on a fresh install: nothing but the menu may reach it.
+	# a stray shell diagnostic is a message from a place that had no business
+	# speaking, and the same text twice is one row's problem announced by
+	# every row that asks -- "can't open passed" printed once per gate that
+	# read a ledger a new player does not have yet. stderr must be empty and
+	# no line of text may be drawn twice in one draw.
+	( STATE="$TMP/menu"; PASSED="$STATE/passed"; PLACED="$STATE/placed"
+	  BRIEFED="$STATE/briefed"; CARDS="$STATE/cards"; SCHEMA="$STATE/schema"
+	  INPROG="$STATE/inprogress"; SESSION_SEEN="$TMP/menuseen"
+	  mkdir -p "$STATE"
+	  menu < /dev/null > "$TMP/menu.out" 2> "$TMP/menu.err"
+	  [ -s "$TMP/menu.err" ] && { cat "$TMP/menu.err" >&2; exit 1; }
+	  # colour and padding are not content: strip them, then a repeat of what
+	  # is left is a repeat the player would read as one. the ? belongs in the
+	  # class: a private-mode set is \033[?2026h, and without it the sync
+	  # markers survived the strip and counted as four characters of content.
+	  # both production strippers -- lib/explain and lib/edit -- already had it.
+	  awk '{ gsub(/\033\[[0-9;?]*[a-zA-Z]/, ""); gsub(/[ \t]+/, " ")
+	         sub(/^ /, ""); sub(/ $/, "")
+	         if ($0 !~ /[A-Za-z0-9]/) next
+	         if (seen[$0]++) { print "  twice: " $0 > "/dev/stderr"; dup = 1 } }
+	       END { exit dup ? 1 : 0 }' "$TMP/menu.out" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL menu: a draw spoke on stderr or said the same thing twice" >&2; bad=$((bad+1)); }
+
+	# held must survive an orphaned card key. this is the whole reason it
+	# rebuilds keys from the level file instead of counting by prefix the way
+	# stats used to: a reworded q: leaves a tier-2 row behind that answers to
+	# no block, and a prefix count would read it as progress -- 35 mastered
+	# of 33, which is not equal, so a fully held level would report unheld,
+	# and a half-done one could be pushed over the line by old rubbish.
+	( CARDS="$TMP/hc"; _hid=$(level_ids | head -1); _hn=$(level_nq "$_hid")
+	  : > "$CARDS"
+	  _i=1
+	  while [ "$_i" -le "$_hn" ]; do
+		awk -v n="$_i" 'BEGIN{c=0} /^---$/ {c++; next} c==n' "$(level_path "$_hid")" \
+			| sed -n 's/^q: \{0,1\}//p' | head -1 \
+			| while IFS= read -r _q; do printf '%s\t2\t9999999999\n' "$(card_key "$_hid" "$_i" "$_q")"; done \
+			>> "$CARDS"
+		_i=$((_i + 1))
+	  done
+	  held_ids | grep -qxF -- "$_hid" || exit 1
+	  # now add rubbish under the same prefix -- it must not change the verdict
+	  printf '%s/999#a question no block asks\t2\t9999999999\n' "$_hid" >> "$CARDS"
+	  held_ids | grep -qxF -- "$_hid" || exit 1
+	  # and dropping one real card must un-hold it
+	  sed -i '1d' "$CARDS" 2>/dev/null || { sed '1d' "$CARDS" > "$CARDS.t"; mv "$CARDS.t" "$CARDS"; }
+	  held_ids | grep -qxF -- "$_hid" && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL held: orphaned keys or a missing card read wrong" >&2; bad=$((bad+1)); }
+
+	# the schedule. these are the properties the whole card file exists to
+	# have, and until now nothing checked any of them: the model was three
+	# numbers and a flat clock, so there was little to get wrong. a ladder
+	# with intervals, a due queue and an erosion window has plenty.
+	#
+	# each runs against its own CARDS file in $TMP, so a build can never
+	# touch a real learner's progress, and each states the property in the
+	# failure text rather than a line number.
+	( CARDS="$TMP/sc"; SESSION_SEEN="$TMP/ss"; _n=$(now)
+	  : > "$CARDS"; : > "$SESSION_SEEN"
+	  # a row an older build wrote resumes its clock from when it was proved,
+	  # so nothing mastered arrives overdue on the first launch after upgrade
+	  printf 'k\t2\t%s\n' "$_n" > "$CARDS"; cards_decay
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 7 ] || exit 1
+	  [ "$(cards_ndue)" = 0 ]       || exit 1
+	  # and a row from LONG before the schedule is migrated, never eroded on
+	  # the way in: it arrives due, with its rung and its full grace window
+	  # intact. the old rule gave it thirty days from its last proof and this
+	  # one gives a learning card fifteen, so reading an old stamp through
+	  # the new window would drop rows for time that was free when it was
+	  # spent -- and a dropped row does not come back.
+	  printf 'k\t1\t%s\n' "$((_n - 60 * 86400))" > "$CARDS"; cards_decay
+	  [ "$(grep -c . "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f2 "$CARDS")" = 1 ]   || exit 1
+	  [ "$(cards_ndue)" = 1 ]         || exit 1
+	  # once it IS on the schedule, going past due by more than the grace
+	  # window costs a rung -- once, not once per launch
+	  printf 'k\t2\t%s\t%s\t7\t2\t0\n' "$_n" "$((_n - 30 * 86400))" > "$CARDS"; cards_decay
+	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  _was=$(cat "$CARDS"); cards_decay
+	  [ "$(cat "$CARDS")" = "$_was" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards: migration erodes on the way in, or staleness cascades" >&2; bad=$((bad+1)); }
+
+	( CARDS="$TMP/sc2"; SESSION_SEEN="$TMP/ss2"
+	  : > "$CARDS"; : > "$SESSION_SEEN"
+	  # mastery costs two sittings and cannot be farmed in one
+	  card_grade k 1; card_grade k 1
+	  [ "$(cut -f6 "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  : > "$SESSION_SEEN"; card_grade k 1
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 7 ] || exit 1
+	  [ "$(cards_ndue)" = 0 ]       || exit 1
+	  # a miss collapses the interval and banks a lapse
+	  : > "$SESSION_SEEN"; card_grade k 0
+	  [ "$(cut -f2 "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 1 ] || exit 1
+	  [ "$(cut -f7 "$CARDS")" = 1 ] || exit 1
+	  # a card missed the first time it is ever seen is still a card unseen
+	  : > "$CARDS"; : > "$SESSION_SEEN"; card_grade z 0
+	  [ "$(grep -c . "$CARDS")" = 0 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards: the ladder climbs, falls or farms wrong" >&2; bad=$((bad+1)); }
+
+	( CARDS="$TMP/sc3"; SESSION_SEEN="$TMP/ss3"; _n=$(now)
+	  : > "$SESSION_SEEN"
+	  # the queue is what has fallen due, soonest first -- nothing else
+	  printf 'a\t2\t0\t%s\t7\t2\t0\nb\t2\t0\t%s\t7\t2\t0\nc\t2\t0\t%s\t7\t2\t0\n' \
+		"$((_n - 10))" "$((_n + 99999))" "$((_n - 500))" > "$CARDS"
+	  [ "$(cards_ndue)" = 2 ] || exit 1
+	  [ "$(cards_due | cut -f1 | tr '\n' ' ')" = "c a " ] || exit 1
+	  # and the ladder tops out rather than running away
+	  : > "$CARDS"; _i=0
+	  while [ "$_i" -lt 12 ]; do : > "$SESSION_SEEN"; card_grade k 1; _i=$((_i + 1)); done
+	  [ "$(cut -f5 "$CARDS")" = 180 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL cards: the due queue or the interval ceiling is wrong" >&2; bad=$((bad+1)); }
+
+	# review must ASK a marked-up card, not skip it as stale: the stored key is
+	# card_key's backtick-stripped form, so a raw-template compare dropped every
+	# ``name``-marked card from every review. seed a due row for a real backtick
+	# card in the first level and prove review renders it ('? hint' prints only
+	# once a card is on screen).
+	( _rl=$(level_ids | head -1); _rn=$(level_nq "$_rl"); _ri=1
+	  while [ "$_ri" -le "$_rn" ]; do
+		blk_load "$(level_path "$_rl")" "$_ri" >/dev/null 2>&1 && case "$Q_TPL" in *'`'*) break ;; esac
+		_ri=$((_ri + 1))
+	  done
+	  [ "$_ri" -le "$_rn" ] || exit 0   # no marked-up card here, nothing to prove
+	  CARDS="$TMP/revc"; SESSION_SEEN="$TMP/revs"
+	  _rk=$(card_key "$_rl" "$_ri" "$Q_TPL")
+	  printf '%s\t1\t%s\t%s\t1\t1\t0\n' "$_rk" "$(now)" "$(( $(now) - 86400 ))" > "$CARDS"
+	  printf 'quit\n' | review 1 2>&1 | grep -q '? hint' ) \
+		|| { echo "FAIL review: a marked-up card is skipped as stale" >&2; bad=$((bad+1)); }
+
+	( CARDS="$TMP/sc4"; SESSION_SEEN="$TMP/ss4"
+	  : > "$CARDS"; : > "$SESSION_SEEN"
+	  # lapses accumulate across sittings and survive getting it right again:
+	  # what the list reads is the card's history, not its current tier, and a
+	  # card you have lost four times and just got back is still that card.
+	  # it has to climb to two reps first -- a card lost at one rep falls to
+	  # zero, which is forgotten, and a forgotten card has no history to keep.
+	  : > "$SESSION_SEEN"; card_grade k 1
+	  : > "$SESSION_SEEN"; card_grade k 1
+	  _i=0
+	  while [ "$_i" -lt 4 ]; do
+		: > "$SESSION_SEEN"; card_grade k 0
+		: > "$SESSION_SEEN"; card_grade k 1
+		_i=$((_i + 1))
+	  done
+	  [ "$(cut -f7 "$CARDS")" = 4 ] || exit 1
+	  [ "$(cut -f2 "$CARDS")" = 2 ] || exit 1
+	  # the threshold holds and the worst comes first
+	  printf 'a	1	0	0	1	1	2
+b	1	0	0	1	1	7
+c	1	0	0	1	1	3
+' > "$CARDS"
+	  [ "$(cards_leeches 3 | cut -f2 | tr '\n' ' ')" = "b c " ] || exit 1
+	  [ -z "$(cards_leeches 8)" ] || exit 1
+	  exit 0 ) 		|| { echo "FAIL cards: lapses do not accumulate, or the leech list is wrong" >&2; bad=$((bad+1)); }
+
+	# the prompt loop. the queue is written by a shell function in /etc/shrc
+	# that only a terminal can drive (build.sh G51 opens one); what runs here
+	# is the half that decides what is STORED, and the property that matters
+	# is the one a privacy claim rests on: a name this image does not teach
+	# cannot reach the ledger by any path, whatever put it in the queue.
+	( STATE="$TMP/fs"; mkdir -p "$STATE"
+	  FUMBLES="$STATE/fumbles"; FUMBLED="$STATE/fumbled"
+	  CARDS="$TMP/fc"; SESSION_SEEN="$TMP/fss"; _n=$(now)
+	  _real=$(ls -1 "$REF" | grep -x cut | head -1)
+	  [ "$_real" = cut ] || exit 1
+	  # a drained queue: the taught name is counted, everything else is not.
+	  # the strings below are the shapes a real hook must never let through --
+	  # a command that does not exist here, a path, and something typed into
+	  # the wrong window that is nobody's command at all.
+	  printf 'cut\ncut\nnosuchcommand\n/etc/passwd\nhunter2\n' > "$FUMBLES"
+	  fum_drain > "$TMP/fnew" || exit 1
+	  [ "$(cat "$FUMBLED")" = "$(printf '2\tcut')" ] || exit 1
+	  grep -q nosuchcommand "$FUMBLED" && exit 1
+	  grep -q hunter2 "$FUMBLED" && exit 1
+	  [ -f "$FUMBLES" ] || exit 1
+	  [ -s "$FUMBLES" ] && exit 1
+	  # counts accumulate across drains rather than replacing each other
+	  printf 'cut\n' > "$FUMBLES"; fum_drain > /dev/null || exit 1
+	  [ "$(cut -f1 "$FUMBLED")" = 3 ] || exit 1
+	  # an empty queue is not a drain, so nothing downstream runs on nothing
+	  fum_drain > /dev/null && exit 1
+	  # a card whose ANSWER runs the fumbled command comes due; its rung and
+	  # its interval are untouched, because tripping over a command at the
+	  # prompt is not the same as having forgotten the card.
+	  _lid=$(grep -rl "^a: .*\bcut\b" "$LEVELS" 2>/dev/null | head -1)
+	  [ -n "$_lid" ] || exit 1
+	  _lid=${_lid##*/}
+	  printf 'cut\n' > "$TMP/fnew"
+	  : > "$CARDS"
+	  _k=$(awk -F'\t' -v id="$_lid" '
+		function flush() { if (blk > 0 && hit && q != "" && !done) { print id "/" blk "#" q; done = 1 } q = ""; hit = 0 }
+		/^---$/ { flush(); blk++; next }
+		/^q:/ { if (q == "") { t = $0; sub(/^q: ?/, "", t); q = t } }
+		/^a:/ { if ($0 ~ /(^|[^A-Za-z0-9._-])cut([^A-Za-z0-9._-]|$)/) hit = 1 }
+		END { flush() }
+	  ' "$LEVELS/$_lid" | head -1)
+	  [ -n "$_k" ] || exit 1
+	  printf '%s\t2\t%s\t%s\t75\t5\t0\n' "$_k" "$_n" "$((_n + 75 * 86400))" > "$CARDS"
+	  [ "$(cards_ndue)" = 0 ] || exit 1
+	  fum_pull "$TMP/fnew" > /dev/null
+	  [ "$(cards_ndue)" = 1 ] || exit 1
+	  [ "$(cut -f5 "$CARDS")" = 75 ] || exit 1
+	  [ "$(cut -f6 "$CARDS")" = 5 ] || exit 1
+	  # a command nothing answers with moves no due date
+	  printf '%s\t2\t%s\t%s\t75\t5\t0\n' "$_k" "$_n" "$((_n + 75 * 86400))" > "$CARDS"
+	  printf 'nosuchcommand\n' > "$TMP/fnew"
+	  fum_pull "$TMP/fnew" > /dev/null
+	  [ "$(cards_ndue)" = 0 ] || exit 1
+	  # off means off: no queue, nothing drains, and forget takes the counts
+	  fum_off; fum_is_on && exit 1
+	  fum_on;  fum_is_on || exit 1
+	  fum_forget
+	  [ -f "$FUMBLED" ] && exit 1
+	  fum_is_on && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL fumble: an untaught name reached the ledger, or a pull moved the wrong thing" >&2; bad=$((bad+1)); }
+
+	# every scenario names the level it unlocks after. nothing else checks
+	# that id, so a renumber that misses one pins the scenario to a level
+	# that will never exist -- and a scenario that can never unlock is
+	# indistinguishable, from the outside, from one nobody has reached yet.
+	for _s in "$SCENARIOS"/*; do
+		[ -f "$_s" ] || continue
+		_a=$(sed -n 's/^after: \{0,1\}//p' "$_s" | head -1)
+		if [ -z "$_a" ]; then
+			echo "FAIL scenario: $(basename "$_s") names no after: level" >&2
+			bad=$((bad + 1))
+		elif [ ! -f "$LEVELS/$_a" ]; then
+			echo "FAIL scenario: $(basename "$_s") unlocks after $_a, which is not a level" >&2
+			bad=$((bad + 1))
+		fi
+	done
+
+	# and the ledger itself has to name levels that exist. a new id of - is
+	# the merged-away case: there is deliberately no level to point at, and
+	# the old-id loop below still insists the old one is really gone.
+	if [ -f "$ROOT/migrations" ]; then
+		awk '$1 ~ /^[0-9]+$/ { print $3 }' "$ROOT/migrations" | while read -r _n; do
+			[ -z "$_n" ] || [ "$_n" = - ] || [ -f "$LEVELS/$_n" ] \
+				|| echo "FAIL migrations: new id $_n is not a level"
+		done > "$TMP/mg" 2>&1
+		if [ -s "$TMP/mg" ]; then cat "$TMP/mg" >&2; bad=$((bad + $(grep -c . "$TMP/mg"))); fi
+		awk '$1 ~ /^[0-9]+$/ { print $2 }' "$ROOT/migrations" | while read -r _o; do
+			[ -z "$_o" ] || [ ! -f "$LEVELS/$_o" ] \
+				|| echo "FAIL migrations: old id $_o still exists as a level"
+		done > "$TMP/mg" 2>&1
+		if [ -s "$TMP/mg" ]; then cat "$TMP/mg" >&2; bad=$((bad + $(grep -c . "$TMP/mg"))); fi
+	fi
+
+	# the tab panel's row count. closing the panel climbs back over exactly
+	# this many rows, so an off-by-one here reprints the answer line on top of
+	# the question -- and nothing else in the trainer would notice.
+	rows() { printf '%s' "$1" | _ed_panel_fit "$2" 99 '' x | head -1; }
+	( [ "$(rows 'a
+b
+c' 20)" = 3 ] || exit 1
+	  [ "$(rows '
+
+' 20)" = 2 ] || exit 1                        # blank lines still fill a row
+	  [ "$(rows "$(printf '%20s' '')" 20)" = 1 ] || exit 1   # exactly full: one row
+	  [ "$(rows "$(printf '%21s' '')" 20)" = 2 ] || exit 1   # one over: two
+	  [ "$(rows "$(printf '%40s' '')" 20)" = 2 ] || exit 1   # exactly two
+	  [ "$(rows "$(printf '%41s' '')" 20)" = 3 ] || exit 1
+	  # colour takes no cells: the same twenty characters, painted
+	  [ "$(rows "${E_ESC}[36m$(printf '%20s' '')${E_ESC}[0m" 20)" = 1 ] || exit 1
+	  # too tall: cut to the budget, and the cut says how much it took. narrow
+	  # on purpose -- the marker itself wraps to two rows here, which is the
+	  # case a flat one-row reservation for it gets wrong.
+	  cut=$(printf 'l%s\n' 1 2 3 4 5 6 7 8 9 10 | _ed_panel_fit 20 5 '' ls)
+	  [ "$(printf '%s' "$cut" | head -1)" = 5 ] || exit 1
+	  [ "$(printf '%s\n' "$cut" | sed 1d | grep -c '')" = 4 ] || exit 1
+	  [ "$(printf '%s' "$cut" | tail -1)" = "7 more lines -- learn ref ls" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_panel_fit: panel row count or cut" >&2; bad=$((bad+1)); }
+
+	# the frame costs two rows, and the redraw climbs back over ED_PANEL_ROWS of
+	# them. count them separately from the code that sets them: an edge added
+	# without its row is an edge that eats the question, and a live terminal is
+	# the only other place that would ever say so.
+	( ref_panel_text() { printf '  one\n  two\n  three\n'; }
+	  Q_REF=ls Q_ANSWERS=ls Q_ROWS=4 MODE=learn ED_OPEN=ref L= R= TERM_COLS=80
+	  TERM_LINES=24; _ed_panel_load                       # room to frame
+	  [ "$ED_PANEL_ROWS" = "$(printf '%s\n' "$ED_PANEL" | grep -c '')" ] || exit 1
+	  case "$ED_PANEL" in "$RULE"*"$RULE") ;; *) exit 1 ;; esac
+	  TERM_LINES=11; _ed_panel_load                       # too short: no frame
+	  [ "$ED_PANEL_ROWS" = "$(printf '%s\n' "$ED_PANEL" | grep -c '')" ] || exit 1
+	  case "$ED_PANEL" in "$RULE"*) exit 1 ;; esac
+	  exit 0 ) \
+		|| { echo "FAIL panel frame: row count or frame decision" >&2; bad=$((bad+1)); }
+
+	# which terminals lose the colour channel and get attributes instead. the
+	# cost of getting this wrong is asymmetric -- a vt320 sent colour shows none
+	# of it, a modern terminal denied colour shows none either -- so the list
+	# names only what is known to lack it, and nothing else may fall in.
+	# vt520 and vt525 are in this list for one reason: the pre-ANSI arm above
+	# them must be written out and not globbed, because `vt52*` matches BOTH of
+	# them. a fix for the vt52 that demoted a vt525 to no-colour would be a
+	# worse bug than the one it closed, and these two rows are what catch it.
+	( for _t in :none dumb:none vt52:none vt50:none vt50h:none \
+	            vt100:mono vt100-am:mono vt220:mono \
+	            vt320:mono vt420:mono vt520:mono xterm-mono:mono linux-nc:mono \
+	            vt241:colour vt340:colour vt525:colour linux:colour \
+	            xterm-256color:colour screen.vt320:colour foot:colour; do
+	    _ui_tier "${_t%:*}"
+	    [ "$_tier" = "${_t#*:}" ] || { echo "  $_t got $_tier" >&2; exit 1; }
+	  done
+	  # and the second question the same function answers: who parses CSI. the
+	  # pre-ANSI terminals print the parameters of an escape they cannot read,
+	  # so cls(), the clock and the line editor all ask this rather than TERM.
+	  for _t in vt52:0 vt50:0 vt50h:0 dumb:0 vt100:1 vt320:1 vt520:1 vt525:1 \
+	            linux:1 foot:1; do
+	    _ui_tier "${_t%:*}"
+	    [ "$_csi" = "${_t#*:}" ] || { echo "  $_t csi=$_csi" >&2; exit 1; }
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL ui tier: a terminal landed in the wrong one" >&2; bad=$((bad+1)); }
+
+	# and the mark those tiers share. a name is marked the SAME WAY on a vt320
+	# and on a modern terminal -- one look, wherever the session is -- so the
+	# thing to assert is not what the mark is but that there is only one of it.
+	# a tier that quietly grew its own would be invisible from whichever end of
+	# the serial line you happened to be sitting at.
+	( _ui_hi colour; _c=$HI_ON
+	  _ui_hi mono;   [ "$_c" = "$HI_ON" ] || exit 1
+	  case "$_c" in *'[0;7m') ;; *) exit 1 ;; esac   # reverse, off a clean slate
+	  _ui_hi none;   [ "$HI_ON" = "'" ] || exit 1    # no attributes -> quotes
+	  # and a possessive does not double the closing quote: 'notes.txt's
+	  [ "$(printf "%snotes.txt%s's time\n" "$HI1" "$HI2" | N= hi_expand)" = "'notes.txt's time" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui mark: the name mark differs between terminals" >&2; bad=$((bad+1)); }
+
+	# the second mark, on the same terms. a literal in a brief is underlined on
+	# every tier that has attributes -- the vt320 is the floor, and it renders
+	# bold as a shade more phosphor, which is why the name mark is not bold
+	# either. colour rides on top where there is colour. the two marks must
+	# never converge: a page where a rolled name and a command look alike has
+	# lost the distinction both of them exist to make.
+	( _ui_lit colour; _c=$LIT_ON
+	  case "$_c" in *'[0;4;36m') ;; *) exit 1 ;; esac
+	  _ui_lit mono;  case "$LIT_ON" in *'[0;4m') ;; *) exit 1 ;; esac
+	  _ui_hi colour; [ "$HI_ON" != "$_c" ] || exit 1
+	  _ui_hi mono;   [ "$HI_ON" != "$LIT_ON" ] || exit 1
+	  _ui_lit none;  [ "$LIT_ON" = '`' ] && [ "$LIT_OFF" = '`' ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui mark: the literal mark is wrong, or is the name mark" >&2; bad=$((bad+1)); }
+
+	# the third mark, on the same terms as the other two, and the reason it is
+	# a function at all. a section heading must be one shape wherever there are
+	# attributes, and it must be NEITHER of the other marks: it used to be a
+	# bare underline on mono -- byte for byte the literal -- so on the vt320 a
+	# heading and a marked command were the same thing, with nothing watching.
+	( _ui_head colour; case "$U" in *'[1;4;34m') ;; *) exit 1 ;; esac
+	  _ui_head mono;   case "$U" in *'[1;4m') ;; *) exit 1 ;; esac
+	  _ui_head none;   [ -z "$U" ] || exit 1
+	  for _t in colour mono; do
+	  	_ui_head "$_t"; _ui_lit "$_t"; _ui_hi "$_t"
+	  	[ "$U" != "$LIT_ON" ] || exit 1
+	  	[ "$U" != "$HI_ON" ]  || exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL ui mark: the heading mark is wrong, or is another mark" >&2; bad=$((bad+1)); }
+
+	# and the palette itself. the block at the top of lib/ui is the only place a
+	# colour's MEANING is written down, and nothing read it -- so three slots
+	# drifted at once: yellow held four meanings including "this erases your
+	# save", the heading mark had become the literal mark on mono, and magenta's
+	# line said "a banner" while its one consumer was the vs row. a comment that
+	# can rot in silence is not a rule. this reads the block back and holds it
+	# against the definitions, so the doctrine and the code cannot disagree.
+	#
+	# the numbers are pinned too, and that is the point of pinning them: red is
+	# error, green is success, yellow is warning everywhere else on this machine,
+	# and a palette that quietly renumbered would teach the reader the opposite
+	# of every other tool they will use.
+	( _ui="$ROOT/lib/ui"
+	  # every slot the block names. one per line by construction, so a slot that
+	  # loses its line or gains a second one moves this string.
+	  _doc=$(sed -n 's/^#   \([A-Z][A-Z]*\)  *[a-z].*/\1/p' "$_ui" | tr '\n' ' ')
+	  [ "$_doc" = "R G Y U M C W D V B BL N " ] || exit 1
+	  # and each one is really assigned in that file
+	  for _s in R G Y U M C W D V B BL N; do
+	  	grep -q "[^A-Za-z_]$_s=" "$_ui" || exit 1
+	  done
+	  # the colour tier, derived rather than inherited: the build runs this
+	  # under NO_COLOR, where every one of them is the empty string, and a
+	  # palette test that passed on twelve empty strings would be a green light
+	  # bolted over the exact hole this gate exists to close.
+	  _ui_colours colour; _ui_head colour
+	  case "$R" in *'[31m') ;; *) exit 1 ;; esac
+	  case "$G" in *'[32m') ;; *) exit 1 ;; esac
+	  case "$Y" in *'[33m') ;; *) exit 1 ;; esac
+	  case "$U" in *'34m')  ;; *) exit 1 ;; esac
+	  case "$M" in *'[35m') ;; *) exit 1 ;; esac
+	  case "$C" in *'[36m') ;; *) exit 1 ;; esac
+	  case "$W" in *'[37m') ;; *) exit 1 ;; esac
+	  case "$D" in *'[90m') ;; *) exit 1 ;; esac
+	  case "$V" in *'[7m')  ;; *) exit 1 ;; esac
+	  # and no two of them are the same thing, which is what "one meaning per
+	  # colour" comes to from the reader's side
+	  [ "$(printf '%s\n' "$R" "$G" "$Y" "$U" "$M" "$C" "$W" "$D" "$V" \
+	       | sort -u | grep -c .)" = 9 ] || exit 1
+	  # the none tier empties all of them: a slot left set there would print an
+	  # escape down a pipe and into whatever read it.
+	  _ui_colours none; _ui_head none
+	  [ -z "$R$G$Y$U$M$C$W$D$V$B$BL$N" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui palette: the doctrine block and the colours disagree" >&2; bad=$((bad+1)); }
+
+	# the mono tier's alphabet. this is the whole vt320 claim in one assertion:
+	# a vt100 and everything after it implements SGR 1, 4, 5 and 7 and nothing
+	# else -- terminfo gives vt100..vt520 exactly bold, smul, blink, rev and
+	# sgr0 -- so any other parameter reaching this tier is a mark the hardware
+	# will not draw. faint (2) is the one to watch: the file already says a
+	# vt-series terminal has none, and D is empty here for that reason, but
+	# nothing stopped the next edit from reaching for it.
+	( _ui_colours mono; _ui_head mono; _ui_hi mono; _ui_lit mono
+	  _bad=$(printf '%s\n' "$N" "$B" "$V" "$BL" "$R" "$G" "$Y" "$M" "$C" "$W" \
+	                        "$D" "$U" "$HI_ON" "$LIT_ON" \
+	    | tr -d '\033' | tr ';' '\n' | sed -e 's/^\[//' -e 's/m$//' \
+	    | grep -vxE '0|1|4|5|7' | grep -c . || true)
+	  [ "$_bad" = 0 ] || exit 1
+	  # and no colour reached it either -- 30-37, 39, 90-97 are all absent
+	  case "$N$B$V$BL$R$G$Y$M$C$W$D$U$HI_ON$LIT_ON" in
+	    *'[3'*|*'[9'*|*';3'*|*';9'*) exit 1 ;;
+	  esac
+	  exit 0 ) \
+		|| { echo "FAIL ui mono: an attribute the vt320 does not have" >&2; bad=$((bad+1)); }
+
+	# nothing turns ONE attribute off. a vt100 has no 22/24/25/27 -- only the
+	# vt200 line added them -- and the floor here is the vt100, so every mark
+	# closes with a full SGR 0. the cost is written at HI1 in lib/ui: on mono an
+	# inner span cannot hand an attribute back. this keeps that trade deliberate.
+	# the files are asserted present first. a grep over a path that does not
+	# exist finds nothing, and "found nothing" is this gate's PASS -- so a
+	# renamed lib would turn it green forever. learn has already been bitten
+	# once by a gate that could not run (mask() and busybox awk's %*s).
+	( for _f in lib/ui learn lib/edit lib/explain; do
+	  	[ -f "$ROOT/$_f" ] || exit 1
+	  done
+	  grep -nE '\\033\[2[24579]m|\[2[24579]m' "$ROOT/lib/ui" "$ROOT/learn" \
+	       "$ROOT/lib/edit" "$ROOT/lib/explain" | grep -v '^[^:]*:[0-9]*:[[:space:]]*#' \
+	    | grep -q . && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui reset: a selective attribute-off the vt100 cannot parse" >&2; bad=$((bad+1)); }
+
+	# a heading owns its row. this is what actually separates it from a literal
+	# on DEC glass, where the bold in 1;4 barely shows -- so it is a rule, not a
+	# hope. every $U site draws the heading and then ends the line: a format that
+	# put prose after the closing %s would put a heading inside a sentence, and
+	# underline would then mean two things on the one tier that needs it most.
+	( for _f in "$ROOT/lib/explain" "$ROOT/lib/autopsy" "$ROOT/lib/panel"; do
+	  	grep -n '"\$U"' "$_f" | while IFS= read -r _l; do
+	  		case "$_l" in *'%s'*'%s\n'*) ;; *) exit 1 ;; esac
+	  	done || exit 1
+	  done
+	  # and there are as many as there were, or this gate is measuring nothing.
+	  # grep -h and grep -c, because bc and paste are NOT shipped applets -- the
+	  # first draft of this gate used both and would have passed on the build
+	  # host and died on the image, which is the fold() bug in lib/ui exactly.
+	  [ "$(grep -h '"\$U"' "$ROOT/lib/explain" "$ROOT/lib/autopsy" "$ROOT/lib/panel" \
+	       | grep -c .)" -ge 6 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui heading: a heading does not own its row" >&2; bad=$((bad+1)); }
+
+	# blink is additive only. it is real on a vt320 and nothing at all on the
+	# machine's own efi framebuffer console, so a state marked by blink ALONE is
+	# a state with no mark where it matters most. every BL must arrive with
+	# something else beside it.
+	( grep -n 'BL' "$ROOT/lib/ui" | grep -v '^[0-9]*:[[:space:]]*#' \
+	    | grep -v 'BL=' | grep -v 'BL blink' | while IFS= read -r _l; do
+	  	case "$_l" in *'$R$BL'*|*'$BL$R'*) ;; *'BL'*) exit 1 ;; esac
+	  done || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ui blink: blink is the only mark on some state" >&2; bad=$((bad+1)); }
+
+	# and the claim the whole marking rests on: a mark changes how a line looks,
+	# never which lines exist. wrap() treats the two literal fences as zero
+	# width, so a marked brief and its bare self break in exactly the same
+	# places -- if that ever stops being true, G50 measures one page and the
+	# image draws another, and the two briefs sitting at 20 rows scroll their
+	# own first paragraph away.
+	( for _f in $(level_ids); do
+		_m=$(sed -n 's/^brief: \{0,1\}//p' "$(level_path "$_f")")
+			_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
+		_b=$(printf '%s\n' "$_m" | fence | wrap 76 | lit_strip | hi_strip)
+		[ "$_a" = "$_b" ] || exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL wrap: a marked brief wraps differently from a bare one" >&2; bad=$((bad+1)); }
+
+	# the corpus side of it. an unpaired backtick prints as itself -- loud, and
+	# never a mark that runs to the end of the page -- but it is still a typo,
+	# and the only place it can be caught is here. a raw fence byte in a source
+	# file would be a mark nobody typed.
+	( _c=0
+	  for _f in $(level_ids); do
+		_p=$(level_path "$_f")
+		# a name's markup is four backticks, a literal's is two: an odd
+		# count is a typo either way, and the doubled form is checked by
+		# fencing it away and looking for what is left over.
+		awk '/^brief:/ { n = gsub(/`/, "`"); if (n % 2) exit 1 } END { }' "$_p" || exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | fence | grep -q '`' && exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
+		sed -n 's/^brief: \{0,1\}//p' "$_p" | grep -q '`' && _c=$((_c + 1))
+	  done
+	  # and the marking is still THERE. a pass that unmarked the corpus would
+	  # otherwise be a green build: only 30-root is pure argument, no literals.
+	  [ "$_c" -ge 25 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL brief markup: an unpaired backtick, a raw fence, or the marks are gone" >&2; bad=$((bad+1)); }
+
+	# the same claim for a setup, which reaches the screen through the same
+	# say(). every fence is zero width in wrap(), so marking a command or a
+	# path in a setup must not re-break the paragraph under it.
+	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"; do
+		_m=$(sed -n 's/^setup: \{0,1\}//p' "$_f")
+		[ -n "$_m" ] || continue
+			_a=$(printf '%s\n' "$_m" | tr -d '`' | wrap 76)
+		_b=$(printf '%s\n' "$_m" | fence | wrap 76 | lit_strip | hi_strip)
+		[ "$_a" = "$_b" ] || exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL wrap: a marked setup wraps differently from a bare one" >&2; bad=$((bad+1)); }
+
+	# the corpus side, for the field an authoring pass writes in bulk: the
+	# brief's two typos, plus the rule the corpus has so far kept by accident --
+	# every byte is ascii. the dash is `--`. an em-dash is a byte no keyboard on
+	# the image types and no vt320 draws, and it arrives by paste, which is
+	# exactly how a bulk pass writes. no marks floor here: the marked setups are
+	# a handful, and a floor set today would be a number invented, not measured.
+	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" "$PROJECTS"/*; do
+		[ -f "$_f" ] || continue
+		awk '/^setup:/ { n = gsub(/`/, "`"); if (n % 2) exit 1 } END { }' "$_f" || exit 1
+		sed -n 's/^setup: \{0,1\}//p' "$_f" | grep -q '``' && exit 1
+		sed -n 's/^setup: \{0,1\}//p' "$_f" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
+		LC_ALL=C grep -q '[^ -~]' "$_f" && exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL setup markup: an unpaired backtick, a raw fence, or a byte outside ascii" >&2; bad=$((bad+1)); }
+
+	# the mark covers the whole argument, not the rolled half of it. a path
+	# built out of two pool values and a fixed tail -- "@dir@/@word@/deep" --
+	# used to come out as two marked words and one flat one, which is three
+	# pieces of the single thing the learner has to type. drive the real
+	# renderer, not the arithmetic under it.
+	( SUBST="$TMP/wsub"; SUBST_HI="$TMP/wsub.hi"
+	  : > "$SUBST"; : > "$SUBST_HI"
+	  sub dir backup; sub word running; sub txt notes; sub old a; sub new b
+	  _m() { printf '%s\n' "$1" | render_named 1 \
+		| sed -e "s/$HI1/[/g" -e "s/$HI2/]/g"; }
+	  [ "$(_m 'spin up @dir@/@word@/deep')" = "spin up [backup/running/deep]" ] || exit 1
+	  [ "$(_m 'read @dir@/@txt@')"          = "read [backup/notes]" ]           || exit 1
+	  # the suffix rule it was built on still holds
+	  [ "$(_m 'make @word@.fifo')"          = "make [running.fifo]" ]           || exit 1
+	  # and english between two names is still english
+	  [ "$(_m 'rename @old@-to-@new@')"     = "rename [a]-to-[b]" ]             || exit 1
+	  [ "$(_m 'copy @dir@ and @word@')"     = "copy [backup] and [running]" ]   || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL widen: a path spanning two rolled values is not one mark" >&2; bad=$((bad+1)); }
+
+	# a q: goes through the same backtick markup a brief does, and the same two
+	# typos have to be caught in it. a literal must not wrap a rolled value
+	# either -- two marks nested is one mark reset halfway, and the corpus has
+	# no reason to write it.
+	( for _f in "$LEVELS"/* "$SCENARIOS"/* "$CHAINS"; do
+		[ -f "$_f" ] || continue
+		# per BRANCH, not per line. fence runs before {a|b|c} is split and
+		# pairs backticks positionally, so one in the first branch can pair
+		# with one in the third and swallow the | between them -- and the
+		# line's total was even, so a whole-line parity check passed it.
+		awk '/^q:/ {
+			t = $0
+			while (match(t, /\{[^{}]*\}/)) {
+				b = substr(t, RSTART + 1, RLENGTH - 2)
+				nb = split(b, br, "|")
+				for (i = 1; i <= nb; i++) if (gsub(/`/, "`", br[i]) % 2) exit 1
+				t = substr(t, 1, RSTART - 1) " " substr(t, RSTART + RLENGTH)
+			}
+			if (gsub(/`/, "`", t) % 2) exit 1
+		}' "$_f" || exit 1
+		# what fence() cannot pair is left standing, which catches the odd
+		# backtick the branch check above cannot see.
+		sed -n 's/^q: \{0,1\}//p' "$_f" | fence | grep -q '`' && exit 1
+		sed -n 's/^q: \{0,1\}//p' "$_f" | grep -q "[$LIT1$LIT2$HI1$HI2]" && exit 1
+		# and no mark wraps a rolled value: sub() marks those itself, so a
+		# card that also marks them by hand resets one mark halfway through
+		# the other.
+		sed -n 's/^q: \{0,1\}//p' "$_f" | fence \
+			| awk -v l1="$LIT1" -v l2="$LIT2" -v h1="$HI1" -v h2="$HI2" '{
+				for (i = 1; i <= length($0); i++) {
+					c = substr($0, i, 1)
+					if (c == l1 || c == h1) inside = 1
+					else if (c == l2 || c == h2) inside = 0
+					else if (c == "@" && inside) exit 1
+				}
+			}' || exit 1
+	  done
+	  exit 0 ) \
+		|| { echo "FAIL q markup: a backtick unpaired within its branch, a raw fence, or a rolled name inside one" >&2; bad=$((bad+1)); }
+
+	# and no setup may squeeze the hint/ref panel under eight rows on an 80x24
+	# screen. this is not typography: ask() adds the setup's height to Q_ROWS
+	# and the panel takes what is left, so past twelve rows the clamp in
+	# _ed_panel_load stops shrinking and the question leaves the screen. the
+	# tightest card in the corpus sits at nine, which is where the ratchet is.
+	_tall=$(setup_budget_under 8)
+	[ -z "$_tall" ] || { printf '%s\n' "$_tall" >&2
+		echo "FAIL: $(printf '%s\n' "$_tall" | grep -c .) setup(s) leave the hint panel under 8 rows" >&2
+		bad=$((bad+1)); }
+
+	# the helper does the arithmetic; _ed_panel_load is the code that lives by
+	# it. drive the real thing with the tallest level setup's Q_ROWS and a hint
+	# longer than any panel -- a hint that overflows fills the region, so
+	# ED_PANEL_ROWS IS the budget. arithmetic asserted against itself is
+	# arithmetic nobody checked.
+	( Q_HINT=$(_i=1; while [ "$_i" -le 20 ]; do echo "hint row $_i"; _i=$((_i + 1)); done)
+	  Q_ANSWERS=ls Q_REF=ls MODE=learn ED_OPEN=hint L= R= TERM_COLS=80 TERM_LINES=24
+	  Q_ROWS=$(( 6 + 4 ))
+	  _ed_panel_load
+	  [ "$ED_PANEL_ROWS" -ge 8 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL setup budget: the row math and _ed_panel_load disagree" >&2; bad=$((bad+1)); }
+
+	# ---- the line editor -------------------------------------------------
+	#
+	# there were NO tests here, and that is exactly why `de` did nothing, `j`
+	# and `k` were documented and unbound, and `q` set a flag read_line has
+	# honoured since it was written. every one of them was a missing arm in a
+	# POSIX case with no *) default: a silent no-op no assertion looked at.
+	#
+	# _ed_normal takes one keystroke and edits two strings, so the whole
+	# keyboard drives headlessly. _ed sets the buffer, _ek types into it.
+	_ed() { L=$1; R=$2; mode=normal
+	        _pend=; _pcnt=; _mcnt=; _await=; _fop=; _fch=
+	        _uL=; _uR=; _umode=; _usnap=; _quit=; YANK=; }
+	_ek() { local _s=$1 _c
+	        while [ -n "$_s" ]; do
+			_c=${_s%"${_s#?}"}; _s=${_s#?}
+			_ed_normal "$_c"
+		done; }
+	_eis() { [ "$L|$R" = "$1" ] || { echo "  ed: got [$L|$R] want [$1]" >&2; return 1; }; }
+
+	# operator x motion, over every motion and all three operators. the whole
+	# point of one table: `de` used to eat the e and do nothing.
+	( _ed "" "one two"
+	  _ek de; _eis "| two" || exit 1
+	  _ed "" "one two"; _ek dw; _eis "|two" || exit 1
+	  _ed "" "one two"; _ek 'd$'; _eis "|" || exit 1
+	  _ed "one " "two"; _ek d0; _eis "|two" || exit 1
+	  _ed "  one " "two"; _ek 'd^'; _eis "  |two" || exit 1
+	  _ed "one " "two"; _ek db; _eis "|two" || exit 1
+	  _ed "" "one two"; _ek dE; _eis "| two" || exit 1
+	  _ed "" "one two"; _ek dl; _eis "|ne two" || exit 1
+	  _ed "one " "two"; _ek cb; [ "$mode" = insert ] || exit 1
+	  _eis "|two" || exit 1
+	  _ed "" "one two"; _ek ce; [ "$mode" = insert ] || exit 1
+	  _eis "| two" || exit 1
+	  _ed "" "one two"; _ek c0; [ "$mode" = insert ] || exit 1
+	  # y changes nothing and takes the span
+	  _ed "" "one two"; _ek yw; _eis "|one two" || exit 1
+	  [ "$YANK" = "one " ] || exit 1
+	  _ed "" "one two"; _ek ye; [ "$YANK" = "one" ] || exit 1
+	  # the doubled forms, and the $-flavoured triple beside them
+	  _ed "on" "e two"; _ek dd; _eis "|" || exit 1
+	  _ed "on" "e two"; _ek yy; [ "$YANK" = "one two" ] || exit 1
+	  _ed "on" "e two"; _ek cc; [ "$mode" = insert ] || exit 1
+	  _ed "one" " two"; _ek D; _eis "on|e" || exit 1
+	  _ed "one" " two"; _ek C; _eis "one|" || exit 1
+	  _ed "one" " two"; _ek Y; [ "$YANK" = " two" ] || exit 1
+	  # and p puts back exactly what d took
+	  _ed "" "one two"; _ek dw; _ek P; _eis "one |two" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: operator x motion -- d, c and y over every motion" >&2; bad=$((bad+1)); }
+
+	# the inclusive/exclusive pin. this ONE difference is the reason the two
+	# motion tables could not just be merged by hand.
+	( _ed "" "one two"
+	  _ek dw; [ "$L$R" = "two" ] || exit 1          # [0,3): the space goes
+	  _ed "" "one two"
+	  _ek de; [ "$L$R" = " two" ] || exit 1         # [0,2]: it stays
+	  # cw on a non-blank is ce -- vi does this, and the old code did not
+	  _ed "" "one two"
+	  _ek cw; [ "$L$R" = " two" ] || exit 1
+	  # dw on the last word still runs to the end
+	  _ed "one " "two"
+	  _ek dw; [ "$L$R" = "one " ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: dw and de must not be the same delete" >&2; bad=$((bad+1)); }
+
+	# a motion refuses at its boundary -- ALL of them. e and E did not: they
+	# walked to index n, one past the last character, and _ed_op's clamp then
+	# read the overshoot as "delete through the end of the line". `de` with
+	# the cursor on the second-to-last character ate the last one, and on a
+	# one-character line it ate the line.
+	( _ed "one tw" "o"; _ek de; _eis "one tw|o" || exit 1   # a no-op, not a bite
+	  _ed "" "x";       _ek de; _eis "|x" || exit 1        # the whole line, once
+	  _ed "" "x";       _ek dE; _eis "|x" || exit 1
+	  _ed "" "x";       _ek e;  _eis "|x" || exit 1        # and the bare motion
+	  # while a real word end still moves and still deletes inclusively
+	  _ed "one t" "wo"; _ek de; _eis "one |t" || exit 1
+	  _ed "" "ab cd";   _ek de; _eis "| cd" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: e overshoots the end of the line" >&2; bad=$((bad+1)); }
+
+	# u with nothing to undo does NOTHING. it used to swap the line against an
+	# empty snapshot, so `u` on a question you had typed an answer to and not
+	# yet edited threw the answer away -- the one keystroke whose whole promise
+	# is that it cannot lose anything.
+	( _ed "" ""; L="hello"; R=""
+	  _ek u; [ "$L$R" = "hello" ] || exit 1
+	  [ -z "$_usnap" ] || exit 1
+	  # after a real change it swaps, and swaps back
+	  _ek x; [ -n "$_usnap" ] || exit 1
+	  _ek u; [ "$L$R" = "hello" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: u with nothing to undo eats the line" >&2; bad=$((bad+1)); }
+
+	# a count is four digits at most, and no motion repeats past the end of
+	# the line it is on. twenty digits overflowed the arithmetic they landed
+	# in, and w/e/b fork per character, so an uncapped one was also a lesson
+	# that stopped answering.
+	( _ed "" "one two three"
+	  _ek 12345; [ "$_pcnt" = 1234 ] || exit 1          # the fifth digit is dropped
+	  _ed "" "one two three"; _ek d12345; [ "$_mcnt" = 1234 ] || exit 1
+	  # the four-digit cap is the load-bearing half: it is what keeps the
+	  # count out of arithmetic it would overflow and off a motion that forks
+	  # per character. _ed_apply also floors the repeat at the line's own
+	  # length, which no assertion here can see -- 9999 iterations of an
+	  # already-clamped w finish too fast to time apart from 13 -- so that one
+	  # is defence in depth behind this, and is documented as such.
+	  _ed "" "abc"; _ek 9999l; _eis "ab|c" || exit 1    # and it still stops
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: a count is not bounded by the line" >&2; bad=$((bad+1)); }
+
+	# the boss clock is the QUESTION's, and pressing enter is not a new
+	# question. ask() clears ED_DEADLINE nowhere inside its own loop, because
+	# a blank line / ? / tab all continue that loop and clock_read mints a
+	# fresh limit when it finds the deadline gone -- which held a boss
+	# question open for as long as someone kept pressing enter.
+	( _a=$(awk '/^\t\tif \[ "\$MODE" = boss \]; then$/{s=1} s{print} s&&/^\t\telse$/{exit}' \
+		"$0" 2>/dev/null | grep -c 'ED_DEADLINE=')
+	  [ "${_a:-1}" = 0 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ask: the boss branch clears ED_DEADLINE inside its own loop" >&2; bad=$((bad+1)); }
+
+	# f F t T and the ; , repeat
+	( _ed "" "one two"
+	  _ek dft; _eis "|wo" || exit 1
+	  _ed "" "one two"; _ek dtt; _eis "|two" || exit 1
+	  _ed "one tw" "o"; _ek dFt; _eis "one |o" || exit 1
+	  _ed "one tw" "o"; _ek dTt; _eis "one t|o" || exit 1
+	  # ; walks to the next hit, , comes back
+	  _ed "" "a.b.c"
+	  _ek 'f.'; [ "${#L}" = 1 ] || exit 1
+	  _ek ';';  [ "${#L}" = 3 ] || exit 1
+	  _ek ',';  [ "${#L}" = 1 ] || exit 1
+	  # a character that is not there moves nothing and deletes nothing
+	  _ed "" "one two"; _ek dfz; _eis "|one two" || exit 1
+	  _ed "" "one two"; _ek fz; _eis "|one two" || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: f F t T and the ; , repeat" >&2; bad=$((bad+1)); }
+
+	# the count prefix, including the rule that makes 10l move ten
+	( _ed "" "abcdefgh"
+	  _ek 3l; [ "${#L}" = 3 ] || exit 1
+	  _ed "" "one two three four five"
+	  _ek 3w; [ "$R" = "four five" ] || exit 1
+	  _ed "" "abcdef"; _ek 2x; _eis "|cdef" || exit 1
+	  _ed "" "one two three"; _ek d2w; _eis "|three" || exit 1
+	  _ed "" "one two three four five"; _ek 2d2w; _eis "|five" || exit 1
+	  _ed "" "abcdefghijkl"; _ek 10l; [ "${#L}" = 10 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: the count prefix" >&2; bad=$((bad+1)); }
+
+	# u undoes one change, and undoes itself. a motion is not a change.
+	( _ed "" "one two"
+	  _ek dd; _eis "|" || exit 1
+	  _ek u;  [ "$L$R" = "one two" ] || exit 1
+	  _ek u;  [ "$L$R" = "" ] || exit 1
+	  _ed "" "one two"
+	  _ek dw; _ek l; _ek l; _ek u
+	  [ "$L$R" = "one two" ] || exit 1
+	  # an insert session takes its snapshot when it opens, so it undoes whole
+	  _ed "" "one two"; _ek i; [ -n "${_uR:-}" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: u undoes one change, and undoes itself" >&2; bad=$((bad+1)); }
+
+	# j k history, q quit, and every unbound key leaving the line alone
+	( EDIT_HIST="$TMP/edhist"; printf 'first\nsecond\n' > "$EDIT_HIST"
+	  hn=2; hi=2
+	  _ed "" ""
+	  _ek k; [ "$L$R" = "second" ] || exit 1
+	  _ek k; [ "$L$R" = "first" ] || exit 1
+	  _ek j; [ "$L$R" = "second" ] || exit 1
+	  _ek j; [ "$L$R" = "" ] || exit 1
+	  _ed "" "x"; _ek q; [ -n "$_quit" ] || exit 1
+	  _ed "" "x"; _ek "$E_EOT"; [ -n "$_quit" ] || exit 1
+	  # an unknown key changes nothing at all
+	  _ed "ab" "cd"; _ek Z; _eis "ab|cd" || exit 1
+	  [ "$mode" = normal ] || exit 1
+	  # and a pending operator cancelled by anything that is not a motion
+	  # leaves the line exactly as it was
+	  _ed "ab" "cd"; _ek d; _ek "$E_ESC"; _eis "ab|cd" || exit 1
+	  [ -z "$_pend" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_normal: j k history, q quit, or an unbound key edits the line" >&2; bad=$((bad+1)); }
+
+	# the deadline arithmetic the clock modes read a byte through. the rc-2
+	# path itself cannot be driven headlessly -- read_line takes the ! -t 0
+	# fallback on any pipe and </dev/null is EOF, not a timeout -- so what is
+	# asserted is the budget, and boss_round's own </dev/null walk above is
+	# the integration guard.
+	( _now=$(date +%s)
+	  _ed_budget $((_now + 10)) || exit 1
+	  [ "$_ED_BUD" -ge 9 ] && [ "$_ED_BUD" -le 10 ] || exit 1
+	  _ed_budget "$_now"      && exit 1   # this second is not a second of budget
+	  _ed_budget $((_now - 5)) && exit 1  # already late
+	  exit 0 ) \
+		|| { echo "FAIL _ed_budget: the deadline arithmetic" >&2; bad=$((bad+1)); }
+
+	# and the redraw itself RUNS. it builds its frame as one string out of
+	# half a dozen escape variables, and a typo in one of them is an unset
+	# parameter under set -u -- a lesson that dies on the first keystroke, on
+	# a terminal, which is the one place the rest of this suite never looks.
+	( _ED_ROW=0; ED_PANEL=; ED_PANEL_ROWS=0; ED_LROWS=0; TERM_COLS=40
+	  _ed_draw '$ ' 'ls -l' '' >/dev/null || exit 1
+	  _ed_draw '$ ' 'ls' ' -l' >/dev/null || exit 1
+	  # a line wider than the terminal, so the climb and the column maths run
+	  _ed_draw '$ ' "$(_i=1; while [ "$_i" -le 60 ]; do printf x; _i=$((_i+1)); done)" 'yz' >/dev/null || exit 1
+	  # and again with a panel open, which is the branch that moves it
+	  ED_PANEL='one
+two'; ED_PANEL_ROWS=2
+	  _ed_draw '$ ' 'ls -l' '' >/dev/null || exit 1
+	  _ed_draw '$ ' 'ls -l x' '' >/dev/null || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_draw: the redraw does not run" >&2; bad=$((bad+1)); }
+
+	# and the headless fallback honours a deadline that has already passed
+	# the checks live INSIDE the braces: the right-hand side of a pipe is a
+	# subshell, so REPLY_LINE set in there never reaches out here.
+	( printf 'ls -l\n' | { read_line "$(( $(date +%s) + 30 ))" || exit 1
+	    [ "$REPLY_LINE" = "ls -l" ] || exit 1; } || exit 1
+	  printf 'ls -l\n' | { read_line "$(( $(date +%s) - 1 ))"; _rc=$?
+	    [ "$_rc" = 2 ] || exit 1; } || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL read_line: a deadline is ignored without a terminal" >&2; bad=$((bad+1)); }
+
+	# no prompt may wrap an 80-column terminal at its widest rendering: it
+	# would cost the reference panel a row and read as prose, not an order.
+	_wide=$(qwidth_over 76)
+	[ -z "$_wide" ] || { printf '%s\n' "$_wide" >&2
+		echo "FAIL: $(printf '%s\n' "$_wide" | grep -c .) prompt(s) wider than 76 columns" >&2
+		bad=$((bad+1)); }
+
+	# the question loop: learn mode has no try limit and says nothing on a
+	# miss -- the line is wiped and you type again. a regression that printed
+	# per try, or banked the card once per try, would walk the screen down and
+	# demote a fought-with card several tiers. drive a real card with two
+	# wrong lines and read back what it printed and what it banked.
+	_qout=$( ( CARDS="$TMP/loopcards"; SESSION_SEEN="$TMP/loopsession"
+	           : > "$CARDS"; : > "$SESSION_SEEN"
+	           MODE=learn S_RIGHT=0 S_WRONG=0 S_STREAK=0
+	           ask "$(level_ids | head -1)" 1 >/dev/null 2>&1 <<-'EOF'
+		definitely not the answer
+		still not the answer
+		quit
+	EOF
+	           printf 'rc=%s wrong=%s\n' "$?" "$S_WRONG" ) )
+	case "$_qout" in
+		"rc=2 wrong=1") ;;
+		*) echo "FAIL ask: two misses then quit gave '$_qout', wanted 'rc=2 wrong=1'" >&2
+		   bad=$((bad+1)) ;;
+	esac
+	_qsay=$( ( CARDS="$TMP/loopcards2"; SESSION_SEEN="$TMP/loopsession2"
+	           : > "$CARDS"; : > "$SESSION_SEEN"; MODE=learn
+	           ask "$(level_ids | head -1)" 1 2>&1 <<-'EOF'
+		definitely not the answer
+		quit
+	EOF
+	         ) | grep -cE 'wrong|one more try|type it to move on' )
+	[ "$_qsay" = 0 ] \
+		|| { echo "FAIL ask: learn mode printed $_qsay line(s) on a miss" >&2; bad=$((bad+1)); }
+	# and the miss still teaches: ? carries the hint and, under it, the
+	# diagnosis of the line that missed. with nothing printed on a miss this
+	# panel is the only place that explains one -- an empty Q_WHY would make
+	# the quiet loop a wall.
+	( Q_HINT="the hint" Q_WHY="  yours   (nothing)" Q_REF=ls Q_ANSWERS=ls Q_ROWS=4
+	  MODE=learn ED_OPEN=hint L= R= TERM_COLS=80 TERM_LINES=24
+	  _ed_panel_load
+	  case "$ED_PANEL" in *"the hint"*"yours"*) exit 0 ;; *) exit 1 ;; esac ) \
+		|| { echo "FAIL ask: the hint panel drops the miss diagnosis" >&2; bad=$((bad+1)); }
+
+	# a phrase macro standing in for a phrasal verb renders as nonsense for
+	# every member but one
+	_part=$(macro_particle)
+	[ -z "$_part" ] || { printf '%s\n' "$_part" >&2
+		echo "FAIL: a phrase macro is followed by a particle -- say the verb outright" >&2
+		bad=$((bad+1)); }
+
+	# a cmp: ref block whose answer cannot repeat fails the build at random
+	_moving=$(cmpref_moving)
+	[ -z "$_moving" ] || { printf '%s\n' "$_moving" >&2
+		echo "FAIL: cmp: ref graded against state that moves under it" >&2
+		bad=$((bad+1)); }
+
+	# two different commands reduced to one spelling key would let a wrong
+	# answer pass tier 1
+	_collide=$(foldcollide)
+	[ -z "$_collide" ] || { printf '%s\n' "$_collide" >&2
+		echo "FAIL: flagnorm folds two different commands together" >&2
+		bad=$((bad+1)); }
+
+	# a string-matched block whose answer carries a value nothing on the card
+	# names is not vague, it is unanswerable
+	_unval=$(unnamed_value)
+	[ -z "$_unval" ] || { printf '%s\n' "$_unval" >&2
+		echo "FAIL: $(printf '%s\n' "$_unval" | grep -c 'named nowhere') answer(s) need a value the card never names" >&2
+		bad=$((bad+1)); }
+
+	# grade's tier 2 demands the card's ref: command, so the card has to say
+	# which command that is -- an honest answer by another route is marked
+	# wrong otherwise, and the learner only finds out after the miss.
+	_uncmd=$(unnamed_cmd)
+	[ -z "$_uncmd" ] || { printf '%s\n' "$_uncmd" >&2
+		echo "FAIL: $(printf '%s\n' "$_uncmd" | grep -c 'grader demands') prompt(s) never name the command they demand" >&2
+		bad=$((bad+1)); }
+
+	# and having named it, the card has to MARK it. a literal the prompt
+	# hardcodes -- empty-dir, missing.txt, src/[mu]*.c, the command itself --
+	# is the one word on the line that is not english, and unmarked it reads
+	# as the eleven that are. a rolled name has been fenced since sub() was
+	# written; this is the same claim for the ones an author types.
+	_unlit=$(unmarked_literal)
+	[ -z "$_unlit" ] || { printf '%s\n' "$_unlit" >&2
+		echo "FAIL: $(printf '%s\n' "$_unlit" | grep -c 'in prose') literal(s) a prompt names but does not mark" >&2
+		bad=$((bad+1)); }
+
+	# and the half that gate cannot see. it reads the ANSWER for what should
+	# have been marked, so a name the answer never types is invisible to it:
+	# "list src/main.c and src/util.c with `ls` `src/[mu]*.c`" typed neither
+	# of the first two and printed them as flat prose beside a marked glob.
+	# this one needs no answer -- it knows a path by its shape.
+	_unnam=$(unmarked_name)
+	[ -z "$_unnam" ] || { printf '%s\n' "$_unnam" >&2
+		echo "FAIL: $(printf '%s\n' "$_unnam" | grep -c 'in prose') name(s) a prompt says but does not mark" >&2
+		bad=$((bad+1)); }
+
+	# and both of those gates are awk, run under the awk the image ships. a
+	# clean corpus and a gate that cannot start look identical from here:
+	# mask() padded with %*s, which busybox awk does not have, so the gate
+	# died on its first card and wrote its complaint to the /dev/null the
+	# caller aimed there for the missing-file case. it passed clean for two
+	# days. so plant one of each and demand they are found.
+	( _p="$TMP/planted"
+	  { echo '---'
+	    echo 'q: put @txt@ in src/main.c with cp'
+	    echo 'a: cp @txt@ src/main.c'
+	  } > "$_p"
+	  [ -n "$(unmarked_literal "$_p")" ] || exit 1
+	  [ -n "$(unmarked_name "$_p")" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL: a markup gate cannot run, or no longer bites" >&2; bad=$((bad+1)); }
+
+	# learn/syn -- the rows a command's page carries whatever you typed. a
+	# label that is not in learn/syntax prints nothing at all, silently: the
+	# merge is by exact string, so a typo is a row that never appears and a
+	# page that is quietly less than it claims. and a command with no ref
+	# page is a line nothing will ever read.
+	( [ -f "$SYNALWAYS" ] || exit 0
+	  while IFS= read -r _l; do
+		case "$_l" in ''|'#'*) continue ;; esac
+		_c=${_l%%	*}
+		[ -f "$REF/$(refname "$_c")" ] || exit 1
+		_rest=${_l#*	}
+		_k=0
+		while [ -n "$_rest" ]; do
+			case "$_rest" in *"	"*) _lab=${_rest%%	*}; _rest=${_rest#*	} ;;
+			                 *) _lab=$_rest; _rest= ;; esac
+			[ -n "$_lab" ] || continue
+			_k=$((_k + 1))
+			awk -F'\t' -v l="$_lab" 'substr($1,1,1)!="#" && NF>1 && $1==l { f=1 } END { exit f?0:1 }' \
+				"$SYNTAX" || exit 1
+		done
+		[ "$_k" -ge 1 ] && [ "$_k" -le 3 ] || exit 1
+	  done < "$SYNALWAYS"
+	  # and the rows really do reach the panel without the answer earning them
+	  ( Q_REF=ls; COLS=80; TERM_COLS=80
+	    explain_syntax 'ls -a' ls | grep -q '\[\.\.\.\]' ) || exit 1
+	  # while an answer that names no command still gets only what it uses
+	  ( Q_REF=ls; COLS=80; TERM_COLS=80
+	    explain_syntax 'ls -a' | grep -q '\[\.\.\.\]' ) && exit 1
+	  exit 0 ) \
+		|| { echo "FAIL syn: a page row names a label or a command that does not exist" >&2; bad=$((bad+1)); }
+
+	# learn/vs -- every line names a shipped ref page, carries exactly one tab,
+	# names it once, and fits a card row. a malformed line would print as an
+	# empty or truncated distinction and teach nothing.
+	if [ -f "$VS" ]; then
+		_vsbad=$(grep -v '^#' "$VS" | grep -c . )
+		grep -v '^#' "$VS" | awk -F'\t' -v ref="$REF" '
+			NF != 2 { print "  " $0 ": not NAME<tab>TEXT"; bad++; next }
+			seen[$1]++ { print "  " $1 ": listed twice"; bad++ }
+			length($2) > 76 { print "  " $1 ": too wide for a card row"; bad++ }
+			{ if ((getline junk < (ref "/" $1)) < 0) { print "  " $1 ": no ref page"; bad++ }
+			  close(ref "/" $1) }
+			END { exit bad > 0 }' \
+			|| { echo "FAIL learn/vs: malformed lines above" >&2; bad=$((bad+1)); }
+		[ "$_vsbad" -gt 0 ] || { echo "FAIL learn/vs: no entries" >&2; bad=$((bad+1)); }
+	fi
+
+	# learn/ref -- every page opens on one line saying what the command is for,
+	# and the card prints that line whole. before this gate the card took the
+	# first prose line it found and cut it to the terminal, so a wrapped
+	# paragraph reached a learner as "Shell builtin. Change the working
+	# directory to DIR. With no.." -- a sentence about the category, cut mid-
+	# clause. both halves are checked here: there IS a summary, and it fits the
+	# narrowest terminal xos comes up on without a cut. the closing period is
+	# what makes a wrapped fragment impossible to miss.
+	local _c _s _sumbad=0
+	for _c in $(ls -1 "$REF"); do
+		_s=$(summary_of "$_c")
+		if [ -z "$_s" ]; then
+			echo "  $_c: no summary line under the usage block" >&2
+			_sumbad=$((_sumbad + 1)); continue
+		fi
+		case "$_s" in
+			Usage*|or:*|\[*|-*|*" := "*)
+				echo "  $_c: summary is synopsis, not a sentence: $_s" >&2
+				_sumbad=$((_sumbad + 1)) ;;
+			"Shell builtin"*)
+				echo "  $_c: summary opens on the category, not the job: $_s" >&2
+				_sumbad=$((_sumbad + 1)) ;;
+		esac
+		case "$_s" in
+			*.) ;;
+			*)  echo "  $_c: summary does not end a sentence (wrapped?): $_s" >&2
+				_sumbad=$((_sumbad + 1)) ;;
+		esac
+		[ "${#_s}" -le 64 ] || {
+			echo "  $_c: summary is ${#_s} columns, over 64: $_s" >&2
+			_sumbad=$((_sumbad + 1)); }
+	done
+	[ "$_sumbad" -eq 0 ] || { echo "FAIL learn/ref: $_sumbad summary problem(s) above" >&2; bad=$((bad+1)); }
+
+	# every drilled flag reads whole on the card. a gloss is cut to its cell
+	# -- twenty columns on find, tar and wget, where two columns of long flag
+	# names leave that much -- and "mtime is greater.." for both -mtime and
+	# -mmin, or "(De)compress.." for all three of tar's compressors, is a
+	# row that cannot tell its flag from the next one. rendered at 80 columns,
+	# the card's own layout, with the colours off so a cut is plain to see.
+	local _cb
+	_cb=$(for _c in $(taught_cached | awk '{ print $1 }' | sort -u); do
+		( C= N= D= B= M= COLS=80; ref_card "$_c" flags 0 "" ) 2>/dev/null \
+			| grep -E '[^.]\.\.( {2,}|$)' | sed "s/^/  $_c: gloss cut: /"
+	done)
+	[ -z "$_cb" ] || { printf '%s\n' "$_cb" >&2
+		echo "FAIL learn/ref: $(printf '%s\n' "$_cb" | grep -c .) drilled gloss(es) cut on the card" >&2; bad=$((bad+1)); }
+
+	# one name per argument, per page: the usage line said [-d DATE] while
+	# the row said -d DT, so the card read as two different flags.
+	local _an
+	_an=$(for _c in $(ls -1 "$REF"); do
+		awk -v c="$_c" '
+			/^Usage:/ { u = $0; getline; while ($0 ~ /^\t/) { u = u " " $0; getline } }
+			/^\t-[A-Za-z0-9] [A-Z][A-Z_0-9]*(\t|$)/ {
+				l = $0; sub(/^\t/, "", l); split(l, t, /[ \t]+/)
+				if (match(u, t[1] " [A-Z][A-Z_0-9]*")) {
+					w = substr(u, RSTART + length(t[1]) + 1, RLENGTH - length(t[1]) - 1)
+					if (w != t[2]) print "  " c " " t[1] ": usage says " w ", the row says " t[2]
+				}
+			}' "$REF/$_c"
+	done)
+	[ -z "$_an" ] || { printf '%s\n' "$_an" >&2
+		echo "FAIL learn/ref: $(printf '%s\n' "$_an" | grep -c .) argument(s) named two ways" >&2; bad=$((bad+1)); }
+
+	# the Tab card: abridged to the taught flags, fitted to a row budget, and
+	# never taller than that budget -- the outer panel cut must have nothing
+	# left to do. examples are real corpus answers and never the one on screen.
+	( COLS=80; Q_REF=grep; Q_ANSWERS="grep -r xos $HOME/irc"
+	  card=$(ref_card grep flags 6)
+	  [ "$(printf '%s\n' "$card" | grep -c .)" -le 6 ] || exit 1
+	  # a list that did not fit says so, inside the same budget: the last row
+	  # goes to the count, not to one more flag. silently stopping is the one
+	  # failure a reference cannot have.
+	  printf '%s\n' "$card" | grep -q 'more -- learn ref grep' || exit 1
+	  # and a card with room for everything spends no row on saying so
+	  case "$(ref_card grep flags 40)" in *"more -- learn ref"*) exit 1 ;; esac
+	  # one row, with more than one flag to show, spends it on the count.
+	  # showing one arbitrary flag and dropping fifteen in silence is the
+	  # failure the footer exists to prevent, and it was the one budget that
+	  # still did it.
+	  _one=$(ref_card grep flags 1)
+	  [ "$(printf '%s\n' "$_one" | grep -c .)" = 1 ] || exit 1
+	  printf '%s\n' "$_one" | grep -q 'more -- learn ref grep' || exit 1
+	  # only drilled flags reach the card; -H is documented but never taught
+	  printf '%s\n' "$card" | grep -q -- "-H " && exit 1
+	  ex=$(ref_examples grep "$Q_ANSWERS") || exit 1
+	  printf '%s\n' "$ex" | grep -qF "grep -r xos" && exit 1
+	  [ "$(printf '%s\n' "$ex" | grep -c .)" -le 3 ] || exit 1
+	  [ "$(printf 'ab\ncd\n' | _prows 1)" = 4 ] || exit 1
+	  # a templated answer still makes an example: the tokens are filled from
+	  # the pools, so a command drilled only through @txt@ is not left blank
+	  sed_ex=$(ref_examples sed "") || exit 1
+	  case "$sed_ex" in *@*) exit 1 ;; esac
+	  # and no example anywhere may carry an unfilled token
+	  examples_cached | grep -q '@[a-z0-9][a-z0-9]*@' && exit 1
+	  # and an awk program keeps its braces: they are code, not a choice
+	  examples_cached | grep -q "awk '{print" || exit 1
+	  # the block index an example carries is the one blk_load addresses, so a
+	  # card can refuse its own answer. prove it on a real block, both ways:
+	  # the line tar's card shows first, then the same card opened on the
+	  # block that line answers
+	  # every other tar line goes in the skip list, so this one is the only
+	  # candidate either way and nothing but the source decides
+	  line=$(examples_cached | awk -F"\t" '$1 == "tar" && $4 == "a" { print $2; exit }')
+	  own=$(examples_cached | awk -F"\t" -v l="$line" '$1 == "tar" && $2 == l { print $3; exit }')
+	  others=$(examples_cached | awk -F"\t" -v l="$line" '$1 == "tar" && $2 != l { print $2 }')
+	  [ -n "$own" ] || exit 1
+	  ref_examples tar "$others" ""     | grep -qxF "  $line" || exit 1
+	  ref_examples tar "$others" "$own" | grep -qxF "  $line" && exit 1
+	  # the card's own flag leads: a -x card's first example extracts
+	  ref_examples tar "" "" "-x" | sed -n 2p | grep -qE -- ' -?[a-z]*x' || exit 1
+	  # and a line that only mentions the command is no example of it
+	  ref_examples wc "" "" | sed 1d | grep -qvE '(^  wc |\| wc )' && exit 1
+	  # and no example is claimed by two blocks, or the card would hand over
+	  # the answer to whichever of them the learner is sitting on
+	  [ -z "$(examples_cached | cut -f2 | sort | uniq -d)" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ref_card/ref_examples: budget, taught-only or example pick" >&2; bad=$((bad+1)); }
+
+	# the flag a card asks about is on its panel, first, whatever the budget:
+	# it was listed in page order and cut like any other, so grep -w sat in
+	# "+14 more" on the card that asks for it. and it leaves the rest of the
+	# list, rather than printing twice.
+	( COLS=80 TERM_COLS=80; Q_REF=grep Q_REFS=grep Q_SRC=; Q_ANSWERS="grep -w xos notes.txt"
+	  p=$(PANEL_ROWS=6 ref_panel_text "$Q_ANSWERS")
+	  [ "$(printf '%s\n' "$p" | _prows 80)" -le 6 ] || exit 1
+	  printf '%s\n' "$p" | grep -q '^> -w ' || exit 1
+	  p=$(ref_panel_text "$Q_ANSWERS")
+	  [ "$(printf '%s\n' "$p" | grep -cE -- '^(>| ) -w ')" = 1 ] || exit 1
+	  # an answer with no shell syntax spends no row saying so
+	  Q_REF=touch Q_REFS=touch Q_ANSWERS="touch -c gone.txt"
+	  p=$(ref_panel_text "$Q_ANSWERS")
+	  printf '%s\n' "$p" | grep -q '^> -c ' || exit 1
+	  printf '%s\n' "$p" | grep -q 'shell syntax' && exit 1
+	  # bundles and stuck values resolve to rows: -rn is -r and -n, -d: is -d
+	  [ "$(pin_keys sort -rn)" = "-r -n " ] || exit 1
+	  [ "$(pin_keys cut -d: -f1)" = "-d -f " ] || exit 1
+	  # a one-row gloss keeps its backslashes: awk -v ate the one in \;
+	  explain_syntax 'find . -exec rm {} \;' "" 1 | grep -qF '\; \;' || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL ref_panel_text: the card's own flag is not pinned first" >&2; bad=$((bad+1)); }
+
+	# an example line is painted the way lib/ui splits every other line of
+	# prose: the command, its flags and its operators are what you TYPE, and an
+	# argument -- what they are pointed at -- stays plain. the colours are empty
+	# under NO_COLOR, so the test names them itself; what is asserted is which
+	# token got which, which is the whole claim. the head still has to be found
+	# even though it now shares a colour with the flags, which is what the
+	# redirection and assignment rows below are for: a filename that got painted
+	# would be a head-detection bug this gate is blind to if it only read colour.
+	( _p() { printf '%s\n' "$1" | awk -v C='<c>' -v N='<n>' "$_PAINT_AWK"'{ print paint($0) }'; }
+	  [ "$(_p 'ls -a')" = "<c>ls<n> <c>-a<n>" ] || exit 1
+	  # after a pipe the next word is a command again; after > it is a file
+	  [ "$(_p 'ls | wc -l')" = "<c>ls<n> <c>|<n> <c>wc<n> <c>-l<n>" ] || exit 1
+	  [ "$(_p 'ls src > all.txt 2>&1')" = "<c>ls<n> src <c>><n> all.txt <c>2>&1<n>" ] || exit 1
+	  # an assignment is not a command name, and a quoted program is not painted
+	  [ "$(_p "f=x awk NR f")" = "f=x <c>awk<n> NR f" ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL paint: an example line names the wrong token as the command" >&2; bad=$((bad+1)); }
+
+	# ? and Tab share one region: opening the hint fills ED_PANEL from Q_HINT,
+	# toggling closes it, and a clock mode gets no panel at all (and ED_OPEN is
+	# forced shut so it cannot leak a stale reference onto a timed round).
+	( MODE=learn; TERM_COLS=80; TERM_LINES=24; L=""; R=""
+	  Q_HINT="press f to follow"; Q_ANSWERS="tail -f x"; Q_REF=tail
+	  ED_OPEN=hint; _ed_panel_load
+	  case "$ED_PANEL" in *"press f to follow"*) ;; *) exit 1 ;; esac
+	  ED_OPEN=; _ed_panel_load; [ -z "$ED_PANEL" ] || exit 1
+	  MODE=boss; ED_OPEN=hint; _ed_panel_load
+	  { [ -z "$ED_PANEL" ] && [ -z "$ED_OPEN" ]; } || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL _ed_panel_load: hint toggle / clock-mode guard" >&2; bad=$((bad+1)); }
+
+	# the prose paths have to actually print. every level brief, every mission
+	# intro and every panel row goes through say(), and say() called `fold` --
+	# which xos does not ship. on the build host the GNU one answered, so all
+	# eleven gates passed while on the image the teaching page of all thirty
+	# levels was blank. nothing here looked, because nothing here read prose.
+	( _b=$(level_field "$(level_ids | head -1)" brief | say)
+	  [ -n "$_b" ] || exit 1
+	  # and it has to be the brief, not one line of it
+	  [ "$(printf '%s\n' "$_b" | grep -c .)" -ge 3 ] || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL say: a level brief prints nothing" >&2; bad=$((bad+1)); }
+	( explain_syntax 'grep -c ERROR "$f" | wc -l' | grep -q . ) \
+		|| { echo "FAIL explain: the syntax panel prints nothing" >&2; bad=$((bad+1)); }
+
+	# wrap is fold -s, rewritten because fold is not shipped -- and G50 measures
+	# every brief's height with the REAL fold on the build host. if the two ever
+	# part, the gate is measuring a page the image will not draw. held against
+	# each other wherever a fold exists; on the image there is none, and there
+	# is nothing left to disagree with.
+	if command -v fold >/dev/null 2>&1; then
+		( printf 'a b c d e f g h i j k l m n o p q r s t u v w x y z\n' > "$TMP/wf"
+		  printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa short\n\n   indented   columns\n' >> "$TMP/wf"
+		  for _w in 5 20 76; do
+			wrap "$_w" < "$TMP/wf" > "$TMP/wa"
+			fold -s -w "$_w" < "$TMP/wf" > "$TMP/wb"
+			cmp -s "$TMP/wa" "$TMP/wb" || exit 1
+		  done
+		  exit 0 ) \
+			|| { echo "FAIL wrap: it and fold -s no longer agree, so G50 measures the wrong page" >&2; bad=$((bad+1)); }
+	fi
+
+	# the coach turns arbitrary learner input into diagnosis rows; it must
+	# never be able to crash a lesson. feed it hostile shapes and require
+	# survival -- the subshell turns a fatal ash error into a caught failure.
+	q_load 06-grep 1 || :
+	for a in 'a || b' '| wc -l' 'grep' 'rm /x | wc -l' 'grep "x | wc' \
+	         "awk '{print \"|\"}' x" '..' '>>/etc/x' ''; do
+		( coach_miss "$a" >/dev/null 2>&1 ) \
+			|| { echo "FAIL coach: crashed on: $a" >&2; bad=$((bad+1)); }
+	done
+
+	# and it must never say the same thing twice. `shorter:` and `also:` used
+	# to be picked independently, so the shortest answer -- usually the first
+	# one listed -- printed under both labels, one line after the other.
+	( Q_ANSWERS="sort -u f | wc -l
+sort f | uniq | wc -l
+sort  -u  f  |  wc  -l
+awk NR==1 f | wc -l"
+	  _o=$(coach_right 'sort f | uniq | wc -l' 2>&1)
+	  printf '%s\n' "$_o" | grep -q 'shorter: sort -u f | wc -l' || exit 1
+	  # the line just shown as shorter: is not offered again as also:, and
+	  # two spellings that normalise the same are one spelling
+	  printf '%s\n' "$_o" | grep 'also:' | grep -q 'sort' && exit 1
+	  printf '%s\n' "$_o" | grep -q 'also: awk NR==1 f | wc -l' || exit 1
+	  exit 0 ) \
+		|| { echo "FAIL coach: shorter: and also: say the same line twice" >&2; bad=$((bad+1)); }
+
+	# ---- bashisms -------------------------------------------------------
+	#
+	# learn/bashisms is the one table whose rows make a claim about a shell
+	# that is NOT here, so it is the one table nobody can check by running the
+	# lesson. two of its three facts are checkable from inside the image; the
+	# third (the probe really does behave differently under bash) needs a bash
+	# to compare against and is build.sh's G62.
+	local _bl _bere _bprobe _bgloss _btab _bn=0
+	_btab=$(printf '\t')
+	sed -n 's/^a: *//p' "$LEVELS"/* "$SCENARIOS"/* "$CHAINS" 2>/dev/null \
+		| sed -E "s/(^|[^\$])'[^']*'/\1 '' /g" > "$TMP/bs.ans"
+	while IFS="$_btab" read -r _bl _bere _bprobe _bgloss; do
+		case "$_bl" in ''|'#'*) continue ;; esac
+		_bn=$((_bn + 1))
+		[ -n "$_bere" ] && [ -n "$_bprobe" ] && [ -n "$_bgloss" ] \
+			|| { echo "FAIL bashisms: $_bl: a row needs all four fields" >&2; bad=$((bad+1)); continue; }
+
+		# the row detects what it claims to. an ERE that has drifted off its
+		# own construct reports nothing and looks exactly like a clean answer.
+		printf '%s' "$_bprobe" | grep -qE -- "$_bere" \
+			|| { echo "FAIL bashisms: $_bl: the ERE does not match its own probe" >&2; bad=$((bad+1)); }
+
+		# and it matches nothing in the corpus. every listed answer is
+		# known-good ash -- most of them graded by running -- so a hit here is
+		# a false positive by construction, and a false positive tells the
+		# learner a line that works is a bash habit.
+		if grep -nE -- "$_bere" "$TMP/bs.ans" | head -1 | grep -q .; then
+			echo "FAIL bashisms: $_bl: matches a corpus answer: $(grep -nE -- "$_bere" "$TMP/bs.ans" | head -1)" >&2
+			bad=$((bad+1))
+		fi
+	done < "$BASHISMS"
+	rm -f "$TMP/bs.ans"
+	[ "$_bn" -gt 0 ] || { echo "FAIL bashisms: the table is empty" >&2; bad=$((bad+1)); }
+
+	# the scanner itself: it fires on a bashism, and it stays quiet on an
+	# answer the corpus is full of. the second half is the one that matters --
+	# a scanner that cried bash at every awk script would be worse than none.
+	[ -n "$(bashism_scan '[[ -f f ]]')" ] \
+		|| { echo "FAIL bashism_scan: silent on [[ ]]" >&2; bad=$((bad+1)); }
+	[ -z "$(bashism_scan "awk '{ print \$1 }' f | sort -u")" ] \
+		|| { echo "FAIL bashism_scan: an awk body read as a bashism" >&2; bad=$((bad+1)); }
+	# the $'...' span survives the quote strip that every other row needs
+	[ -n "$(bashism_scan "echo \$'a\tb'")" ] \
+		|| { echo "FAIL bashism_scan: the quote strip ate \$'...'" >&2; bad=$((bad+1)); }
+
+	# lint reports, it never gates -- so a counter that quietly stops counting
+	# reads as a clean corpus, and the corpus is the only thing anyone checks.
+	# drive the two phrasing numbers over a corpus built for it: one card with
+	# a single phrasing, one whose branches are the same words in a new order,
+	# one varied honestly. anything but 1 and 1 means the awk broke rather
+	# than the authoring improving.
+	( LEVELS="$TMP/lint/levels"; SCENARIOS="$TMP/lint/scn"; CHAINS="$TMP/lint/chains"
+	  mkdir -p "$LEVELS" "$SCENARIOS" || exit 1
+	  : > "$CHAINS"; : > "$SCENARIOS/00-none"
+	  {
+		echo '---'
+		echo 'q: list @dir@ with `ls`'
+		echo 'a: ls @dir@'
+		echo '---'
+		echo 'q: {move @txt@ into @dir@ now|into @dir@ move @txt@ now}, with `mv`'
+		echo 'a: mv @txt@ @dir@'
+		echo '---'
+		echo 'q: {read @txt@ with `cat`|spill what @txt@ holds, using `cat`}'
+		echo 'a: cat @txt@'
+	  } > "$LEVELS/00-probe"
+	  _o=$(lint)
+	  _v=$(printf '%s\n' "$_o" | sed -n 's/.*, \([0-9]*\) with a single phrasing,.*/\1/p')
+	  _s=$(printf '%s\n' "$_o" | sed -n 's/.*, \([0-9]*\) whose phrasings share their words,.*/\1/p')
+	  [ "$_v" = 1 ] && [ "$_s" = 1 ] ) \
+		|| { echo "FAIL lint: the phrasing counters do not count" >&2; bad=$((bad+1)); }
+
+	# projects are not cards and st_block cannot read them -- they have no
+	# listed answer to grade and no flag to claim. their own checker asks the
+	# two questions that matter instead: does the reference reproduce itself
+	# on a freshly built tree, and can an empty program fail a case.
+	prj_check || bad=$((bad + $?))
+
+	printf 'learn: %d questions in %d levels, %d chain stages, %d scenario steps, %d program(s), %d bad\n' \
+		"$nq_lvl" "$(level_ids | grep -c .)" "$nq_chain" "$nq_scn" \
+		"$(for _p in $(project_ids); do prj_nq "$_p"; done | awk '{ n += $1 } END { print n + 0 }')" "$bad"
+	[ "$bad" -eq 0 ]
+}
