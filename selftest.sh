@@ -102,11 +102,16 @@ QEMU_FW=(
 
 # boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
 # verity root resolved by PARTUUID off the stick's p2.
+# XOS_PCAP=<file>: also capture everything the guest puts on the wire. the
+# only way to prove what the stick SAYS to a LAN, as opposed to what init
+# believes it configured.
 boot_img() {
+	local cap=()
+	[ -n "${XOS_PCAP:-}" ] && cap=(-object "filter-dump,id=fd0,netdev=n0,file=$XOS_PCAP")
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
 		-drive file="$1",if=virtio,format=raw,readonly=on \
-		-nic user,model=virtio-net-pci \
+		-nic user,model=virtio-net-pci,id=n0 "${cap[@]}" \
 		-nographic -no-reboot < /dev/null 2>&1
 }
 
@@ -205,7 +210,8 @@ rm -f /tmp/xos-a1.img
 
 echo
 section "A2  clean stick -- must boot, and root must be unwritable"
-out=$(boot_img stick.img)
+rm -f /tmp/xos-a2.pcap
+out=$(XOS_PCAP=/tmp/xos-a2.pcap boot_img stick.img)
 # the kernel's own verdict (arch/x86 setup.c, from boot_params.secure_boot),
 # not the efi stub's console line: since 6.18 the stub logs at notice level
 # by default and its "UEFI Secure Boot is enabled" info line no longer prints.
@@ -246,6 +252,21 @@ grep -qE 'net-iface-up: [a-z0-9]+' <<< "$out" && ! grep -q 'net-iface-up: none' 
 	|| bad "no network interface came up"
 grep -q 'net-has-address: yes' <<< "$out" && ok "dhcp lease obtained" || bad "no ipv4 address"
 grep -q 'net-default-route: yes' <<< "$out" && ok "a default route was installed" || bad "no default route"
+grep -q 'dhcp-client: running' <<< "$out" && ok "the dhcp client stayed up to renew the lease" || bad "no dhcp client running after boot -- the lease will never renew"
+# what the stick SAID on the wire, from the capture, not from init's own
+# account. positive control first: a dhcp exchange must be in there at all
+# (the magic cookie 63 82 53 63), or "no vendor string" is vacuous.
+if [ -s /tmp/xos-a2.pcap ] && LC_ALL=C grep -aqF "$(printf '\143\202\123\143')" /tmp/xos-a2.pcap; then
+	ok "the capture holds the dhcp exchange"
+	LC_ALL=C grep -aq 'udhcp' /tmp/xos-a2.pcap \
+		&& bad "the dhcp request names the stack (udhcp vendor class) to the LAN" \
+		|| ok "the dhcp request carries no vendor string"
+	LC_ALL=C grep -aqi 'xos' /tmp/xos-a2.pcap \
+		&& bad "the wire carries the name xos" \
+		|| ok "nothing on the wire says xos"
+else
+	bad "no dhcp exchange captured -- cannot check what the stick says on the wire"
+fi
 dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
 [ "${dns_n:-0}" -gt 0 ] && ok "$dns_n dns server(s) from dhcp" || bad "no dns servers from dhcp"
 # per-boot mac. qemu's default nic mac (52:54:00:12:34:56) ALREADY has the
@@ -380,8 +401,8 @@ grep -q 'grader-privdrop: ok'  <<< "$out" && ok "learn's answer uid can neither 
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
 grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
 grep -q 'sysctls-hardened: yes' <<< "$out" && ok "every hardening sysctl took" || bad "a hardening sysctl is not at its value"
-grep -q 'sysctls-hardened: '  <<< "$out" && ! grep -q 'sysctl FAILED' <<< "$out" \
-	&& ok "no sysctl write failed" || bad "a sysctl write failed at boot (or the probe never ran)"
+grep -q 'sysctls-hardened: '  <<< "$out" && ! grep -qE 'sysctl (FAILED|MISSING)' <<< "$out" \
+	&& ok "no sysctl write failed and every key exists" || bad "a sysctl write failed or a key has no /proc/sys entry (or the probe never ran)"
 # the home must be writable -- it is the tmpfs every session lives on. a probe
 # whose output nobody reads is a test that cannot fail, so read it.
 grep -q 'writable-home: yes (tmpfs)' <<< "$out" \
@@ -823,6 +844,9 @@ else
 	grep -q 'net-dns-servers: 0' <<< "$o19" \
 		&& ok "xos.nonet: no resolver was written" \
 		|| bad "xos.nonet: dns servers appeared"
+	grep -q 'dhcp-client: none' <<< "$o19" \
+		&& ok "xos.nonet: no dhcp client was started" \
+		|| bad "xos.nonet: a dhcp client is running"
 	grep -q 'mac-randomized: off (xos.realmac)' <<< "$o19" \
 		&& ok "xos.realmac: burned-in mac kept" \
 		|| bad "xos.realmac did not hold"

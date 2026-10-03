@@ -106,7 +106,11 @@ no wifi driver ships -- a wifi chip needs a firmware blob, and a blob in the ima
 is a build failure. the host's own wired port works if it is intel (`e1000e`) or
 realtek (`r8169`) -- the two onboard NICs that need no blob. anything else, use usb:
 an android tether or a usb-ethernet dongle both enumerate as a wired NIC over xhci
-and need no firmware. `udhcpc` runs on whatever link comes up.
+and need no firmware. `udhcpc` runs on whatever link comes up, keeps the lease
+renewed for as long as the stick is up, and says as little as a dhcp client can:
+no hostname, no vendor string (busybox would otherwise announce `udhcp <version>`
+in every request). what remains is the shape of the request itself -- a linux
+client asking for an address -- which no dhcp client can hide.
 
 enable it with two files at the root of p3 (mounts at `/tmp/home`):
 

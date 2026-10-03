@@ -27,7 +27,11 @@ stick. effort is spent top-down.
 - **the untrusted host.** you boot on a machine you don't own -- a hotel pc, a
   friend's laptop, a lab box. it may be compromised, logging, or hostile.
 - **the network you're plugged into.** the LAN wants to scan you, fingerprint
-  you, or watch your traffic.
+  you, or watch your traffic. what it gets on the wire: a per-boot random mac,
+  a dhcp request with no hostname and no vendor string (the request's option
+  order still reads as "a linux client" to a fingerprinting server -- inherent,
+  and said plainly), and tcp without timestamps. a2 captures the exchange and
+  asserts the first two.
 - **the tamperer with a window.** someone had brief physical access to the stick
   and tried to alter it, swap it, or roll it back, then handed it back.
 - **whoever takes the publishing account.** github credentials, a session, a

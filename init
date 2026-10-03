@@ -51,11 +51,16 @@ cmdline_get() { printf ' %s\n' "$CMDLINE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 # strong model a LAN peer could still reach it via the plugged-in NIC's weak-host
 # ARP reply whenever the wg Address overlaps the LAN subnet. with it, the LAN NIC
 # never answers for the tunnel address, whatever wg0.conf says.
-HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/conf/all/arp_ignore=2 net/ipv4/conf/all/arp_announce=2 net/ipv4/conf/default/arp_ignore=2 net/ipv4/conf/default/arp_announce=2 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/tcp_timestamps=0"
+HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/conf/all/arp_ignore=2 net/ipv4/conf/all/arp_announce=2 net/ipv4/conf/default/arp_ignore=2 net/ipv4/conf/default/arp_announce=2 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/tcp_timestamps=0"
+# no tcp_syncookies here: the kernel has no CONFIG_SYN_COOKIES (nothing listens
+# on the LAN -- dropbear binds the tunnel address only), and the key sat in this
+# list for months being skipped in silence. a key with no /proc/sys entry is now
+# LOUD -- it means the list and the kernel disagree, which is a defect, not a
+# no-op -- and the xos.test probe counts it as wrong.
 for kv in $HARDEN_SYSCTLS
 do
   p=/proc/sys/${kv%=*}; v=${kv#*=}
-  [ -e "$p" ] || continue
+  [ -e "$p" ] || { echo "sysctl MISSING: ${kv%=*}"; continue; }
   echo "$v" > "$p" 2>/dev/null || echo "sysctl FAILED: ${kv%=*}"
 done
 # /run is a symlink into the tmpfs. cryptsetup keeps its device locks under
@@ -241,7 +246,15 @@ if ! cmdline_has xos.nonet; then
 			# finish the pass after a lease: a second carrier-up interface
 			# in the same pass still gets its randomized mac and its lease.
 			[ "$leased" = 1 ] && continue
-			udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && leased=1
+			# -V '': busybox otherwise announces "udhcp <version>" as the
+			# vendor class in every DISCOVER -- the stick's stack and its
+			# version, broadcast to the visited LAN. empty omits the option.
+			# -n, not -q: -q exited after the first lease and nothing ever
+			# renewed it, so on a short lease the address silently stopped
+			# being ours. without -q the client backgrounds itself once bound
+			# (this call still returns 0 then) and renews for as long as the
+			# stick is up; -n keeps the no-lease case a failure, as before.
+			udhcpc -i "$dev" -n -t 3 -T 1 -V '' >/dev/null 2>&1 && leased=1
 		done
 		[ "$leased" = 1 ] && break
 		t=$((t+1)); [ "$t" -ge 6 ] && break
@@ -458,7 +471,7 @@ if cmdline_has xos.test; then
 	# list the setter used -- catches a dropped or silently-failed line.
 	printf 'sysctls-hardened: '; _sb=0
 	for kv in $HARDEN_SYSCTLS; do
-		_p=/proc/sys/${kv%=*}; [ -e "$_p" ] || continue
+		_p=/proc/sys/${kv%=*}; [ -e "$_p" ] || { _sb=$((_sb + 1)); continue; }
 		[ "$(cat "$_p" 2>/dev/null)" = "${kv#*=}" ] || _sb=$((_sb + 1))
 	done
 	[ "$_sb" = 0 ] && echo yes || echo "no ($_sb wrong) (BAD)"
@@ -570,6 +583,9 @@ if cmdline_has xos.test; then
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; _c=$(grep -c nameserver /tmp/resolv.conf 2>/dev/null); echo "${_c:-0}"
+	# the renewing client must outlive the boot loop (and must not exist at all
+	# under xos.nonet)
+	printf 'dhcp-client: '; pidof udhcpc >/dev/null 2>&1 && echo running || echo none
 	# print the mac itself only here: the block is xos.test-gated (G31 keeps
 	# the flag off production) and a per-boot random mac identifies nothing.
 	_up=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1)

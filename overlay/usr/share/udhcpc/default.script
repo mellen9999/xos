@@ -8,9 +8,16 @@ set -u
 case "$1" in
 	deconfig) ip addr flush dev "$interface" ; ip link set "$interface" up ;;
 	bound|renew)
+		# a renewal that moves the address must drop the old one first, or the
+		# stick keeps answering on an address the server may have handed to
+		# someone else. same address (the common renew): nothing to flush.
+		cur=$(ip addr show dev "$interface" 2>/dev/null | awk '/inet /{print $2; exit}')
+		[ -n "$cur" ] && [ "${cur%/*}" != "${ip:-}" ] && ip addr flush dev "$interface"
 		ip addr add "${ip:-}/${mask:-24}" dev "$interface" 2>/dev/null
 		ip link set "$interface" up
-		[ -n "${router:-}" ] && ip route add default via "${router%% *}" dev "$interface" 2>/dev/null
+		# replace, not add: a router that changed on renew would otherwise
+		# leave the stale default in place behind a swallowed EEXIST
+		[ -n "${router:-}" ] && ip route replace default via "${router%% *}" dev "$interface" 2>/dev/null
 		: > /tmp/resolv.conf
 		for s in ${dns:-}; do echo "nameserver $s" >> /tmp/resolv.conf; done
 		;;
