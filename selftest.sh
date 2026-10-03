@@ -76,6 +76,35 @@ skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
 # XOS_ALLOW_SKIP=1 to accept a deliberately stub-less dev run.
 skipped_crit() { skipped "$1"; crit_skip=$((crit_skip+1)); }
 
+# the signed rounds need the pinned stub and the unlocked db key. signed_ready
+# SECTION sets R (the unlocked key dir) and says, once, why a round is not
+# evaluated -- a critical skip, since every round that calls this is one of
+# the crown jewels. five rounds used to carry this test by hand, one of them
+# a different shape.
+signed_ready() {
+	if ! R=$(./build.sh ramkeys); then
+		skipped_crit "no stub or unlocked key -- $1 not evaluated (ramkeys failed)"; return 1
+	fi
+	[ -n "$stub" ] && [ -f "$stub" ] && [ -f "$R/db.key" ] \
+		|| { skipped_crit "no stub or unlocked key -- $1 not evaluated"; return 1; }
+}
+# mk_uki TAG CMDLINE -- a uki from this tree's kernel and CMDLINE, signed by
+# the unlocked db key: /tmp/xos-TAG-signed.efi (the unsigned one beside it).
+# mk_stick TAG -- stick.img with that uki as its boot loader: /tmp/xos-TAG.img.
+# the eight test images selftest builds all went through these two commands
+# by hand; a build that fails is now a bad line, not a boot that mysteriously
+# refuses later.
+mk_uki() {
+	ukify build --linux=bzImage --cmdline="$2" --stub="$stub" --output="/tmp/xos-$1.efi" >/dev/null 2>&1 \
+		&& sbsign --key "$R/db.key" --cert keys/db.crt --output "/tmp/xos-$1-signed.efi" "/tmp/xos-$1.efi" >/dev/null 2>&1 \
+		|| bad "could not build and sign the $1 test uki"
+}
+mk_stick() {
+	cp stick.img "/tmp/xos-$1.img" \
+		&& mcopy -o -i "/tmp/xos-$1.img@@1M" "/tmp/xos-$1-signed.efi" ::/EFI/BOOT/BOOTX64.EFI \
+		|| bad "could not place the $1 test uki on a stick image"
+}
+
 # init prints XOS-TEST-END once the whole probe block finished and
 # XOS-TEST-DONE once the console supervisor is up too -- the same
 # did-everything-run guard this harness already applies to itself
@@ -164,12 +193,12 @@ boot_backclock() {
 
 # the same chain over an emulated xHCI USB mass-storage device -- the real
 # hardware path, including usb enumeration and the dm-mod.waitfor poll.
+# the stick as an xhci mass-storage device, shared by the two usb boots below.
+usb_stick() { printf '%s\n' -device qemu-xhci,id=xhci -drive "if=none,id=stick,format=raw,readonly=on,file=$1" -device usb-storage,bus=xhci.0,drive=stick; }
 boot_usb() {
+	local usb; mapfile -t usb < <(usb_stick "$1")
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \
-		-device qemu-xhci,id=xhci \
-		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
-		-device usb-storage,bus=xhci.0,drive=stick \
+		"${QEMU_FW[@]}" "${usb[@]}" \
 		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null 2>&1
 }
@@ -184,11 +213,9 @@ boot_usb() {
 # fails despite a correct kernel and init. on makes the emulated FT232 enumerate
 # like a real dongle. do not drop it.
 boot_usbserial() {
+	local usb; mapfile -t usb < <(usb_stick "$1")
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
-		"${QEMU_FW[@]}" \
-		-device qemu-xhci,id=xhci \
-		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
-		-device usb-storage,bus=xhci.0,drive=stick \
+		"${QEMU_FW[@]}" "${usb[@]}" \
 		-chardev null,id=usbtty \
 		-device usb-serial,chardev=usbtty,bus=xhci.0,always-plugged=on \
 		-nic user,model=virtio-net-pci \
@@ -461,15 +488,8 @@ section "A11  a superseded but validly-signed image must be refused"
 # green. this asserts dbx actually closes that.
 # the stub comes from the pinned arch package, same as uki() -- one path rule.
 stub=$(./build.sh stub 2>/dev/null) || stub=
-if ! R=$(./build.sh ramkeys); then
-	skipped_crit "no stub or unlocked key -- A11 not evaluated (ramkeys failed)"
-elif [ -z "$stub" ] || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped_crit "no stub or unlocked key -- A11 not evaluated"
-else
-	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.rel=old" \
-		--stub="$stub" --output=/tmp/xos-a11.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a11-signed.efi /tmp/xos-a11.efi >/dev/null 2>&1
+if signed_ready A11; then
+	mk_uki a11 "$(cat cmdline.txt) xos.rel=old"
 	if ! sbverify --cert keys/db.crt /tmp/xos-a11-signed.efi >/dev/null 2>&1; then
 		bad "could not build a validly-signed superseded image to test with"
 	else
@@ -809,15 +829,8 @@ section "A18  yank the boot stick -- the machine must die"
 # nothing. boot over emulated usb with a qmp monitor attached; xos.testtether
 # keeps init alive after the probe block (A18 owns this boot's lifetime), then
 # hot-remove the usb device the way a hand does and assert the poweroff.
-if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped_crit "no stub or unlocked key -- A18 not evaluated"
-else
-	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testtether" \
-		--stub="$stub" --output=/tmp/xos-a18.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a18-signed.efi /tmp/xos-a18.efi >/dev/null 2>&1
-	cp stick.img /tmp/xos-a18.img
-	mcopy -o -i /tmp/xos-a18.img@@1M /tmp/xos-a18-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+if signed_ready A18; then
+	mk_uki a18 "$(cat cmdline.txt) xos.testtether"; mk_stick a18
 	a18log=/tmp/xos-a18.log; a18qmp=/tmp/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
@@ -862,16 +875,8 @@ section "A19  every opt-out knob holds, and the state prompt is real"
 # state_open() scan finds it: the unlock prompt must appear, and xos.nostate
 # must make it not. A16's whole-disk vdb has no partition attr, so the real
 # scan never sees it -- this is the only place the production path runs.
-if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped_crit "no stub or unlocked key -- A19 not evaluated"
-else
-	ukify build --linux=bzImage \
-		--cmdline="$(cat cmdline.txt) xos.nonet xos.realmac xos.notether xos.nostate" \
-		--stub="$stub" --output=/tmp/xos-a19.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a19-signed.efi /tmp/xos-a19.efi >/dev/null 2>&1
-	cp stick.img /tmp/xos-a19.img
-	mcopy -o -i /tmp/xos-a19.img@@1M /tmp/xos-a19-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+if signed_ready A19; then
+	mk_uki a19 "$(cat cmdline.txt) xos.nonet xos.realmac xos.notether xos.nostate"; mk_stick a19
 	o19=$(boot_img /tmp/xos-a19.img)
 	grep -q 'net-has-address: no' <<< "$o19" \
 		&& ok "xos.nonet: no address was configured" \
@@ -918,12 +923,7 @@ else
 	# boot never prints XOS-TEST-END; it is killed by its own timeout after
 	# the assertion window.
 	prodcmd=$(tr ' ' '\n' < cmdline.txt | grep -v '^xos\.test' | tr '\n' ' ')
-	ukify build --linux=bzImage --cmdline="$prodcmd" \
-		--stub="$stub" --output=/tmp/xos-a19p.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a19p-signed.efi /tmp/xos-a19p.efi >/dev/null 2>&1
-	cp stick.img /tmp/xos-a19p.img
-	mcopy -o -i /tmp/xos-a19p.img@@1M /tmp/xos-a19p-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	mk_uki a19p "$prodcmd"; mk_stick a19p
 	o19p=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
 		-drive file=/tmp/xos-a19p.img,if=virtio,format=raw,readonly=on \
@@ -967,12 +967,7 @@ else
 
 	# a malformed xos.epoch (the floor's one silent degradation) must be
 	# announced. appended last: cmdline_get takes the last occurrence.
-	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.epoch=abc" \
-		--stub="$stub" --output=/tmp/xos-a19x.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a19x-signed.efi /tmp/xos-a19x.efi >/dev/null 2>&1
-	cp stick.img /tmp/xos-a19x.img
-	mcopy -o -i /tmp/xos-a19x.img@@1M /tmp/xos-a19x-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	mk_uki a19x "$(cat cmdline.txt) xos.epoch=abc"; mk_stick a19x
 	o19x=$(boot_backclock /tmp/xos-a19x.img)
 	grep -q 'clock floor SKIPPED: xos.epoch is not a number' <<< "$o19x" \
 		&& ok "a malformed xos.epoch is announced, not silently ignored" \
@@ -983,12 +978,7 @@ else
 	assert_complete "$o19x" "A19 malformed-epoch boot"
 
 	# same disk, same cmdline plus xos.nostate: the prompt must NOT appear.
-	ukify build --linux=bzImage --cmdline="$prodcmd xos.nostate" \
-		--stub="$stub" --output=/tmp/xos-a19n.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a19n-signed.efi /tmp/xos-a19n.efi >/dev/null 2>&1
-	cp stick.img /tmp/xos-a19n.img
-	mcopy -o -i /tmp/xos-a19n.img@@1M /tmp/xos-a19n-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	mk_uki a19n "$prodcmd xos.nostate"; mk_stick a19n
 	o19n=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		"${QEMU_FW[@]}" \
 		-drive file=/tmp/xos-a19n.img,if=virtio,format=raw,readonly=on \
@@ -1181,17 +1171,10 @@ section "A21  vault mode: a write-protected stick runs from RAM, untouched"
 # mark /sys/class/block/vdb/ro=1 -- exactly what dev_ro reads -- so the real vault
 # path runs here for the first time. it needs a provisioned p3 (ext4 + files) and
 # a production stick, both of which A19's rig knows how to make.
-if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped_crit "no stub or unlocked key -- A21 not evaluated"
-else
+if signed_ready A21; then
 	# a production stick: the test flags stripped, so state_open runs for real
 	a21cmd=$(tr ' ' '\n' < cmdline.txt | grep -v '^xos\.test' | tr '\n' ' ')
-	ukify build --linux=bzImage --cmdline="$a21cmd" --stub="$stub" \
-		--output=/tmp/xos-a21.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a21-signed.efi /tmp/xos-a21.efi >/dev/null 2>&1
-	cp stick.img /tmp/xos-a21.img
-	mcopy -o -i /tmp/xos-a21.img@@1M /tmp/xos-a21-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	mk_uki a21 "$a21cmd"; mk_stick a21
 	# provision a p3 (ext4 + wg0.conf), exactly the way A19's crown-jewel does
 	a21disk=/tmp/xos-a21-state.img
 	truncate -s 48M "$a21disk"
@@ -1279,16 +1262,9 @@ section "A22  clone: a booted stick copies itself onto a plugged-in spare"
 # REMOVABLE usb (what a spare stick looks like); the boot disk is virtio and is
 # excluded. we assert clone's own verdict AND cmp the spare image to the stick
 # from outside the guest, so the copy is proven twice.
-if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped_crit "no stub or unlocked key -- A22 not evaluated"
-else
-	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testclone" \
-		--stub="$stub" --output=/tmp/xos-a22.efi >/dev/null 2>&1
-	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/xos-a22-signed.efi /tmp/xos-a22.efi >/dev/null 2>&1
+if signed_ready A22; then
+	mk_uki a22 "$(cat cmdline.txt) xos.testclone"; mk_stick a22
 	a22stick=/tmp/xos-a22.img a22spare=/tmp/xos-a22-spare.img
-	cp stick.img "$a22stick"
-	mcopy -o -i "$a22stick"@@1M /tmp/xos-a22-signed.efi ::/EFI/BOOT/BOOTX64.EFI
 	a22ssz=$(stat -c%s "$a22stick"); truncate -s $((a22ssz + 8*1024*1024)) "$a22spare"
 	a22out=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
 		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
