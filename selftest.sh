@@ -23,7 +23,7 @@ STICK_ESP_MIB=$(bsh STICK_ESP_MIB)
 # and qemu would die on a nonsense path -- looking like a broken lab rather
 # than a parsing bug. ask build.sh for the resolved path instead.
 OVMF_CODE=$(./build.sh ovmf code) || exit 1
-pass=0; fail=0; skip=0; sections=0
+pass=0; fail=0; skip=0; sections=0; crit_skip=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
@@ -67,6 +67,14 @@ bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # a check quietly not evaluated is the exact failure this harness exists to
 # catch everywhere else.
 skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
+
+# five sections prove the crown jewels -- dbx revocation (A11), the dead-man
+# tether (A18), the real typed-passphrase unlock (A19), vault mode (A21) and
+# clone (A22). a run that skipped any of them has NOT proven the chain, so
+# unlike an ordinary skip it must not read as success at the exit code. this is
+# the one place "a skip is never a pass" has to reach the verdict itself. set
+# XOS_ALLOW_SKIP=1 to accept a deliberately stub-less dev run.
+skipped_crit() { skipped "$1"; crit_skip=$((crit_skip+1)); }
 
 # init prints XOS-TEST-END once the whole probe block finished and
 # XOS-TEST-DONE once the console supervisor is up too -- the same
@@ -406,9 +414,9 @@ section "A11  a superseded but validly-signed image must be refused"
 # green. this asserts dbx actually closes that.
 stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
 if ! R=$(./build.sh ramkeys); then
-	skipped "no stub or unlocked key -- A11 not evaluated (ramkeys failed)"
+	skipped_crit "no stub or unlocked key -- A11 not evaluated (ramkeys failed)"
 elif [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A11 not evaluated"
+	skipped_crit "no stub or unlocked key -- A11 not evaluated"
 else
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.rel=old" \
 		--stub="$stub" --output=/tmp/xos-a11.efi >/dev/null 2>&1
@@ -740,7 +748,7 @@ section "A18  yank the boot stick -- the machine must die"
 # keeps init alive after the probe block (A18 owns this boot's lifetime), then
 # hot-remove the usb device the way a hand does and assert the poweroff.
 if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A18 not evaluated"
+	skipped_crit "no stub or unlocked key -- A18 not evaluated"
 else
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testtether" \
 		--stub="$stub" --output=/tmp/xos-a18.efi >/dev/null 2>&1
@@ -793,7 +801,7 @@ section "A19  every opt-out knob holds, and the state prompt is real"
 # must make it not. A16's whole-disk vdb has no partition attr, so the real
 # scan never sees it -- this is the only place the production path runs.
 if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A19 not evaluated"
+	skipped_crit "no stub or unlocked key -- A19 not evaluated"
 else
 	ukify build --linux=bzImage \
 		--cmdline="$(cat cmdline.txt) xos.nonet xos.realmac xos.notether xos.nostate" \
@@ -1018,7 +1026,7 @@ section "A21  vault mode: a write-protected stick runs from RAM, untouched"
 # path runs here for the first time. it needs a provisioned p3 (ext4 + files) and
 # a production stick, both of which A19's rig knows how to make.
 if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A21 not evaluated"
+	skipped_crit "no stub or unlocked key -- A21 not evaluated"
 else
 	# a production stick: the test flags stripped, so state_open runs for real
 	a21cmd=$(tr ' ' '\n' < cmdline.txt | grep -v '^xos\.test' | tr '\n' ' ')
@@ -1093,7 +1101,7 @@ section "A22  clone: a booted stick copies itself onto a plugged-in spare"
 # excluded. we assert clone's own verdict AND cmp the spare image to the stick
 # from outside the guest, so the copy is proven twice.
 if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
-	skipped "no stub or unlocked key -- A22 not evaluated"
+	skipped_crit "no stub or unlocked key -- A22 not evaluated"
 else
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testclone" \
 		--stub="$stub" --output=/tmp/xos-a22.efi >/dev/null 2>&1
@@ -1128,6 +1136,11 @@ printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then
 	printf '\033[1;31m  only %d of %d checks ran -- the harness was truncated\033[0m\n\n' \
 		"$sections" "$EXPECTED_SECTIONS"
+	exit 1
+fi
+if [ "$crit_skip" -gt 0 ] && [ -z "${XOS_ALLOW_SKIP:-}" ]; then
+	printf '\033[1;31m  %d critical section(s) SKIPPED -- dbx/tether/unlock/vault/clone never ran, so this is NOT a pass.\033[0m\n' "$crit_skip"
+	printf '\033[1;31m  run on a host with the systemd-boot stub + an unlocked key, or set XOS_ALLOW_SKIP=1 to accept a stub-less run.\033[0m\n\n'
 	exit 1
 fi
 echo
