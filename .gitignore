@@ -8,7 +8,45 @@ sysroot/
 esp/
 keys/
 keys.local-*/
-arsenal/
+
+# arsenal/ is tracked SOURCE, but the field build drops compiled binaries and
+# staged trees (python/, impacket/, nuclei-templates/, wordlists/, __pycache__/)
+# right here beside it. a blanket `arsenal/` ignore kept the tree readable but
+# silently swallowed every NEW source file on `git add` unless you passed -f --
+# the footgun behind every `git add -f` in the arsenal history. so default-deny
+# the directory's contents and re-include the source explicitly: a new binary
+# or staged tree stays ignored by construction, a new .sh/.py/.lock/level/ref is
+# addable with a plain `git add`. the pre-commit hook (file-magic, not name) is
+# still the real wall against a committed binary.
+arsenal/*
+!arsenal/*.sh
+!arsenal/*.py
+!arsenal/*.pins
+!arsenal/*.lock
+!arsenal/*.cfg
+!arsenal/*.requirements
+!arsenal/levels/
+!arsenal/lib/
+!arsenal/pools/
+!arsenal/ref/
+!arsenal/sigs/
+# the extensionless source scripts + data (every entry here is source, and none
+# collides with a built tool name -- the qr/atlas/chart/view wrappers are source,
+# the compiled qrencode/etc. are not re-included and stay ignored)
+!arsenal/arsenal
+!arsenal/arsenal-catalog
+!arsenal/arsenal-playbook
+!arsenal/learn
+!arsenal/atlas
+!arsenal/chart
+!arsenal/qr
+!arsenal/view
+!arsenal/xexec
+!arsenal/push
+!arsenal/wrapper
+!arsenal/phrases
+!arsenal/rekeys
+!arsenal/PARITY
 
 # built binaries
 /bzImage
