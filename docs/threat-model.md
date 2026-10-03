@@ -85,7 +85,11 @@ not "secrets from the NSA." concretely:
 3. **your non-leakage into the host** -- no writes to its disks, nothing left at
    reboot. → disk-blind kernel, everything-on-tmpfs, dead-man switch.
 4. **your non-leakage to the network** -- no stable identity, no open ports. →
-   fresh mac, dial-out-only, no listening service on the LAN.
+   fresh mac, dial-out-only, no listening service on the LAN. the fresh mac
+   covers every nic init brings up at boot; a nic hot-plugged and raised by hand
+   afterwards keeps its address (init never auto-uses one, and a resident uevent
+   daemon to catch it is fort surface we do not carry) -- so plug the uplink
+   before boot, which remote access requires regardless.
 5. **the correctness of the artifact itself** -- that the stick is what its
    source claims. → signed sources, pinned deps, reproducible build, no secrets
    in the image, fail-loud gates.

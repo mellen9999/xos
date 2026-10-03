@@ -328,7 +328,13 @@ the CAs in `trust/`, compiled into the binary rather than read from a directory,
 the set rides the hash tree.
 
 - **fresh mac every boot** -- no stable link-layer identity for the networks it
-  visits. `xos.realmac` opts back in, `xos.nonet` skips the network entirely
+  visits. it covers every nic init brings up, including a usb tether or dongle
+  that enumerates during the boot network window -- so plug the uplink in before
+  booting (remote access needs it there anyway). a nic you plug and bring up BY
+  HAND after that window keeps its hardware address; init never auto-uses such a
+  nic, and randomizing on hotplug would mean a resident uevent daemon, which the
+  fort does not carry. `xos.realmac` opts back in, `xos.nonet` skips the network
+  entirely
 - **clock floor** -- `xos.epoch`, the build date pinned in the signed uki, is a
   floor the clock can't fall below. no ntp; init reads the Date header off an https
   response whose chain reaches the compiled-in anchors
