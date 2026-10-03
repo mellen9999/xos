@@ -1,0 +1,58 @@
+binwalk v3.1.0: wait for every result the workers owe before leaving the main loop
+
+The main loop ran while the queue was non-empty OR the pool's active_count()
+was non-zero. threadpool's active_count() counts only jobs a worker has
+already dequeued, so on a loaded machine the loop saw an empty queue and no
+active worker while the one job still sat in the pool's channel -- and left.
+A second gap: a worker that sent its result and went idle between the loop's
+try_recv() and its next test left that result unread. Either way the run
+printed "Analyzed 0 files for N file signatures", found nothing, exited 0.
+
+Upstream: https://github.com/ReFirmLabs/binwalk/issues/971 (open at pin time).
+Applies to the pinned commit 4fdab3d464d97b68e0af9088df3f9e2e1545b21c (v3.1.0).
+Carried by xos; applied by arsenal/build-arsenal-c.sh patch_src(). Drop it when
+a release includes the fix.
+
+diff --git a/src/main.rs b/src/main.rs
+index 69d78d4..e0e48a0 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -43,6 +43,13 @@ fn main() {
+ 
+     // Statistics variables; keeps track of analyzed file count and total analysis run time
+     let mut file_count: usize = 0;
++    // Results still owed by worker threads: incremented when a job is handed to
++    // the pool, decremented when its result is received. The pool's own
++    // active_count() counts only jobs a worker has already dequeued, so a job
++    // still sitting in the pool's queue -- or a result sent after the worker
++    // went idle -- was invisible to the main loop, which then exited early and
++    // reported "Analyzed 0 files" with exit status 0 (ReFirmLabs/binwalk#971).
++    let mut pending_results: usize = 0;
+     let run_time = time::Instant::now();
+     let mut last_progress_interval = time::Instant::now();
+ 
+@@ -148,7 +155,7 @@ fn main() {
+      * Main loop.
+      * Loop until all pending thread jobs are complete and there are no more files in the queue.
+      */
+-    while !target_files.is_empty() || workers.active_count() > 0 {
++    while !target_files.is_empty() || pending_results > 0 {
+         // If there are files waiting to be analyzed and there is at least one free thread in the pool
+         if !target_files.is_empty() && workers.active_count() < workers.max_count() {
+             // Get the next file path from the target_files queue
+@@ -164,6 +171,7 @@ fn main() {
+                 cliargs.extract,
+                 worker_tx.clone(),
+             );
++            pending_results += 1;
+         }
+ 
+         // Don't spin CPU cycles if there is no backlog of files to analyze
+@@ -187,6 +195,7 @@ fn main() {
+         if let Ok(results) = worker_rx.try_recv() {
+             // Keep a tally of how many files have been analyzed
+             file_count += 1;
++            pending_results -= 1;
+ 
+             // Log analysis results to JSON file
+             json::log(&cliargs.log, json::JSONType::Analysis(results.clone()));

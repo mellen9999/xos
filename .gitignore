@@ -30,6 +30,7 @@ arsenal/*
 !arsenal/pools/
 !arsenal/ref/
 !arsenal/sigs/
+!arsenal/patches/
 # the extensionless source scripts + data (every entry here is source, and none
 # collides with a built tool name -- the qr/atlas/chart/view wrappers are source,
 # the compiled qrencode/etc. are not re-included and stay ignored)

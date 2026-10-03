@@ -35,7 +35,7 @@ SELF=$(cd "$(dirname "$0")" && pwd)                            # holds arsenal.p
 [ -f "$SELF/arsenal.pins" ] || { echo "no arsenal.pins beside $0 -- refusing to build unpinned" >&2; exit 1; }
 command -v docker >/dev/null || { echo "no docker" >&2; exit 1; }
 
-docker run --rm -i --network host -v "$OUT":/out -v "$SELF/arsenal.pins":/pins:ro alpine:3.20 sh -e <<'INNER'
+docker run --rm -i --network host -v "$OUT":/out -v "$SELF/arsenal.pins":/pins:ro -v "$SELF/patches":/patches:ro alpine:3.20 sh -e <<'INNER'
 apk add --no-cache build-base git wget tar libpcap-dev linux-headers \
   zlib-dev zlib-static openssl-dev openssl-libs-static bzip2-static \
   ncurses-dev ncurses-static pkgconf perl autoconf automake libtool cargo \
@@ -82,6 +82,23 @@ clone_pinned() {
     [ "$(git rev-parse HEAD)" = "$commit" ] ) \
     || { echo "$n: commit $commit not checked out -- refusing to build" >&2; return 1; }
   log "$n: commit $commit ok"
+  patch_src "$n" "$dest"
+}
+
+# patch_src NAME DIR -- apply the carried patches for a tool, if any. a patch
+# lives at arsenal/patches/NAME/*.patch (mounted read-only at /patches) and is
+# applied with `git apply --check` first, so a patch that no longer fits the
+# pinned commit refuses the build instead of shipping the unpatched tool with a
+# green log. the pin stays the upstream commit; what is carried is named here.
+patch_src() {
+  n="$1"; dir="$2"
+  [ -d "/patches/$n" ] || return 0
+  for p in "/patches/$n"/*.patch; do
+    [ -f "$p" ] || continue
+    ( cd "$dir" && git apply --check "$p" && git apply "$p" ) \
+      || { echo "$n: carried patch $(basename "$p") does not apply to the pinned commit -- refusing to build" >&2; return 1; }
+    log "$n: applied $(basename "$p")"
+  done
 }
 
 # links 2.30 -- the reader. text-mode (no X/fb): a zim is served by kiwix-serve
@@ -485,6 +502,13 @@ clone_pinned() {
 # it pulls fontconfig/freetype (its entropy-graph png), so those .a's + expat/
 # png/brotli are in the apk set and PKG_CONFIG_ALL_STATIC forces static libs.
 # comes out static-pie (self-contained, no interpreter), same class as rg.
+# CARRIED PATCH (arsenal/patches/binwalk): v3.1.0's main loop exits on the
+# thread pool's active count, which does not see a queued job or a result sent
+# after the worker went idle -- on a loaded box it prints "Analyzed 0 files",
+# finds nothing and exits 0 (ReFirmLabs/binwalk#971, open). the patch counts
+# results owed instead. measured here: 35-44 of 60 scans found the gzip member
+# under a 3x-core load, the patched build 60 of 60. drop the patch when a
+# release carries the fix and clone_pinned's patch_src stops naming it.
 ( set -e; log binwalk
   mkdir -p /s; rustup-init -y --default-toolchain stable --profile minimal >/s/rustup.log 2>&1
   . "$HOME/.cargo/env"
