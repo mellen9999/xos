@@ -14,7 +14,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 
 # build.sh is what runs the checks, so it has to parse before it can be trusted
 # to report its own breakage -- check that one file here, directly.
-bash -n build.sh || { echo "pre-push: build.sh does not parse -- refusing to push" >&2; exit 1; }
+for _f in build.sh build/*.sh; do bash -n "$_f" || { echo "pre-push: $_f does not parse -- refusing to push" >&2; exit 1; }; done
 ./build.sh ci || { echo "pre-push: ci checks failed -- fix them or XOS_NOVERIFY=1 to override" >&2; exit 1; }
 
 # push is the moment a commit stops being local and becomes a public claim, so
