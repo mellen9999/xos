@@ -293,9 +293,7 @@ verify() {
   # cross-check the manifest against the tree AT THAT COMMIT. these are the
   # values verify can settle without building anything.
   local s2 k want
-  s2=$(mktemp -d /tmp/xos-verify.XXXXXX) || return 1
-  git clone -q "$PWD" "$s2/tree" >/dev/null 2>&1 \
-    || { rm -rf "$s2"; echo "FAIL: could not clone this repo" >&2; return 1; }
+  s2=$(snap) || { echo "FAIL: could not clone this repo" >&2; return 1; }
   # -B, not a bare checkout: a detached HEAD makes repro()'s inner
   # `git clone --depth 1 file://` produce an EMPTY tree, and the rebuild then
   # fails for a reason that has nothing to do with the bytes.

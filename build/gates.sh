@@ -1002,7 +1002,7 @@ G37
   # is busybox, a busybox link, a dropbearmulti link, or a name in EXTRA_BINS.
   # the old check was a list of six shell NAMES in two directories -- the same
   # blocklist-of-past-mistakes the pre-commit hook explains it stopped using.
-  # a shell shipped as /bin/rc, or bash under /usr/local, passed it. an
+  # a shell shipped as /bin/rc, or bash under a local prefix, passed it. an
   # undeclared executable of any kind fails this one.
   local sh_ok=1 undecl=0 x base
   while IFS= read -r x; do
@@ -1080,6 +1080,11 @@ G37
       case " $EXTRA_BINS " in *" $r "*) continue ;; esac
       echo "$r"; done | grep -c . || true)
   [ "${miss_cmd:-0}" -eq 0 ] || { c_ok=0; printf '    %s ref(s) document nothing shipped\n' "$miss_cmd" >&2; }
+  # ... and no page is still the stub seed() leaves for a hand to finish. the
+  # seed comment promised this gate would name them; it never did.
+  local stubs24
+  stubs24=$(grep -lE '^TODO: .*by hand\.$' learn/ref/* 2>/dev/null | sed 's|^learn/ref/||' | tr '\n' ' ')
+  [ -z "$stubs24" ] || { c_ok=0; printf '    seeded stub(s) never written by hand: %s\n' "$stubs24" >&2; }
   # ... and every ref still matches the binary's own --help flag for flag.
   # seed() never overwrites a page, so without this a busybox bump that added
   # a flag to an existing applet was invisible to G26 -- the claim that a bump

@@ -3,14 +3,14 @@
 # a module of build.sh: sourced by it, never run. it defines functions and
 # nothing else; every constant it reads lives in build.sh.
 
+# ────────────────────────────────────────────────────────────────────────────
+# qemu -- the development rig; the stick is the product
+# ────────────────────────────────────────────────────────────────────────────
 # boot the WHOLE partitioned stick under qemu -- the exact bytes that get dd'd
 # to a real disk. OVMF finds BOOTX64.EFI on the stick's own ESP (p1); root is
 # resolved by PARTUUID from p2, identically to real hardware. no more fat:esp.
 # both boots are the same firmware and the same stick; only the way the disk is
 # attached differs, so that is the only thing either one spells out.
-# ────────────────────────────────────────────────────────────────────────────
-# qemu -- the development rig; the stick is the product
-# ────────────────────────────────────────────────────────────────────────────
 qboot() { # $@ -- how to attach the disk
   [ -f ovmf-vars.fd ] || { echo "FAIL: run ./build.sh uki first" >&2; return 1; }
   [ -f stick.img ] || stick || return 1

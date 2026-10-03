@@ -88,14 +88,6 @@ libparity() {
   return $bad
 }
 
-# schoolship -- both arsenal installers ship every file the school reads. the
-# stick's populate() once copied the libs, levels and pools but never ref/ or
-# rekeys, so on the stick every Tab panel said "no reference" while install.sh
-# (off-stick, where it was tested) shipped them -- and nothing compared the two.
-# the list is read off arsenal/learn itself (the libs its source loop names)
-# plus the corpus it opens, then each installer is run into a scratch home and
-# every item must land non-empty. buildless: install.sh gets a stand-in
-# busybox, populate() no tool dir, so neither needs a build or the network.
 # xexecproof -- the carried executor, behaving, not just parsing. xexec is the
 # only way carried code runs on the stick (p3 is noexec), and until this it was
 # parse-checked and shellchecked and never once run by anything: the seal, the
@@ -162,6 +154,14 @@ learnship() {
   return 1
 }
 
+# schoolship -- both arsenal installers ship every file the school reads. the
+# stick's populate() once copied the libs, levels and pools but never ref/ or
+# rekeys, so on the stick every Tab panel said "no reference" while install.sh
+# (off-stick, where it was tested) shipped them -- and nothing compared the two.
+# the list is read off arsenal/learn itself (the libs its source loop names)
+# plus the corpus it opens, then each installer is run into a scratch home and
+# every item must land non-empty. buildless: install.sh gets a stand-in
+# busybox, populate() no tool dir, so neither needs a build or the network.
 schoolship() {
   say "arsenal installers ship the whole school (stick + standalone)"
   local t libs items it bad=0
