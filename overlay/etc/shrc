@@ -16,10 +16,10 @@ set -o vi
 _e=$(printf '\033')
 case "${TERM:-dumb}" in
 	dumb|'') _m=""          ;;
-	*)       _m="$_e[0;7m"  ;;
+	*)       _m="${_e}[0;7m"  ;;
 esac
 PS1='\w \$ '
-[ -n "$_m" ] && PS1_CMD="\\w \\[$_m\\]\\\$\\[$_e[0m\\] "
+[ -n "$_m" ] && PS1_CMD="\\w \\[$_m\\]\\\$\\[${_e}[0m\\] "
 unset _e _m
 # the command you got wrong at the real prompt is the best thing learn could
 # ask you about, and it is readable for exactly one instant -- the moment the

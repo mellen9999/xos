@@ -4603,7 +4603,7 @@ lint() {
   outb=$(shellcheck -S warning build.sh selftest.sh overlay/usr/share/udhcpc/default.script \
                     ci/xos-repro ci/xos-ci-full ci/xos-ci-status githooks/pre-commit githooks/pre-push; echo)
   out+=$(shellcheck init learn/learn; echo)
-  out+=$(shellcheck -s sh learn/lib/*; echo)
+  out+=$(shellcheck -s sh learn/lib/* overlay/etc/shrc; echo)
   # the arsenal tree was never shellchecked though it is the security-tooling
   # half of the codebase: the school driver, its libs, the xexec doorway and the
   # provisioning scripts. PARITY/rekeys are data, not scripts, and live outside
