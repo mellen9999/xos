@@ -9,7 +9,8 @@ mount -t sysfs -o nosuid,nodev,noexec none /sys
 # remount that one tighter rather than stacking a second mount on top of it --
 # a stacked mount leaves the permissive one underneath, one umount away.
 mount -o remount,nosuid,noexec /dev 2>/dev/null \
-	|| mount -t devtmpfs -o nosuid,noexec none /dev 2>/dev/null
+	|| mount -t devtmpfs -o nosuid,noexec none /dev 2>/dev/null \
+	|| echo "/dev remount FAILED: devtmpfs still allows suid+exec"
 # securityfs exposes /sys/kernel/security/lockdown so the lockdown state is
 # provable at runtime (the test block reads it; A8 asserts it).
 mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
@@ -209,7 +210,7 @@ mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 # which is the same at-rest story as everything else that survives there.
 export HISTFILE="$HOME/.ash_history"
 
-ip link set lo up 2>/dev/null
+ip link set lo up 2>/dev/null || echo "loopback FAILED to come up"
 # per-boot mac: a stick that never leaves a stable hardware address on the
 # networks it visits. locally-administered (bit 2 set) + unicast (bit 1
 # clear), drawn from a pool the signed cmdline already vouches for
@@ -237,11 +238,15 @@ if ! cmdline_has xos.nonet; then
 			# its hardware mac (degraded privacy, not a dead network) and
 			# the mac-randomized probe makes it visible.
 			if ! cmdline_has xos.realmac && [ ! -f "/tmp/mac.$dev" ]; then
-				cat "/sys/class/net/$dev/address" > "/tmp/mac.$dev" 2>/dev/null
+				# the saved burned-in address is what the mac-randomized probe
+				# compares against; losing it would make a GOOD randomization
+				# read as BAD, so its failure is named rather than swallowed.
+				cat "/sys/class/net/$dev/address" > "/tmp/mac.$dev" 2>/dev/null \
+					|| echo "could not read the hardware mac of $dev"
 				ip link set dev "$dev" address "$(randmac)" 2>/dev/null \
 					|| echo "mac randomization FAILED: $dev"
 			fi
-			ip link set "$dev" up 2>/dev/null
+			ip link set "$dev" up 2>/dev/null || echo "$dev FAILED to come up"
 			[ "$(cat /sys/class/net/"$dev"/carrier 2>/dev/null)" = 1 ] || continue
 			# finish the pass after a lease: a second carrier-up interface
 			# in the same pass still gets its randomized mac and its lease.
@@ -492,6 +497,14 @@ if cmdline_has xos.test; then
 	printf 'lockdown: '; cat /sys/kernel/security/lockdown 2>/dev/null || echo "(no securityfs)"
 	printf 'remount-rw: '; if mount -o remount,rw / 2>/dev/null; then echo "SUCCEEDED (BAD)"; mount -o remount,ro / 2>/dev/null; else echo "refused (good)"; fi
 	printf 'tmp-exec: '; cp /bin/busybox /tmp/probe-x 2>/dev/null; chmod +x /tmp/probe-x 2>/dev/null; if /tmp/probe-x true 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi; rm -f /tmp/probe-x
+	# /dev is the one mount init tightens after the kernel made it; the header
+	# claims nosuid+noexec there and nothing read it back until now.
+	_dv=$(awk '$2 == "/dev" { o = $4 } END { print o }' /proc/mounts 2>/dev/null)
+	printf 'dev-noexec: '; case ",$_dv," in *,noexec,*) echo yes ;; *) echo "no (BAD)" ;; esac
+	printf 'dev-nosuid: '; case ",$_dv," in *,nosuid,*) echo yes ;; *) echo "no (BAD)" ;; esac
+	# the home is root-only by contract (tmpfs under umask 077, p3 chmod 700);
+	# the mode is printed so the test can hold it on both kinds of home.
+	printf 'home-mode: '; stat -c %a "$HOME" 2>/dev/null || echo '?'
 	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
 	# re-read every hardening sysctl (not just the two above) against the same
@@ -924,14 +937,22 @@ state_open() {
 		# shell verbs (recon_accept) all read this, and /tmp/.xos-vault is the
 		# same fact for a shell that did not inherit init's environment.
 		XOS_VAULT=1; : > /tmp/.xos-vault
-		chmod 700 "$STATE_DIR" 2>/dev/null
+		chmod 700 "$STATE_DIR" 2>/dev/null \
+			|| printf '  WARNING: the home is not root-only (chmod 700 %s failed)\n' "$STATE_DIR" > /dev/console
 		# copy the tiny read-write files so downstream may rewrite them in RAM;
-		# symlink the bulk trees (tools/docs are read-only by their nature).
+		# symlink the bulk trees (tools/docs are read-only by their nature). a
+		# file that does not make it into RAM is a feature that silently never
+		# starts (no wg0.conf = no tunnel, no authorized_keys = no ssh), so each
+		# miss is named on the console.
 		for _f in wg0.conf ssh_host_key authorized_keys ledger recon; do
-			[ -e "/tmp/p3ro/$_f" ] && cp -a "/tmp/p3ro/$_f" "$STATE_DIR/$_f" 2>/dev/null
+			[ -e "/tmp/p3ro/$_f" ] || continue
+			cp -a "/tmp/p3ro/$_f" "$STATE_DIR/$_f" 2>/dev/null \
+				|| printf '  vault: could not stage %s into RAM -- it is unavailable this boot\n' "$_f" > /dev/console
 		done
 		for _d in tools docs; do
-			[ -e "/tmp/p3ro/$_d" ] && ln -sf "/tmp/p3ro/$_d" "$STATE_DIR/$_d" 2>/dev/null
+			[ -e "/tmp/p3ro/$_d" ] || continue
+			ln -sf "/tmp/p3ro/$_d" "$STATE_DIR/$_d" 2>/dev/null \
+				|| printf '  vault: could not link %s into the home -- it is unavailable this boot\n' "$_d" > /dev/console
 		done
 		printf '  vault mode: p3 is write-protected -- running from RAM, the stick stays untouched\n' > /dev/console
 		return 0
@@ -943,7 +964,8 @@ state_open() {
 	# the tmpfs home was made under umask 077; the persistent one carries
 	# whatever mode mkfs gave its root (0755). same rule for both: root only.
 	if mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/xosstate "$STATE_DIR" 2>/dev/null; then
-		chmod 700 "$STATE_DIR" 2>/dev/null
+		chmod 700 "$STATE_DIR" 2>/dev/null \
+			|| printf '  WARNING: the home is not root-only (chmod 700 %s failed)\n' "$STATE_DIR" > /dev/console
 	else
 		# the passphrase was RIGHT -- a silent fall-through here would tell the
 		# operator "wrong passphrase" by omission when the truth is a damaged
@@ -1194,6 +1216,11 @@ if cmdline_has xos.test; then
 		"$(cat "/tmp/console.term.$(basename "${_ser%% *}")" 2>/dev/null)"
 	[ -n "$_ser" ] && printf 'serial-size: %s\n' \
 		"$(stty -F "${_ser%% *}" size 2>/dev/null | tr ' ' 'x')"
+	# the home as a session will find it: after the real p3 mount (A16) or on
+	# the tmpfs when nothing was unlocked (A9). root-only either way -- the
+	# earlier home-mode probe runs before state_open and can only see the tmpfs.
+	printf 'home-final: %s %s\n' "$(stat -c %a "$HOME" 2>/dev/null || echo '?')" \
+		"$(awk -v h="$HOME" '$2 == h { t = $3 } END { print t }' /proc/mounts 2>/dev/null)"
 	echo "XOS-TEST-DONE"
 	sync
 	# PID 1 no longer exits, so a test boot would otherwise run until the

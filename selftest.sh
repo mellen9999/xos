@@ -221,6 +221,14 @@ out=$(XOS_PCAP=/tmp/xos-a2.pcap boot_img stick.img)
 # by default and its "UEFI Secure Boot is enabled" info line no longer prints.
 grep -q 'Secure boot enabled' <<< "$out" && ok "secure boot was enforcing during the run" || bad "secure boot not enabled"
 grep -q 'write-to-root: refused' <<< "$out" && ok "write to / returned EROFS" || bad "root was writable"
+# the banner is what an operator reads first: the build date (the version --
+# there is no semver) and the tether state. neither line was ever asserted.
+grep -qE '^  built: [0-9]{4}-[0-9]{2}-[0-9]{2} \(UTC\)' <<< "$out" \
+	&& ok "the banner prints the signed build date" \
+	|| bad "no 'built: YYYY-MM-DD' line in the banner (epoch unparsed?)"
+grep -qE '^  tether: (yes|no \(not usb\)|off \(xos\.notether\))' <<< "$out" \
+	&& ok "the banner states the tether" \
+	|| bad "no tether line in the banner"
 grep -q 'busybox-runs: yes'      <<< "$out" && ok "userland actually executes"  || bad "userland did not run"
 grep -q 'rootfs-type: squashfs' <<< "$out" && ok "root is mounted as squashfs" || bad "root filesystem type is not squashfs"
 grep -q 'rootfs-flags: ro'      <<< "$out" && ok "root mount flags include ro" || bad "root not mounted ro"
@@ -401,6 +409,15 @@ echo
 section "A9  write / exec containment"
 grep -q 'remount-rw: refused' <<< "$out" && ok "/ cannot be remounted rw"      || bad "/ was remounted rw"
 grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  || bad "a binary ran from /tmp"
+# /dev is the one mount init tightens after the kernel made it. the remount
+# used to fail in silence; now it is loud, and the probe reads the flags back.
+grep -q 'dev-noexec: yes' <<< "$out" && grep -q 'dev-nosuid: yes' <<< "$out" \
+	&& ! grep -q 'dev remount FAILED' <<< "$out" \
+	&& ok "/dev is nosuid,noexec (the W^X claim in init's header holds at runtime)" \
+	|| bad "/dev still allows suid or exec (or the remount failed)"
+grep -q 'home-mode: 700' <<< "$out" && grep -q 'home-final: 700 tmpfs' <<< "$out" \
+	&& ok "the tmpfs home is root-only (0700) before and after state_open" \
+	|| bad "the home is not 0700 -- another uid could read the operator's files"
 grep -q 'grader-privdrop: ok'  <<< "$out" && ok "learn's answer uid can neither read nor write the home" || bad "nobody can reach the operator's home"
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
 grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
@@ -738,6 +755,11 @@ grep -qE 'ledger: boot 2 on this state \(last was [0-9]{4}-[0-9]{2}-[0-9]{2}' <<
 grep -q 'new:  pci' <<< "$b2" \
 	&& ok "the diff names the device that appeared" \
 	|| bad "recon said 'changed' but not what changed"
+# the persistent home carries whatever mode mkfs gave its root (0755); init
+# chmods it 700 after the mount, and that chmod used to fail in silence.
+grep -q 'home-final: 700 ext4' <<< "$b2" && ! grep -q 'home is not root-only' <<< "$b2" \
+	&& ok "the p3 home is root-only (0700) once mounted" \
+	|| bad "the p3 home is not 0700 after the mount"
 assert_complete "$b2" "A16 boot 2"
 # boot 3 is the same machine AND the same hardware as boot 2 -- recon must now
 # report NO change. the other half of the guarantee: a feature that cried
@@ -1216,6 +1238,11 @@ else
 	grep -aq 'vault mode: p3 is write-protected' "$a21log" \
 		&& ok "the write-protect switch put the boot in vault mode (dev_ro + --readonly open)" \
 		|| bad "vault mode did not engage on a read-only p3 -- the switch story is unproven"
+	# the RAM staging of wg0.conf/authorized_keys/ledger/recon and the home
+	# chmod now report their failures; a vault boot on a good p3 has none.
+	! grep -aqE 'vault: could not (stage|link)|home is not root-only' "$a21log" \
+		&& ok "every p3 file staged into RAM and the home is root-only" \
+		|| bad "vault staging reported a failure: $(grep -aE 'vault: could not|home is not root-only' "$a21log" | head -1)"
 	grep -aq 'VAULT-P3-RO' "$a21log" \
 		&& ok "a write to p3 is refused -- the stick stays untouched in vault mode" \
 		|| bad "p3 took a write in vault mode (or the probe never ran) -- the core promise is unproven"
