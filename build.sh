@@ -20,7 +20,7 @@ XOS_CACHE="${XOS_CACHE:-$HOME/.cache/xos/tarballs}"
 # sharing rule as the tarballs: immutable, digest-checked, fetched once.
 XOS_BLOBS="${XOS_BLOBS:-$XOS_CACHE/blobs}"
 
-KVER="${KVER:-6.18.54}"
+KVER="${KVER:-6.18.55}"
 BBVER="${BBVER:-1.38.0}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
