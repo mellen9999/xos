@@ -1096,7 +1096,9 @@ G37
   # ... and no page is still the stub seed() leaves for a hand to finish. the
   # seed comment promised this gate would name them; it never did.
   local stubs24
-  stubs24=$(grep -lE '^TODO: .*by hand\.$' learn/ref/* 2>/dev/null | sed 's|^learn/ref/||' | tr '\n' ' ')
+  # || true: no stub is grep's exit 1, which under set -e/pipefail would end
+  # the whole gate run here instead of passing this check.
+  stubs24=$(grep -lE '^TODO: .*by hand\.$' learn/ref/* 2>/dev/null | sed 's|^learn/ref/||' | tr '\n' ' ' || true)
   [ -z "$stubs24" ] || { c_ok=0; printf '    seeded stub(s) never written by hand: %s\n' "$stubs24" >&2; }
   # ... and every ref still matches the binary's own --help flag for flag.
   # seed() never overwrites a page, so without this a busybox bump that added
