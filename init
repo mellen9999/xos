@@ -386,7 +386,10 @@ recon_check() { # $1 = root of the unlocked state filesystem
 		printf '  recon: first visit to machine %s -- baseline recorded\n' "$mid" > /dev/console
 	elif cmp -s "$old" "$now"; then
 		printf '  recon: machine %s is as you left it\n' "$mid" > /dev/console
-		rm -f "$old.new"
+		# nothing to write: rewriting an identical baseline every boot only
+		# opened a window where a pull mid-copy truncated it, and the next boot
+		# cried MACHINE CHANGED over a machine that never moved.
+		rm -f "$old.new" "$now"; return
 	elif [ -f "$old.new" ] && cmp -s "$old.new" "$now"; then
 		# reported before, never accepted: the alarm does not clear itself
 		printf '  recon: MACHINE %s still CHANGED since its baseline (unaccepted -- `recon_accept` at the shell)\n' "$mid" > /dev/console
@@ -404,12 +407,16 @@ recon_check() { # $1 = root of the unlocked state filesystem
 			rm -f "$now"; return
 		fi
 		printf '    (baseline kept -- `recon_accept` at the shell accepts this machine as it is now)\n' > /dev/console
-		cp "$now" "$old.new" 2>/dev/null
-		rm -f "$now"; return
+		# through a temp name: a half-written .new is a pending change that
+		# recon_accept would promote to the baseline. and say so when it fails,
+		# or recon_accept answers "nothing to accept" under the alarm above.
+		{ cp "$now" "$old.new.tmp" && mv "$old.new.tmp" "$old.new" && sync; } 2>/dev/null \
+			|| printf '  recon FAILED: could not record the change -- recon_accept has nothing to accept\n' > /dev/console
+		rm -f "$now" "$old.new.tmp"; return
 	fi
-	{ mkdir -p "$dir" && cp "$now" "$old" && sync; } 2>/dev/null \
+	{ mkdir -p "$dir" && cp "$now" "$old.tmp" && mv "$old.tmp" "$old" && sync; } 2>/dev/null \
 		|| printf '  recon FAILED: could not record the baseline\n' > /dev/console
-	rm -f "$now"
+	rm -f "$now" "$old.tmp"
 }
 # the boot ledger: p3 counts its own unlocks. recon watches the MACHINE change
 # under the stick; this watches the STICK's history change under you. remember
@@ -1046,8 +1053,16 @@ if state_open; then
 		   && ip addr add "$wgcidr" dev wg0 2>/dev/null \
 		   && ip link set wg0 up 2>/dev/null; then
 			printf '  wireguard up on wg0 (%s)\n' "$wgcidr" > /dev/console
-			# host key on p3, made once
-			[ -f "$STATE_DIR/ssh_host_key" ] || dropbearkey -t ed25519 -f "$STATE_DIR/ssh_host_key" >/dev/null 2>&1
+			# host key on p3, made once -- under a temp name, checked, then moved:
+			# a pull mid-write left a truncated key that `[ -f ]` then trusted on
+			# every boot after, and ssh died in its back-off loop for good.
+			if ! [ -f "$STATE_DIR/ssh_host_key" ]; then
+				rm -f "$STATE_DIR/ssh_host_key.new"
+				{ dropbearkey -t ed25519 -f "$STATE_DIR/ssh_host_key.new" \
+				  && dropbearkey -y -f "$STATE_DIR/ssh_host_key.new" \
+				  && mv "$STATE_DIR/ssh_host_key.new" "$STATE_DIR/ssh_host_key" && sync; } >/dev/null 2>&1 \
+					|| printf '  ssh host key FAILED: could not make one on p3\n' > /dev/console
+			fi
 			# authorize BOTH keys: the one baked into the verity-covered image (a
 			# safety net that a writable-p3 key must never be able to lock out) and
 			# any key the operator added on p3. either file may be absent.
