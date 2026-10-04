@@ -2,11 +2,11 @@
 # G13 compares against this. a mismatch on the SAME toolchain means the
 # image no longer corresponds to the source; on a different toolchain it
 # only means you cannot independently verify this build.
-image     48f268ad2b1c23ee6acb710ff66578edee6005324a2d0108aecfe5697cd0e31d
-squashfs  7612b6fbb3ecc88c5c3fef51d5dc4a1ba3ef76ae4b92fed79496bac15c951d4e
-roothash  23f6624722628fbaef359f2768af69abb12b6618efef36730ee4ae7e6cc53b79
+image     f326e96d15b00bf032db2f7978208daa1de8c3d4a36c69d318870dfbaab9d37e
+squashfs  30b84c7a6081d5aaefc91eab2b594ec4a3d2b05a7fa2dd748f4184dda7e19f8c
+roothash  7405e82a7e84e7097a1f4669ee00d6dc6e3635538dc9a769850735185a2077ab
 kernel    38b84cddb8ef8a799afd733c5c3407301ef9a9f4c4af0b639d47e4f30b5f7e33
-source    82382c2eb984132f12b49a8ca5b4db7392e4c690271e197763252eaea6c4338d
+source    d72cf1866732a9633f814df9c1aa83d9c1644cbdbb455c6f49fa89421d1f92de
 toolchain 9c0f2f276be250580023cc2d8bfb7acf9c4f8d484e61634fc29ce43fa11133a7
 # toolchain this pin was taken with -- install these to reproduce:
 #   gcc (GCC) 16.2.1 20260810
