@@ -27,7 +27,7 @@ STICK_ESP_MIB=$(bsh STICK_ESP_MIB)
 # rest of the line, so it would hand back an unexpanded command substitution
 # and qemu would die on a nonsense path -- looking like a broken lab rather
 # than a parsing bug. ask build.sh for the resolved path instead.
-OVMF_CODE=$(./build.sh ovmf code) || exit 1
+OVMF_CODE=$(./build.sh ovmf code) || { rm -rf "$XT"; exit 1; }
 pass=0; fail=0; skip=0; sections=0; crit_skip=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
@@ -42,11 +42,11 @@ ROOT_OFF=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
 # production carries no test hook, so build a test-flavoured UKI + stick for this
 # run and restore the production ones on the way out.
 # unlock once into RAM; every subsequent sign reuses it, and we wipe on exit.
-./build.sh unlock || { echo "cannot unlock signing keys"; exit 1; }
+./build.sh unlock || { echo "cannot unlock signing keys"; rm -rf "$XT"; exit 1; }
 # uki rebuilds ovmf-vars.fd from the pristine OVMF template, so restore() also
 # discards the throwaway dbx entry A11 enrolls into firmware.
 XOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null \
-	|| { echo "cannot build test uki/stick"; exit 1; }
+	|| { echo "cannot build test uki/stick"; rm -rf "$XT"; exit 1; }
 # restore is the EXIT trap: if it fails partway, the tree can be left holding
 # a TEST uki/stick -- xos.test xos.teststate xos.testwg on a cmdline that must
 # never ship. that failure must be impossible to miss, so check every step and
@@ -64,7 +64,10 @@ restore() {
 	# particular cannot be understood from the verdict line alone.
 	if [ "${fail:-0}" -gt 0 ]; then
 		printf '  logs of this run kept at %s (remove it when read)\n' "$XT" >&2
-		find "$XT" -name '*.img' -delete 2>/dev/null
+		# keep the logs, not the images: every .efi here is a TEST uki (xos.test
+		# hooks on its cmdline) signed with the real db key, bootable on any
+		# machine that key is enrolled in. it must not outlive the run.
+		find "$XT" \( -name '*.img' -o -name '*.efi' -o -name '*.fd' \) -delete 2>/dev/null
 	else
 		rm -rf "$XT"
 	fi
@@ -1114,9 +1117,12 @@ if signed_ready A19; then
 	# in the FOREGROUND and prints. it did not, on every serial console, for as
 	# long as the shell was started through cttyhack on /dev/console -- each
 	# command died in the background with "can't set tty process group".
-	grep -aq 'TYPED-FG-OK' "$a19log" && ! grep -aq 'tty process group' "$a19log" \
+	# both failure modes, named: a shell with a controlling terminal it cannot
+	# drive ("can't set tty process group"), and one with none at all ("job
+	# control turned off" -- commands still run, ^C/^Z/fg/bg do not).
+	grep -aq 'TYPED-FG-OK' "$a19log" && ! grep -aqE 'tty process group|job control turned off' "$a19log" \
 		&& ok "a command typed at the serial console runs in the foreground (job control works)" \
-		|| bad "the serial console shell cannot run a typed command ($(grep -aoE "can't set tty process group[^.]*|TYPED-FG-OK" "$a19log" | head -1))"
+		|| bad "the serial console shell has no working job control ($(grep -aoE "can't set tty process group|job control turned off|TYPED-FG-OK" "$a19log" | head -1))"
 	# the only boot where the real p3 is the home: init's own unlock line now
 	# states the mode and the filesystem it found, read back after the chmod
 	# (busybox stat -f names ext4 "ext2/ext3"). nothing is typed at the shell:
