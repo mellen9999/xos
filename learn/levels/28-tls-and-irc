@@ -87,7 +87,8 @@ hint: whatever you echo into a channel's in fifo, ii sends as a message
 setup: ii's files live under $HOME/irc, one directory per server
 q: %find% every mention of your nick ``xos`` across every channel, with `grep`
 a: grep -r xos $HOME/irc
-why: fixture-cost
+pre: mkdir -p $HOME/irc/net/'#ops' $HOME/irc/net/'#dev'; echo 'xos: hello' > $HOME/irc/net/'#ops'/out; echo 'nobody here' > $HOME/irc/net/'#dev'/out
+cmp: ref
 ref: grep
 teach: grep -r
 hint: -r walks every channel directory recursively
