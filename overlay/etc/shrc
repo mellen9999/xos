@@ -83,10 +83,17 @@ scrub() {
 	for d in /sys/block/dm-*; do
 		[ "$(cat "$d/dm/name" 2>/dev/null)" = vroot ] && dev="/dev/${d##*/}" && break
 	done
-	if [ -n "$dev" ] && dd if="$dev" of=/dev/null bs=1M 2>/dev/null; then
+	# two different failures, two different answers: "reflash" is right for a
+	# read error and wrong when there is no verified root to read at all.
+	if [ -z "$dev" ]; then
+		echo "scrub found no verified root (vroot) -- this shell is not running from an xos stick"
+		return 1
+	fi
+	if dd if="$dev" of=/dev/null bs=1M 2>/dev/null; then
 		echo "scrub clean: every byte on this stick still matches the signed hash tree"
 	else
 		echo "scrub could not read the device (and no panic fired) -- reflash this stick"
+		return 1
 	fi
 }
 # recon reports a changed machine on every boot until a human says this is
