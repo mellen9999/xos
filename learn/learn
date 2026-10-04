@@ -371,6 +371,7 @@ blk_load() {
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATUS=$(sed -n 's/^status: \{0,1\}//p' "$blk" | head -1)
+	Q_PRE=$(sed -n 's/^pre: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	# Q_REF is the ONE command the grader demands (tier 2 checks the typed
 	# line names it) and stays the first. Q_REFS is every page the card
 	# wants open: a chain that answers `sort -u f | wc -l` used to show

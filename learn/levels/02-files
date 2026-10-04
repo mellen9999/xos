@@ -114,7 +114,9 @@ hint: r for recursive -- required before rm will touch a directory's contents
 q: {delete @txt@ without complaining if it is already gone|remove @txt@ silently even if it doesn't exist|delete @txt@, staying quiet if it's already missing}, with `rm`
 a: rm -f @txt@
 eg: rm -f /var/run/app.pid
+pre: rm -f @txt@
 state: gone:@txt@
+status: 0
 ref: rm
 teach: rm -f
 hint: f for force -- it also silences the "no such file" error

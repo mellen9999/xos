@@ -245,6 +245,7 @@ unsafe() {
 # lives, and under the drop the real home is not the answer's to touch anyway.
 run_answer() {
 	sandbox_reset || return 1
+	set -- "$(pre_wrap "$1")"
 	( cd "$SANDBOX" 2>/dev/null || exit 1
 	  # a wrong answer that blocks on stdin would hang the lesson
 	  # shellcheck disable=SC2086
@@ -252,6 +253,19 @@ run_answer() {
 }
 
 # ---- the verdict ----------------------------------------------------------
+
+# pre_wrap ANSWER -- the answer, behind the card's pre: line when it has one.
+# some lessons are about a state the shared tree cannot hold for everyone:
+# `rm -f` only differs from `rm` when the file is already gone, but every other
+# card needs that file there. pre: (say `rm -f @txt@`) runs first, in the same
+# shell, so the one card sees the world it is about -- and the answer's own exit
+# status is still what status: judges, since the pre line is not the last command.
+# it wraps in run_answer, so the lesson, the build, the reference run and the
+# coach's reveal all see one world.
+pre_wrap() {
+	if [ -n "${Q_PRE:-}" ]; then printf '%s\n%s\n' "$Q_PRE" "$1"
+	else printf '%s\n' "$1"; fi
+}
 
 # check_state SPEC [OUTPUT] -- did the answer leave the tree in the right
 # shape? OUTPUT is what it printed, which only made: needs -- passed in rather

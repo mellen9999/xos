@@ -242,6 +242,7 @@ blk_load() {
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATUS=$(sed -n 's/^status: \{0,1\}//p' "$blk" | head -1)
+	Q_PRE=$(sed -n 's/^pre: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
 	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
 	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render_named "$seed" | head -1)
