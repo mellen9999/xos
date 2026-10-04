@@ -60,11 +60,16 @@ ci_selfcheck || exit 1
 
 # the witness line. one grep over the journal shows every head this machine has
 # ever been served, with a date attached to each.
-_w="WITNESS $(date -u +%Y-%m-%dT%H:%M:%SZ) head $(./build.sh verify_log | sed -n 's/.*head //p')"
+_h=$(./build.sh verify_log | sed -n 's/.*head //p')
+[ -n "$_h" ] || { ci_shout "no chain head to witness, at ${remote:0:12}"; exit 1; }
+_w="WITNESS $(date -u +%Y-%m-%dT%H:%M:%SZ) head $_h"
 echo "xos-repro: $_w"
 # and into an append-only ledger of its own. the journal holding this was the
 # plan, and the journal on this box does not keep a day; grep the file instead.
-printf '%s\n' "$_w" >> "${CI_LOGDIR:-$HOME/.local/state/xos-ci}/witness"
-mkdir -p "$(dirname "$STATE")"
-printf '%s\n' "$remote" > "$STATE"
+# no set -e here: an unchecked write failed in silence, and the STATE line
+# below then told every later night there was nothing left to witness.
+printf '%s\n' "$_w" >> "${CI_LOGDIR:-$HOME/.local/state/xos-ci}/witness" \
+  || { ci_shout "could not append the witness line, at ${remote:0:12}"; exit 1; }
+mkdir -p "$(dirname "$STATE")" && printf '%s\n' "$remote" > "$STATE" \
+  || { ci_shout "could not record the verified head, at ${remote:0:12}"; exit 1; }
 echo "xos-repro: PASS $(git rev-parse --short HEAD)"
