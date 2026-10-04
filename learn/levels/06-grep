@@ -175,10 +175,11 @@ ref: grep
 teach: grep -q
 hint: grep's exit status is 0 for a match, 1 for none
 ---
+setup: the job greps @log@ and also @word@-missing, which may not exist yet
 q: {`grep` @log@ for @sev@ without a missing-file error|`grep` @log@ for @sev@, no script-halting error|`grep` @log@ for @sev@ without a can't-read-file complaint}
-a: grep -s @sev@ @log@
+a: grep -s @sev@ @log@ @word@-missing
 eg: grep -s denied /var/log/dmesg
-out: @sev@
+out: @log@:.*@sev@
 cmp: ref
 ref: grep
 teach: grep -s
