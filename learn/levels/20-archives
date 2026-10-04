@@ -270,7 +270,8 @@ hint: -t tests the archive's integrity without extracting anything
 q: %unpack% ``firmware.tar.xz`` into @dir@ with `tar`
 a: tar -xJf firmware.tar.xz -C @dir@
 eg: tar -xJf backup.tar.xz -C /opt/app
-why: fixture-cost
+pre: printf %s /Td6WFoAAATm1rRGBMCEAYBQIQEcAAAAAAAAAGXfNn/gJ/8AfF0AMxpKq4531+tyfMDso9W9R1XLEzgyuLwm6ixFFBpkN9H1g81SD4LJ11zqzFVL7vBALzACzH4wyYsXw1gghDaCHbJbJbnY/PyxZH6xsckBcv9Bhtr9aDk5t1cFEFabIhsPffQGwXDU1nnBtc+i/NF70gw7PaYUJ2Ym77PaAAAjvhyC2Kq/XwABoAGAUAAACHTMZrHEZ/sCAAAAAARZWg== | base64 -d > firmware.tar.xz
+state: exists:@dir@/firmware.txt
 ref: tar
 teach: tar -J
 hint: -J routes the archive through xz, the way -z does for gzip and -j for bzip2
