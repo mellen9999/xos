@@ -96,7 +96,8 @@ hint: -r walks every channel directory recursively
 setup: ii's files live under $HOME/irc, one directory per server
 q: %list% the channel directories ii has joined, with `find` -- named #...
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
-why: fixture-cost
+pre: mkdir -p $HOME/irc/net/'#ops' $HOME/irc/net/'#dev'; echo 'xos: hello' > $HOME/irc/net/'#ops'/out; echo 'nobody here' > $HOME/irc/net/'#dev'/out
+cmp: ref
 ref: find
 teach: find -type
 hint: -maxdepth 2 stops find from wandering past the channel folders
