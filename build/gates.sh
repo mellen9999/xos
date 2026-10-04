@@ -874,6 +874,10 @@ G43OLD
       else
         [ "$r45" = 2 ] || { g45=FAIL; printf '    real gpg: an EXPIRED key is not flagged (rc %s, wanted 2)\n' "$r45" >&2; }
       fi
+      # key generation starts a gpg-agent bound to this homedir; deleting the
+      # dir under it is not a shutdown. two such agents outlived their dirs
+      # here by weeks. stop it by name, then remove the dir.
+      gpgconf --homedir "$h45" --kill all 2>/dev/null || true
       rm -rf "$h45"
     done
   else
