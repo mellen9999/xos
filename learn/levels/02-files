@@ -90,7 +90,7 @@ q: {`mv` @txt@ to @dir@/, but never overwrite a file already there|`mv` @txt@ in
 a: mv -n @txt@ @dir@/
 a: mv -n @txt@ @dir@
 eg: mv -n wg0.conf /mnt/archive/
-state: exists:@dir@/@txt@
+state: match:@dir@/@txt@:^staged$
 ref: mv
 teach: mv -n
 hint: n for no-clobber, same idea as cp -n

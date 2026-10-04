@@ -391,6 +391,19 @@ _sandbox_fill() {
 		_d=$((_d + 1))
 	done
 
+	# a file already waiting in every pooled dir under every pooled txt name,
+	# for the no-clobber lessons: `mv -n a dir/` and plain `mv a dir/` leave
+	# the same NAME behind, so only what the name still holds tells them apart.
+	# the same 'staged' src/ already holds (a card counts distinct hashes there), and
+	# no @txt@ generator can produce it, so an overwrite is visible.
+	# printf is a builtin: no fork per file.
+	local _fd _ft
+	for _fd in $(grep . "$POOLS/dirs"); do
+		for _ft in $(grep . "$POOLS/txts"); do
+			printf 'staged\n' > "$_fd/$_ft"
+		done
+	done
+
 	# the pools are the manifest. if anything they name did not get built, a
 	# generated question is about to ask after a file that is not there --
 	# say so now rather than grading someone wrong for it.
