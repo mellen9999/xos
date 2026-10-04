@@ -83,6 +83,7 @@
 #   G66 bump edits exactly the two pins it should and reverses byte-clean
 #   G67 no private key in the shipped image (root/ = the squashfs, 1:1)
 #   G68 the README's applet count is the built busybox's
+#   G69 the first-boot tutorial waits on every page and exits clean
 # ────────────────────────────────────────────────────────────────────────────
 # the gates -- every claim this repo makes, checked before it ships
 # ────────────────────────────────────────────────────────────────────────────
@@ -996,6 +997,43 @@ for key, want in ((b"\r", "RC=0"), (b"q", "RC=2"), (b"\x04", "RC=2")):
 sys.exit(0)
 G37
   g "G37 the card pause answers one keypress" "$g37"
+
+  # G69 -- the tutorial is the first thing a stranger sees, and it never paused:
+  # each page's text came in on stdin, so the pause read a heredoc, saw no
+  # terminal, and all three pages flashed by -- only page 3 was ever readable.
+  # nothing ran it; /etc/shrc's `|| exit 0` would have hidden a crash too. so
+  # run it on a terminal and press enter once per [enter] prompt, as a reader.
+  local g69=FAIL
+  python3 - "$bb35" <<'G69' >/dev/null 2>&1 && g69=ok
+import os, pty, select, sys, time
+bb = sys.argv[1]
+env = dict(os.environ, LEARN_ROOT=os.getcwd() + "/learn", TERM="xterm-256color")
+env.pop("COLUMNS", None); env.pop("LINES", None)
+pid, fd = pty.fork()
+if pid == 0:
+    os.execve(bb, [bb, "ash", "tutorial"], env)
+out = b""; sent = 0
+end = time.time() + 15
+while time.time() < end:
+    r, _, _ = select.select([fd], [], [], 0.2)
+    if r:
+        try: out += os.read(fd, 65536)
+        except OSError: pass
+    if out.count(b"[enter]") > sent:          # one keypress per page, never ahead
+        os.write(fd, b"\n"); sent += 1
+    done, st = os.waitpid(pid, os.WNOHANG)
+    if done:
+        try:
+            while True:
+                b = os.read(fd, 65536)
+                if not b: break
+                out += b
+        except OSError: pass
+        sys.exit(0 if os.WIFEXITED(st) and os.WEXITSTATUS(st) == 0 and sent == 3
+                 and all(p in out for p in (b"1 of 3", b"2 of 3", b"3 of 3")) else 1)
+os.kill(pid, 9); sys.exit(1)
+G69
+  g "G69 the tutorial waits on each of its three pages" "$g69"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.
