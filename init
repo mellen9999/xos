@@ -1130,8 +1130,9 @@ BANNER
 # supervisor that owns nothing and outlives every console.
 #
 # each console is a respawn loop. setsid gives the shell its own session and
-# cttyhack makes the terminal its controlling one -- that pair is what makes
-# ^C, ^Z, fg and bg work.
+# makes the terminal its controlling one -- `setsid -c` on a real tty,
+# cttyhack behind /dev/console -- and that is what makes ^C, ^Z, fg and bg
+# work.
 console_loop() {
 	# separate statements on purpose: `_dev=$1 _fail=0 _t0` would set _dev and
 	# _fail only in the environment of the command `_t0`, leaving them UNSET in
@@ -1177,19 +1178,20 @@ console_loop() {
 		banner > "$_dev" 2>/dev/null
 		# $_dev is a tty, not a regular file: rx+tx on one line is the point, not a hazard
 		# shellcheck disable=SC2094
-		# no `|| /bin/sh` fallback: setsid execs cttyhack execs sh, so the
-		# status here is the SHELL's, and `exit 1` used to hand the operator a
-		# second shell with no controlling terminal -- the exact regression
-		# above. cttyhack is manifest-gated; a missing applet is a build failure.
-		# a session leader that opens a real tty makes it its controlling
-		# terminal by that open alone; cttyhack is for the one device that
-		# cannot be one (/dev/console), where it finds the tty behind it.
-		# proven in the lab: with cttyhack on the resolved line a typed
-		# command died in the background, without it it ran, 0700 printed.
+		# no `|| /bin/sh` fallback: setsid execs the shell, so the status here
+		# is the SHELL's, and `exit 1` used to hand the operator a second shell
+		# with no controlling terminal -- the exact regression above. cttyhack
+		# is manifest-gated; a missing applet is a build failure.
+		# a real tty: `setsid -c`. the redirection opens the device in THIS
+		# child, before setsid makes a session -- an open by a non-leader never
+		# makes a controlling terminal, so plain setsid left the shell with
+		# none ("can't access tty; job control turned off"); -c claims it with
+		# TIOCSCTTY after the new session exists. /dev/console can never be a
+		# controlling terminal: cttyhack finds the tty behind it and claims that.
 		if [ "$_dev" = /dev/console ]; then
 			TERM=$_term setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
 		else
-			TERM=$_term setsid /bin/sh <>"$_dev" >"$_dev" 2>&1
+			TERM=$_term setsid -c /bin/sh <>"$_dev" >"$_dev" 2>&1
 		fi
 		# a console nothing is attached to returns EOF instantly and would
 		# respawn forever. this machine may be passive-cooled; back off instead.
@@ -1216,8 +1218,12 @@ if [ -d /sys/class/graphics/fbcon ]; then
 fi
 
 # the serial/primary console gets a supervised session too, so losing the line
-# no longer takes PID 1 down with it.
-console_loop /dev/console &
+# no longer takes PID 1 down with it -- unless it is a virtual terminal and the
+# loops above already hold tty1..6: cttyhack resolves tty0 to the visible vt and
+# TIOCSCTTY steals it, so a second shell fought tty1's own for every keystroke.
+_conact=$(cat /sys/class/tty/console/active 2>/dev/null); _conact=${_conact##* }
+case "$_conact" in tty[0-9]*) [ "$spawned" -gt 0 ] && _conact=held ;; esac
+[ "$_conact" = held ] || console_loop /dev/console &
 
 # serial terminals -- a usb-serial adapter (ttyUSB*, ttyACM*) reaching a real
 # terminal like a vt320. these enumerate on xhci during boot and are never the
