@@ -407,13 +407,6 @@ IMAGE_SRC="README.md init tutorial overlay
   build.sh build kernel.config busybox.config.applets busybox.config.features patches
   dropbear.localoptions.h abduco.config.h tlstunnel.c trust musl-static-pie.specs sources.sha256"
 
-# lint -- shellcheck over every shell source in the tree. wired into `all`
-# after the gates: errors fail the build, but a machine without shellcheck
-# must still be able to build, so absence is a printed skip, not a failure
-# (G35 still parse-checks the shipped scripts either way). warnings print but
-# don't fail the run; errors do. learn/lib/* are sourced fragments with no
-# shebang of their own, so they need -s sh spelled out -- learn/learn (their
-# one caller) is #!/bin/sh.
 # ────────────────────────────────────────────────────────────────────────────
 # attestation -- the claim, published in a form a stranger can check
 # ────────────────────────────────────────────────────────────────────────────

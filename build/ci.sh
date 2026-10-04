@@ -3,6 +3,11 @@
 # a module of build.sh: sourced by it, never run. it defines functions and
 # nothing else; every constant it reads lives in build.sh.
 
+# lint -- shellcheck over every shell source in the tree. wired into `all`
+# after the gates, but a machine without shellcheck must still be able to
+# build, so absence is a printed skip (G35 still parse-checks the shipped
+# scripts either way). learn/lib/* are sourced fragments with no shebang of
+# their own, so they need -s sh spelled out.
 lint() {
   say "shellcheck"
   if ! command -v shellcheck >/dev/null 2>&1; then
