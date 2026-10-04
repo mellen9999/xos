@@ -176,7 +176,8 @@ hint: -w treats runs of whitespace as equivalent, ignoring how much there is
 q: {check with `diff` whether @dir@ and @dir2@ match all the way down|`diff` every file under @dir@ against @dir2@, subdirs included|`diff` @dir@ and @dir2@ as whole trees, not just top-level files}
 a: diff -r @dir@ @dir2@
 eg: diff -r /opt/app-old /opt/app-new
-why: fixture-cost
+pre: mkdir -p @dir@/deep @dir2@/deep; echo one > @dir@/deep/f; echo two > @dir2@/deep/f
+cmp: ref
 ref: diff
 teach: diff -r
 hint: -r walks into subdirectories, diffing every file it finds on both sides
