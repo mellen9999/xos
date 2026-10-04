@@ -30,6 +30,24 @@ keys() {
   echo "        copy keys/ across first if you meant to sign with an existing one."
 }
 
+# newpass PROMPT -- a NEW passphrase, typed twice. nothing can recover a
+# sealed key, so a typo on a single read was a signing key lost for good.
+# sets $pass; env callers (XOS_KEYPASS / XOS_NEWKEYPASS) skip the prompt.
+newpass() {
+  local again
+  read -rsp "  $1: " pass; echo
+  read -rsp "  again, to be sure: " again; echo
+  [ "$pass" = "$again" ] || { echo "FAIL: the two entries differ -- nothing was changed" >&2; return 1; }
+}
+
+# encok PLAIN ENC PASS -- ENC decrypts with PASS to exactly PLAIN's bytes. the
+# plaintext never touches disk: the decrypt streams straight into cmp.
+encok() {
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$2" -pass fd:3 2>/dev/null 3<<EOF | cmp -s - "$1"
+$3
+EOF
+}
+
 seal() {
   say "encrypting private keys"
   # fail loud rather than no-op: silently skipping an already-sealed keyset is
@@ -41,28 +59,40 @@ seal() {
   [ -f keys/db.key ] || { echo "FAIL: no keys/db.key -- run ./build.sh keys first" >&2; return 1; }
   local pass
   if [ -n "${XOS_KEYPASS:-}" ]; then pass="$XOS_KEYPASS"
-  else read -rsp "  passphrase for xos signing keys: " pass; echo; fi
+  else newpass "passphrase for xos signing keys" || return 1; fi
   [ -n "$pass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
+  # every key is sealed AND read back before any plaintext is destroyed: a
+  # shred straight after each encrypt meant one failed or corrupt .enc was a
+  # key gone, its plaintext already overwritten.
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key" ] || continue
     openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "keys/$k.key" -out "keys/$k.key.enc" -pass fd:3 3<<EOF || return 1
+      -in "keys/$k.key" -out "keys/$k.key.enc" -pass fd:3 3<<EOF \
+      && encok "keys/$k.key" "keys/$k.key.enc" "$pass" && continue
 $pass
 EOF
+    # only the .enc files whose plaintext is still here: an older half-sealed
+    # tree may hold a .enc that is the ONLY copy of its key.
+    local j; for j in PK KEK db; do [ -f "keys/$j.key" ] && rm -f "keys/$j.key.enc"; done
+    echo "FAIL: a key did not seal and read back -- plaintext keys kept, nothing sealed" >&2
+    return 1
+  done
+  for k in PK KEK db; do
+    [ -f "keys/$k.key" ] || continue
     shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
   done
   chmod 600 keys/*.enc
-  echo "  sealed. plaintext keys removed from disk."
+  echo "  sealed and read back. plaintext keys removed from disk."
 }
 
 reseal() {
   say "changing the signing passphrase"
   unlock || return 1
-  local newpass
+  local newpass pass
   if [ -n "${XOS_NEWKEYPASS:-}" ]; then newpass="$XOS_NEWKEYPASS"
-  else read -rsp "  NEW passphrase: " newpass; echo; fi
-  [ -n "$newpass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
+  else newpass "NEW passphrase" || { lock; return 1; }; newpass=$pass; fi
+  [ -n "$newpass" ] || { lock; echo "FAIL: empty passphrase" >&2; return 1; }
   # every key is re-encrypted before any is swapped in: one passphrase opens
   # all three, so a failure after PK.key.enc had moved left a set no single
   # passphrase could unlock. the plaintext copies are wiped on every exit path.
@@ -70,7 +100,8 @@ reseal() {
   for k in PK KEK db; do
     [ -f "$RAMKEYS/$k.key" ] || continue
     openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass fd:3 3<<EOF && continue
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass fd:3 3<<EOF \
+      && encok "$RAMKEYS/$k.key" "keys/$k.key.enc.new" "$newpass" && continue
 $newpass
 EOF
     ok=1; break
