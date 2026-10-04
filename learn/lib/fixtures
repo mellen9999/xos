@@ -404,6 +404,12 @@ _sandbox_fill() {
 		done
 	done
 
+	# the pooled dirs carry one fixed old mtime, set last (adding files above
+	# bumped them to build time). cp -a keeps a directory's mtime, cp -r stamps
+	# the copy with now -- and sametime: can only see that if "now" is not the
+	# second the tree was built.
+	touch -t 202401010000 $(grep . "$POOLS/dirs") 2>/dev/null
+
 	# the pools are the manifest. if anything they name did not get built, a
 	# generated question is about to ask after a file that is not there --
 	# say so now rather than grading someone wrong for it.

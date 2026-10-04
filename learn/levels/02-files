@@ -66,7 +66,7 @@ hint: p for preserve
 q: {`cp` @dir@ to @dir2@-archive preserving everything, one flag only|`cp` @dir@ to @dir2@-archive keeping it all intact, single flag|archive-copy @dir@ to @dir2@-archive with `cp`, everything in one flag}
 a: cp -a @dir@ @dir2@-archive
 eg: cp -a /opt/app /mnt/app-mirror
-state: exists:@dir2@-archive
+state: sametime:@dir@:@dir2@-archive
 ref: cp
 teach: cp -a
 hint: cp calls it "Same as -dpR"
