@@ -8,6 +8,49 @@
 # build, so absence is a printed skip (G35 still parse-checks the shipped
 # scripts either way). learn/lib/* are sourced fragments with no shebang of
 # their own, so they need -s sh spelled out.
+# keysealproof -- seal, unlock and reseal on throwaway keys in a temp tree: the
+# one path where a bug is unrecoverable (a sealed key nothing can open) and the
+# one no test ever ran. also a seal whose encryption silently writes garbage:
+# it must FAIL and keep the plaintext, never shred the only good copy.
+keysealproof() {
+  say "keys: seal, unlock, reseal, refuse a bad seal -- throwaway keys"
+  local t rc=0 real; t=$(mktemp -d) || return 1
+  real=$(command -v openssl)
+  ( cd "$t" || exit 90
+    export XOS_ALLOW_SWAP=1; RAMKEYS=$t/ram; mkdir keys
+    for k in PK KEK db; do
+      openssl req -new -x509 -newkey rsa:2048 -nodes -keyout "keys/$k.key" -out "keys/$k.crt" \
+        -subj /CN=t -days 1 >/dev/null 2>&1 || exit 91
+      cp "keys/$k.key" "$k.orig"
+    done
+    # a broken encrypt: exits 0, writes junk. seal must notice and keep keys.
+    mkdir bin; printf '#!/bin/sh\ncase " $* " in *" -d "*) exec %s "$@" ;; esac\nwhile [ $# -gt 0 ]; do [ "$1" = -out ] && echo junk > "$2"; shift; done\n' "$real" > bin/openssl
+    chmod +x bin/openssl
+    PATH=$t/bin:$PATH XOS_KEYPASS=one seal >/dev/null 2>&1 && exit 1
+    for k in PK KEK db; do cmp -s "keys/$k.key" "$k.orig" || exit 2; done
+    XOS_KEYPASS=one seal >/dev/null 2>&1 || exit 3
+    [ ! -e keys/db.key ] || exit 4
+    XOS_KEYPASS=wrong unlock >/dev/null 2>&1 && exit 5
+    XOS_KEYPASS=one unlock >/dev/null 2>&1 || exit 6
+    cmp -s "$RAMKEYS/db.key" db.orig || exit 7
+    lock >/dev/null
+    XOS_KEYPASS=one XOS_NEWKEYPASS=two reseal >/dev/null 2>&1 || exit 8
+    XOS_KEYPASS=one unlock >/dev/null 2>&1 && exit 9
+    XOS_KEYPASS=two unlock >/dev/null 2>&1 || exit 10
+    for k in PK KEK db; do cmp -s "$RAMKEYS/$k.key" "$k.orig" || exit 11; done
+    lock >/dev/null
+  ) || rc=$?
+  rm -rf "$t"
+  case $rc in
+    0)  printf '  seal reads back before it shreds; unlock and reseal round-trip\n'; return 0 ;;
+    1|2) printf '  \033[1;31ma seal that wrote junk was accepted -- the plaintext keys were destroyed\033[0m\n' >&2 ;;
+    9)  printf '  \033[1;31mthe OLD passphrase still opens the keys after reseal\033[0m\n' >&2 ;;
+    9[01]) printf '  \033[1;31mcould not set up throwaway keys (rc %s)\033[0m\n' "$rc" >&2 ;;
+    *)  printf '  \033[1;31mseal/unlock/reseal round trip broke at step %s\033[0m\n' "$rc" >&2 ;;
+  esac
+  return 1
+}
+
 lint() {
   say "shellcheck"
   if ! command -v shellcheck >/dev/null 2>&1; then
@@ -380,7 +423,7 @@ ci() {
   local CI_ROSTER="provenance shellcheck parse pyparse dockerfile trust
     learn-ledger learn-corpus arsenal-selftest arsenal-ledger arsenal-order xexec
     one-q tool-cards lock-roster ref-pages libparity schoolship learnship
-    pin-source readme-counts"
+    pin-source readme-counts keyseal"
   CI_ROSTER=$(echo $CI_ROSTER)   # one line, single spaces: the matches below are word-bounded by spaces
   local CI_RAN="" CI_SKIPPED=""
   cic() { CI_RAN="$CI_RAN $1"; }
@@ -389,6 +432,7 @@ ci() {
   # whose tree this is. unverified is not a failure -- a stranger on a shallow
   # clone, or the repro container with no openssh, must still be able to run ci.
   cic provenance; vouch || [ "$?" -eq 2 ] || rc=1
+  cic keyseal; keysealproof || rc=1
   # a red CI tier on THIS machine is not a defect of this tree, so it is not a
   # failure here -- but a push from a box whose timers are red should not go
   # out blind to it. one yellow line per red tier, from the per-machine logs.

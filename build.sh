@@ -563,7 +563,7 @@ usage: ./build.sh <verb> [args]      (no verb prints this; `all` is the build)
   single steps, in the order `all` runs them
     deps fetch kernel headers busybox tls ii_ abduco cryptsetup_ wg_ dropbear_
     rootfs verity uki stick   and: dbx ta ovmf blob stub blobver seed
-    libparity learnship xexecproof build_repro   (pieces of ci)
+    libparity learnship xexecproof keysealproof build_repro   (pieces of ci)
 HELP
 }
 
@@ -571,7 +571,7 @@ case "${1:-help}" in
   install) shift; stick_install "$@" ;;
   flash) shift; flash "$@" ;;
   help|-h|--help) help ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|learnship|xexecproof|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|sign|uki|dbx|revoke|stick|usb|clone|pin|seed|gates|boot|bootusb|ovmf|blob|stub|blobver|blobpin|attest|verify|verify_log|verify_sigs|toolver|toolpin|trustver|lint|ci|libparity|learnship|xexecproof|keysealproof|outdated|bump|vouch|repro|build_repro|cpin|crepro) "$@" ;;
   all) build_all ;;
   *) echo "unknown verb: $1" >&2; help >&2; exit 1 ;;
 esac
