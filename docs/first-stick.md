@@ -6,8 +6,9 @@ have done any of it before.
 
 ## what you need
 
-- a linux pc to build on. arch is the easy case; any other distro works with the
-  package table in `docs/building.md`.
+- a linux pc to build on, with `git`, `ssh-keygen` (package `openssh`) and
+  `sudo`. arch is the easy case; any other distro works with the package table
+  in `docs/building.md`.
 - one usb stick, 1 GB or more. everything on it will be erased.
 - the machine you want to boot it on, with *uefi* firmware (any pc made after
   about 2012). you must be allowed to change its boot settings.
@@ -45,8 +46,10 @@ you make new keys and enroll them again (step 5). a sentence you can remember
 beats a short password you cannot.
 
 the build ends with the gates -- every check the project makes about itself --
-and prints `GATES PASSED`. if it prints anything else, `docs/refusals.md` says
-what the line means and what to do.
+and prints a green `all gates green`. a yellow `N gates green, M unverified`
+line is fine too: a check could not run on your machine (G13 needs the exact
+compiler the image was pinned with), which is not a failure. `GATES FAILED`
+is the failure; `docs/refusals.md` says what each line means and what to do.
 
 ## 4. write the stick
 
@@ -105,7 +108,14 @@ reflash.
 ## 6. boot it
 
 open the boot menu (its key is on the same logo screen -- often `F12`, `F8` or
-`Esc`) and pick the stick. you should see, among the first lines:
+`Esc`) and pick the stick. it asks first:
+
+    unlock persistent state? passphrase (empty to skip):
+
+type the second passphrase from step 4. (press enter instead and nothing you do
+this session is kept -- useful on a machine you do not want a trace on.)
+
+then, just above the shell prompt:
 
     this image is: cobra drifter payday willow
     built: 2026-10-03 (UTC)
@@ -114,13 +124,6 @@ open the boot menu (its key is on the same logo screen -- often `F12`, `F8` or
 the four words are derived from the image itself. **write them on the stick.**
 they are the same on every boot of this image and different for any other; a
 tampered image never gets as far as printing them.
-
-then:
-
-    unlock persistent state? passphrase (empty to skip):
-
-type the second passphrase from step 4. (press enter instead and nothing you do
-this session is kept -- useful on a machine you do not want a trace on.)
 
 you are at a shell, as root. there is nothing else to log in to.
 
@@ -170,8 +173,8 @@ and the key of the computer you will ssh from -- the contents of its
 
 on the peer, add the stick as a wireguard peer with its public key and
 `AllowedIPs = 10.9.0.2/32`, and give the peer's own interface the address
-`10.9.0.1/24`. reboot the stick and unlock. the banner now says the tunnel is
-up and ssh is listening on it; from the peer:
+`10.9.0.1/24`. reboot the stick and unlock. the boot lines now include `wireguard up on
+wg0` and `ssh listening on the tunnel only`; from the peer:
 
     ssh root@10.9.0.2
 
@@ -187,6 +190,7 @@ to bake the ssh key into the image instead, so it is there before any unlock:
     ./build.sh outdated              # which pinned upstream has a newer release
     ./build.sh bump kernel 6.18.56   # change one version number, signature-checked
     ./build.sh all                   # rebuild
+    ./build.sh pin                   # only if `all` stopped at G13: the new image needs a new pin
     ./build.sh install /dev/sdX      # rewrite the stick; your state partition is kept
 
 the sectors are fixed in every version, so an update rewrites the image and

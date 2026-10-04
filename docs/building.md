@@ -35,6 +35,8 @@ it. the mapping to other distros:
 | the FAT formatter | `dosfstools` | `dosfstools` | `dosfstools` |
 | qemu | `qemu-base` | `qemu-system-x86` | `qemu-system-x86` |
 | OVMF | `edk2-ovmf` | `ovmf` | `edk2-ovmf` |
+| the rest `deps` checks | `curl tar python openssl cmake flex bison bc pkgconf xz diffutils rsync patch zstd util-linux parted` | `curl tar python3 openssl cmake flex bison bc pkgconf xz-utils diffutils rsync patch zstd util-linux parted` | `curl tar python3 openssl cmake flex bison bc pkgconf xz diffutils rsync patch zstd util-linux parted` |
+| not checked by `deps`: `git`, `ssh-keygen` (`vouch`), `sudo` (`flash`) | `git openssh sudo` | `git openssh-client sudo` | `git openssh-clients sudo` |
 
 this table is here rather than inside `deps()` on purpose: a package-name
 matrix in the build script is a list of the distros someone has already been

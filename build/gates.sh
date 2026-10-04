@@ -1,5 +1,5 @@
 #!/bin/bash
-# build/gates.sh -- the gates -- every claim this repo makes, checked before it ships (G1..G67; the roster is the comment above gates())
+# build/gates.sh -- the gates -- every claim this repo makes, checked before it ships (the roster is the comment above gates())
 # a module of build.sh: sourced by it, never run. it defines functions and
 # nothing else; every constant it reads lives in build.sh.
 

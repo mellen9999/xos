@@ -211,6 +211,7 @@ prints the ones behind with the exact line to fix each. to take an update:
 
     ./build.sh bump kernel 6.18.54   # edits one version number for you
     ./build.sh all                   # rebuild -- re-checks the maintainer signature
+    ./build.sh pin                   # only if `all` stopped at G13: the new image needs a new pin
     ./build.sh install /dev/sdX      # flash the new stick
 
 if the rebuild stops on a signature or hash that does not match, that version is

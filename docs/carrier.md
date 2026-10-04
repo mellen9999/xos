@@ -21,7 +21,7 @@ partition**: flip it and *everything* goes read-only, including the emulator
 saves you wanted to keep.
 
 the carrier therefore uses **no WP switch**. xos on it boots `xos.nostate`
-(stateless, RAM-only) -- nothing persists from an xos session, which is
+(stateless, RAM-only -- there is no LUKS partition to open) -- nothing persists from an xos session, which is
 functionally vault-like, but it is **not hardware vault**: the read-only
 partitions are software-read-only only. a compromised session could in principle
 write to the stick. xos-image tampering is still caught by attestation on the
@@ -84,14 +84,15 @@ read `docs/building.md` first; this assumes you can already build and flash xos.
    the carrier boots xos stateless, so skip `addstate` entirely (a LUKS p3 would
    only waste the space and never unlock writable without the switch anyway).
 
-2. **make xos boot stateless.** the signed cmdline is baked into the UKI, so add
-   `xos.nostate` by editing `cmdline.txt` before `./build.sh uki`/`usb`, or pass
-   it at the firmware boot menu if your firmware allows cmdline edits (most under
-   secure boot do not -- baking it in is the reliable path). `xos.nostate` is
-   read by `init`; with no p3 present it is also the default behaviour, so this is
-   belt-and-braces.
+2. **nothing to do to make xos stateless.** `init` only ever opens a LUKS
+   partition, and the carrier has none, so every xos boot is RAM-only as it
+   stands -- the signed image needs no change. each boot prints one expected
+   line, `p3 is there but its LUKS header is unreadable -- continuing without
+   state`: that p3 is alpine's ESP, not a broken state partition.
 
-3. **add p3--p6, all at/after 74 MiB.** the exact starts depend on the device;
+3. **add p3--p6, all at/after 74 MiB.** needs `sgdisk` (arch `gptfdisk`),
+   `mkfs.exfat` (`exfatprogs`) and `mkfs.ext4` (`e2fsprogs`) -- `deps` does not
+   check these, the image never uses them. the exact starts depend on the device;
    `sgdisk -p /dev/sdX` after step 1 shows the first free sector (it will be at
    or past sector 151552 = 74 MiB). then, roughly:
 

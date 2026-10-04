@@ -541,7 +541,7 @@ usage: ./build.sh <verb> [args]      (no verb prints this; `all` is the build)
     ./selftest.sh         the qemu rounds (A1..A22) -- a separate script
 
   check the tree
-    gates                 every build gate against the built tree (G1..G67)
+    gates                 every build gate against the built tree
     ci                    the buildless tier: shellcheck, parse, learn corpus, pins -- no key, no build
     lint                  shellcheck alone
     vouch                 every commit since the epoch is signed by the pinned key
