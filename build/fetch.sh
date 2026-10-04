@@ -135,7 +135,7 @@ get() {
 # user id carrying the word GOODSIG cannot spoof a verdict.
 sigok() { # $1 pinned fingerprint  [gpg status stream on stdin]
   local st; st=$(cat)
-  if ! printf '%s\n' "$st" | has "VALIDSIG $1"; then return 1; fi
+  if ! printf '%s\n' "$st" | has "^\\[GNUPG:\\] VALIDSIG $1 "; then return 1; fi
   if printf '%s\n' "$st" | has '^\[GNUPG:\] REVKEYSIG'; then return 3; fi
   if printf '%s\n' "$st" | has '^\[GNUPG:\] GOODSIG'; then return 0; fi
   if printf '%s\n' "$st" | has '^\[GNUPG:\] EXPKEYSIG'; then return 2; fi

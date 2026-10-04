@@ -841,6 +841,10 @@ G43OLD
   # the uid is free text that travels with the key -- it must not spoof a verdict
   r45=0; printf '[GNUPG:] EXPKEYSIG AAAA GOODSIG Impersonator\n[GNUPG:] VALIDSIG %s x\n' "$F45" | sigok "$F45" || r45=$?
   [ "$r45" = 2 ] || { g45=FAIL; printf '    a user id spoofed the verdict (rc %s, wanted 2)\n' "$r45" >&2; }
+  # ...nor the fingerprint: an attacker's own key with the pinned fingerprint
+  # in its uid printed it after GOODSIG, and the unanchored match took it
+  r45=0; printf '[GNUPG:] GOODSIG AAAA x VALIDSIG %s\n[GNUPG:] VALIDSIG %s x\n' "$F45" 0000000000000000000000000000000000000000 | sigok "$F45" || r45=$?
+  [ "$r45" = 1 ] || { g45=FAIL; printf '    a user id spoofed the pinned fingerprint (rc %s, wanted 1)\n' "$r45" >&2; }
 
   if command -v gpg >/dev/null 2>&1; then
     local h45 fpr45 st45
@@ -934,15 +938,26 @@ env.pop("COLUMNS", None); env.pop("LINES", None)
 pid, fd = pty.fork()
 if pid == 0:
     os.execve(bb, [bb, "ash", "learn/learn", "ref", "cut"], env)
+# an exit alone proved nothing: a learn that died on its first line, or a
+# busybox path that does not exist, exits at once too. it must exit 0 AND
+# have drawn the page it was asked for.
+out = b""
 end = time.time() + 10
 while time.time() < end:                  # answer nothing, ever
     r, _, _ = select.select([fd], [], [], 0.2)
     if r:
-        try: os.read(fd, 65536)           # drain, so a full pty cannot block it
+        try: out += os.read(fd, 65536)    # drain, so a full pty cannot block it
         except OSError: pass
-    try:
-        if os.waitpid(pid, os.WNOHANG)[0]: sys.exit(0)
-    except ChildProcessError: sys.exit(0)
+    done, st = os.waitpid(pid, os.WNOHANG)
+    if done:
+        try:
+            while True:
+                b = os.read(fd, 65536)
+                if not b: break
+                out += b
+        except OSError: pass
+        sys.exit(0 if os.WIFEXITED(st) and os.WEXITSTATUS(st) == 0
+                 and b"selected fields" in out else 1)
 os.kill(pid, 9); sys.exit(1)
 G36
   g "G36 learn starts on a terminal that answers nothing" "$g36"
