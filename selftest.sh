@@ -796,15 +796,13 @@ grep -q 'home-final: 700 tmpfs' <<< "$b2" && ! grep -q 'home is not root-only' <
 	&& ok "the home stayed root-only (0700) through a p3 open and release" \
 	|| bad "the home is not 0700 after the p3 round trip"
 assert_complete "$b2" "A16 boot 2"
-# boot 3 is the same machine AND the same hardware as boot 2 -- recon must now
-# report NO change. the other half of the guarantee: a feature that cried
-# "changed" on every boot would be as useless as one that never noticed.
+# boot 3 is the same hardware as boot 2, and nobody accepted boot 2's change:
+# the baseline was NOT silently replaced, so the alarm must repeat. it used to
+# clear itself after one line.
 b3=$(boot_state "$p3disk" -device qemu-xhci)
-# ...but the baseline was NOT silently replaced by boot 2: nobody accepted the
-# change, so the alarm must repeat. it used to clear itself after one line.
 grep -q 'recon: MACHINE [0-9a-f]\{16\} still CHANGED since its baseline' <<< "$b3" \
-	&& ok "boot 3 saw identical hardware and said nothing changed" \
-	|| bad "recon cried 'changed' on an unchanged machine -- false alarms"
+	&& ok "boot 3 still alarms on the unaccepted change -- the alarm does not clear itself" \
+	|| bad "boot 3 dropped the unaccepted change -- the alarm cleared itself"
 grep -q 'ledger: boot 3 on this state' <<< "$b3" \
 	&& ok "boot 3 counted on -- the ledger is monotonic" \
 	|| bad "the ledger lost count on boot 3"
@@ -1109,7 +1107,9 @@ if signed_ready A19; then
 	}
 
 	a19log=$XT/xos-a19-typed.log
-	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log" "" 'busybox true && echo TYPED-FG-OK' TYPED-FG-OK
+	# the marker is typed split ("OK" quoted) so the console's echo of the typed
+	# line can never satisfy the grep -- only the command's output joins it.
+	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log" "" 'busybox true && echo TYPED-FG-"OK"' TYPED-FG-OK
 	# the serial console shell has working job control: a typed command runs
 	# in the FOREGROUND and prints. it did not, on every serial console, for as
 	# long as the shell was started through cttyhack on /dev/console -- each
@@ -1301,7 +1301,10 @@ if signed_ready A21; then
 	a21t=0
 	while [ "$a21t" -lt 45 ] && ! grep -aqE 'vault mode:|continuing without persistence|would not mount' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
 	sleep 3
-	printf '%s\n' 'touch /tmp/p3ro/vaultprobe 2>&1 | grep -qi read-only && echo VAULT-P3-RO; touch "$HOME/vaultprobe" 2>/dev/null && echo VAULT-HOME-OK; . /etc/shrc 2>/dev/null; recon_accept 2>&1 | grep -q "vault mode" && echo VAULT-ACCEPT-REFUSED; echo VAULT-PROBE-DONE' >&9
+	# every marker is typed split by quotes: the console echoes the typed line,
+	# so a marker typed whole matched its own echo and these checks could not
+	# fail. only the command's OUTPUT carries the joined word.
+	printf '%s\n' 'touch /tmp/p3ro/vaultprobe 2>&1 | grep -qi read-only && echo VAULT-P3-"RO"; touch "$HOME/vaultprobe" 2>/dev/null && echo VAULT-HOME-"OK"; . /etc/shrc 2>/dev/null; recon_accept 2>&1 | grep -q "vault mode" && echo VAULT-ACCEPT-"REFUSED"; echo VAULT-PROBE-"DONE"' >&9
 	a21t=0
 	while [ "$a21t" -lt 30 ] && ! grep -aq 'VAULT-PROBE-DONE' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
 	sleep 2
@@ -1387,11 +1390,15 @@ if signed_ready A22; then
 		|| bad "clone did not refuse a too-small spare"
 	cmp -s -n 1048576 /dev/zero "$a22small" 2>/dev/null \
 		&& ok "the too-small spare was not written" || bad "clone wrote to a spare it should have refused"
+	# two FRESH blanks: the first spare used to be the one the good clone had
+	# just filled, so a clone that refused out loud but wrote to it anyway left
+	# bytes identical to what was there -- only the second spare was checkable.
+	a22one=$XT/xos-a22-one.img; truncate -s $((a22ssz + 8*1024*1024)) "$a22one"
 	a22two=$XT/xos-a22-two.img; truncate -s $((a22ssz + 8*1024*1024)) "$a22two"
 	a22t=$(timeout 200 qemu-system-x86_64 -machine q35,smm=on -m 512 "${QEMU_FW[@]}" \
 		-drive file="$a22stick",if=virtio,format=raw,readonly=on \
 		-device qemu-xhci,id=xhci \
-		-drive if=none,id=sp1,format=raw,file="$a22spare" \
+		-drive if=none,id=sp1,format=raw,file="$a22one" \
 		-device usb-storage,bus=xhci.0,drive=sp1,removable=on \
 		-drive if=none,id=sp2,format=raw,file="$a22two" \
 		-device usb-storage,bus=xhci.0,drive=sp2,removable=on \
@@ -1399,9 +1406,9 @@ if signed_ready A22; then
 	grep -q 'clone-test: clone: more than one spare is plugged in' <<< "$a22t" \
 		&& ok "clone refuses to guess between two spares" \
 		|| bad "clone did not refuse with two spares attached"
-	cmp -s -n 1048576 /dev/zero "$a22two" 2>/dev/null \
+	cmp -s -n 1048576 /dev/zero "$a22one" 2>/dev/null && cmp -s -n 1048576 /dev/zero "$a22two" 2>/dev/null \
 		&& ok "neither spare was written when two were present" || bad "clone wrote with two spares attached"
-	rm -f $XT/xos-a22*.efi $XT/xos-a22-signed.efi "$a22spare" "$a22small" "$a22two" $XT/xos-a22.img
+	rm -f $XT/xos-a22*.efi $XT/xos-a22-signed.efi "$a22spare" "$a22small" "$a22one" "$a22two" $XT/xos-a22.img
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
