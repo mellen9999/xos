@@ -279,7 +279,8 @@ hint: -J routes the archive through xz, the way -z does for gzip and -j for bzip
 q: {decompress @word@.xz, keeping the .xz file as well|unpack @word@.xz but leave the .xz in place|decompress @word@.xz without removing the .xz}, with `xz`
 a: xz -dk @word@.xz
 eg: xz -k /var/log/app.log
-why: fixture-cost
+pre: printf %s /Td6WFoAAATm1rRGBMANCSEBHAAAAAAAAAAAAJbfEfMBAAh1bnBhY2tlZAoAAAAA84jKXwco6WUAASkJZJIcHR+2830BAAAAAARZWg== | base64 -d > @word@.xz
+state: differs:@word@:@word@.xz
 ref: xz
 teach: xz -d
 teach: xz -k
