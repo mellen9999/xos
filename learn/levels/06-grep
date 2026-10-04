@@ -203,7 +203,8 @@ hint: -e marks what follows as the pattern, not another flag
 ---
 q: {@log@ may use tabs, not spaces -- `grep` either with a POSIX class|`grep` @log@ for space or tab with a POSIX class|`grep` for whitespace in @log@ with a POSIX class}
 a: grep '[[:space:]]' @log@
-why: fixture-cost
+pre: printf 'tab\tonly\n' >> @log@
+cmp: ref
 ref: grep
 teach: grep
 hint: POSIX classes like [[:space:]], [[:digit:]] and [[:alpha:]] work inside brackets, portable across regex flavors
