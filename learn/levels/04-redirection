@@ -50,6 +50,7 @@ hint: the error channel is number 2
 q: {run "`ls` @word@-missing" and throw its error message away entirely|run "`ls` @word@-missing", discarding its error message completely|run "`ls` @word@-missing" so its error message vanishes entirely}
 a: ls @word@-missing 2> /dev/null
 status: 1
+cmp: ref
 ref: ls
 teach: ls
 hint: /dev/null is the bit bucket -- everything written to it is discarded
