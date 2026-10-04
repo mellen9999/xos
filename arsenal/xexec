@@ -32,7 +32,7 @@ if [ "${1:-}" = "-t" ]; then
 	# the entry runs from the SEALED copy, so it must name a path inside it:
 	# a leading / or a .. would run something outside the surface this exists
 	# to confine, with the surface's name on it.
-	case "/$entry/" in /*/../*|//*) die "entrypoint must be a plain path inside $src (no leading / or ..)" ;; esac
+	case "/$entry/" in */../*|//*) die "entrypoint must be a plain path inside $src (no leading / or ..)" ;; esac
 	[ -f "$src/$entry" ] || die "no entrypoint $entry under $src"
 else
 	[ "$#" -ge 1 ] || die "usage: xexec <binary> [args...]   |   xexec -t <dir> <entry> [args...]"

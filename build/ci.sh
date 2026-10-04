@@ -125,12 +125,14 @@ EOF
     echo "MOUNTS-LEFT $(grep -c /.xexec. /proc/mounts)"
     mkdir -p "$2/tree/bin"; cp ./busybox "$2/tree/bin/"
     sh arsenal/xexec -t "$2/tree" ../../bin/sh 2>&1 | grep -q "plain path inside" && echo ESCAPE-REFUSED || echo ESCAPE-ALLOWED
+    : > "$2/sib"   # one level up and REAL, so only the path rule can refuse it
+    sh arsenal/xexec -t "$2/tree" ../sib 2>&1 | grep -q "plain path inside" && echo ESCAPE1-REFUSED || echo ESCAPE1-ALLOWED
     sh arsenal/xexec -t "$2/tree" bin/busybox echo TREE-OK 2>&1' _ "$PWD" "$t" 2>&1)
   rm -rf "$t"
-  for want in RUN-OK SEAL-OK "MOUNTS-LEFT 0" ESCAPE-REFUSED TREE-OK; do
+  for want in RUN-OK SEAL-OK "MOUNTS-LEFT 0" ESCAPE-REFUSED ESCAPE1-REFUSED TREE-OK; do
     printf '%s\n' "$out" | grep -qxF -- "$want" || { bad=1; printf '    xexec: expected "%s", did not see it\n' "$want" >&2; }
   done
-  printf '%s\n' "$out" | grep -qE 'SEAL-WRITABLE|SEAL-NOSURFACE|ESCAPE-ALLOWED|WARNING' && bad=1
+  printf '%s\n' "$out" | grep -qE 'SEAL-WRITABLE|SEAL-NOSURFACE|ESCAPE1?-ALLOWED|WARNING' && bad=1
   if [ "$bad" = 0 ]; then printf '  xexec runs, seals, tears down and refuses an escaping entry\n'; return 0; fi
   printf '  \033[1;31mxexec misbehaved:\033[0m\n%s\n' "$(printf '%s\n' "$out" | sed 's/^/    /')" >&2
   return 1
