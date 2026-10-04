@@ -209,8 +209,10 @@ clone() {
   [ -b "$src" ] || { echo "FAIL: source $src is not a block device" >&2; return 1; }
   [ -b "$dst" ] || { echo "FAIL: destination $dst is not a block device" >&2; return 1; }
   # DST is the one written, so it takes the full destructive-path guard. SRC is
-  # only ever read.
+  # only ever read -- but a MOUNTED source (p3 open on this host) changes under
+  # the copy, and the readback then fails over a clone that was never coherent.
   guard_removable "$dst" || return 1
+  unmounted "$src" || return 1
   # SRC must actually BE an xos stick, or a mistyped source silently images some
   # unrelated disk onto the spare. require both xos partition type GUIDs.
   local srctab; srctab=$(sfdisk -d "$src" 2>/dev/null || true)
@@ -229,7 +231,8 @@ clone() {
   fi
   confirm_model "$dst" || return 1
   say "cloning $src -> $dst ($((src_bytes / 1024 / 1024)) MiB, p3 included)"
-  dd if="$src" of="$dst" bs=4M iflag=direct oflag=direct conv=fsync status=progress
+  dd if="$src" of="$dst" bs=4M iflag=direct oflag=direct conv=fsync status=progress \
+    || { echo "FAIL: the copy did not finish (dd failed) -- do not rely on $dst" >&2; return 1; }
 
   # verify by DIRECT-IO readback over the whole copied region: a page-cache read
   # would echo what we just wrote and prove nothing. src is not being written,
@@ -292,6 +295,13 @@ addstate() {
     if cryptsetup isLuks "$ep3" 2>/dev/null; then
       echo "FAIL: $ep3 already holds an encrypted state volume -- refusing to reformat it." >&2
       echo "  unlock it at boot as usual; to REPLACE it, wipe $ep3 deliberately first." >&2
+    elif printf '%s' "$ptable" | grep -qi "\"$PU_STATE\""; then
+      # OUR entry with no LUKS on it: an addstate that stopped between the
+      # partition and the format. say exactly that, and the exact way out.
+      echo "FAIL: $ep3 is an xos state partition that was never formatted -- an earlier" >&2
+      echo "  addstate stopped part way. if nothing on it matters (a fresh one never held" >&2
+      echo "  anything), remove the entry and run addstate again:" >&2
+      echo "    sudo sfdisk --delete $dev 3 && ./build.sh addstate $dev" >&2
     else
       echo "FAIL: $ep3 already exists and is not xos state -- refusing to touch it." >&2
       echo "  remove that partition deliberately if you mean to add state here." >&2
@@ -339,8 +349,14 @@ addstate() {
 start=$STATE_START_S, type=$PT_LUKS, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
   partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
-  sleep 1
-  local p3="${dev}3"; [ -b "$p3" ] || p3="${dev}p3"
+  # wait for the node, not a fixed second: udev on a slow hub can take longer
+  local p3 w=0
+  udevadm settle 2>/dev/null || true
+  while :; do
+    p3="${dev}3"; [ -b "$p3" ] || p3="${dev}p3"
+    [ -b "$p3" ] || [ "$w" -ge 10 ] && break
+    sleep 1; w=$((w + 1))
+  done
   [ -b "$p3" ] || { echo "FAIL: p3 did not appear as ${dev}3 or ${dev}p3" >&2; return 1; }
 
   echo "  formatting p3 as LUKS2 with hmac-sha256 integrity -- you will be asked for a passphrase"
@@ -355,7 +371,15 @@ SFDISK
   #     line does not move with it. argon2id/512MiB/4-lane, recorded here.
   cryptsetup luksFormat --type luks2 --integrity hmac-sha256 \
     --pbkdf argon2id --pbkdf-memory 524288 --pbkdf-parallel 4 \
-    --label XOS-STATE "$p3" || return 1
+    --label XOS-STATE "$p3" || {
+      # most often the two passphrase entries differed. the entry was made a
+      # moment ago and holds nothing -- take it back out so a re-run starts
+      # clean instead of refusing over its own leftover.
+      sfdisk --no-reread --delete "$dev" 3 >/dev/null 2>&1 \
+        && partprobe "$dev" 2>/dev/null
+      echo "FAIL: p3 was not formatted (did the two passphrases differ?) -- nothing kept, run addstate again" >&2
+      return 1
+    }
   cryptsetup open "$p3" xosstate_setup || return 1
   make_ext4 /dev/mapper/xosstate_setup || { cryptsetup close xosstate_setup; return 1; }
   cryptsetup close xosstate_setup
@@ -431,7 +455,9 @@ stick_install() {
   read -rp "  add encrypted persistent state (p3) now? [y/N]: " ans
   case "$ans" in
     y|Y|yes)
-      addstate "$dev" || { echo "  state setup failed -- the stick still boots, just without persistence" >&2; return 0; }
+      # nonzero: "install complete" over a failed p3 read as success. the
+      # stick itself is fine; only persistence is missing.
+      addstate "$dev" || { echo "  state setup FAILED -- the stick boots, but nothing will persist. fix the line above, then: ./build.sh addstate $dev" >&2; return 1; }
       ;;
     *)
       echo "  skipped. add it later with: ./build.sh addstate $dev"
