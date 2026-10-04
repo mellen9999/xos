@@ -24,11 +24,16 @@ else
 	pause_card() { [ -t 0 ] || return 0; printf '\n  [enter] '; read -r _ 2>/dev/null || return 2; }
 fi
 
+# the keyboard, kept on fd 3: each page's text arrives on stdin (a heredoc), so
+# a pause reading stdin saw no terminal, returned at once, and all three pages
+# flashed past -- a stranger only ever saw page 3.
+exec 3<&0
+
 page() {  # $1 subtitle ; body on stdin
 	cls
 	hdr "welcome to xos" "$1"
 	say
-	pause_card
+	pause_card <&3
 }
 
 page '1 of 3 -- where you are' <<'EOF' || exit 0
