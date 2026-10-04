@@ -76,6 +76,17 @@ restore() {
 # uki/stick back and discard A11's throwaway dbx entry, or the tree is left
 # holding a TEST-flavoured signed image and a firmware store that refuses one.
 trap restore EXIT INT TERM
+# the first shell of a boot runs the tutorial, and the tutorial waits for a
+# key on each page -- so a line typed at a fresh console is eaten by it, one
+# key per page. dismiss it the way a reader would (q) before typing anything.
+# it may have landed on an unseen fbcon shell instead (whichever shell sources
+# /etc/shrc first gets it), so wait a few seconds for its prompt, not forever.
+skip_tutorial() { # $1 console log  (the console's input is fd 9)
+	local t=0
+	while [ "$t" -lt 8 ] && ! grep -aq 'welcome to xos' "$1"; do sleep 1; t=$((t+1)); done
+	grep -aq 'welcome to xos' "$1" && { sleep 1; printf 'q' >&9; sleep 1; }
+	return 0
+}
 ok()  { printf '  \033[1;32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
 bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # a skip is never silence: it is counted and reported, because "9 passed" with
@@ -1101,6 +1112,7 @@ if signed_ready A19; then
 		# landed (the shell is spawned after them); the caller names a marker
 		# the command prints last, and this waits for it.
 		if [ -n "${6:-}" ]; then
+			skip_tutorial "$4"
 			printf '%s\n' "$6" >&9
 			t=0; while [ "$t" -lt 30 ] && ! grep -aq "${7:-PROBE-DONE}" "$4"; do sleep 1; t=$((t+1)); done
 		fi
@@ -1339,6 +1351,7 @@ if signed_ready A21; then
 	a21t=0
 	while [ "$a21t" -lt 45 ] && ! grep -aqE 'vault mode:|continuing without persistence|would not mount' "$a21log"; do sleep 1; a21t=$((a21t+1)); done
 	sleep 3
+	skip_tutorial "$a21log"
 	# every marker is typed split by quotes: the console echoes the typed line,
 	# so a marker typed whole matched its own echo and these checks could not
 	# fail. only the command's OUTPUT carries the joined word.
