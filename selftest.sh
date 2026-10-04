@@ -1164,6 +1164,38 @@ if signed_ready A19; then
 		&& ok "three wrong passphrases are refused out loud, and the boot goes on" \
 		|| bad "wrong passphrase was not refused loudly"
 
+	# the RIGHT passphrase on a header no cryptsetup can activate: an unknown
+	# mandatory LUKS2 requirement in both header copies, checksums recomputed.
+	# isLuks still passes (so it is a candidate and asked for), the passphrase
+	# still verifies, but open fails -- a device fault, not a typo. state_open
+	# must not tell the operator their correct passphrase was wrong.
+	a19r=$XT/xos-a19-req.img; a19rl=$XT/xos-a19-req.luks
+	cp "$a19luks" "$a19rl"
+	python3 - "$a19rl" <<'LUKSREQ'
+import hashlib, json, struct, sys
+f = open(sys.argv[1], "r+b")
+hdr_size = struct.unpack(">Q", f.read(16)[8:16])[0]
+for off in (0, hdr_size):
+    f.seek(off); area = bytearray(f.read(hdr_size))
+    meta = json.loads(area[4096:].split(b"\0", 1)[0])
+    meta["config"].setdefault("requirements", {})["mandatory"] = ["xos-selftest-unknown"]
+    nj = json.dumps(meta, separators=(",", ":")).encode()
+    area[4096:] = nj + b"\0" * (hdr_size - 4096 - len(nj))
+    area[0x1C0:0x200] = b"\0" * 64
+    area[0x1C0:0x1E0] = hashlib.sha256(area).digest()
+    f.seek(off); f.write(area)
+LUKSREQ
+	cryptsetup isLuks "$a19rl" 2>/dev/null \
+		|| bad "the requirement-patched header no longer reads as LUKS -- the rig is broken, not init"
+	truncate -s 48M "$a19r"
+	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a19r" >/dev/null 2>&1
+	dd if="$a19rl" of="$a19r" bs=1M seek=1 conv=notrunc status=none
+	boot_typed $XT/xos-a19p.img "$a19r" testpass "$a19log"
+	grep -aq 'wrong passphrase, or a header/integrity fault -- continuing without persistence' "$a19log" \
+		&& ok "a header fault under the right passphrase is named a possible fault, not just 'wrong'" \
+		|| bad "an unopenable header was reported as a plain wrong passphrase"
+	rm -f "$a19r" "$a19rl"
+
 	# the RIGHT passphrase on a p3 that unlocks but holds no filesystem (the
 	# a19disk is LUKS with nothing inside): both mount paths must name the
 	# damage, not fall through as "wrong passphrase" by omission. once with the
