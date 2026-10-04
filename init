@@ -1133,7 +1133,20 @@ console_loop() {
 		/dev/ttyS*|/dev/ttyUSB*|/dev/ttyACM*) _term=$SERIAL_TERM ;;
 		/dev/console)
 			_ca=$(cat /sys/class/tty/console/active 2>/dev/null); _ca=${_ca##* }
-			case "$_ca" in ttyS*|ttyUSB*|ttyACM*) _term=$SERIAL_TERM ;; *) _term=linux ;; esac ;;
+			case "$_ca" in
+				ttyS*|ttyUSB*|ttyACM*)
+					_term=$SERIAL_TERM
+					# the shell gets the real serial line, not /dev/console.
+					# /dev/console can never be a controlling terminal, and
+					# cttyhack on a stdin that already is a tty left the
+					# interactive shell with job control that failed on every
+					# command ("can't set tty process group", the command run
+					# in the background and lost): a typed sync never reached
+					# the disk on a serial console. the fbcon case keeps
+					# /dev/console -- tty1 has a loop of its own.
+					[ -c "/dev/$_ca" ] && _dev=/dev/$_ca ;;
+				*) _term=linux ;;
+			esac ;;
 		*) _term=$SERIAL_TERM ;;
 	esac
 	# health beacon (bounded -- single line, overwritten): proves this loop is
@@ -1153,7 +1166,16 @@ console_loop() {
 		# status here is the SHELL's, and `exit 1` used to hand the operator a
 		# second shell with no controlling terminal -- the exact regression
 		# above. cttyhack is manifest-gated; a missing applet is a build failure.
-		TERM=$_term setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
+		# a session leader that opens a real tty makes it its controlling
+		# terminal by that open alone; cttyhack is for the one device that
+		# cannot be one (/dev/console), where it finds the tty behind it.
+		# proven in the lab: with cttyhack on the resolved line a typed
+		# command died in the background, without it it ran, 0700 printed.
+		if [ "$_dev" = /dev/console ]; then
+			TERM=$_term setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1
+		else
+			TERM=$_term setsid /bin/sh <>"$_dev" >"$_dev" 2>&1
+		fi
 		# a console nothing is attached to returns EOF instantly and would
 		# respawn forever. this machine may be passive-cooled; back off instead.
 		respawn_wait "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))"

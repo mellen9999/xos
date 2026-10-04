@@ -1096,13 +1096,27 @@ if signed_ready A19; then
 		t=0
 		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|continuing without persistence|would not mount' "$4"; do sleep 1; t=$((t+1)); done
 		sleep 5   # let the wg/ssh lines land before the kill
+		# an optional command typed at the shell once the wg/ssh lines have
+		# landed (the shell is spawned after them); the caller names a marker
+		# the command prints last, and this waits for it.
+		if [ -n "${6:-}" ]; then
+			printf '%s\n' "$6" >&9
+			t=0; while [ "$t" -lt 30 ] && ! grep -aq "${7:-PROBE-DONE}" "$4"; do sleep 1; t=$((t+1)); done
+		fi
 		exec 9>&-
 		kill "$qp19" 2>/dev/null; wait "$qp19" 2>/dev/null
 		rm -f "$fifo"
 	}
 
 	a19log=$XT/xos-a19-typed.log
-	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log"
+	boot_typed "$XT/xos-a19p.img" "$a19e" testpass "$a19log" "" 'busybox true && echo TYPED-FG-OK' TYPED-FG-OK
+	# the serial console shell has working job control: a typed command runs
+	# in the FOREGROUND and prints. it did not, on every serial console, for as
+	# long as the shell was started through cttyhack on /dev/console -- each
+	# command died in the background with "can't set tty process group".
+	grep -aq 'TYPED-FG-OK' "$a19log" && ! grep -aq 'tty process group' "$a19log" \
+		&& ok "a command typed at the serial console runs in the foreground (job control works)" \
+		|| bad "the serial console shell cannot run a typed command ($(grep -aoE "can't set tty process group[^.]*|TYPED-FG-OK" "$a19log" | head -1))"
 	# the only boot where the real p3 is the home: init's own unlock line now
 	# states the mode and the filesystem it found, read back after the chmod
 	# (busybox stat -f names ext4 "ext2/ext3"). nothing is typed at the shell:
