@@ -36,6 +36,12 @@ lint() {
   # info/style are noise until they aren't; the bash tier fails on any warning,
   # the ash tier only on error-severity, so a bump in shellcheck's own defaults
   # cannot silently red the tree on a class it never held before.
+  # a listed file that is gone is no finding at all to the text match below --
+  # the tool prints openBinaryFile and the file drops out of the ratchet.
+  if printf '%s' "$outb$out" | has 'openBinaryFile'; then
+    printf '  \033[1;31mshellcheck could not open a listed file -- renamed or removed? fix the list\033[0m\n'
+    return 1
+  fi
   if printf '%s' "$outb" | has '(error):' || printf '%s' "$outb" | has '(warning):'; then
     printf '  \033[1;31mshellcheck found warnings in the bash tier (held at zero)\033[0m\n'
     return 1
@@ -525,8 +531,11 @@ ci() {
     cis arsenal-selftest "no arsenal/levels or no busybox to run the engine"
     cis arsenal-ledger "same"; cis arsenal-order "same"
   fi
-  if [ -x ./busybox ]; then cic xexec; xexecproof || rc=1
-  else cis xexec "no built busybox to stage (./build.sh busybox first)"; fi
+  # the userns probe decides ran-vs-skipped HERE: xexecproof's own skip
+  # returns 0, so registering first reported an unexercised xexec as ran.
+  if ! [ -x ./busybox ]; then cis xexec "no built busybox to stage (./build.sh busybox first)"
+  elif ! unshare -rm true 2>/dev/null; then cis xexec "no user namespaces on this host -- behaviour unverified"
+  else cic xexec; xexecproof || rc=1; fi
   # one q: per card, across every corpus that becomes SRS cards. the card key
   # is the q: template, stored one tab-separated row per card; a second q: line
   # gives held_keys (which reads only the first) a different key than blk_load
@@ -668,18 +677,18 @@ ci() {
     # the question total the way learn lint counts it (the authoritative source
     # the README number is meant to equal)
     rc_q=$(LEARN_ROOT="$PWD/learn" NO_COLOR=1 "${bb:-busybox}" ash learn/learn lint 2>/dev/null \
-             | grep -oE '[0-9]+ questions' | head -1 | awk '{print $1}')
-    claim_cmd=$(grep -oE 'the [0-9]+ commands' README.md | grep -oE '[0-9]+' | head -1)
-    claim_lvl=$(grep -oE '[0-9]+ levels' README.md | grep -oE '[0-9]+' | head -1)
-    claim_q=$(grep -oE '[0-9]+ questions' README.md | grep -oE '[0-9]+' | head -1)
+             | grep -oE '[0-9]+ questions' | head -1 | awk '{print $1}' || true)
+    # || true: under pipefail a reworded README made grep exit 1 and set -e
+    # ended ci() mid-check with no word; an empty claim is reported below.
+    claim_cmd=$(grep -oE 'the [0-9]+ commands' README.md | grep -oE '[0-9]+' | head -1 || true)
+    claim_lvl=$(grep -oE '[0-9]+ levels' README.md | grep -oE '[0-9]+' | head -1 || true)
+    claim_q=$(grep -oE '[0-9]+ questions' README.md | grep -oE '[0-9]+' | head -1 || true)
     local cnt_bad=0
     [ "$claim_cmd" = "$rc_cmd" ] || { printf '  \033[1;31mREADME says %s commands, the tree has %s ref pages\033[0m\n' "${claim_cmd:-?}" "$rc_cmd" >&2; cnt_bad=1; }
     [ "$claim_lvl" = "$rc_lvl" ] || { printf '  \033[1;31mREADME says %s levels, the tree has %s\033[0m\n' "${claim_lvl:-?}" "$rc_lvl" >&2; cnt_bad=1; }
-    # only check questions when lint could produce a number (it needs the corpus,
-    # always here, but guard against an empty read rather than fail spuriously)
-    if [ -n "$rc_q" ]; then
-      [ "$claim_q" = "$rc_q" ] || { printf '  \033[1;31mREADME says %s questions, learn lint counts %s\033[0m\n' "${claim_q:-?}" "$rc_q" >&2; cnt_bad=1; }
-    fi
+    # an empty count is a broken lint, not a pass: skipping the check on it
+    # let the README number go unchecked whenever lint stopped printing it.
+    [ -n "$rc_q" ] && [ "$claim_q" = "$rc_q" ] || { printf '  \033[1;31mREADME says %s questions, learn lint counts %s\033[0m\n' "${claim_q:-?}" "${rc_q:-nothing}" >&2; cnt_bad=1; }
     if [ "$cnt_bad" -eq 0 ]; then printf '  %s commands, %s levels, %s questions -- README matches\n' "$rc_cmd" "$rc_lvl" "${rc_q:-?}"; else rc=1; fi
   else
     cis readme-counts "no README or learn corpus"

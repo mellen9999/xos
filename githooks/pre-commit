@@ -6,7 +6,9 @@ set -uo pipefail
 fail=0
 say() { printf '\033[1;31mpre-commit: %s\033[0m\n' "$*" >&2; fail=1; }
 
-staged=$(git diff --cached --name-only --diff-filter=ACM)
+# quotepath off: git C-quotes a non-ascii name ("caf\303\251.pem"), and that
+# string matched no rule, failed [ -f ], and skipped every content scan below.
+staged=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=ACM)
 
 # G9 -- no artifacts, no keys
 while read -r f; do
