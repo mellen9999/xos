@@ -58,7 +58,7 @@ q: {`cp` @txt@ to @txt@.bak, keeping timestamps and permissions|`cp` @txt@ to @t
 a: cp -p @txt@ @txt@.bak
 a: cp -a @txt@ @txt@.bak
 eg: cp -p .profile .profile.bak
-state: exists:@txt@.bak
+state: sametime:@txt@:@txt@.bak
 ref: cp
 teach: cp -p
 hint: p for preserve
