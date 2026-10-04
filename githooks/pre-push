@@ -23,15 +23,24 @@ for _f in build.sh build/*.sh; do bash -n "$_f" || { echo "pre-push: $_f does no
 # but nothing unsigned may leave this machine. git feeds us one line per ref:
 #   <local ref> <local sha> <remote ref> <remote sha>
 # a remote sha of all-zeroes means a new branch, so fall back to the epoch.
+# fail CLOSED: every way this check can break -- no epoch, no signers file, a
+# git log that errors -- used to read as "0 unsigned" and let the push through.
+# the count that matters is commits in range vs commits verified good.
 SIGN_EPOCH=$(sed -n 's/^SIGN_EPOCH=//p' build.sh)
+git rev-parse --verify -q "$SIGN_EPOCH^{commit}" >/dev/null 2>&1 \
+  || { echo "pre-push: SIGN_EPOCH in build.sh is not a commit here -- cannot check signatures, refusing" >&2; exit 1; }
+[ -s signers ] || { echo "pre-push: no signers file -- cannot check signatures, refusing" >&2; exit 1; }
 zero=0000000000000000000000000000000000000000
 while read -r _lref lsha _rref rsha; do
   [ "$lsha" = "$zero" ] && continue          # a delete pushes nothing
   [ "$rsha" = "$zero" ] && rsha="$SIGN_EPOCH~1"
   git rev-parse --verify -q "$rsha" >/dev/null 2>&1 || rsha="$SIGN_EPOCH~1"
-  unsigned=$(git -c gpg.ssh.allowedSignersFile=signers \
-               log --format='%G? %h %s' "$rsha..$lsha" 2>/dev/null | grep -vc '^G ' || true)
-  if [ "${unsigned:-0}" -ne 0 ]; then
+  total=$(git rev-list --count "$rsha..$lsha" 2>/dev/null) \
+    || { echo "pre-push: cannot list $rsha..$lsha -- refusing" >&2; exit 1; }
+  good=$(git -c gpg.ssh.allowedSignersFile=signers \
+           log --format='%G?' "$rsha..$lsha" 2>/dev/null | grep -c '^G$' || true)
+  unsigned=$(( total - ${good:-0} ))
+  if [ "$unsigned" -ne 0 ]; then
     echo "pre-push: $unsigned commit(s) are not signed by the pinned key -- refusing to publish them:" >&2
     git -c gpg.ssh.allowedSignersFile=signers \
         log --format='%G? %h %s' "$rsha..$lsha" 2>/dev/null | grep -v '^G ' | head -10 >&2
