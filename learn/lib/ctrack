@@ -95,11 +95,29 @@ c_build() {
 	# the limits sit inside `run`, after the exec surface is built and before the
 	# program starts: cpu, wall clock, memory and output size, so an infinite
 	# loop, a sleep or a printf in a loop ends the case instead of the session.
+	# processes too, for the fork lessons: RLIMIT_NPROC counts every process
+	# the uid owns, so as nobody (the stick) 64 is the program's own budget,
+	# and as yourself (a pc) it is what you already run plus headroom -- a fork
+	# bomb then fails with EAGAIN instead of taking the machine.
+	# the limit counts THREADS (a browser alone is hundreds), and it is counted
+	# when the case runs, not when this was built -- the box moves in between.
 	{
 		echo '#!/bin/sh'
+		if [ -n "$DROP" ]; then echo 'ulimit -u 64 2>/dev/null'
+		else echo 'ulimit -u $(( $(ls -ldn /proc/[0-9]*/task/[0-9]* 2>/dev/null | awk -v u="$(id -u)" '"'"'$3 == u'"'"' | wc -l) + 512 )) 2>/dev/null'; fi
 		echo 'ulimit -t 3 2>/dev/null; ulimit -v 262144 2>/dev/null; ulimit -f 128 2>/dev/null'
 		echo '[ -n "${C_TMPDIR:-}" ] && TMPDIR=$C_TMPDIR && export TMPDIR'
-		echo "exec timeout 4 $DROP \"\${0%/*}/prog\" \"\$@\""
+		# its own session (setsid), killed whole afterwards: a child it forked
+		# and left behind would otherwise outlive the case and spend the next
+		# run's process budget. as nobody, every process nobody still owns goes
+		# too -- that catches a child that started a session of its own. stdin
+		# is handed over by name: a background job's is /dev/null otherwise.
+		echo 'exec 3<&0'
+		echo "setsid timeout 4 $DROP \"\${0%/*}/prog\" \"\$@\" <&3 3<&- &"
+		echo 'p=$!; wait $p; r=$?'
+		echo 'kill -9 -- -$p 2>/dev/null'
+		[ -n "$DROP" ] && echo "$DROP kill -9 -1 2>/dev/null"
+		echo 'exit $r'
 	} > "$stage/run"
 	chmod 0755 "$stage/run" "$stage/prog" 2>/dev/null
 	cp "$src" "$stage/src" 2>/dev/null
