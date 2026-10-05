@@ -1,0 +1,349 @@
+name: c11 extras
+intro: C11 added a handful of features that are small but earn their keep.
+intro: Each solves a real problem you have already met.
+intro:
+intro: `_Static_assert(cond, "msg")` checks at compile time. Use it when two
+intro: things must stay in step, so a mistake is a build error, not a bug:
+intro:
+intro:     _Static_assert(sizeof names / sizeof *names == N, "out of step");
+intro:
+intro: `_Generic(x, int: a, double: b, default: c)` picks an expression by
+intro: the type of `x` -- at compile time, nothing is tested at run time. It
+intro: is how a macro can print any type. Note `'x'` is an int in C, and a
+intro: `const char *` is not a `char *`.
+intro:
+intro: A flexible array member is a last, unsized array in a struct. One
+intro: malloc holds the header and the data together:
+intro:
+intro:     struct msg { size_t len; char data[]; };
+intro:     struct msg *m = malloc(sizeof *m + n + 1);
+intro:
+intro: Free it once with one free. Only the last member can be like this.
+intro:
+intro: An anonymous struct or union has no name of its own, so its members
+intro: read as the outer struct's: `v.i` instead of `v.u.i`. A tagged value
+intro: is an enum saying which member of an anonymous union is live.
+intro:
+intro: `_Noreturn` marks a function that never comes back (it exits). The
+intro: compiler then knows nothing runs after the call.
+intro: `static inline` hints that a small function should be pasted into its
+intro: caller; the compiler decides.
+intro:
+intro: `restrict` on a pointer promises that nothing else reaches that
+intro: memory in this function -- you may then not pass overlapping
+intro: arrays, and the compiler may reorder loads and stores freely. Break
+intro: the promise and the behaviour is undefined. `memcpy` has it,
+intro: `memmove` does not.
+intro:
+intro: C23 exists now and adds `nullptr`, `constexpr`, `#embed` and `bool`
+intro: as a keyword. This compiler is C11, so this track stops at C11.
+---
+q: kind.c -- name the type
+spec: The file starts with five variables and five printf calls; you write
+spec: the macro `KIND(x)` with `_Generic` so each call prints the type name.
+spec: Print exactly these six lines, in this order, and exit 0:
+spec:
+spec: `i: int`, `d: double`, `s: string`, `c: char`, `lit: int`, `u: other`
+spec:
+spec: `int` gives "int", `double` gives "double", `char` gives "char",
+spec: `const char *` gives "string", anything else "other". The line `lit`
+spec: is the character literal `'x'` itself, which has type int in C.
+file: kind.c
+start: #include <stdio.h>
+start: 
+start: #define KIND(x) ((void)(x), "?")
+start: 
+start: int main(void)
+start: {
+start: 	int i = 7;
+start: 	double d = 2.5;
+start: 	const char *s = "hi";
+start: 	char c = 'x';
+start: 	unsigned long u = 9;
+start: 
+start: 	printf("i: %s\n", KIND(i));
+start: 	printf("d: %s\n", KIND(d));
+start: 	printf("s: %s\n", KIND(s));
+start: 	printf("c: %s\n", KIND(c));
+start: 	printf("lit: %s\n", KIND('x'));
+start: 	printf("u: %s\n", KIND(u));
+start: 	return 0;
+start: }
+prog: #include <stdio.h>
+prog: 
+prog: #define KIND(x) _Generic((x), \
+prog: 	int: "int",               \
+prog: 	double: "double",         \
+prog: 	char: "char",             \
+prog: 	const char *: "string",   \
+prog: 	default: "other")
+prog: 
+prog: int main(void)
+prog: {
+prog: 	int i = 7;
+prog: 	double d = 2.5;
+prog: 	const char *s = "hi";
+prog: 	char c = 'x';
+prog: 	unsigned long u = 9;
+prog: 
+prog: 	printf("i: %s\n", KIND(i));
+prog: 	printf("d: %s\n", KIND(d));
+prog: 	printf("s: %s\n", KIND(s));
+prog: 	printf("c: %s\n", KIND(c));
+prog: 	printf("lit: %s\n", KIND('x'));
+prog: 	printf("u: %s\n", KIND(u));
+prog: 	return 0;
+prog: }
+case: kind
+case: kind; echo $?
+case: kind | grep -c 'string'
+hint: _Generic((x), int: "int", ...) -- list const char * for the string, and remember 'x' is an int
+---
+q: revmsg.c -- one allocation, header and data
+spec: Take exactly one argument. Build a `struct msg` holding its length
+spec: and a reversed copy of the text, using a flexible array member and
+spec: ONE malloc for the whole thing. Print the length, a colon and the
+spec: reversed text with a newline: `revmsg hello` prints `5:olleh`, and
+spec: `revmsg ''` prints `0:`. Free it. Exit 0.
+spec:
+spec: Any other number of arguments prints `usage: revmsg TEXT` to
+spec: standard error and exits 2. If malloc fails print
+spec: `revmsg: out of memory` and exit 1.
+file: revmsg.c
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: struct msg {
+start: 	size_t len;
+start: 	char data[];
+start: };
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	(void)argc; /* delete these two once you use them */
+start: 	(void)argv;
+start: 	return 0;
+start: }
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: struct msg {
+prog: 	size_t len;
+prog: 	char data[];
+prog: };
+prog: 
+prog: static struct msg *msg_reversed(const char *text)
+prog: {
+prog: 	size_t n = strlen(text);
+prog: 	struct msg *m = malloc(sizeof *m + n + 1);
+prog: 	if (m == NULL)
+prog: 		return NULL;
+prog: 	m->len = n;
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		m->data[i] = text[n - 1 - i];
+prog: 	m->data[n] = '\0';
+prog: 	return m;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: revmsg TEXT\n");
+prog: 		return 2;
+prog: 	}
+prog: 	struct msg *m = msg_reversed(argv[1]);
+prog: 	if (m == NULL) {
+prog: 		fprintf(stderr, "revmsg: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("%zu:%s\n", m->len, m->data);
+prog: 	free(m);
+prog: 	return 0;
+prog: }
+case: revmsg hello
+case: revmsg ''
+case: revmsg 'ab cd'
+case: revmsg; echo $?
+case: revmsg a b; echo $?
+hint: malloc(sizeof *m + n + 1) holds the header plus the characters plus the NUL; write data[n] = 0 yourself
+---
+q: tagged.c -- numbers and words in one array
+spec: Take one or more arguments. Each is an int if the whole argument is
+spec: a plain decimal whole number (optional sign, no junk, fits a long) and
+spec: text otherwise -- an empty argument is text. Store them in one
+spec: malloc'd array of `struct val`, each with a tag and an anonymous
+spec: union holding the long or the string pointer.
+spec:
+spec: Print one line per argument, in order: `int 12` or `text hello`.
+spec: Then print `sum=N`, the sum of the ints (0 if none), and exit 0.
+spec:
+spec: With no arguments call a `_Noreturn` function that prints
+spec: `usage: tagged VALUE...` to standard error and exits 2. If malloc
+spec: fails print `tagged: out of memory` and exit 1.
+spec:
+spec: The tag names are given to you in a table with a `_Static_assert`:
+spec: add a tag and forget its name and the build breaks.
+file: tagged.c
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: enum tag { T_INT, T_TEXT, T_COUNT };
+start: 
+start: static const char *const TAGNAME[] = { "int", "text" };
+start: _Static_assert(sizeof TAGNAME / sizeof TAGNAME[0] == T_COUNT,
+start: 			   "TAGNAME out of step with enum tag");
+start: 
+start: struct val {
+start: 	enum tag tag;
+start: };
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	(void)TAGNAME; /* delete these once you use them */
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	return 0;
+start: }
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: enum tag { T_INT, T_TEXT, T_COUNT };
+prog: 
+prog: static const char *const TAGNAME[] = { "int", "text" };
+prog: _Static_assert(sizeof TAGNAME / sizeof TAGNAME[0] == T_COUNT,
+prog: 			   "TAGNAME out of step with enum tag");
+prog: 
+prog: struct val {
+prog: 	enum tag tag;
+prog: 	union {
+prog: 		long i;
+prog: 		const char *s;
+prog: 	};
+prog: };
+prog: 
+prog: static _Noreturn void usage(void)
+prog: {
+prog: 	fprintf(stderr, "usage: tagged VALUE...\n");
+prog: 	exit(2);
+prog: }
+prog: 
+prog: static struct val classify(const char *arg)
+prog: {
+prog: 	struct val v;
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long n = strtol(arg, &end, 10);
+prog: 	if (end != arg && *end == '\0' && errno == 0) {
+prog: 		v.tag = T_INT;
+prog: 		v.i = n;
+prog: 	} else {
+prog: 		v.tag = T_TEXT;
+prog: 		v.s = arg;
+prog: 	}
+prog: 	return v;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc < 2)
+prog: 		usage();
+prog: 	size_t n = (size_t)argc - 1;
+prog: 	struct val *vals = malloc(n * sizeof *vals);
+prog: 	if (vals == NULL) {
+prog: 		fprintf(stderr, "tagged: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	long sum = 0;
+prog: 	for (size_t k = 0; k < n; k++) {
+prog: 		vals[k] = classify(argv[k + 1]);
+prog: 		if (vals[k].tag == T_INT) {
+prog: 			printf("%s %ld\n", TAGNAME[T_INT], vals[k].i);
+prog: 			sum += vals[k].i;
+prog: 		} else {
+prog: 			printf("%s %s\n", TAGNAME[T_TEXT], vals[k].s);
+prog: 		}
+prog: 	}
+prog: 	printf("sum=%ld\n", sum);
+prog: 	free(vals);
+prog: 	return 0;
+prog: }
+case: tagged 12 hello -3
+case: tagged x 4y '' +5
+case: tagged 99999999999999999999 7
+case: tagged 1 2 3 4 5 6 7 8 9 10
+case: tagged; echo $?
+hint: strtol with an end pointer and errno tells int from text; the union members are v.i and v.s, no inner name
+---
+q: addv.c -- add two vectors
+spec: Take an even number of arguments, at least two, all whole numbers that
+spec: fit an int. The first half is vector A, the second half is vector B.
+spec: Print the element-wise sums as one line, separated by single spaces,
+spec: ending with a newline: `addv 1 2 3 10 20 30` prints `11 22 33`.
+spec: The sums must not wrap -- `addv 2147483647 2147483647` prints
+spec: `4294967294`.
+spec:
+spec: An odd count or no arguments prints `usage: addv A... B...` to
+spec: standard error and exits 2. An argument that is not such a number
+spec: prints `addv: bad number: ARG` and exits 1. If malloc fails print
+spec: `addv: out of memory` and exit 1.
+spec:
+spec: Do the adding in a `static inline` function whose three pointers are
+spec: `restrict`, one malloc'd block holding A, B and the result.
+file: addv.c
+prog: #include <errno.h>
+prog: #include <limits.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: static inline void vadd(long *restrict dst, const long *restrict a,
+prog: 						const long *restrict b, size_t n)
+prog: {
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		dst[i] = a[i] + b[i];
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc < 3 || argc % 2 != 1) {
+prog: 		fprintf(stderr, "usage: addv A... B...\n");
+prog: 		return 2;
+prog: 	}
+prog: 	size_t n = (size_t)(argc - 1) / 2;
+prog: 	long *block = malloc(3 * n * sizeof *block);
+prog: 	if (block == NULL) {
+prog: 		fprintf(stderr, "addv: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	long *a = block, *b = block + n, *sum = block + 2 * n;
+prog: 	for (size_t k = 0; k < 2 * n; k++) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long v = strtol(argv[k + 1], &end, 10);
+prog: 		if (end == argv[k + 1] || *end != '\0' || errno != 0
+prog: 			|| v < INT_MIN || v > INT_MAX) {
+prog: 			fprintf(stderr, "addv: bad number: %s\n", argv[k + 1]);
+prog: 			free(block);
+prog: 			return 1;
+prog: 		}
+prog: 		block[k] = v;
+prog: 	}
+prog: 	vadd(sum, a, b, n);
+prog: 	for (size_t i = 0; i < n; i++) {
+prog: 		if (i > 0)
+prog: 			putchar(' ');
+prog: 		printf("%ld", sum[i]);
+prog: 	}
+prog: 	printf("\n");
+prog: 	free(block);
+prog: 	return 0;
+prog: }
+case: addv 1 2 3 10 20 30
+case: addv 5 -5
+case: addv 2147483647 2147483647
+case: addv 1 2 3; echo $?
+case: addv; echo $?
+case: addv 1 x; echo $?
+hint: parse every argument into a long first, then let a small restrict function add halves that cannot overlap

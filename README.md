@@ -532,12 +532,21 @@ carried field toolkit the same way.
     learn challenge      timed chains, one life -- unlocked at the last boss
     learn scenario       narrative missions against the real machine
     learn project        write a program against a spec, graded by running it
+    learn c [N]          the c track: read a lesson, write it in vi, it compiles and runs
     learn shell          a shell in that same sandbox, to try things in
     learn autopsy        read your own shell history, name the drills that fit
     learn explain LINE   name every command in a shell line and the syntax in it
     learn stats          what you have mastered
     learn fumbles        what you got wrong at the real prompt -- off until you say on
     learn reset          forget all progress
+
+`learn c` is a second ladder: thirteen lessons of modern c (c11), from `main` to
+structs, the heap, files, bits and `_Generic`, ending in rewrites of small unix
+tools. each lesson is read in a pager, then vi opens on the program with the task
+in a comment at the top; leaving vi compiles it and runs hidden cases against a
+reference, and a compile error reopens vi on the line. the image ships no
+compiler on purpose -- the track uses the arsenal's tcc through `xexec`, or a pc's
+own cc, and the program runs as `nobody` under cpu, memory, time and output caps.
 
 with no argument `learn` names the level it would open and where it picks up
 before it opens anything -- `n` wipes every ledger for a new game, behind a

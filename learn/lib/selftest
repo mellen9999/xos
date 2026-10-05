@@ -1761,6 +1761,9 @@ awk NR==1 f | wc -l"
 	# two questions that matter instead: does the reference reproduce itself
 	# on a freshly built tree, and can an empty program fail a case.
 	prj_check || bad=$((bad + $?))
+	# the c track's shape only: the image has no compiler, so the compiled half
+	# (c_check) is ci's, against the arsenal tcc and the host gcc.
+	c_lint || bad=$((bad + $?))
 
 	printf 'learn: %d questions in %d levels, %d chain stages, %d scenario steps, %d program(s), %d bad\n' \
 		"$nq_lvl" "$(level_ids | grep -c .)" "$nq_chain" "$nq_scn" \

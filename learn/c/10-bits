@@ -1,0 +1,279 @@
+name: bits
+intro: A byte is eight on/off switches. Hardware registers, file modes,
+intro: network headers and flags all pack many answers into one number, and
+intro: C gives you the operators to reach in:
+intro:
+intro:     a & b    1 where both are 1       (mask: keep these bits)
+intro:     a | b    1 where either is 1      (set bits)
+intro:     a ^ b    1 where they differ      (toggle bits)
+intro:     ~a       flip every bit
+intro:     a << n   move bits up n places    (multiply by 2^n)
+intro:     a >> n   move bits down n places  (divide by 2^n)
+intro:
+intro: The four moves you will use forever:
+intro:
+intro:     x |= 1u << 3;      /* set bit 3 */
+intro:     x &= ~(1u << 3);   /* clear bit 3 */
+intro:     x ^= 1u << 3;      /* toggle bit 3 */
+intro:     if (x & (1u << 3)) /* test bit 3 */
+intro:
+intro: Do bit work on unsigned types, from <stdint.h>: `uint8_t`,
+intro: `uint32_t`. Shifting a negative signed number, shifting a signed
+intro: value into its sign bit, or shifting by the width of the type or
+intro: more (`x << 32` on a 32-bit value) are all undefined behaviour --
+intro: the compiler may do anything, and it changes between machines and
+intro: optimisation levels. Unsigned `>>` always fills with zeros; signed
+intro: `>>` of a negative is up to the compiler.
+intro:
+intro: Small types promote: `uint8_t b = 0x80; ~b` is an int with its high
+intro: bits set, not 0x7f. Cast back, or mask with `& 0xffu`.
+intro:
+intro: Print hex with `%x` (`%02x` pads to two digits). For `uint32_t`
+intro: portably use `PRIx32` from <inttypes.h>:
+intro:
+intro:     printf("%08" PRIx32 "\n", v);
+intro:
+intro: Parsing a number from text for bit work: `strtoul` quietly accepts
+intro: `-1` and wraps it to a huge value. Check the first character is a
+intro: digit yourself, then check the end pointer, `errno` and the range.
+---
+q: popcnt.c -- count the one bits
+spec: Take one or more arguments, each an unsigned decimal number from 0
+spec: to 4294967295 (digits only -- no sign, no spaces). For each, in
+spec: order, print on its own line how many of its 32 bits are 1.
+spec:
+spec: At the first argument that is not such a number, print
+spec: `popcnt: bad number: ARG` to standard error and exit 1; lines already
+spec: printed stay. With no arguments print `usage: popcnt N...` to
+spec: standard error and exit 2.
+file: popcnt.c
+prog: #include <errno.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: static int popcount32(uint32_t x)
+prog: {
+prog: 	int n = 0;
+prog: 	for (; x != 0; x >>= 1)
+prog: 		n += (int)(x & 1u);
+prog: 	return n;
+prog: }
+prog: 
+prog: static int parse_u32(const char *s, uint32_t *out)
+prog: {
+prog: 	if (s[0] < '0' || s[0] > '9')
+prog: 		return -1;
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	unsigned long v = strtoul(s, &end, 10);
+prog: 	if (*end != '\0' || errno != 0 || v > UINT32_MAX)
+prog: 		return -1;
+prog: 	*out = (uint32_t)v;
+prog: 	return 0;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc < 2) {
+prog: 		fprintf(stderr, "usage: popcnt N...\n");
+prog: 		return 2;
+prog: 	}
+prog: 	for (int i = 1; i < argc; i++) {
+prog: 		uint32_t v;
+prog: 		if (parse_u32(argv[i], &v) != 0) {
+prog: 			fprintf(stderr, "popcnt: bad number: %s\n", argv[i]);
+prog: 			return 1;
+prog: 		}
+prog: 		printf("%d\n", popcount32(v));
+prog: 	}
+prog: 	return 0;
+prog: }
+case: popcnt 0 1 255 4294967295
+case: popcnt 7 x 9; echo $?
+case: popcnt -1; echo $?
+case: popcnt 4294967296; echo $?
+case: popcnt; echo $?
+hint: x & 1 is the lowest bit; shift right until the number is empty -- and strtoul will happily accept a minus sign, so look at the first character yourself
+---
+q: bin8.c -- a byte in binary
+spec: Take exactly one argument, a decimal number from 0 to 255 (digits
+spec: only). Print it as eight binary digits, a space, then the same
+spec: value as two lowercase hex digits, and a newline.
+spec: `bin8 5` prints `00000101 05`.
+spec:
+spec: Any other argument prints `bin8: bad byte: ARG` to standard error and
+spec: exits 1. Any other number of arguments prints `usage: bin8 N` and
+spec: exits 2.
+file: bin8.c
+prog: #include <errno.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: bin8 N\n");
+prog: 		return 2;
+prog: 	}
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	unsigned long v = strtoul(argv[1], &end, 10);
+prog: 	if (argv[1][0] < '0' || argv[1][0] > '9' || *end != '\0'
+prog: 		|| errno != 0 || v > 255) {
+prog: 		fprintf(stderr, "bin8: bad byte: %s\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	uint8_t b = (uint8_t)v;
+prog: 	for (int i = 7; i >= 0; i--)
+prog: 		putchar(((b >> i) & 1u) ? '1' : '0');
+prog: 	printf(" %02x\n", b);
+prog: 	return 0;
+prog: }
+case: bin8 5
+case: bin8 0
+case: bin8 255
+case: bin8 170
+case: bin8 256; echo $?
+case: bin8 -3; echo $?
+case: bin8; echo $?
+hint: test bit 7 first and walk down to bit 0 with (b >> i) & 1; %02x pads the hex
+---
+q: perms.c -- permission bits, both directions
+spec: Take exactly one argument and convert it, Unix file-mode style.
+spec:
+spec: A 9-character flag string such as `rwxr-x---` -- three groups of
+spec: `rwx`, each position holding its letter or `-` -- prints the mode as
+spec: three octal digits: `750`. A 3-digit octal mode such as `644` prints
+spec: the flag string: `rw-r--r--`. Read is 4, write is 2, execute is 1,
+spec: summed in each group.
+spec:
+spec: Anything else (wrong length, a letter in the wrong place, a digit
+spec: above 7) prints `perms: bad flags` to standard error and exits 1. Any
+spec: other number of arguments prints `usage: perms FLAGS` and exits 2.
+file: perms.c
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: enum { P_R = 4, P_W = 2, P_X = 1 };
+prog: 
+prog: static const char SYM[3] = { 'r', 'w', 'x' };
+prog: static const unsigned BIT[3] = { P_R, P_W, P_X };
+prog: 
+prog: static int from_flags(const char *s, unsigned *mode)
+prog: {
+prog: 	unsigned m = 0;
+prog: 	for (int i = 0; i < 9; i++) {
+prog: 		int k = i % 3;
+prog: 		if (s[i] == SYM[k])
+prog: 			m |= BIT[k] << (6 - 3 * (i / 3));
+prog: 		else if (s[i] != '-')
+prog: 			return -1;
+prog: 	}
+prog: 	*mode = m;
+prog: 	return 0;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: perms FLAGS\n");
+prog: 		return 2;
+prog: 	}
+prog: 	const char *s = argv[1];
+prog: 	size_t len = strlen(s);
+prog: 	unsigned mode = 0;
+prog: 	if (len == 9 && from_flags(s, &mode) == 0) {
+prog: 		printf("%03o\n", mode);
+prog: 		return 0;
+prog: 	}
+prog: 	if (len == 3 && s[0] >= '0' && s[0] <= '7' && s[1] >= '0' && s[1] <= '7'
+prog: 		&& s[2] >= '0' && s[2] <= '7') {
+prog: 		mode = (unsigned)(s[0] - '0') << 6 | (unsigned)(s[1] - '0') << 3
+prog: 			   | (unsigned)(s[2] - '0');
+prog: 		char out[10];
+prog: 		for (int i = 0; i < 9; i++) {
+prog: 			int k = i % 3;
+prog: 			unsigned shift = (unsigned)(6 - 3 * (i / 3));
+prog: 			out[i] = (mode >> shift) & BIT[k] ? SYM[k] : '-';
+prog: 		}
+prog: 		out[9] = '\0';
+prog: 		puts(out);
+prog: 		return 0;
+prog: 	}
+prog: 	fprintf(stderr, "perms: bad flags\n");
+prog: 	return 1;
+prog: }
+case: perms rwxr-x---
+case: perms rw-r--r--
+case: perms 750; perms 000; perms 777
+case: perms ---------
+case: perms rwxr-xr-q; echo $?
+case: perms 789; perms rwxrwxrw; perms rwx; echo $?
+case: perms; echo $?
+hint: each group is one octal digit -- test the three bits with & 4, & 2, & 1, and shift the group into place
+---
+q: rotl32.c -- rotate bits left
+spec: Usage `rotl32 N K`: N is an unsigned decimal number from 0 to
+spec: 4294967295 (digits only), K a whole number from 0 to 31. Rotate the
+spec: 32 bits of N left by K places -- bits shifted off the top come back
+spec: in at the bottom -- and print the result as eight lowercase hex
+spec: digits and a newline. `rotl32 1 1` prints `00000002`.
+spec:
+spec: A bad N prints `rotl32: bad number` and a bad K prints
+spec: `rotl32: bad count`, both to standard error, exit 1. Any other
+spec: number of arguments prints `usage: rotl32 N K` and exits 2.
+spec:
+spec: K of 0 must work. Shifting a 32-bit value by 32 is undefined.
+file: rotl32.c
+prog: #include <errno.h>
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: static int parse(const char *s, unsigned long max, unsigned long *out)
+prog: {
+prog: 	if (s[0] < '0' || s[0] > '9')
+prog: 		return -1;
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	unsigned long v = strtoul(s, &end, 10);
+prog: 	if (*end != '\0' || errno != 0 || v > max)
+prog: 		return -1;
+prog: 	*out = v;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static uint32_t rotl32(uint32_t x, unsigned k)
+prog: {
+prog: 	return (x << k) | (x >> ((32u - k) & 31u));
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	unsigned long n, k;
+prog: 	if (argc != 3) {
+prog: 		fprintf(stderr, "usage: rotl32 N K\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (parse(argv[1], UINT32_MAX, &n) != 0) {
+prog: 		fprintf(stderr, "rotl32: bad number\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (parse(argv[2], 31, &k) != 0) {
+prog: 		fprintf(stderr, "rotl32: bad count\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("%08" PRIx32 "\n", rotl32((uint32_t)n, (unsigned)k));
+prog: 	return 0;
+prog: }
+case: rotl32 1 1
+case: rotl32 2147483649 1
+case: rotl32 305419896 0
+case: rotl32 305419896 8
+case: rotl32 1 32; echo $?
+case: rotl32 -1 3; echo $?
+case: rotl32 5; echo $?
+hint: the bits leaving the top are x >> (32 - k); the ones to put back are what you shifted off -- and k = 0 must not shift by 32

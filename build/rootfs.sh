@@ -45,7 +45,7 @@ rootfs() {
   [ -x learn/learn ] || { echo "FAIL: learn/learn missing or not executable" >&2; return 1; }
   [ -x tutorial ]    || { echo "FAIL: tutorial missing or not executable" >&2; return 1; }
   local part
-  for part in ref lib pools levels scenarios projects; do
+  for part in ref lib pools levels scenarios projects c; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
   for _f in skip skip-syntax builtins verbs phrases syntax vs bashisms chains migrations rekeys; do
@@ -56,7 +56,7 @@ rootfs() {
   # it ships beside learn and is greeted from /etc/shrc on the first shell.
   install -m 0755 tutorial root/bin/tutorial
   mkdir -p root/usr/share/learn
-  cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects root/usr/share/learn/
+  cp -r learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects learn/c root/usr/share/learn/
   # acts (the level groupings the climb is narrated by) and syn (the syntax
   # labels every page carries) were read by the engine and never shipped: on
   # the stick both opened as nothing, 2>/dev/null, while the dev host -- where

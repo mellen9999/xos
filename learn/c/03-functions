@@ -1,0 +1,158 @@
+name: functions
+intro: A function is a named piece of code with its own variables. You have
+intro: been writing one all along: `main`. Splitting a program into small
+intro: functions is how C stays readable.
+intro:
+intro:     static int square(int x)
+intro:     {
+intro:         return x * x;
+intro:     }
+intro:
+intro: `int` before the name is the return type; `(int x)` is the parameter.
+intro: `static` means the name is private to this file -- use it on every
+intro: function that nothing else calls. It stops name clashes and lets the
+intro: compiler warn you about code nobody uses.
+intro:
+intro: C reads top to bottom, so a function must be known before it is used.
+intro: Either define it above its caller, or put a prototype -- the first
+intro: line with a `;` -- near the top and define it later:
+intro:
+intro:     static int square(int x);
+intro:
+intro:     int main(void)
+intro:     {
+intro:         printf("%d\n", square(7));
+intro:         return 0;
+intro:     }
+intro:
+intro:     static int square(int x)
+intro:     {
+intro:         return x * x;
+intro:     }
+intro:
+intro: Arguments are passed by value: the function gets a copy. Changing `x`
+intro: inside `square` never touches the caller's variable. (To change the
+intro: caller's data you need pointers -- that is a later unit.)
+intro:
+intro: A function may call itself. Every recursion needs a base case that does
+intro: not recurse, or it never ends and the stack runs out:
+intro:
+intro:     static unsigned sum_to(unsigned n)
+intro:     {
+intro:         if (n == 0)
+intro:             return 0;
+intro:         return n + sum_to(n - 1);
+intro:     }
+intro:
+intro: `main` returns int because that number is the exit status the caller
+intro: reads. A function that promises a value must return one on every path.
+---
+q: fact.c -- factorials by recursion
+spec: Write a `static uint64_t factorial(unsigned n)` that calls itself, with
+spec: a prototype above `main`. Print the factorials of 0 to 10, one per line,
+spec: like `5! = 120`. `0!` is 1.
+file: fact.c
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: 
+prog: static uint64_t factorial(unsigned n);
+prog: 
+prog: int main(void)
+prog: {
+prog: 	for (unsigned n = 0; n <= 10; n++)
+prog: 		printf("%u! = %" PRIu64 "\n", n, factorial(n));
+prog: 	return 0;
+prog: }
+prog: 
+prog: static uint64_t factorial(unsigned n)
+prog: {
+prog: 	if (n <= 1)
+prog: 		return 1;
+prog: 	return n * factorial(n - 1);
+prog: }
+case: fact
+case: fact | head -n 1
+case: fact | tail -n 1
+hint: the base case must cover 0 as well as 1, or factorial(0) never stops
+---
+q: primes.c -- a function that answers yes or no
+spec: Write `static bool is_prime(unsigned n)`: true only for 2, 3, 5, ... --
+spec: 0 and 1 are not prime. Print every prime below 30 on one line,
+spec: separated by single spaces, with no trailing space and a newline at the
+spec: end: `2 3 5 7 11 13 17 19 23 29`.
+file: primes.c
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: 
+prog: static bool is_prime(unsigned n)
+prog: {
+prog: 	if (n < 2)
+prog: 		return false;
+prog: 	for (unsigned d = 2; d * d <= n; d++) {
+prog: 		if (n % d == 0)
+prog: 			return false;
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	bool first = true;
+prog: 
+prog: 	for (unsigned n = 0; n < 30; n++) {
+prog: 		if (!is_prime(n))
+prog: 			continue;
+prog: 		if (!first)
+prog: 			putchar(' ');
+prog: 		printf("%u", n);
+prog: 		first = false;
+prog: 	}
+prog: 	putchar('\n');
+prog: 	return 0;
+prog: }
+case: primes
+case: primes | wc -c
+case: primes | tail -c 4
+hint: 1 is not prime; print the separator before each number except the first
+---
+q: gcd.c -- small functions that build on each other
+spec: Write `static unsigned gcd(unsigned a, unsigned b)` using Euclid's
+spec: rule recursively (the gcd of a and 0 is a; otherwise gcd(b, a % b)),
+spec: and `static unsigned lcm(unsigned a, unsigned b)` that uses gcd. Print:
+spec:
+spec: `gcd(48, 18) = 6`
+spec: `gcd(17, 5) = 1`
+spec: `gcd(0, 9) = 9`
+spec: `lcm(4, 6) = 12`
+spec: `lcm(21, 6) = 42`
+spec:
+spec: Divide before you multiply in lcm, so the product cannot overflow.
+file: gcd.c
+prog: #include <stdio.h>
+prog: 
+prog: static unsigned gcd(unsigned a, unsigned b)
+prog: {
+prog: 	if (b == 0)
+prog: 		return a;
+prog: 	return gcd(b, a % b);
+prog: }
+prog: 
+prog: static unsigned lcm(unsigned a, unsigned b)
+prog: {
+prog: 	return a / gcd(a, b) * b;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	printf("gcd(48, 18) = %u\n", gcd(48, 18));
+prog: 	printf("gcd(17, 5) = %u\n", gcd(17, 5));
+prog: 	printf("gcd(0, 9) = %u\n", gcd(0, 9));
+prog: 	printf("lcm(4, 6) = %u\n", lcm(4, 6));
+prog: 	printf("lcm(21, 6) = %u\n", lcm(21, 6));
+prog: 	return 0;
+prog: }
+case: gcd
+case: gcd | sed -n 3p
+case: gcd | tail -n 2
+hint: the base case is b == 0, and the recursive call swaps to (b, a % b)

@@ -1,0 +1,165 @@
+name: types and their edges
+intro: C has no "number". It has types, and each one is a fixed count of bits
+intro: that decides which values fit and what happens at the edge. Pick the
+intro: wrong one and the program still compiles.
+intro:
+intro: The ones you will meet:
+intro:
+intro:     char      one byte: a character, or a small number
+intro:     int       the natural size; 32 bits here
+intro:     long      at least 32 bits; 64 on 64-bit Linux
+intro:     size_t    sizes and counts; unsigned; print it with %zu
+intro:     bool      true or false; needs #include <stdbool.h>
+intro:
+intro: `int` and `long` change size from machine to machine. When the size
+intro: matters, say so with <stdint.h>: int32_t, uint8_t, int64_t. Print them
+intro: with the macros in <inttypes.h>, which glue onto the format string:
+intro:
+intro:     int64_t big = INT64_C(3000000000) * 3;
+intro:     printf("%" PRId64 "\n", big);
+intro:
+intro: Signed and unsigned behave differently at the edge. Unsigned arithmetic
+intro: wraps, by definition: 0u - 1 is the largest value. Signed overflow is
+intro: undefined behaviour: the compiler may assume it never happens and
+intro: delete your checks. Never rely on it, never test for it afterwards.
+intro:
+intro: Integer division truncates toward zero, and `%` takes the sign of the
+intro: left side: -7 / 2 is -3, -7 % 2 is -1. And 7 / 2 is 3, not 3.5 -- make
+intro: one side a double first: (double)7 / 2.
+intro:
+intro: Small types are promoted to int before any arithmetic, so uint8_t + 10
+intro: is an int and can be 260. Assigning it back wraps; a cast says you
+intro: meant it:
+intro:
+intro:     uint8_t r = (uint8_t)(a + 10);
+---
+q: sizes.c -- how big is each type
+spec: Print one line per type, the type name, a space, and its size in bytes,
+spec: using `sizeof` and `%zu`. In this order:
+spec:
+spec: `int8_t`, `int16_t`, `int32_t`, `int64_t`, `char`
+spec:
+spec: For example the first line is `int8_t 1`.
+file: sizes.c
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	printf("int8_t %zu\n", sizeof(int8_t));
+prog: 	printf("int16_t %zu\n", sizeof(int16_t));
+prog: 	printf("int32_t %zu\n", sizeof(int32_t));
+prog: 	printf("int64_t %zu\n", sizeof(int64_t));
+prog: 	printf("char %zu\n", sizeof(char));
+prog: 	return 0;
+prog: }
+case: sizes
+case: sizes | tail -n 2
+case: sizes; echo $?
+hint: sizeof gives a size_t, so the format is %zu, not %d
+---
+q: rollover.c -- where numbers wrap
+spec: Print exactly these four lines, each computed by the program from
+spec: variables, not typed as text:
+spec:
+spec: `250 + 10 = 4`
+spec: `0 - 1 = 4294967295`
+spec: `-7 / 2 = -3`
+spec: `-7 % 2 = -1`
+spec:
+spec: The first sum is a `uint8_t` 250 plus 10, stored back into a `uint8_t`.
+spec: The second is a `uint32_t` 0 minus 1. The last two use an `int` -7.
+spec: Print the `uint32_t` with `PRIu32`.
+file: rollover.c
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	uint8_t a = 250;
+prog: 	uint8_t b = (uint8_t)(a + 10);
+prog: 	uint32_t zero = 0;
+prog: 	uint32_t below = zero - 1;
+prog: 	int x = -7;
+prog: 
+prog: 	printf("250 + 10 = %d\n", b);
+prog: 	printf("0 - 1 = %" PRIu32 "\n", below);
+prog: 	printf("-7 / 2 = %d\n", x / 2);
+prog: 	printf("-7 %% 2 = %d\n", x % 2);
+prog: 	return 0;
+prog: }
+case: rollover
+case: rollover | head -n 1
+case: rollover; echo $?
+hint: a + 10 is an int and reads 260 -- store it back into a uint8_t before printing
+---
+q: ratio.c -- integer division bites
+spec: A test run passed 7 of 9 checks. Keep both numbers in `int` variables
+spec: and print exactly these four lines:
+spec:
+spec: `7 of 9 passed`
+spec: `integer percent: 77`
+spec: `real percent: 77.78`
+spec: `majority: yes`
+spec:
+spec: The integer percent is 7 * 100 / 9 with whole-number division. The real
+spec: percent is the same ratio as a `double`, shown with `%.2f`. Majority is
+spec: a `bool`: more than half passed, printed as `yes` or `no`.
+file: ratio.c
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	int passed = 7;
+prog: 	int total = 9;
+prog: 	bool majority = passed * 2 > total;
+prog: 
+prog: 	printf("%d of %d passed\n", passed, total);
+prog: 	printf("integer percent: %d\n", passed * 100 / total);
+prog: 	printf("real percent: %.2f\n", (double)passed * 100 / total);
+prog: 	printf("majority: %s\n", majority ? "yes" : "no");
+prog: 	return 0;
+prog: }
+case: ratio
+case: ratio | sed -n 2,3p
+case: ratio; echo $?
+hint: passed / total is 0 in integers -- multiply by 100 first, or cast one side to double
+---
+q: big.c -- when int is too small
+spec: Print exactly these six lines. Use `int32_t`, `uint32_t`, `int64_t`
+spec: and `uint64_t` with the matching `PRI` macros, taking the limits from
+spec: the `INT32_MAX` family in `stdint.h` rather than typing them:
+spec:
+spec: `int32 max 2147483647`
+spec: `int32 min -2147483648`
+spec: `uint32 max 4294967295`
+spec: `int64 max 9223372036854775807`
+spec: `uint64 max 18446744073709551615`
+spec: `3000000000 * 3 = 9000000000`
+spec:
+spec: The last product must be computed in an `int64_t`; written with plain
+spec: ints it overflows, which is undefined behaviour.
+file: big.c
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	int64_t product = INT64_C(3000000000) * 3;
+prog: 
+prog: 	printf("int32 max %" PRId32 "\n", INT32_MAX);
+prog: 	printf("int32 min %" PRId32 "\n", INT32_MIN);
+prog: 	printf("uint32 max %" PRIu32 "\n", UINT32_MAX);
+prog: 	printf("int64 max %" PRId64 "\n", INT64_MAX);
+prog: 	printf("uint64 max %" PRIu64 "\n", UINT64_MAX);
+prog: 	printf("3000000000 * 3 = %" PRId64 "\n", product);
+prog: 	return 0;
+prog: }
+case: big
+case: big | head -n 3
+case: big | tail -n 1
+case: big; echo $?
+hint: the PRI macros sit between two string pieces: "%" PRId64 "\n"

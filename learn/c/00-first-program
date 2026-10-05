@@ -1,0 +1,62 @@
+name: first program
+intro: C is the language the machine under you is written in -- the kernel,
+intro: busybox, the shell you type into. It is small: a few dozen keywords
+intro: and a library. What makes it hard is that it trusts you completely.
+intro:
+intro: A C program is text. A compiler turns that text into a binary the
+intro: CPU runs. Here that happens for you the moment you leave the editor:
+intro: it compiles, runs against hidden cases, and shows what differed.
+intro:
+intro: Every program starts at `main`:
+intro:
+intro:     #include <stdio.h>
+intro:
+intro:     int main(void)
+intro:     {
+intro:         printf("hi\n");
+intro:         return 0;
+intro:     }
+intro:
+intro: `#include <stdio.h>` pulls in the declarations for standard input and
+intro: output, which is where `printf` lives. `int main(void)` says main takes
+intro: nothing and hands back an int. `\n` is a newline -- printf prints
+intro: exactly what you give it, nothing more. Every statement ends in `;`.
+intro:
+intro: The int main returns is the exit status, the same number `$?` shows
+intro: in the shell. 0 means it worked; anything else means it did not.
+intro:
+intro: You write the code in `vi`. Four keys get you through it: `i` starts
+intro: typing, Escape stops, `:wq` then Enter saves and leaves, `:q!` leaves
+intro: without saving. Arrow keys move. That is all you need today.
+---
+q: hello.c -- the first program
+spec: Print `hello, world` followed by a newline, and exit with status 0.
+file: hello.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	printf("hello, world\n");
+prog: 	return 0;
+prog: }
+case: hello
+case: hello; echo $?
+hint: printf with the text in double quotes, and \n at the end of it
+---
+q: fail.c -- say it failed
+spec: Print `something went wrong` to standard error, not standard output,
+spec: then exit with status 3.
+spec:
+spec: `fprintf(stderr, ...)` is printf aimed at standard error.
+file: fail.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	fprintf(stderr, "something went wrong\n");
+prog: 	return 3;
+prog: }
+case: fail; echo $?
+case: fail 2>/dev/null; echo $?
+case: fail 2>&1 >/dev/null
+hint: fprintf takes stderr first, then the same text printf would, and main returns the status

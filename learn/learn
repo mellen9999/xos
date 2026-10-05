@@ -47,7 +47,7 @@ trap cleanup EXIT
 trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
-for _l in ui ctx grade fixtures cards coach chal edit scenarios projects autopsy fumble panel explain lint corpus selftest; do
+for _l in ui ctx grade fixtures cards coach chal edit scenarios projects ctrack autopsy fumble panel explain lint corpus selftest; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -128,7 +128,10 @@ level_no() { local n=${1%%-*}; echo "${n#0}"; }
 # one `read` gives the remainder of the line to.
 blk_index() {
 	[ -s "$2" ] || awk -v OFS='\t' '
-		function flush() { if (id != "") print id, after, nq + 0, name }
+		# an ungated file prints "-": an empty field between two tabs is lost
+		# to `read`, which treats a tab run as one separator, and every field
+		# after it slides left -- nq read as the gate, the name as nq.
+		function flush() { if (id != "") print id, (after == "" ? "-" : after), nq + 0, name }
 		FNR == 1  { flush(); n = split(FILENAME, p, "/"); id = p[n]
 		            after = ""; name = ""; nq = 0; head = 1 }
 		/^---$/   { nq++; head = 0; next }
@@ -175,7 +178,7 @@ level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
 # exact match a substring match.
 passed_set() { _p=$(tr '\n' ' ' 2>/dev/null < "$PASSED"); echo " $_p "; }
 gate_open() { # GATE SET -- an ungated item is open; otherwise its level must have fallen
-	[ -n "$1" ] || return 0
+	case "$1" in ''|-) return 0 ;; esac
 	case "$2" in *" $1 "*) return 0 ;; esac
 	return 1
 }
@@ -1128,6 +1131,7 @@ usage() {
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn scenario [NAME] missions -- narrative pipelines, or the list of unlocked ones
 	learn project [NAME]  write a program against a spec, or the list of them
+	learn c [N]           learn c: read a lesson, write it in vi, it compiles and runs
 	learn shell [SEED]    a shell in the tree the cards run against
 	learn autopsy [FILE]  your own shell history, held up to the curriculum
 	learn explain LINE    every command's summary plus the shell syntax in it
@@ -1335,6 +1339,7 @@ menu() {
 		else _mi_off m missions "locked until a level unlocks one"; fi
 		if projects_any_unlocked; then _mi w projects "write a program against a spec"
 		else _mi_off w projects "locked until a level unlocks one"; fi
+		_mi C c         "learn c: read a lesson, write it in vi"
 		_mi t shell     "a shell in the tree the cards use"
 		_mi s stats     "what you've mastered"
 		_mi a autopsy   "your shell history vs the curriculum"
@@ -1359,6 +1364,7 @@ menu() {
 			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
 			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
 			w) if projects_any_unlocked; then projects_menu; else no "no projects unlocked yet."; pause_card; fi ;;
+			C) c_menu ;;
 			t) playground "" ;;
 			s) cls; stats; pause_card ;;
 			a) cls; autopsy; pause_card ;;
@@ -1419,6 +1425,13 @@ case "${1:-}" in
 	          	       if [ -z "$_pid" ]; then die "no project $1"
 	          	       elif prj_unlocked "$_pid"; then run_project "$_pid"
 	          	       else no "locked -- beat $(prj_after "$_pid") first."; fi ;;
+	          esac ;;
+	c)        shift
+	          case "${1:-}" in
+	          	check) c_check && echo "learn: $(c_ids | grep -c .) c unit(s) check out" ;;
+	          	lint)  c_lint && echo "learn: $(c_ids | grep -c .) c unit(s) lint clean" ;;
+	          	'')    c_menu ;;
+	          	*)     c_unit "$1" ;;
 	          esac ;;
 	shell)    shift; playground "${1:-}" ;;
 	fumbles)  shift; fumbles "${1:-}" ;;

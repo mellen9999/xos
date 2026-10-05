@@ -421,7 +421,7 @@ ci() {
   # (cis, with the reason, in yellow); the summary reconciles both against this
   # list. a rostered name that did neither is a FAIL -- the check vanished.
   local CI_ROSTER="provenance shellcheck parse pyparse dockerfile trust
-    learn-ledger learn-corpus arsenal-selftest arsenal-ledger arsenal-order xexec
+    learn-ledger learn-corpus learn-c arsenal-selftest arsenal-ledger arsenal-order xexec
     one-q tool-cards lock-roster ref-pages libparity schoolship learnship
     pin-source readme-counts keyseal"
   CI_ROSTER=$(echo $CI_ROSTER)   # one line, single spaces: the matches below are word-bounded by spaces
@@ -534,6 +534,33 @@ ci() {
     [ "$cv_rc" -eq 0 ] || { printf '%s\n' "$cv_out" >&2; rc=1; }
   else
     cis learn-corpus "no learn/ref or no busybox to run the engine"
+  fi
+  # the c track's compiled half. G25 holds only its shape: the image has no
+  # compiler, by design. here every reference builds under the arsenal tcc (what
+  # the stick grades with) when it is built, else the host cc, then again under
+  # gcc's strictest c11 so a reference only tcc accepts cannot ship; it passes
+  # its own cases, an empty main fails one, and the starter vi opens on compiles.
+  local lcc="" lstrict=""
+  if [ -x arsenal/cc/tcc-bin ]; then lcc="$PWD/arsenal/cc/cc"
+  elif command -v cc >/dev/null 2>&1; then lcc=cc; fi
+  # gcc for the build; clang too where it exists -- it is the cc a phone's termux
+  # grades with, and it warns on things gcc lets through.
+  command -v gcc >/dev/null 2>&1 && lstrict="gcc -std=c11 -Wall -Wextra -pedantic -Werror"
+  command -v clang >/dev/null 2>&1 && lstrict="${lstrict:+$lstrict;}clang -std=c11 -Wall -Wextra -pedantic -Werror"
+  if [ -d learn/c ] && [ -n "$bb" ] && [ -n "$lcc" ]; then
+    say "learn c track compiles and grades"
+    cic learn-c
+    [ -n "$lstrict" ] || printf '  \033[1;33mno gcc or clang\033[0m -- the strict c11 pass did not run\n'
+    local lc_t lc_out lc_rc=0
+    lc_t=$(mktemp -d); "$bb" --install -s "$lc_t" 2>/dev/null
+    lc_out=$(PATH="$lc_t:$PATH" LEARN_ROOT="$PWD/learn" LEARN_SH="$lc_t/ash" NO_COLOR=1 \
+             XDG_STATE_HOME="$lc_t/state" LEARN_CC="$lcc" C_STRICT="$lstrict" \
+             "$bb" ash learn/learn c check 2>&1) || lc_rc=1
+    rm -rf "$lc_t"
+    printf '%s\n' "$lc_out" | sed 's/^/  /'
+    [ "$lc_rc" -eq 0 ] || rc=1
+  else
+    cis learn-c "no learn/c, no busybox, or no c compiler (arsenal/cc or host cc)"
   fi
   # the graded arsenal school, the same static net G25 gives base learn: render
   # every card, grade each card's own answer, and hold unique-boss / >=5-per-boss.

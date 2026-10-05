@@ -41,6 +41,20 @@ rm -rf "$share/bb"; mkdir -p "$share/bb"
 "$share/busybox" --install -s "$share/bb" 2>/dev/null ||
 	for a in $("$share/busybox" --list); do ln -sf "$share/busybox" "$share/bb/$a"; done
 
+# the c track's compiler: the tree's arsenal tcc when it is built, so `learn c`
+# grades with the compiler the stick grades with. without it learn falls back
+# to the host cc -- every reference is held to compile under both. swapped in
+# by rename like the corpus, so a learn mid-grade never sees half a sysroot.
+rm -rf "$share/cc.new" "$share/cc.old"
+if [ -x "$src/arsenal/cc/tcc-bin" ]; then
+	cp -R "$src/arsenal/cc" "$share/cc.new"
+	[ -e "$share/cc" ] && mv "$share/cc" "$share/cc.old"
+	mv "$share/cc.new" "$share/cc"
+	rm -rf "$share/cc.old"
+else
+	echo "install: no arsenal/cc built -- learn c will use this host's cc" >&2
+fi
+
 # what this corpus is, written where it can be read back: an install that
 # claims to be current and is not is the failure mode this whole file is about.
 (cd "$src" && git rev-parse --short HEAD 2>/dev/null || echo unknown) > "$share/VERSION"

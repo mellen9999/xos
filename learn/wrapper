@@ -14,5 +14,7 @@
 R="${XDG_DATA_HOME:-$HOME/.local/share}/xos-learn"
 export LEARN_ROOT="$R/learn"
 export LEARN_SH="$R/bb/ash"
+# the stick's own compiler for `learn c`, when install.sh found one to copy
+[ -z "${LEARN_CC:-}" ] && [ -x "$R/cc/cc" ] && export LEARN_CC="$R/cc/cc"
 PATH="$R/bb:$PATH"; export PATH
 exec "$R/bb/ash" "$R/learn/learn" "$@"

@@ -1,0 +1,216 @@
+name: memory
+intro: Local variables live on the stack: made when a function is
+intro: entered, gone when it returns. Returning a pointer to one is
+intro: undefined behaviour -- the address outlives the data. When data
+intro: must outlive the function, or its size is not known until runtime,
+intro: ask the heap with `malloc` (from `<stdlib.h>`).
+intro:
+intro:     int *v = malloc(n * sizeof *v);
+intro:     if (v == NULL) { /* out of memory: say so, exit 1 */ }
+intro:     /* ... use v[0] .. v[n-1] ... */
+intro:     free(v);
+intro:
+intro: `sizeof *v` keeps the size right if the type changes. Check EVERY
+intro: allocation: malloc returns NULL when it fails, and writing through
+intro: NULL is undefined. `calloc(n, size)` zeroes the block and refuses
+intro: an n * size that overflows; with malloc you check it yourself:
+intro: `if (n > SIZE_MAX / sizeof *v)` fail. A wrapped multiply gives a
+intro: small block that you then write far past -- a classic exploit.
+intro:
+intro: Every malloc needs exactly one free, by whoever owns the block.
+intro: Decide who owns it and write it in a comment. Using a block after
+intro: free, or freeing it twice, is undefined behaviour -- it often
+intro: seems to work until it corrupts something else.
+intro:
+intro: To grow a buffer, double it with `realloc`, through a TEMPORARY:
+intro:
+intro:     char *tmp = realloc(buf, cap * 2);
+intro:     if (tmp == NULL) { free(buf); /* fail */ }
+intro:     buf = tmp;
+intro:
+intro: Write `buf = realloc(buf, ...)` and a failure overwrites buf with
+intro: NULL: the old block leaks and you crash. Doubling keeps the total
+intro: copying small. `qsort(base, n, size, cmp)` sorts any array; cmp
+intro: gets two `const void *` and returns <0, 0 or >0.
+---
+q: rep.c -- repeat a string
+spec: Takes TEXT and a count N and prints TEXT repeated N times, then a
+spec: newline: `rep ab 3` prints `ababab`. Build it in memory from
+spec: malloc, print it, free it.
+spec:
+spec: The result may be at most 1048576 bytes. Larger, or a bad or
+spec: negative N, prints `rep: bad count` or `rep: too big` to standard
+spec: error and exits 1 (`bad count` for N that is not a whole number
+spec: or is negative). Check the size with a division, not a multiply
+spec: that could wrap. Empty TEXT prints an empty line for any valid N.
+spec: Any other argument count prints nothing and exits 2.
+file: rep.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXOUT 1048576
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 3)
+prog: 		return 2;
+prog: 
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long n = strtol(argv[2], &end, 10);
+prog: 	if (errno != 0 || end == argv[2] || *end != '\0' || n < 0) {
+prog: 		fprintf(stderr, "rep: bad count\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	const char *text = argv[1];
+prog: 	size_t len = strlen(text);
+prog: 	if (len > 0 && (unsigned long)n > MAXOUT / len) {
+prog: 		fprintf(stderr, "rep: too big\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	size_t total = len * (size_t)n;
+prog: 	char *out = malloc(total + 1);
+prog: 	if (out == NULL) {
+prog: 		fprintf(stderr, "rep: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (long i = 0; i < n && len > 0; i++)
+prog: 		memcpy(out + (size_t)i * len, text, len);
+prog: 	out[total] = '\0';
+prog: 	printf("%s\n", out);
+prog: 	free(out);
+prog: 	return 0;
+prog: }
+case: rep ab 3
+case: rep x 0
+case: rep '' 1000000000
+case: rep abcd 262144 | wc -c
+case: rep abcd 262145 2>&1; echo $?
+case: rep ab -1 2>&1; echo $?
+case: rep ab; echo $?
+hint: total is len * n plus one for the NUL; refuse before multiplying if n is bigger than the limit divided by len
+---
+q: revall.c -- all of stdin, backwards
+spec: Read ALL of standard input -- any length -- and write its bytes
+spec: back out in reverse order. `abc\n` goes in, `\ncba` comes out: no
+spec: newline is added. Empty input writes nothing.
+spec:
+spec: Keep the input in a heap buffer that starts small and doubles with
+spec: realloc (through a temporary) when full. If memory runs out, free
+spec: what you hold, print `revall: out of memory` to standard error and
+spec: exit 1. Free the buffer before you exit.
+file: revall.c
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	size_t cap = 16, len = 0;
+prog: 	char *buf = malloc(cap);
+prog: 	if (buf == NULL)
+prog: 		goto oom;
+prog: 
+prog: 	int c;
+prog: 	while ((c = getchar()) != EOF) {
+prog: 		if (len == cap) {
+prog: 			if (cap > SIZE_MAX / 2)
+prog: 				goto oom;
+prog: 			char *tmp = realloc(buf, cap * 2);
+prog: 			if (tmp == NULL)
+prog: 				goto oom;
+prog: 			buf = tmp;
+prog: 			cap *= 2;
+prog: 		}
+prog: 		buf[len++] = (char)c;
+prog: 	}
+prog: 	while (len > 0)
+prog: 		putchar(buf[--len]);
+prog: 	free(buf);
+prog: 	return 0;
+prog: 
+prog: oom:
+prog: 	free(buf);
+prog: 	fprintf(stderr, "revall: out of memory\n");
+prog: 	return 1;
+prog: }
+case: printf 'abc\n' | revall
+case: printf 'x' | revall
+case: seq 1 100 | revall
+case: revall < /dev/null; echo $?
+hint: a char buffer with len and cap; when len reaches cap, realloc to double through a temp, then walk back from the end
+---
+q: sortnums.c -- sort numbers from stdin
+spec: Read whole numbers from standard input, one per line, any count,
+spec: and print them sorted ascending, one per line. Empty input prints
+spec: nothing. Values span the full `long` range.
+spec:
+spec: Store them in a heap array of long that grows by doubling, and sort
+spec: with `qsort`. The comparator must not subtract (a - b overflows).
+spec: Free the array before you exit.
+spec:
+spec: A line that is not a whole number (blank included) prints
+spec: `sortnums: line L: bad number` to standard error (L counts from 1),
+spec: prints nothing to standard output, and exits 1. Lines are at most
+spec: 60 characters. Running out of memory prints `sortnums: out of
+spec: memory` to standard error and exits 1.
+file: sortnums.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: static int cmp_long(const void *a, const void *b)
+prog: {
+prog: 	long x = *(const long *)a;
+prog: 	long y = *(const long *)b;
+prog: 	return (x > y) - (x < y);
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	size_t cap = 8, n = 0;
+prog: 	long *v = malloc(cap * sizeof *v);
+prog: 	if (v == NULL)
+prog: 		goto oom;
+prog: 
+prog: 	char line[64];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "sortnums: line %d: bad number\n", lineno);
+prog: 			free(v);
+prog: 			return 1;
+prog: 		}
+prog: 		if (n == cap) {
+prog: 			long *tmp = realloc(v, cap * 2 * sizeof *v);
+prog: 			if (tmp == NULL)
+prog: 				goto oom;
+prog: 			v = tmp;
+prog: 			cap *= 2;
+prog: 		}
+prog: 		v[n++] = x;
+prog: 	}
+prog: 	qsort(v, n, sizeof *v, cmp_long);
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		printf("%ld\n", v[i]);
+prog: 	free(v);
+prog: 	return 0;
+prog: 
+prog: oom:
+prog: 	free(v);
+prog: 	fprintf(stderr, "sortnums: out of memory\n");
+prog: 	return 1;
+prog: }
+case: printf '3\n1\n2\n' | sortnums
+case: printf '5\n-2\n5\n0\n' | sortnums
+case: printf '9223372036854775807\n-9223372036854775808\n0\n' | sortnums
+case: seq 30 -1 1 | sortnums
+case: printf '1\nx\n3\n' | sortnums 2>&1; echo $?
+case: sortnums < /dev/null; echo $?
+hint: grow the array when n hits cap, compare with two greater-than tests instead of subtracting, and qsort it at the end

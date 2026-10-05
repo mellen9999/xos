@@ -1,0 +1,195 @@
+name: pointers
+intro: A pointer is a variable that holds an address. `&x` is the address
+intro: of x; `*p` is the thing p points at.
+intro:
+intro:     int x = 5;
+intro:     int *p = &x;
+intro:     *p = 9;            /* x is now 9 */
+intro:
+intro: C passes arguments by value: a function gets a copy. To let it
+intro: change your variable, or hand back two results, pass an address:
+intro:
+intro:     static void swap(int *a, int *b)
+intro:     {
+intro:         int t = *a;
+intro:         *a = *b;
+intro:         *b = t;
+intro:     }
+intro:     /* swap(&x, &y); */
+intro:
+intro: An array name used in an expression turns into a pointer to its
+intro: first element (it "decays"), so `f(arr)` hands over an address
+intro: and the length is gone -- pass `n` alongside. Adding to a pointer
+intro: steps by whole elements: `p + 1` is the next int, not the next
+intro: byte. Walk an array with `for (const int *p = v; p < v + n; p++)`.
+intro: Pointing one past the end is allowed; reading it is not.
+intro:
+intro: `const char *s` means "I only read through this". Mark every
+intro: read-only pointer const; the compiler then catches the write you
+intro: did not mean. String literals are read-only, so they belong in a
+intro: `const char *`.
+intro:
+intro: NULL is the pointer to nothing. Dereferencing it is undefined
+intro: behaviour (in practice, a crash). Functions like `strchr` return
+intro: NULL for "not found" -- check before you use the result.
+---
+q: divmod.c -- quotient and remainder
+spec: Takes two whole-number arguments A and B and prints `Q R` -- A / B
+spec: and A % B -- then a newline. `divmod 17 5` prints `3 2`. Negative
+spec: numbers divide toward zero, so `divmod -17 5` prints `-3 -2`.
+spec:
+spec: B of 0 prints `divmod: divide by zero` to standard error and exits
+spec: 1. An argument that is not a whole number prints `divmod: bad
+spec: number` to standard error and exits 1. Any other argument count
+spec: prints nothing and exits 2.
+spec:
+spec: Write a function that hands back both Q and R through pointer
+spec: parameters, and one that parses a number into a `long *`.
+file: divmod.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: static bool parse_long(const char *s, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (errno != 0 || end == s || *end != '\0')
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: static void divmod(long a, long b, long *q, long *r)
+prog: {
+prog: 	*q = a / b;
+prog: 	*r = a % b;
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 3)
+prog: 		return 2;
+prog: 
+prog: 	long a, b;
+prog: 	if (!parse_long(argv[1], &a) || !parse_long(argv[2], &b)) {
+prog: 		fprintf(stderr, "divmod: bad number\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (b == 0) {
+prog: 		fprintf(stderr, "divmod: divide by zero\n");
+prog: 		return 1;
+prog: 	}
+prog: 	long q, r;
+prog: 	divmod(a, b, &q, &r);
+prog: 	printf("%ld %ld\n", q, r);
+prog: 	return 0;
+prog: }
+case: divmod 17 5
+case: divmod -17 5
+case: divmod 4 0 2>&1; echo $?
+case: divmod 4 x 2>&1; echo $?
+case: divmod 4; echo $?
+hint: both results go out through q and r, the caller passes &q and &r; check b before you divide
+---
+q: kvsplit.c -- split key=value
+spec: Takes one argument of the form `key=value` and prints two lines,
+spec: `key: KEY` and `value: VALUE`. Split at the FIRST `=`: `a=b=c` has
+spec: key `a` and value `b=c`. Either side may be empty.
+spec:
+spec: An argument with no `=` prints `kvsplit: no =` to standard error and
+spec: exits 1. Any other argument count prints nothing and exits 2.
+spec:
+spec: Use strchr, check what it returns, and print the key without
+spec: copying it: `printf("%.*s", n, s)` prints at most n bytes of s.
+file: kvsplit.c
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 2)
+prog: 		return 2;
+prog: 
+prog: 	const char *arg = argv[1];
+prog: 	const char *eq = strchr(arg, '=');
+prog: 	if (eq == NULL) {
+prog: 		fprintf(stderr, "kvsplit: no =\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("key: %.*s\n", (int)(eq - arg), arg);
+prog: 	printf("value: %s\n", eq + 1);
+prog: 	return 0;
+prog: }
+case: kvsplit name=mellen
+case: kvsplit a=b=c
+case: kvsplit =v
+case: kvsplit k=
+case: kvsplit novalue 2>&1; echo $?
+case: kvsplit; echo $?
+hint: the key is everything before the pointer strchr gives you, the value starts one past it; NULL means no =
+---
+q: minmax.c -- smallest and largest
+spec: Takes 1 to 16 whole-number arguments and prints `min MIN max MAX`
+spec: and a newline. `minmax 3 -1 9 4` prints `min -1 max 9`.
+spec:
+spec: Parse the arguments into a `long` array, then call a function
+spec: `minmax(const long *v, size_t n, long *min, long *max)` that walks
+spec: the array with a pointer.
+spec:
+spec: No arguments prints nothing and exits 2. More than 16 arguments
+spec: prints `minmax: too many` to standard error and exits 1. A bad
+spec: number prints `minmax: bad number` to standard error and exits 1.
+file: minmax.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: #define MAXN 16
+prog: 
+prog: static void minmax(const long *v, size_t n, long *min, long *max)
+prog: {
+prog: 	*min = *max = v[0];
+prog: 	for (const long *p = v + 1; p < v + n; p++) {
+prog: 		if (*p < *min)
+prog: 			*min = *p;
+prog: 		if (*p > *max)
+prog: 			*max = *p;
+prog: 	}
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc < 2)
+prog: 		return 2;
+prog: 	if (argc - 1 > MAXN) {
+prog: 		fprintf(stderr, "minmax: too many\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	long vals[MAXN];
+prog: 	size_t n = (size_t)(argc - 1);
+prog: 	for (size_t i = 0; i < n; i++) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		vals[i] = strtol(argv[i + 1], &end, 10);
+prog: 		if (errno != 0 || end == argv[i + 1] || *end != '\0') {
+prog: 			fprintf(stderr, "minmax: bad number\n");
+prog: 			return 1;
+prog: 		}
+prog: 	}
+prog: 	long lo, hi;
+prog: 	minmax(vals, n, &lo, &hi);
+prog: 	printf("min %ld max %ld\n", lo, hi);
+prog: 	return 0;
+prog: }
+case: minmax 3 -1 9 4
+case: minmax 7
+case: minmax 5 5 5
+case: minmax 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+case: minmax 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 2>&1; echo $?
+case: minmax 1 x 2>&1; echo $?
+case: minmax; echo $?
+hint: start min and max at the first element, then walk the rest; the function writes its answers through the two out pointers

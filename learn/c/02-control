@@ -1,0 +1,170 @@
+name: choices and loops
+intro: A program that cannot choose or repeat is a calculator. C gives you
+intro: `if`, loops and `switch`, and all of them test a plain number: zero is
+intro: false, anything else is true.
+intro:
+intro:     if (n % 2 == 0) {
+intro:         printf("even\n");
+intro:     } else if (n > 100) {
+intro:         printf("big and odd\n");
+intro:     } else {
+intro:         printf("odd\n");
+intro:     }
+intro:
+intro: Always use braces on a branch, or at least keep it to one line. A
+intro: second line added under a braceless `if` is not part of it.
+intro:
+intro: Loops: `for` for counting, `while` for "until something happens".
+intro: Declare the counter inside the for, so it dies with the loop:
+intro:
+intro:     for (int i = 0; i < 5; i++)
+intro:         printf("%d\n", i);
+intro:
+intro: `i < 5` runs 0 to 4: five turns. Off-by-one is the classic loop bug, so
+intro: say the first and last value out loud before you write the test.
+intro: `do { ... } while (cond);` runs the body once before it tests; you will
+intro: need it rarely.
+intro:
+intro: `switch` picks by exact integer value. Each case runs on into the next
+intro: one until a `break`, so forget one and you get both:
+intro:
+intro:     switch (n) {
+intro:     case 0:
+intro:         printf("zero\n");
+intro:         break;
+intro:     case 1:
+intro:     case 2:
+intro:         printf("one or two\n");
+intro:         break;
+intro:     default:
+intro:         printf("something else\n");
+intro:         break;
+intro:     }
+intro:
+intro: Stacked labels like `case 1:` `case 2:` share one body on purpose. Keep
+intro: a `default`: it is where the values you did not think of land.
+intro:
+intro: Everything here is fixed loops -- no input yet.
+---
+q: fizz.c -- fizz and buzz
+spec: Print the numbers 1 to 15, one per line, except: multiples of 3 print
+spec: `fizz`, multiples of 5 print `buzz`, multiples of both print `fizzbuzz`.
+file: fizz.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	for (int i = 1; i <= 15; i++) {
+prog: 		if (i % 15 == 0) {
+prog: 			printf("fizzbuzz\n");
+prog: 		} else if (i % 3 == 0) {
+prog: 			printf("fizz\n");
+prog: 		} else if (i % 5 == 0) {
+prog: 			printf("buzz\n");
+prog: 		} else {
+prog: 			printf("%d\n", i);
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: fizz
+case: fizz | tail -n 1
+case: fizz | sed -n 9,10p
+hint: test the multiple of both first, or 15 stops at fizz
+---
+q: table.c -- a times table
+spec: Print a 5 by 5 multiplication table: five rows, row r holding r*1 to
+spec: r*5, every number printed with `%4d` (right-aligned in four columns),
+spec: no spaces added, a newline after each row. The first row is
+spec: `   1   2   3   4   5`.
+file: table.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	for (int row = 1; row <= 5; row++) {
+prog: 		for (int col = 1; col <= 5; col++)
+prog: 			printf("%4d", row * col);
+prog: 		printf("\n");
+prog: 	}
+prog: 	return 0;
+prog: }
+case: table
+case: table | tail -n 1
+case: table | head -n 2
+hint: one loop inside another; the newline belongs after the inner loop, not inside it
+---
+q: collatz.c -- follow the sequence
+spec: Start at 27. While the number is not 1: if it is even halve it,
+spec: otherwise triple it and add 1. Count the steps taken and track the
+spec: largest value reached (27 itself counts). Print exactly:
+spec:
+spec: `start 27`
+spec: `steps 111`
+spec: `peak 9232`
+spec:
+spec: Use `uint64_t` and `PRIu64`.
+file: collatz.c
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	uint64_t n = 27;
+prog: 	uint64_t peak = n;
+prog: 	unsigned steps = 0;
+prog: 
+prog: 	while (n != 1) {
+prog: 		if (n % 2 == 0)
+prog: 			n /= 2;
+prog: 		else
+prog: 			n = 3 * n + 1;
+prog: 		if (n > peak)
+prog: 			peak = n;
+prog: 		steps++;
+prog: 	}
+prog: 	printf("start 27\n");
+prog: 	printf("steps %u\n", steps);
+prog: 	printf("peak %" PRIu64 "\n", peak);
+prog: 	return 0;
+prog: }
+case: collatz
+case: collatz | sed -n 2p
+case: collatz; echo $?
+hint: count a step each time you change n, so the final 1 is reached but never counted twice
+---
+q: bucket.c -- switch with breaks
+spec: For n from 0 to 5, print one line using a `switch`:
+spec:
+spec: n is 0: `0 none`
+spec: n is 1, 2 or 3: `1 few` (with that n)
+spec: anything else: `4 many` (with that n)
+spec:
+spec: So the six lines run from `0 none` to `5 many`.
+file: bucket.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	for (int n = 0; n <= 5; n++) {
+prog: 		switch (n) {
+prog: 		case 0:
+prog: 			printf("%d none\n", n);
+prog: 			break;
+prog: 		case 1:
+prog: 		case 2:
+prog: 		case 3:
+prog: 			printf("%d few\n", n);
+prog: 			break;
+prog: 		default:
+prog: 			printf("%d many\n", n);
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: bucket
+case: bucket | head -n 2
+case: bucket | tail -n 1
+hint: each group of cases ends in break, or it runs on into the next one

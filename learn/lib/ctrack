@@ -1,0 +1,301 @@
+# ctrack -- the c track: read a lesson, write the program in vi, and it is
+# compiled and run against a reference the moment you leave the editor.
+#
+# it is the projects engine, not a second one. a unit file under c/ has the
+# exact shape of a project file -- an intro, then programs with a spec, a
+# reference and hidden cases -- so c_enter points the projects globals at c/
+# and its own ledger, sets PRJ_LANG=c, and run_project / projects_menu /
+# prj_grade do the rest. the only things c adds are the ones a script never
+# needed: a compile step, a compile error as its own outcome, and somewhere
+# the binary is allowed to execute.
+#
+# THE COMPILER IS NOT IN THE IMAGE, on purpose. the signed root ships no cc;
+# the arsenal carries tcc + a musl sysroot on p3, and p3 and /tmp are noexec,
+# so both the compiler and every program it builds run through xexec's
+# write-once exec surface. on a build host the tree's arsenal/cc (or failing
+# that the host's own cc) runs directly. c_tools picks, in that order, and a
+# machine with none says how to get one instead of failing at the first case.
+#
+# a case names the program as a shell function -- `hello`, `echo 3 | sum` --
+# because `./hello` cannot work on xos: the sandbox is noexec. the function is
+# the same everywhere and hides which route reaches the binary.
+#
+# the learner's program never runs as root. under xexec the staged `run`
+# drops to nobody (DROP) after setting its limits; the case line around it is
+# corpus, signed with the image, and is what runs as the caller.
+
+CUNITS="$ROOT/c"
+C_DONE="$STATE/c"
+C_WORK="$STATE/c-work"
+C_INDEX="$TMP/c.index"
+# c11, warnings are errors: the track teaches warning-clean c, and the reference
+# for every program is held to stricter than this at build time (c_check).
+C_FLAGS="-std=c11 -Wall -Werror"
+CC_CMD="" CC_RUN="" CC_WHY=""
+PRJ_LANG=sh
+C_LINE=""
+
+# c_tools -- resolve the compiler and the runner once. 0 when there is a cc.
+c_tools() {
+	[ -n "$CC_CMD" ] && return 0
+	if [ -n "${LEARN_CC:-}" ]; then
+		CC_CMD=$LEARN_CC; CC_RUN=${LEARN_RUN:-}
+	elif [ -f "$HOME/tools/xexec" ] && [ -f "$HOME/tools/cc/cc" ]; then
+		CC_CMD="sh $HOME/tools/xexec -t $HOME/tools/cc cc"
+		CC_RUN="sh $HOME/tools/xexec -t"
+	elif command -v cc >/dev/null 2>&1; then
+		CC_CMD=cc
+	else
+		CC_WHY="no c compiler. on xos: stage the arsenal (sh arsenal/install.sh) so ~/tools/cc exists. on a pc: install gcc, or run learn/install.sh after building arsenal/cc."
+		return 1
+	fi
+	# a cc that is not tcc is the host's gcc or clang: hold the learner to the
+	# same bar the references are held to.
+	case "$($CC_CMD -v 2>&1 | head -1)" in
+		*tcc*) ;;
+		*) C_FLAGS="$C_FLAGS -Wextra -pedantic" ;;
+	esac
+	return 0
+}
+
+# c_fn FILE -- the shell name a case calls the program by: hello.c -> hello.
+c_fn() { echo "${1%.c}"; }
+
+# c_starter -- what vi opens on the first visit: the task as a comment, so it
+# is still on screen once the lesson has scrolled away, then the given start
+# (or the smallest program that compiles).
+c_starter() {
+	printf '/* %s\n *\n' "$Q_PROMPT"
+	printf '%s\n' "$Q_SPEC" | tr -d '`' | sed -e 's/^/ * /' -e 's/ *$//'
+	printf ' */\n\n'
+	if [ -n "$Q_START" ]; then printf '%s\n' "$Q_START"
+	else printf '#include <stdio.h>\n\nint main(void)\n{\n\treturn 0;\n}\n'; fi
+}
+
+# c_build SRC TAG -- compile SRC as $Q_FILE into $TMP/c.stage.TAG/prog beside
+# its `run`. on failure C_ERR holds the compiler's first lines and C_LINE the
+# first line it complained about.
+c_build() {
+	local src=$1 stage="$TMP/c.stage.$2" bd="$TMP/c.build"
+	C_ERR="" C_LINE=""
+	c_tools || { C_ERR=$CC_WHY; return 1; }
+	# the same bytes built once a session: the reference is rebuilt on every
+	# submit otherwise, and on the stick each build stages a 38MB compiler.
+	[ -s "$stage/prog" ] && [ -x "$stage/run" ] && cmp -s "$src" "$stage/src" && return 0
+	rm -rf "$stage" "$bd"; mkdir -p "$stage" "$bd" || return 1
+	cp "$src" "$bd/$Q_FILE" || return 1
+	# shellcheck disable=SC2086
+	if ! ( cd "$bd" && $CC_CMD $C_FLAGS -o "$stage/prog" "$Q_FILE" ) > "$TMP/c.err" 2>&1 \
+	   || [ ! -s "$stage/prog" ]; then
+		C_ERR=$(grep . "$TMP/c.err" | head -8)
+		[ -n "$C_ERR" ] || C_ERR="the compiler failed and said nothing"
+		C_LINE=$(sed -n "s/^[^:]*$Q_FILE:\([0-9][0-9]*\):.*/\1/p" "$TMP/c.err" | head -1)
+		return 1
+	fi
+	# the limits sit inside `run`, after the exec surface is built and before the
+	# program starts: cpu, wall clock, memory and output size, so an infinite
+	# loop, a sleep or a printf in a loop ends the case instead of the session.
+	{
+		echo '#!/bin/sh'
+		echo 'ulimit -t 3 2>/dev/null; ulimit -v 262144 2>/dev/null; ulimit -f 128 2>/dev/null'
+		echo '[ -n "${C_TMPDIR:-}" ] && TMPDIR=$C_TMPDIR && export TMPDIR'
+		echo "exec timeout 4 $DROP \"\${0%/*}/prog\" \"\$@\""
+	} > "$stage/run"
+	chmod 0755 "$stage/run" "$stage/prog" 2>/dev/null
+	cp "$src" "$stage/src" 2>/dev/null
+	# under the drop nobody must be able to reach the binary on the host route
+	chmod 0755 "$stage" 2>/dev/null
+	return 0
+}
+
+# c_prelude TAG -- the shell function a case calls the program through. its
+# output goes via a file so `ulimit -f` caps it and a case's own pipes and
+# `echo $?` see the program's status, not a pipe's.
+c_prelude() {
+	local stage="$TMP/c.stage.$1" out="$TMP/c.out.$1" fn
+	fn=$(c_fn "$Q_FILE")
+	if [ -n "$CC_RUN" ]; then
+		# the exec surface is mounted under learn's own $TMP, not the tree's:
+		# a .xexec.RANDOM dir in the cwd would be a different name for the
+		# learner's run and the reference's, and a program that lists its
+		# directory would never match.
+		printf '%s() { C_TMPDIR=$TMPDIR TMPDIR="%s" %s "%s" run "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
+			"$fn" "$TMP" "$CC_RUN" "$stage" "$out" "$out"
+	else
+		printf '%s() { sh "%s/run" "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
+			"$fn" "$stage" "$out" "$out"
+	fi
+}
+
+# c_run TAG CASE -- one case, against a freshly built tree, like prj_run. the
+# shell is NOT dropped here: on xos it has to mount the exec surface, and what
+# it runs is the corpus's case line -- the program inside drops itself.
+c_run() {
+	SANDBOX_DIRTY=1
+	sandbox_reset || return 1
+	( cd "$SANDBOX" 2>/dev/null || exit 1
+	  HOME="$SANDBOX" TMPDIR="$SANDBOX" timeout 10 "$SHELLBIN" -c "$(c_prelude "$1")
+$2" </dev/null 2>&1 )
+}
+
+# c_page -- page stdin a screen at a time: space/j/enter on, k/b back, q done.
+# returns 3 when it paged (the reader already pressed through the end, so the
+# caller's own "enter to go on" would be a second press for nothing).
+# a lesson is longer than a card, and a vt320 has 24 rows. the text arrives on
+# stdin, so the keys come from the terminal itself.
+c_page() {
+	local f="$TMP/c.page" n rows top k
+	cat > "$f"
+	n=$(grep -c '' "$f")
+	rows=$(( ${TERM_LINES:-24} - 3 ))
+	if [ ! -t 1 ] || ! : < /dev/tty 2>/dev/null || [ "$n" -le "$rows" ]; then
+		cat "$f"; return 0
+	fi
+	top=1
+	while :; do
+		cls
+		sed -n "${top},$((top + rows - 1))p" "$f"
+		printf '\n  %s%s-%s of %s   space more  k back  q done%s ' "$D" "$top" \
+			"$(( top + rows - 1 > n ? n : top + rows - 1 ))" "$n" "$N"
+		IFS= read -rsn1 k < /dev/tty 2>/dev/null || return 2
+		case "$k" in
+			q|Q) echo; return 3 ;;
+			k|b) top=$(( top - rows )); [ "$top" -ge 1 ] || top=1 ;;
+			*)   [ $(( top + rows )) -le "$n" ] || { echo; return 3; }
+			     top=$(( top + rows )) ;;
+		esac
+	done
+}
+
+c_enter() {
+	_C_P=$PROJECTS _C_D=$PRJ_DONE _C_I=$PRJ_INDEX
+	PROJECTS=$CUNITS PRJ_DONE=$C_DONE PRJ_INDEX=$C_INDEX PRJ_LANG=c
+}
+c_leave() { PROJECTS=$_C_P PRJ_DONE=$_C_D PRJ_INDEX=$_C_I PRJ_LANG=sh; }
+
+c_ids() { ls -1 "$CUNITS" 2>/dev/null | sort; }
+
+# the menu entry and `learn c`: every unit is open from the start -- the
+# first one teaches the four vi keys it needs, so nothing gates it.
+c_menu() {
+	c_tools || { no "$CC_WHY"; pause_card; return 0; }
+	c_enter
+	projects_menu "learn c" "read it, write it in vi, it compiles and runs"
+	c_leave
+}
+
+c_unit() {
+	local id
+	c_tools || { no "$CC_WHY"; return 1; }
+	id=$(c_ids | grep "^0*$1-" | head -1)
+	[ -n "$id" ] || id=$(c_ids | grep -xF -- "$1")
+	[ -n "$id" ] || die "no c unit $1"
+	c_enter; run_project "$id"; c_leave
+}
+
+# c_lint -- what holds for every unit without a compiler: run by selftest
+# (G25), whose PATH is the image and has none.
+c_lint() {
+	local pid path nq i bad=0 lbl fn seen=""
+	c_enter
+	for pid in $(project_ids); do
+		path=$(prj_path "$pid"); nq=$(prj_nq "$pid")
+		[ "$(prj_field "$pid" name)" ]  || { echo "FAIL c/$pid: no name:" >&2; bad=$((bad + 1)); }
+		[ "$(prj_field "$pid" intro)" ] || { echo "FAIL c/$pid: no intro: -- the lesson is the point" >&2; bad=$((bad + 1)); }
+		[ "${nq:-0}" -gt 0 ] || { echo "FAIL c/$pid: no programs" >&2; bad=$((bad + 1)); continue; }
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			lbl="c/$pid#$i"
+			if ! q_load "$path" "$i"; then
+				echo "FAIL $lbl: will not load" >&2; bad=$((bad + 1)); i=$((i + 1)); continue
+			fi
+			[ -n "$Q_SPEC" ]  || { echo "FAIL $lbl: no spec:" >&2; bad=$((bad + 1)); }
+			[ -n "$Q_PROG" ]  || { echo "FAIL $lbl: no prog:" >&2; bad=$((bad + 1)); }
+			[ -n "$Q_CASES" ] || { echo "FAIL $lbl: no case:" >&2; bad=$((bad + 1)); }
+			[ -n "$Q_HINT" ]  || { echo "FAIL $lbl: no hint:" >&2; bad=$((bad + 1)); }
+			# the file is a function name in every case, so it must be one -- and
+			# must not shadow an applet a case leans on (wc.c would make `wc`
+			# the learner's program in every pipe after it).
+			fn=$(c_fn "$Q_FILE")
+			case "$Q_FILE" in
+				[a-z]*.c) ;;
+				*) echo "FAIL $lbl: file: '$Q_FILE' must be a lowercase NAME.c" >&2; bad=$((bad + 1)) ;;
+			esac
+			case "$fn" in
+				*[!a-z0-9_]*) echo "FAIL $lbl: '$fn' is not a shell function name" >&2; bad=$((bad + 1)) ;;
+			esac
+			command -v "$fn" >/dev/null 2>&1 \
+				&& { echo "FAIL $lbl: '$fn' shadows a command on PATH" >&2; bad=$((bad + 1)); }
+			case "$Q_PROMPT $Q_SPEC" in
+				*"$Q_FILE"*) ;;
+				*) echo "FAIL $lbl: neither q: nor spec: names $Q_FILE" >&2; bad=$((bad + 1)) ;;
+			esac
+			if printf '%s\n' "$Q_CASES" | grep -vqw -- "$fn"; then
+				echo "FAIL $lbl: a case: never runs $fn" >&2; bad=$((bad + 1))
+			fi
+			case "$Q_SPEC$Q_PROG$Q_CASES$Q_START$Q_PROMPT" in
+				*@*@*) echo "FAIL $lbl: an @token@ was never rendered" >&2; bad=$((bad + 1)) ;;
+			esac
+			# one name, one program: the ledger and the learner's memory both key
+			# on it, and two hello.c in two units is two lessons arguing.
+			case " $seen " in
+				*" $fn "*) echo "FAIL $lbl: $Q_FILE is already a program in an earlier unit" >&2; bad=$((bad + 1)) ;;
+			esac
+			seen="$seen $fn"
+			i=$((i + 1))
+		done
+	done
+	c_leave
+	return "$bad"
+}
+
+# c_strict SRC LABEL -- SRC through every compiler in C_STRICT, a ;-separated
+# list (gcc for the build, clang too where it exists: it is the cc a phone's
+# termux grades with). returns how many refused it.
+c_strict() {
+	local cmd n=0 IFS=';'
+	for cmd in ${C_STRICT:-}; do
+		IFS=' '
+		cp "$1" "$TMP/c.strict.c"
+		# shellcheck disable=SC2086
+		$cmd -o /dev/null "$TMP/c.strict.c" > "$TMP/c.err" 2>&1 \
+			|| { echo "FAIL $2 fails '$cmd':" >&2; sed 's/^/    /' "$TMP/c.err" >&2; n=$((n + 1)); }
+	done
+	return "$n"
+}
+
+# c_check -- the compiled half: every reference builds under C_FLAGS, then
+# again under STRICT (the build passes gcc's -std=c11 -Wall -Wextra -pedantic
+# -Werror) so a reference that only tcc accepts is caught; it reproduces
+# itself; an empty main fails a case; and the starter vi opens on compiles
+# under both.
+c_check() {
+	local pid path nq i bad=0 lbl
+	c_tools || { echo "FAIL c: $CC_WHY" >&2; return 1; }
+	c_lint || bad=$((bad + $?))
+	c_enter
+	for pid in $(project_ids); do
+		path=$(prj_path "$pid"); nq=$(prj_nq "$pid"); i=1
+		while [ "$i" -le "${nq:-0}" ]; do
+			lbl="c/$pid#$i"
+			q_load "$path" "$i" || { i=$((i + 1)); continue; }
+			printf '%s\n' "$Q_PROG" > "$TMP/c.self"
+			c_strict "$TMP/c.self" "$lbl: reference" || bad=$((bad + $?))
+			if ! prj_grade "$TMP/c.self"; then
+				if [ -n "$PRJ_CERR" ]; then echo "FAIL $lbl: reference does not compile:" >&2
+					printf '%s\n' "$PRJ_CERR" | sed 's/^/    /' >&2
+				else echo "FAIL $lbl: reference does not reproduce itself -- '$PRJ_CASE': got '$PRJ_GOT' want '$PRJ_WANT'" >&2; fi
+				bad=$((bad + 1))
+			fi
+			prj_cases_bite || { echo "FAIL $lbl: an empty main passes every case" >&2; bad=$((bad + 1)); }
+			# the starter is the first thing vi shows: it compiles under the
+			# strict pass too, or a host-cc learner meets an error they never wrote.
+			c_starter > "$TMP/c.start"
+			c_build "$TMP/c.start" start || { echo "FAIL $lbl: the starter does not compile: $C_ERR" >&2; bad=$((bad + 1)); }
+			c_strict "$TMP/c.start" "$lbl: the starter" || bad=$((bad + $?))
+			i=$((i + 1))
+		done
+	done
+	c_leave
+	return "$bad"
+}

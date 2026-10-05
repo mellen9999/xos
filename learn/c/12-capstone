@@ -1,0 +1,327 @@
+name: your own tools
+intro: Real unix tools are small C programs. `wc`, `uniq`, `tac`, `xxd` --
+intro: each does one thing on a stream of bytes, and you now know every
+intro: part of them. This unit is four such tools, rebuilt from the spec.
+intro:
+intro: They share one shape, the shape of every filter:
+intro:
+intro:     no argument   read standard input
+intro:     one argument  read that file
+intro:     bad usage     message to stderr, exit 2
+intro:     cannot open   message to stderr, exit 1
+intro:
+intro: The trick is that `stdin` is already a `FILE *`, so one function
+intro: serves both:
+intro:
+intro:     FILE *in = stdin;
+intro:     if (argc == 2) {
+intro:         in = fopen(argv[1], "rb");
+intro:         if (in == NULL) { ...error, exit 1... }
+intro:     }
+intro:     /* ... read from `in`, then: */
+intro:     if (in != stdin) fclose(in);
+intro:
+intro: Never fclose stdin. Read bytes with `getc` until it returns EOF --
+intro: keep its result in an `int`, not a `char`, or a real 0xff byte gets
+intro: mistaken for the end. Read in blocks with `fread`. Past that, the
+intro: format in each spec is a contract: the same bytes in must give the
+intro: same bytes out, exactly, every time. When the spec names a message,
+intro: print that message, not the strerror one.
+intro:
+intro: The last program has to hold the whole input before it can print
+intro: the first line of its answer, so it grows a buffer with `realloc`.
+intro: Ask for double each time; check every call; free at the end.
+---
+q: wcount.c -- count lines, words and bytes
+spec: With no argument read standard input; with one, read that file. Print
+spec: one line, `lines=L words=W bytes=B`, and exit 0.
+spec:
+spec: L is the number of newline characters, so a last line with no
+spec: newline is not counted. A word is a run of characters that are not
+spec: whitespace (space, tab, newline, carriage return, vertical tab, form
+spec: feed). B is every byte. Empty input prints `lines=0 words=0 bytes=0`.
+spec:
+spec: If the file cannot be opened print `wcount: cannot open NAME` to
+spec: standard error and exit 1. More than one argument prints
+spec: `usage: wcount [FILE]` and exits 2.
+file: wcount.c
+prog: #include <ctype.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: wcount [FILE]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	FILE *in = stdin;
+prog: 	if (argc == 2) {
+prog: 		in = fopen(argv[1], "rb");
+prog: 		if (in == NULL) {
+prog: 			fprintf(stderr, "wcount: cannot open %s\n", argv[1]);
+prog: 			return 1;
+prog: 		}
+prog: 	}
+prog: 	size_t lines = 0, words = 0, bytes = 0;
+prog: 	bool inword = false;
+prog: 	int c;
+prog: 	while ((c = getc(in)) != EOF) {
+prog: 		bytes++;
+prog: 		if (c == '\n')
+prog: 			lines++;
+prog: 		if (isspace(c)) {
+prog: 			inword = false;
+prog: 		} else if (!inword) {
+prog: 			inword = true;
+prog: 			words++;
+prog: 		}
+prog: 	}
+prog: 	int status = ferror(in) ? 1 : 0;
+prog: 	if (in != stdin)
+prog: 		fclose(in);
+prog: 	if (status != 0) {
+prog: 		fprintf(stderr, "wcount: read error\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("lines=%zu words=%zu bytes=%zu\n", lines, words, bytes);
+prog: 	return 0;
+prog: }
+case: printf 'a b\nc\n' | wcount
+case: printf 'no newline here' | wcount
+case: printf '' | wcount
+case: printf '  \n\t\n a\tb  c \n' | wcount
+case: printf 'x y\n' > f; wcount f
+case: wcount nothere; echo $?
+case: wcount a b; echo $?
+hint: getc into an int until EOF; a word starts when a non-space follows a space (or the start), so remember whether you are inside one
+---
+q: hexd.c -- hex dump
+spec: With no argument read standard input; with one, read that file.
+spec: Print one row per 8 bytes: the offset as 6 lowercase hex digits, two
+spec: spaces, the 8 bytes as two lowercase hex digits each separated by one
+spec: space (a short last row is padded with spaces so the next column
+spec: lines up), two spaces, a vertical bar, the bytes as characters, and a
+spec: vertical bar.
+spec: Bytes 0x20 to 0x7e print as themselves, all others as `.`.
+spec: Last, one line holding the total byte count as 6 hex digits.
+spec:
+spec: A short last row: `hi` is two bytes, so its row is the offset,
+spec: two spaces, `68 69`, then 20 spaces (the 6 missing bytes plus the
+spec: gap), then a vertical bar, `hi`, and a vertical bar. The hex column
+spec: is always 23 characters wide.
+spec:
+spec: Empty input prints just `000000`. A missing file prints
+spec: `hexd: cannot open NAME` to standard error and exits 1. More than
+spec: one argument prints `usage: hexd [FILE]` and exits 2.
+file: hexd.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: hexd [FILE]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	FILE *in = stdin;
+prog: 	if (argc == 2) {
+prog: 		in = fopen(argv[1], "rb");
+prog: 		if (in == NULL) {
+prog: 			fprintf(stderr, "hexd: cannot open %s\n", argv[1]);
+prog: 			return 1;
+prog: 		}
+prog: 	}
+prog: 	unsigned char row[8];
+prog: 	size_t off = 0, n;
+prog: 	while ((n = fread(row, 1, sizeof row, in)) > 0) {
+prog: 		printf("%06zx  ", off);
+prog: 		for (size_t i = 0; i < sizeof row; i++) {
+prog: 			if (i < n)
+prog: 				printf("%02x", row[i]);
+prog: 			else
+prog: 				printf("  ");
+prog: 			if (i + 1 < sizeof row)
+prog: 				putchar(' ');
+prog: 		}
+prog: 		printf("  |");
+prog: 		for (size_t i = 0; i < n; i++)
+prog: 			putchar(row[i] >= 0x20 && row[i] <= 0x7e ? row[i] : '.');
+prog: 		printf("|\n");
+prog: 		off += n;
+prog: 	}
+prog: 	int bad = ferror(in);
+prog: 	if (in != stdin)
+prog: 		fclose(in);
+prog: 	if (bad) {
+prog: 		fprintf(stderr, "hexd: read error\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("%06zx\n", off);
+prog: 	return 0;
+prog: }
+case: printf 'hello, world\n' | hexd
+case: printf 'ABCDEFGH' | hexd
+case: printf 'hi' | hexd
+case: printf '' | hexd
+case: printf '\001\377 ~\177x' > f; hexd f
+case: seq 1 5 | hexd
+case: hexd nothere; echo $?
+hint: fread 8 bytes at a time; a short count only ever happens at the end, and that is the row you pad
+---
+q: runs.c -- collapse repeated lines
+spec: With no argument read standard input; with one, read that file. Group
+spec: neighbouring identical lines and print each group as the count, one
+spec: space, then the line: `3 apple`. Lines that match but are not next
+spec: to each other are separate groups. A blank line is a line like any
+spec: other (`2 ` for two of them). A last line with no newline counts as
+spec: a line; every printed line ends in a newline.
+spec:
+spec: Empty input prints nothing. A missing file prints
+spec: `runs: cannot open NAME` to standard error and exits 1. More than one
+spec: argument prints `usage: runs [FILE]` and exits 2. Lines are under 1000
+spec: characters.
+file: runs.c
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXLINE 1024
+prog: 
+prog: static void chomp(char *s)
+prog: {
+prog: 	s[strcspn(s, "\n")] = '\0';
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: runs [FILE]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	FILE *in = stdin;
+prog: 	if (argc == 2) {
+prog: 		in = fopen(argv[1], "r");
+prog: 		if (in == NULL) {
+prog: 			fprintf(stderr, "runs: cannot open %s\n", argv[1]);
+prog: 			return 1;
+prog: 		}
+prog: 	}
+prog: 	char prev[MAXLINE], cur[MAXLINE];
+prog: 	size_t count = 0;
+prog: 	while (fgets(cur, sizeof cur, in) != NULL) {
+prog: 		chomp(cur);
+prog: 		if (count > 0 && strcmp(cur, prev) == 0) {
+prog: 			count++;
+prog: 			continue;
+prog: 		}
+prog: 		if (count > 0)
+prog: 			printf("%zu %s\n", count, prev);
+prog: 		strcpy(prev, cur);
+prog: 		count = 1;
+prog: 	}
+prog: 	if (count > 0)
+prog: 		printf("%zu %s\n", count, prev);
+prog: 	int bad = ferror(in);
+prog: 	if (in != stdin)
+prog: 		fclose(in);
+prog: 	if (bad) {
+prog: 		fprintf(stderr, "runs: read error\n");
+prog: 		return 1;
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'a\na\nb\na\n' | runs
+case: printf 'x' | runs
+case: printf 'q\nq\nq' | runs
+case: printf '' | runs
+case: printf 'a\n\n\nb\n' | runs
+case: printf 'one\none\n' > f; runs f
+case: runs nothere; echo $?
+hint: remember the previous line and a count; when the new line differs, print the old group and start again at 1 -- and do not forget the group still open at EOF
+---
+q: flip.c -- last line first
+spec: With no argument read standard input; with one, read that file. Print
+spec: the lines in reverse order, each exactly as it was. If the last line
+spec: has no newline, it still comes out as a full line ending in one.
+spec: Empty input prints nothing.
+spec:
+spec: The input can be any size: read it all into a buffer that you grow
+spec: with `realloc`, and free it. A missing file prints
+spec: `flip: cannot open NAME` to standard error and exits 1. More than one
+spec: argument prints `usage: flip [FILE]` and exits 2. If memory or reading
+spec: fails print `flip: read error` and exit 1.
+file: flip.c
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: static int slurp(FILE *in, char **out, size_t *len)
+prog: {
+prog: 	size_t cap = 4096, n = 0, got;
+prog: 	char *buf = malloc(cap);
+prog: 	if (buf == NULL)
+prog: 		return -1;
+prog: 	while ((got = fread(buf + n, 1, cap - n, in)) > 0) {
+prog: 		n += got;
+prog: 		if (n == cap) {
+prog: 			char *bigger = realloc(buf, cap * 2);
+prog: 			if (bigger == NULL) {
+prog: 				free(buf);
+prog: 				return -1;
+prog: 			}
+prog: 			buf = bigger;
+prog: 			cap *= 2;
+prog: 		}
+prog: 	}
+prog: 	if (ferror(in)) {
+prog: 		free(buf);
+prog: 		return -1;
+prog: 	}
+prog: 	*out = buf;
+prog: 	*len = n;
+prog: 	return 0;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: flip [FILE]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	FILE *in = stdin;
+prog: 	if (argc == 2) {
+prog: 		in = fopen(argv[1], "rb");
+prog: 		if (in == NULL) {
+prog: 			fprintf(stderr, "flip: cannot open %s\n", argv[1]);
+prog: 			return 1;
+prog: 		}
+prog: 	}
+prog: 	char *buf = NULL;
+prog: 	size_t len = 0;
+prog: 	int rc = slurp(in, &buf, &len);
+prog: 	if (in != stdin)
+prog: 		fclose(in);
+prog: 	if (rc != 0) {
+prog: 		fprintf(stderr, "flip: read error\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (len > 0 && buf[len - 1] != '\n')
+prog: 		buf[len++] = '\n';
+prog: 	size_t end = len;
+prog: 	while (end > 0) {
+prog: 		size_t start = end - 1;
+prog: 		while (start > 0 && buf[start - 1] != '\n')
+prog: 			start--;
+prog: 		fwrite(buf + start, 1, end - start, stdout);
+prog: 		end = start;
+prog: 	}
+prog: 	free(buf);
+prog: 	return 0;
+prog: }
+case: printf '1\n2\n3\n' | flip
+case: printf 'a\nb' | flip
+case: printf '' | flip
+case: printf '\n\nx\n' | flip
+case: seq 1 3000 | flip | head -n 3
+case: seq 1 3000 | flip | tail -n 1
+case: printf 'one\ntwo\n' > f; flip f
+case: flip nothere; echo $?
+hint: find each line by walking back from the end to the previous newline; fwrite that slice, then step to the one before

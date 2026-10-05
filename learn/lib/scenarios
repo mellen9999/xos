@@ -18,7 +18,7 @@ scn_path()     { echo "$SCENARIOS/$1"; }
 scn_field()    { blk_field "$(scn_path "$1")" "$2"; }
 scn_index()    { blk_index "$SCENARIOS" "$SCN_INDEX"; }
 scn_nq()       { scn_index; awk -F'\t' -v i="$1" '$1 == i { print $3; exit }' "$SCN_INDEX"; }
-scn_after()    { scn_index; awk -F'\t' -v i="$1" '$1 == i { print $2; exit }' "$SCN_INDEX"; }
+scn_after()    { scn_index; awk -F'\t' -v i="$1" '$1 == i { if ($2 != "-") print $2; exit }' "$SCN_INDEX"; }
 
 # unlocked when the level named in after: has fallen (or there is no gate)
 scn_unlocked() { local a; a=$(scn_after "$1"); [ -n "$a" ] || return 0; level_is_passed "$a"; }

@@ -1,0 +1,250 @@
+name: errors and files
+intro: Things fail. A file is not there, the disk is full, the input is
+intro: junk. In C nothing stops you when that happens -- a call fails,
+intro: hands back a sign of it, and the program carries on with garbage
+intro: unless you looked. So you look, every time.
+intro:
+intro: Each library call says how it fails: `fopen` returns NULL, `malloc`
+intro: returns NULL, `fread` returns fewer items than you asked for.
+intro: When a call fails it also sets `errno` (from <errno.h>), a number
+intro: saying why. `strerror(errno)` turns it into words; `perror("x")`
+intro: prints `x: ` plus those words to stderr. Those words differ between
+intro: C libraries, so never compare them -- print your own message.
+intro:
+intro: Read a file, and check the open:
+intro:
+intro:     FILE *f = fopen(path, "rb");
+intro:     if (f == NULL) {
+intro:         fprintf(stderr, "prog: cannot open %s\n", path);
+intro:         return 1;
+intro:     }
+intro:     char buf[4096];
+intro:     size_t n;
+intro:     while ((n = fread(buf, 1, sizeof buf, f)) > 0)
+intro:         fwrite(buf, 1, n, stdout);
+intro:     fclose(f);
+intro:
+intro: `fread` and `fwrite` move raw bytes, count included, so they are
+intro: safe for data with zero bytes in it; `fgets` and `puts` are not.
+intro: `fread` returning 0 means end of file or an error: `ferror(f)` tells
+intro: you which.
+intro:
+intro: Once a function owns several things (a file, a buffer) every early
+intro: `return` has to release all of them. The tidy way is one exit:
+intro:
+intro:     int status = 1;
+intro:     ...
+intro:     if (bad) goto cleanup;
+intro:     status = 0;
+intro: cleanup:
+intro:     free(buf);
+intro:     if (f != NULL) fclose(f);
+intro:     return status;
+intro:
+intro: Start every owned thing as NULL so cleanup can free what exists.
+intro: In your own functions, return 0 for success and nonzero for failure,
+intro: the way programs do.
+---
+q: fdump.c -- copy a file to standard output
+spec: Take exactly one argument, a file name. Copy the file's bytes to
+spec: standard output unchanged, zero bytes and a missing final newline
+spec: included, and exit 0.
+spec:
+spec: If the file cannot be opened print `fdump: cannot open NAME` to
+spec: standard error (NAME is the argument as given) and exit 1. Do not
+spec: print the strerror text. With any other number of arguments print
+spec: `usage: fdump FILE` to standard error and exit 2.
+file: fdump.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: fdump FILE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	FILE *f = fopen(argv[1], "rb");
+prog: 	if (f == NULL) {
+prog: 		fprintf(stderr, "fdump: cannot open %s\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	int status = 0;
+prog: 	char buf[4096];
+prog: 	size_t n;
+prog: 	while ((n = fread(buf, 1, sizeof buf, f)) > 0) {
+prog: 		if (fwrite(buf, 1, n, stdout) != n) {
+prog: 			fprintf(stderr, "fdump: write failed\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	if (ferror(f))
+prog: 		status = 1;
+prog: 	fclose(f);
+prog: 	return status;
+prog: }
+case: printf 'a\nb' > f; fdump f
+case: printf 'x\0y\n' > f; fdump f | wc -c
+case: fdump @txt@ | wc -l
+case: fdump nothere.txt; echo $?
+case: fdump; echo $?
+case: printf 'a\n' > f; fdump f f; echo $?
+hint: fopen can return NULL, fread hands back how many bytes it got, and fwrite those same bytes -- never treat the data as text
+---
+q: numsum.c -- add up a file of numbers
+spec: Take one argument, a file holding one whole number per line. Print
+spec: the sum of them and a newline, and exit 0. An empty file sums to 0.
+spec: A last line with no newline still counts. Each number is a plain
+spec: decimal int, with an optional leading `-` or `+`.
+spec:
+spec: A line that is not exactly one int (blank, trailing junk, too big
+spec: for an int) is an error: print `numsum: FILE:N: bad number` to
+spec: standard error, N being the line number counted from 1, print no
+spec: sum, and exit 1. A file that cannot be opened prints
+spec: `numsum: cannot open FILE` and exits 2. Any other number of
+spec: arguments prints `usage: numsum FILE` and exits 2.
+spec:
+spec: Lines are under 64 characters. Use `fgets` and `strtol` with an
+spec: end pointer and `errno`.
+file: numsum.c
+prog: #include <errno.h>
+prog: #include <limits.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: numsum FILE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	FILE *f = fopen(argv[1], "r");
+prog: 	if (f == NULL) {
+prog: 		fprintf(stderr, "numsum: cannot open %s\n", argv[1]);
+prog: 		return 2;
+prog: 	}
+prog: 	long long sum = 0;
+prog: 	unsigned long lineno = 0;
+prog: 	char line[64];
+prog: 	while (fgets(line, sizeof line, f) != NULL) {
+prog: 		lineno++;
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long v = strtol(line, &end, 10);
+prog: 		if (end == line || (*end != '\n' && *end != '\0')
+prog: 			|| errno != 0 || v < INT_MIN || v > INT_MAX) {
+prog: 			fprintf(stderr, "numsum: %s:%lu: bad number\n", argv[1], lineno);
+prog: 			fclose(f);
+prog: 			return 1;
+prog: 		}
+prog: 		sum += v;
+prog: 	}
+prog: 	fclose(f);
+prog: 	printf("%lld\n", sum);
+prog: 	return 0;
+prog: }
+case: printf '1\n2\n3\n' > n; numsum n
+case: printf '10\n-4\n+1' > n; numsum n
+case: printf '' > n; numsum n
+case: printf '5\nabc\n7\n' > n; numsum n; echo $?
+case: printf '1\n\n2\n' > n; numsum n; echo $?
+case: printf '1\n3000000000\n' > n; numsum n; echo $?
+case: printf '99999999999999999999\n' > n; numsum n; echo $?
+case: numsum nothere; echo $?
+hint: strtol gives back where it stopped -- that spot must be the newline or the end, and errno must still be 0
+---
+q: lastn.c -- the last few lines
+spec: Usage `lastn N FILE`: print the last N lines of FILE, exactly as
+spec: they are in the file, and exit 0. If the file has fewer than N lines
+spec: print them all. A final line with no newline is printed without one.
+spec:
+spec: N must be a whole number from 1 to 1000. Anything else prints
+spec: `lastn: bad count` to standard error and exits 2. Any other number of
+spec: arguments prints `usage: lastn N FILE` and exits 2. If FILE cannot be
+spec: opened print `lastn: cannot open FILE` and exit 1.
+spec:
+spec: Lines are under 255 characters. Keep only the last N lines in
+spec: memory, in malloc'd copies, and release everything through a single
+spec: `goto cleanup` exit -- the file and every line, on every path.
+file: lastn.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: static char *copy(const char *s)
+prog: {
+prog: 	size_t n = strlen(s) + 1;
+prog: 	char *p = malloc(n);
+prog: 	if (p != NULL)
+prog: 		memcpy(p, s, n);
+prog: 	return p;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	int status = 1;
+prog: 	FILE *f = NULL;
+prog: 	char **ring = NULL;
+prog: 	size_t n = 0, seen = 0, start;
+prog: 	char line[256];
+prog: 	char *end;
+prog: 	long want;
+prog: 
+prog: 	if (argc != 3) {
+prog: 		fprintf(stderr, "usage: lastn N FILE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	errno = 0;
+prog: 	want = strtol(argv[1], &end, 10);
+prog: 	if (end == argv[1] || *end != '\0' || errno != 0 || want < 1 || want > 1000) {
+prog: 		fprintf(stderr, "lastn: bad count\n");
+prog: 		return 2;
+prog: 	}
+prog: 	n = (size_t)want;
+prog: 	f = fopen(argv[2], "r");
+prog: 	if (f == NULL) {
+prog: 		fprintf(stderr, "lastn: cannot open %s\n", argv[2]);
+prog: 		goto cleanup;
+prog: 	}
+prog: 	ring = calloc(n, sizeof *ring);
+prog: 	if (ring == NULL) {
+prog: 		fprintf(stderr, "lastn: out of memory\n");
+prog: 		goto cleanup;
+prog: 	}
+prog: 	while (fgets(line, sizeof line, f) != NULL) {
+prog: 		char **slot = &ring[seen % n];
+prog: 		free(*slot);
+prog: 		*slot = copy(line);
+prog: 		if (*slot == NULL) {
+prog: 			fprintf(stderr, "lastn: out of memory\n");
+prog: 			goto cleanup;
+prog: 		}
+prog: 		seen++;
+prog: 	}
+prog: 	if (ferror(f)) {
+prog: 		fprintf(stderr, "lastn: read error on %s\n", argv[2]);
+prog: 		goto cleanup;
+prog: 	}
+prog: 	start = seen > n ? seen - n : 0;
+prog: 	for (size_t i = start; i < seen; i++)
+prog: 		fputs(ring[i % n], stdout);
+prog: 	status = 0;
+prog: cleanup:
+prog: 	if (ring != NULL) {
+prog: 		for (size_t i = 0; i < n; i++)
+prog: 			free(ring[i]);
+prog: 	}
+prog: 	free(ring);
+prog: 	if (f != NULL)
+prog: 		fclose(f);
+prog: 	return status;
+prog: }
+case: printf '1\n2\n3\n4\n5\n' > f; lastn 2 f
+case: printf '1\n2\n3\n4\n5\n' > f; lastn 10 f
+case: printf '1\n2\n3\n4\n5\n6\n7\n' > f; lastn 3 f
+case: printf 'a\nb' > g; lastn 1 g | wc -c
+case: printf 'a\n' > f; lastn 0 f; echo $?
+case: printf 'a\n' > f; lastn 2x f; echo $?
+case: lastn 3 nothere; echo $?
+hint: a ring of N slots -- line number modulo N picks the slot, free what the slot held before you overwrite it

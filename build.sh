@@ -401,7 +401,7 @@ ovmf() { # [code|vars]
 # build flag live there; a gate-only edit therefore also asks for a re-pin.
 # that is the honest cost -- cpin is three minutes, a wrong pin is a false claim.
 IMAGE_SRC="README.md init tutorial overlay
-  learn/learn learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects
+  learn/learn learn/ref learn/lib learn/pools learn/levels learn/scenarios learn/projects learn/c
   learn/skip learn/skip-syntax learn/builtins learn/verbs learn/phrases learn/chains
   learn/syntax learn/vs learn/bashisms learn/migrations learn/rekeys learn/acts learn/syn
   build.sh build kernel.config busybox.config.applets busybox.config.features patches

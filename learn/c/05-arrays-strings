@@ -1,0 +1,190 @@
+name: arrays and strings
+intro: An array is a fixed run of same-typed values, side by side in memory.
+intro: Its size is part of the declaration, and you can ask C for it:
+intro:
+intro:     const char *days[] = {"mon", "tue", "wed"};
+intro:     size_t n = sizeof days / sizeof days[0];   /* 3 */
+intro:
+intro: Bytes in the whole array divided by bytes in one element. Write
+intro: that once and the count follows the data when you add a row.
+intro:
+intro: C does not check indexes. `days[7]` compiles, runs, and reads
+intro: whatever sits past the array -- undefined behaviour. It may print
+intro: junk today and crash next week. The check is your job: compare
+intro: the index to the count before you use it.
+intro:
+intro: A string is a char array ending in a NUL byte (`'\0'`). "hi" takes
+intro: three bytes. `strlen` counts up to the NUL and stops, so it is 2;
+intro: `sizeof` is the array's size, 3. Mix them up and you are off by
+intro: one, which in C means a write past the end.
+intro:
+intro: Never use `gets` (it cannot be told a limit, so it was removed from
+intro: C11), and treat `strcpy`, `strcat`, `sprintf` as the same trap.
+intro: Use `snprintf`. It never writes past the size you give it, and it
+intro: returns the length the result WOULD have had -- so you can tell
+intro: when it was cut short:
+intro:
+intro:     char buf[16];
+intro:     int n = snprintf(buf, sizeof buf, "%s-%d", name, id);
+intro:     if (n < 0 || (size_t)n >= sizeof buf)
+intro:         /* did not fit */
+intro:
+intro: `fgets(buf, sizeof buf, stdin)` reads one line, keeps the `\n`,
+intro: and returns NULL at end of input. `<string.h>` has `strcmp` (0
+intro: means equal), `strchr` (find a byte) and `memcpy` (copy n bytes).
+---
+q: dayname.c -- number to weekday
+spec: Takes one argument, a number 1 to 7, and prints the weekday:
+spec: `mon tue wed thu fri sat sun` (1 is `mon`), then a newline.
+spec:
+spec: Keep the names in an array and take the count from sizeof, not a
+spec: typed 7. A number outside 1..7, or anything that is not a whole
+spec: number, prints `dayname: want 1-7` to standard error and exits 1.
+spec: Any other argument count prints nothing and exits 2.
+file: dayname.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	static const char *const days[] = {
+prog: 		"mon", "tue", "wed", "thu", "fri", "sat", "sun",
+prog: 	};
+prog: 	const size_t n = sizeof days / sizeof days[0];
+prog: 
+prog: 	if (argc != 2)
+prog: 		return 2;
+prog: 
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long k = strtol(argv[1], &end, 10);
+prog: 	if (errno != 0 || end == argv[1] || *end != '\0' || k < 1 || k > (long)n) {
+prog: 		fprintf(stderr, "dayname: want 1-%zu\n", n);
+prog: 		return 1;
+prog: 	}
+prog: 	printf("%s\n", days[k - 1]);
+prog: 	return 0;
+prog: }
+case: dayname 1
+case: dayname 7
+case: dayname 0 2>&1; echo $?
+case: dayname 8 2>&1; echo $?
+case: dayname x 2>&1; echo $?
+case: dayname; echo $?
+hint: days[k - 1] is the name for k; check k against 1 and the array count before you index
+---
+q: revline.c -- every line backwards
+spec: Read standard input line by line and print each line reversed,
+spec: followed by a newline. `abc` becomes `cba`; an empty line stays an
+spec: empty line. A last line with no newline at the end is still
+spec: reversed and printed with one. Empty input prints nothing.
+spec:
+spec: Lines are at most 80 characters, not counting the newline.
+file: revline.c
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char line[82];
+prog: 
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		size_t len = strlen(line);
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			len--;
+prog: 		for (size_t i = len; i > 0; i--)
+prog: 			putchar(line[i - 1]);
+prog: 		putchar('\n');
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'abc\nhello world\n' | revline
+case: printf 'ab' | revline
+case: printf 'x\n\ny\n' | revline
+case: revline < /dev/null; echo $?
+hint: fgets keeps the newline in the buffer -- drop it from the length before you walk backwards
+---
+q: cclass.c -- count kinds of characters
+spec: Read all of standard input and print five lines, in this order:
+spec: `upper N`, `lower N`, `digit N`, `space N`, `other N`.
+spec:
+spec: upper is A-Z, lower is a-z, digit is 0-9, space is a blank, a tab
+spec: or a newline, other is every remaining byte. Every byte counts in
+spec: exactly one class. Empty input gives all zeros.
+file: cclass.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	enum { UPPER, LOWER, DIGIT, SPACE, OTHER, NCLASS };
+prog: 	static const char *const names[NCLASS] = {
+prog: 		[UPPER] = "upper", [LOWER] = "lower", [DIGIT] = "digit",
+prog: 		[SPACE] = "space", [OTHER] = "other",
+prog: 	};
+prog: 	unsigned long count[NCLASS] = {0};
+prog: 	int c;
+prog: 
+prog: 	while ((c = getchar()) != EOF) {
+prog: 		if (c >= 'A' && c <= 'Z')
+prog: 			count[UPPER]++;
+prog: 		else if (c >= 'a' && c <= 'z')
+prog: 			count[LOWER]++;
+prog: 		else if (c >= '0' && c <= '9')
+prog: 			count[DIGIT]++;
+prog: 		else if (c == ' ' || c == '\t' || c == '\n')
+prog: 			count[SPACE]++;
+prog: 		else
+prog: 			count[OTHER]++;
+prog: 	}
+prog: 	for (int i = 0; i < NCLASS; i++)
+prog: 		printf("%s %lu\n", names[i], count[i]);
+prog: 	return 0;
+prog: }
+case: printf 'Hello, World 42\n' | cclass
+case: printf '\t-_~' | cclass
+case: cclass < /dev/null
+hint: one getchar loop, an if/else chain that puts each byte in exactly one class; keep c an int so EOF is not confused with a byte
+---
+q: joinargs.c -- join words with a separator
+spec: The first argument is a separator, the rest are words. Print the
+spec: words joined by the separator, then a newline: `joinargs , a b c`
+spec: prints `a,b,c`. No words prints an empty line.
+spec:
+spec: Build the result in a 32-byte buffer with snprintf (31 characters
+spec: fit, the 32nd byte is the NUL). If the result does not fit, print
+spec: nothing to standard output, `joinargs: too long` to standard error,
+spec: and exit 1. No arguments at all: print `usage: joinargs SEP [WORD...]`
+spec: to standard error and exit 2.
+file: joinargs.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc < 2) {
+prog: 		fprintf(stderr, "usage: joinargs SEP [WORD...]\n");
+prog: 		return 2;
+prog: 	}
+prog: 
+prog: 	char buf[32];
+prog: 	size_t len = 0;
+prog: 	buf[0] = '\0';
+prog: 	for (int i = 2; i < argc; i++) {
+prog: 		const char *sep = i > 2 ? argv[1] : "";
+prog: 		size_t room = sizeof buf - len;
+prog: 		int n = snprintf(buf + len, room, "%s%s", sep, argv[i]);
+prog: 		if (n < 0 || (size_t)n >= room) {
+prog: 			fprintf(stderr, "joinargs: too long\n");
+prog: 			return 1;
+prog: 		}
+prog: 		len += (size_t)n;
+prog: 	}
+prog: 	printf("%s\n", buf);
+prog: 	return 0;
+prog: }
+case: joinargs , a b c
+case: joinargs -
+case: joinargs , aaaaaaaaaaaaaaa bbbbbbbbbbbbbbb
+case: joinargs , aaaaaaaaaaaaaaaa bbbbbbbbbbbbbbb 2>&1; echo $?
+case: joinargs 2>&1; echo $?
+hint: snprintf returns the length it wanted -- if that is not less than the room you gave it, it was cut

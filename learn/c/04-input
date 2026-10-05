@@ -1,0 +1,199 @@
+name: input and exit status
+intro: Real programs take input: arguments from the command line, bytes from
+intro: standard input. Both arrive unchecked, so you check them.
+intro:
+intro:     int main(int argc, char **argv)
+intro:
+intro: `argc` counts the words on the command line, the program's own name
+intro: included. `argv[i]` is word i as text; argv[0] is the name, so your
+intro: arguments are argv[1] up to argv[argc - 1].
+intro:
+intro: Turn text into a number with `strtol`, never `atoi`. atoi returns 0 for
+intro: "abc" and for "0", so you cannot tell them apart, and it has no way to
+intro: report overflow. strtol tells you everything:
+intro:
+intro:     char *end;
+intro:     errno = 0;
+intro:     long n = strtol(s, &end, 10);
+intro:     if (end == s || *end != '\0' || errno == ERANGE)
+intro:         /* bad */
+intro:
+intro: `end` is left pointing at the first character it could not use.
+intro: `end == s` means no digits at all -- including the empty string, which
+intro: would otherwise sneak through as 0. `*end != '\0'` means junk after the
+intro: digits ("12abc"). errno is set to ERANGE when the number does not fit
+intro: a long; zero it first, because nothing else clears it. Needs
+intro: <errno.h> and <stdlib.h>.
+intro:
+intro: Exit status is the program's whole answer to the shell: 0 means it
+intro: worked, 1 means it failed at its job, 2 means you called it wrong (a
+intro: usage error). Errors and usage go to stderr; only results go to stdout.
+intro:
+intro: Reading standard input byte by byte is `getchar`, which returns the
+intro: next byte or the constant EOF. EOF is -1, outside any byte's range, so
+intro: the variable must be an `int`. Store it in a char and a real 0xFF byte
+intro: looks exactly like end of file:
+intro:
+intro:     int c;
+intro:     while ((c = getchar()) != EOF)
+intro:         count++;
+intro:
+intro: A line at a time is `fgets(buf, sizeof buf, stdin)`. It keeps the
+intro: newline when the line fits, and returns NULL at end of input.
+---
+q: addup.c -- add the numbers you are given
+spec: Add up the integer arguments and print the total and a newline.
+spec:
+spec: No arguments: print `usage: addup N...` to stderr, exit 2.
+spec: An argument that is not a whole number (empty, `12abc`, too big for a
+spec: `long`): print `addup: bad number: ARG` to stderr, exit 1, and print no
+spec: total.
+spec: A total that would overflow a `long`: print `addup: sum overflows` to
+spec: stderr, exit 1. Check before you add -- overflowing a `long` is
+spec: undefined behaviour.
+file: addup.c
+prog: #include <errno.h>
+prog: #include <limits.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	long sum = 0;
+prog: 
+prog: 	if (argc < 2) {
+prog: 		fprintf(stderr, "usage: addup N...\n");
+prog: 		return 2;
+prog: 	}
+prog: 	for (int i = 1; i < argc; i++) {
+prog: 		char *end;
+prog: 		long n;
+prog: 
+prog: 		errno = 0;
+prog: 		n = strtol(argv[i], &end, 10);
+prog: 		if (end == argv[i] || *end != '\0' || errno == ERANGE) {
+prog: 			fprintf(stderr, "addup: bad number: %s\n", argv[i]);
+prog: 			return 1;
+prog: 		}
+prog: 		if ((n > 0 && sum > LONG_MAX - n) || (n < 0 && sum < LONG_MIN - n)) {
+prog: 			fprintf(stderr, "addup: sum overflows\n");
+prog: 			return 1;
+prog: 		}
+prog: 		sum += n;
+prog: 	}
+prog: 	printf("%ld\n", sum);
+prog: 	return 0;
+prog: }
+case: addup 3 4
+case: addup -5 12 1
+case: addup 2>&1; echo $?
+case: addup 3 '' 2>&1; echo $?
+case: addup 7 12abc 2>&1; echo $?
+case: addup 99999999999999999999 2>&1; echo $?
+case: addup 9223372036854775807 1 2>&1; echo $?
+hint: strtol with an end pointer: bad if end never moved, if *end is not the terminating zero, or if errno says ERANGE
+---
+q: tally.c -- count what comes in on stdin
+spec: Read all of standard input with `getchar`. Print, with a newline after
+spec: each:
+spec:
+spec: `lines N`
+spec: `chars M`
+spec:
+spec: N is the number of newline characters; M is the number of bytes read.
+spec: Empty input gives `lines 0` and `chars 0`. A last line with no trailing
+spec: newline still counts its bytes but adds no line. Bytes of any value
+spec: must count, including 0xFF.
+file: tally.c
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	unsigned long lines = 0;
+prog: 	unsigned long chars = 0;
+prog: 	int c;
+prog: 
+prog: 	while ((c = getchar()) != EOF) {
+prog: 		chars++;
+prog: 		if (c == '\n')
+prog: 			lines++;
+prog: 	}
+prog: 	printf("lines %lu\n", lines);
+prog: 	printf("chars %lu\n", chars);
+prog: 	return 0;
+prog: }
+case: printf 'a\nbc\n' | tally
+case: tally </dev/null
+case: printf 'x\377y\n' | tally
+case: printf 'no newline' | tally
+hint: the variable that getchar fills must be an int, or a 0xFF byte looks like EOF
+---
+q: figures.c -- numbers from stdin, one per line
+spec: Read integers from standard input, one per line (lines are under 60
+spec: characters). Print, with a newline after each:
+spec:
+spec: `count N`
+spec: `sum S`
+spec: `min LOW`
+spec: `max HIGH`
+spec:
+spec: A line that is not a whole number -- empty, `abc`, `5x` -- prints
+spec: `figures: line N: bad number` (N counts from 1) to stderr and exits 1,
+spec: printing nothing to stdout. The last line may have no trailing newline.
+spec: No numbers at all: print `figures: no input` to stderr, exit 2. If the
+spec: sum would overflow a `long`, print `figures: sum overflows` to stderr and
+spec: exit 1.
+file: figures.c
+prog: #include <errno.h>
+prog: #include <limits.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char buf[64];
+prog: 	long count = 0;
+prog: 	long sum = 0;
+prog: 	long min = 0;
+prog: 	long max = 0;
+prog: 	int line = 0;
+prog: 
+prog: 	while (fgets(buf, sizeof buf, stdin)) {
+prog: 		char *end;
+prog: 		long n;
+prog: 
+prog: 		line++;
+prog: 		errno = 0;
+prog: 		n = strtol(buf, &end, 10);
+prog: 		if (end == buf || (*end != '\n' && *end != '\0') || errno == ERANGE) {
+prog: 			fprintf(stderr, "figures: line %d: bad number\n", line);
+prog: 			return 1;
+prog: 		}
+prog: 		if ((n > 0 && sum > LONG_MAX - n) || (n < 0 && sum < LONG_MIN - n)) {
+prog: 			fprintf(stderr, "figures: sum overflows\n");
+prog: 			return 1;
+prog: 		}
+prog: 		sum += n;
+prog: 		if (count == 0 || n < min)
+prog: 			min = n;
+prog: 		if (count == 0 || n > max)
+prog: 			max = n;
+prog: 		count++;
+prog: 	}
+prog: 	if (count == 0) {
+prog: 		fprintf(stderr, "figures: no input\n");
+prog: 		return 2;
+prog: 	}
+prog: 	printf("count %ld\n", count);
+prog: 	printf("sum %ld\n", sum);
+prog: 	printf("min %ld\n", min);
+prog: 	printf("max %ld\n", max);
+prog: 	return 0;
+prog: }
+case: printf '3\n-4\n10\n' | figures
+case: printf '3\n\n4\n' | figures 2>&1; echo $?
+case: figures </dev/null 2>&1; echo $?
+case: printf '7\nabc\n' | figures 2>&1; echo $?
+case: printf '5' | figures
+case: printf '-8\n' | figures
+hint: strtol stops at the newline, so *end is either newline or the zero at the end of a last line without one

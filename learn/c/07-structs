@@ -1,0 +1,278 @@
+name: structs and enums
+intro: A struct groups named fields into one value. `typedef` gives it a
+intro: short name, and a designated initializer fills it by field, so
+intro: order does not matter and anything left out is zero:
+intro:
+intro:     typedef struct {
+intro:         char name[16];
+intro:         long score;
+intro:     } player;
+intro:
+intro:     player p = { .score = 40 };
+intro:     p = (player){ .score = 41 };   /* compound literal */
+intro:
+intro: Structs copy by value, so a big one passed to a function is copied
+intro: whole. Pass a pointer instead, and `const` when it only reads:
+intro:
+intro:     static long total(const player *v, size_t n);
+intro:     p.score          /* field of a value */
+intro:     q->score         /* field through a pointer, same as (*q).score */
+intro:
+intro: An enum names a set of constants. Switch over one WITHOUT a
+intro: `default:` and the compiler warns when you forget a case -- that
+intro: warning is worth more than the default:
+intro:
+intro:     enum op { OP_ADD, OP_SUB };
+intro:     switch (op) {
+intro:     case OP_ADD: return a + b;
+intro:     case OP_SUB: return a - b;
+intro:     }
+intro:
+intro: Each case ends in `return` or `break`; without one, execution
+intro: falls into the next case. An array of structs makes a table: a
+intro: fixed list of records you loop over with sizeof arr / sizeof arr[0].
+---
+q: rect.c -- area and perimeter
+spec: Takes two arguments, width and height, each a whole number from 0
+spec: to 1000. Prints `area A perimeter P` and a newline: `rect 3 4`
+spec: prints `area 12 perimeter 14`.
+spec:
+spec: Keep them in a struct built with a designated initializer, and give
+spec: area and perimeter functions that take `const struct rect *`.
+spec:
+spec: A bad or out-of-range number prints `rect: bad size` to standard
+spec: error and exits 1. Any other argument count prints nothing and
+spec: exits 2.
+file: rect.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: struct rect {
+prog: 	long w;
+prog: 	long h;
+prog: };
+prog: 
+prog: static bool parse_size(const char *s, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (errno != 0 || end == s || *end != '\0' || v < 0 || v > 1000)
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: static long area(const struct rect *r)
+prog: {
+prog: 	return r->w * r->h;
+prog: }
+prog: 
+prog: static long perimeter(const struct rect *r)
+prog: {
+prog: 	return 2 * (r->w + r->h);
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 3)
+prog: 		return 2;
+prog: 
+prog: 	long w, h;
+prog: 	if (!parse_size(argv[1], &w) || !parse_size(argv[2], &h)) {
+prog: 		fprintf(stderr, "rect: bad size\n");
+prog: 		return 1;
+prog: 	}
+prog: 	struct rect r = { .w = w, .h = h };
+prog: 	printf("area %ld perimeter %ld\n", area(&r), perimeter(&r));
+prog: 	return 0;
+prog: }
+case: rect 3 4
+case: rect 0 5
+case: rect 1000 1000
+case: rect -1 2 2>&1; echo $?
+case: rect 1001 2 2>&1; echo $?
+case: rect 3; echo $?
+hint: a struct rect holds w and h, the helpers take a pointer and read r->w and r->h
+---
+q: arith.c -- a tiny calculator
+spec: Takes an operator word and two whole numbers: `arith add 2 3`
+spec: prints `5`. The words are `add`, `sub` and `mul`.
+spec:
+spec: Look the word up in a table (an array of structs pairing each name
+spec: with an enum value), then do the arithmetic in a switch over the
+spec: enum with no default case. Numbers are `long`; assume the answer
+spec: fits.
+spec:
+spec: An unknown operator prints `arith: unknown op` to standard error and
+spec: exits 1. A bad number prints `arith: bad number` and exits 1. Any
+spec: other argument count prints nothing and exits 2.
+file: arith.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: enum op { OP_ADD, OP_SUB, OP_MUL };
+prog: 
+prog: struct entry {
+prog: 	const char *name;
+prog: 	enum op op;
+prog: };
+prog: 
+prog: static const struct entry table[] = {
+prog: 	{ .name = "add", .op = OP_ADD },
+prog: 	{ .name = "sub", .op = OP_SUB },
+prog: 	{ .name = "mul", .op = OP_MUL },
+prog: };
+prog: 
+prog: static bool lookup(const char *name, enum op *out)
+prog: {
+prog: 	for (size_t i = 0; i < sizeof table / sizeof table[0]; i++) {
+prog: 		if (strcmp(table[i].name, name) == 0) {
+prog: 			*out = table[i].op;
+prog: 			return true;
+prog: 		}
+prog: 	}
+prog: 	return false;
+prog: }
+prog: 
+prog: static bool parse_long(const char *s, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (errno != 0 || end == s || *end != '\0')
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: static long apply(enum op op, long a, long b)
+prog: {
+prog: 	switch (op) {
+prog: 	case OP_ADD: return a + b;
+prog: 	case OP_SUB: return a - b;
+prog: 	case OP_MUL: return a * b;
+prog: 	}
+prog: 	return 0;
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 4)
+prog: 		return 2;
+prog: 
+prog: 	enum op op;
+prog: 	if (!lookup(argv[1], &op)) {
+prog: 		fprintf(stderr, "arith: unknown op\n");
+prog: 		return 1;
+prog: 	}
+prog: 	long a, b;
+prog: 	if (!parse_long(argv[2], &a) || !parse_long(argv[3], &b)) {
+prog: 		fprintf(stderr, "arith: bad number\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("%ld\n", apply(op, a, b));
+prog: 	return 0;
+prog: }
+case: arith add 2 3
+case: arith sub 2 5
+case: arith mul 6 7
+case: arith pow 2 3 2>&1; echo $?
+case: arith add 2 x 2>&1; echo $?
+case: arith add 2; echo $?
+hint: table lookup with strcmp gives you the enum; the switch turns it into the arithmetic
+---
+q: scores.c -- score table from stdin
+spec: Read lines of the form `NAME SCORE` -- a name (1 to 15 characters,
+spec: no spaces), one space, a whole number -- at most 8 lines, each at
+spec: most 60 characters. Print three lines:
+spec: `players N`, `total T` (sum of scores), `best NAME SCORE` (highest
+spec: score; on a tie the earlier line wins).
+spec:
+spec: Store the records in an array of structs. On a malformed line print
+spec: `scores: line L: bad record` to standard error (L counts from 1) and
+spec: exit 1. A ninth record prints `scores: too many records` and exits
+spec: 1. Empty input prints `scores: no records` and exits 1. Nothing is
+spec: printed to standard output when it exits 1.
+file: scores.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXREC 8
+prog: #define NAMELEN 16
+prog: 
+prog: struct player {
+prog: 	char name[NAMELEN];
+prog: 	long score;
+prog: };
+prog: 
+prog: static bool parse_line(const char *line, struct player *out)
+prog: {
+prog: 	const char *sp = strchr(line, ' ');
+prog: 	if (sp == NULL || sp == line || (size_t)(sp - line) >= NAMELEN)
+prog: 		return false;
+prog: 
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(sp + 1, &end, 10);
+prog: 	if (errno != 0 || end == sp + 1 || (*end != '\n' && *end != '\0'))
+prog: 		return false;
+prog: 
+prog: 	*out = (struct player){ .score = v };
+prog: 	memcpy(out->name, line, (size_t)(sp - line));
+prog: 	return true;
+prog: }
+prog: 
+prog: static void summarise(const struct player *rec, size_t n)
+prog: {
+prog: 	long total = 0;
+prog: 	const struct player *best = &rec[0];
+prog: 	for (size_t i = 0; i < n; i++) {
+prog: 		total += rec[i].score;
+prog: 		if (rec[i].score > best->score)
+prog: 			best = &rec[i];
+prog: 	}
+prog: 	printf("players %zu\n", n);
+prog: 	printf("total %ld\n", total);
+prog: 	printf("best %s %ld\n", best->name, best->score);
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct player rec[MAXREC];
+prog: 	size_t n = 0;
+prog: 	char line[64];
+prog: 
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		if (n == MAXREC) {
+prog: 			fprintf(stderr, "scores: too many records\n");
+prog: 			return 1;
+prog: 		}
+prog: 		if (!parse_line(line, &rec[n])) {
+prog: 			fprintf(stderr, "scores: line %d: bad record\n", lineno);
+prog: 			return 1;
+prog: 		}
+prog: 		n++;
+prog: 	}
+prog: 	if (n == 0) {
+prog: 		fprintf(stderr, "scores: no records\n");
+prog: 		return 1;
+prog: 	}
+prog: 	summarise(rec, n);
+prog: 	return 0;
+prog: }
+case: printf 'ann 10\nbob 30\ncy 20\n' | scores
+case: printf 'ann 30\nbob 30\n' | scores
+case: printf 'solo -4\n' | scores
+case: printf 'ann 10\nbob\n' | scores 2>&1; echo $?
+case: printf 'a 1\nb 2\nc 3\nd 4\ne 5\nf 6\ng 7\nh 8\ni 9\n' | scores 2>&1; echo $?
+case: scores < /dev/null 2>&1; echo $?
+hint: split each line at the space with strchr, parse the number after it, and keep the best record by pointer
