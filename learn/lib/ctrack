@@ -193,12 +193,57 @@ c_leave() { PROJECTS=$_C_P PRJ_DONE=$_C_D PRJ_INDEX=$_C_I PRJ_LANG=sh; }
 
 c_ids() { ls -1 "$CUNITS" 2>/dev/null | sort; }
 
+# c_row NUM NAME DONE TOTAL -- one menu cell, 36 columns wide.
+c_row() {
+	local mark=" " col=$W
+	[ "$3" -ge "$4" ] && { mark="+"; col=$G; }
+	printf '%s%3s%s %s%-22.22s%s %s%s %s/%s%s' "$C$B" "$1" "$N" "$col" "$2" "$N" \
+		"$D" "$mark" "$3" "$4" "$N"
+}
+
 # the menu entry and `learn c`: every unit is open from the start -- the
-# first one teaches the four vi keys it needs, so nothing gates it.
+# first one teaches the four vi keys it needs, so nothing gates it. numbers
+# are the units' own (0 is the first), the same ones `learn c N` takes, and
+# enter goes on with the first unit not yet finished, so the whole ladder is
+# one key at a time. thirty units do not fit a 24-row terminal in one column.
 c_menu() {
+	local pid a nq name n d next rows two pick i
 	c_tools || { no "$CC_WHY"; pause_card; return 0; }
 	c_enter
-	projects_menu "learn c" "read it, write it in vi, it compiles and runs"
+	while :; do
+		prj_index
+		n=$(grep -c '' "$PRJ_INDEX")
+		rows=$(( ${TERM_LINES:-24} - 7 ))
+		two=0; [ "$n" -gt "$rows" ] && two=1
+		next=""; i=0
+		cls
+		hdr "learn c" "read it, write it in vi, it compiles and runs"
+		while IFS='	' read -r pid a nq name; do
+			d=$(prj_ndone "$pid")
+			[ -z "$next" ] && [ "$d" -lt "$nq" ] && next=$pid
+			i=$((i + 1))
+			printf '  '; c_row "$(level_no "$pid")" "$name" "$d" "$nq"
+			if [ "$two" = 1 ] && [ $((i % 2)) = 1 ]; then printf '   '; else echo; fi
+		done < "$PRJ_INDEX"
+		[ $((i % 2)) = 1 ] && [ "$two" = 1 ] && echo
+		echo
+		if [ -n "$next" ]; then
+			printf '  %senter%s go on: %s   %snumber%s a unit   %sq%s back\n' \
+				"$C$B" "$N" "$(prj_field "$next" name)" "$C$B" "$N" "$C$B" "$N"
+		else
+			ok "every unit written. the track is yours."
+			printf '  %snumber%s a unit   %sq%s back\n' "$C$B" "$N" "$C$B" "$N"
+		fi
+		printf '  %schoose%s ' "$D" "$N"
+		IFS= read -r pick 2>/dev/null || break
+		case "$pick" in
+			q|Q|:q) break ;;
+			'') [ -n "$next" ] && run_project "$next" ;;
+			*[!0-9]*) ;;
+			*) pid=$(c_ids | grep "^0*$pick-" | head -1)
+			   if [ -n "$pid" ]; then run_project "$pid"; else no "no unit $pick"; pause_card; fi ;;
+		esac
+	done
 	c_leave
 }
 
