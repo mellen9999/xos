@@ -80,6 +80,10 @@ prj_announce() {
 # screen (c_reflow); a script project's text keeps its lines.
 prj_flow() { if [ "$PRJ_LANG" = c ]; then c_reflow; else cat; fi; }
 
+# prj_tree -- a fresh tree to work in. c keeps a built one to copy back
+# (c_tree); a script project builds its own.
+prj_tree() { if [ "$PRJ_LANG" = c ]; then c_tree; else SANDBOX_DIRTY=1; sandbox_reset; fi; }
+
 # ---- running a program ----------------------------------------------------
 
 # prj_run WORKFILE NAME CASE -- one case, against a freshly built tree.
@@ -117,8 +121,7 @@ prj_grade() {
 	PRJ_NC=$(awk 'END { print NR }' "$TMP/prj.cases")
 	# a tree that cannot be built fails both sides identically, and identical
 	# reads as a pass: say so instead of grading against nothing.
-	SANDBOX_DIRTY=1
-	sandbox_reset || { PRJ_CASE="(sandbox)"; PRJ_GOT="learn cannot build the tree cases run in"; return 1; }
+	prj_tree || { PRJ_CASE="(sandbox)"; PRJ_GOT="learn cannot build the tree cases run in"; return 1; }
 	# c compiles both sides once, the learner's last so C_LINE is theirs. a
 	# program that does not build is its own outcome, not a case that differed.
 	if [ "$PRJ_LANG" = c ]; then
@@ -287,8 +290,7 @@ ask_program() {
 # every run rebuilds the tree underneath it.
 prj_edit() {
 	local work=$1 name=$2 line=${3:-} tty_ rc
-	SANDBOX_DIRTY=1
-	sandbox_reset || { no "cannot build the sandbox"; return 1; }
+	prj_tree || { no "cannot build the sandbox"; return 1; }
 	cp "$work" "$SANDBOX/$name" 2>/dev/null || return 1
 	# the copy is made by learn (root, on the stick) and edited by vi under
 	# the drop: without this nobody could not write it back, and vi opened

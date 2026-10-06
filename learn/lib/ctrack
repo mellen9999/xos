@@ -213,6 +213,26 @@ c_prelude() {
 	fi
 }
 
+# c_tree -- the tree a case runs in, fresh: built once, kept aside, and
+# copied back for every run after. every case runs twice (yours, then the
+# reference) on a clean tree, and on a phone one build is over two seconds
+# -- a grade of eight cases sat for forty. a copy is milliseconds. cp -a
+# keeps owners and times, so under the drop it is still all nobody's.
+c_tree() {
+	local snap="$TMP/c.tree"
+	if [ -d "$snap" ] && [ "$(cat "$snap.seed" 2>/dev/null)" = "${FX_SEED:-0}" ] \
+	   && rm -rf "$SANDBOX" && cp -a "$snap" "$SANDBOX"; then
+		SANDBOX_OK=1 SANDBOX_DIRTY=1
+		return 0
+	fi
+	SANDBOX_DIRTY=1
+	sandbox_reset || return 1
+	rm -rf "$snap" "$snap.seed"
+	cp -a "$SANDBOX" "$snap" && echo "${FX_SEED:-0}" > "$snap.seed"
+	SANDBOX_DIRTY=1
+	return 0
+}
+
 # c_run TAG CASE -- one case, against a freshly built tree, like prj_run. the
 # shell is NOT dropped here: on xos it has to mount the exec surface, and what
 # it runs is the corpus's case line -- the program inside drops itself.
@@ -226,8 +246,7 @@ c_prelude() {
 # any -- a `--- stderr ---` line and its stderr: both streams are compared.
 c_run() {
 	local o="$TMP/c.case.o" e="$TMP/c.case.e" r
-	SANDBOX_DIRTY=1
-	sandbox_reset || return 1
+	c_tree || return 1
 	( cd "$SANDBOX" 2>/dev/null || exit 1
 	  HOME="$SANDBOX" TMPDIR="$SANDBOX" setsid timeout 10 "$SHELLBIN" -c "$(c_prelude "$1")
 $2" </dev/null > "$o" 2> "$e" &
@@ -375,8 +394,7 @@ c_try() {
 	printf '  %s$%s ' "$W" "$N"
 	IFS= read -r line 2>/dev/null || return 0
 	[ -n "$line" ] || line=$fn
-	SANDBOX_DIRTY=1
-	sandbox_reset || { no "cannot build the sandbox"; return 1; }
+	c_tree || { no "cannot build the sandbox"; return 1; }
 	note "ctrl-d ends its input, ctrl-c stops it."
 	rule
 	tty_=$(stty -g 2>/dev/null) || tty_=

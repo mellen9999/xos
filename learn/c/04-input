@@ -5,9 +5,11 @@ intro:
 intro:     int main(int argc, char **argv)
 intro:
 intro: `argc` counts the words on the command line, the program's own name
-intro: included. `argv[i]` is word i as text; argv[0] is the name, so your
-intro: arguments are argv[1] up to argv[argc - 1]. A program that takes no
-intro: arguments keeps `int main(void)`.
+intro: included. `argv[i]` is word i as text; argv[0] is the name it was run
+intro: by -- often a whole path, like ./sum -- so your arguments are argv[1]
+intro: up to argv[argc - 1]. When a message has to read `sum: ...`, write
+intro: the name into the text rather than printing argv[0]. A program that
+intro: takes no arguments keeps `int main(void)`.
 intro:
 intro: Turn text into a number with `strtol`, never `atoi`. atoi returns 0 for
 intro: "abc" and for "0", so you cannot tell them apart, and it has no way to
