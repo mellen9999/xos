@@ -1,0 +1,306 @@
+name: file descriptors
+intro: Under `FILE *` and `fopen` sits the real interface: a file descriptor,
+intro: a small int the kernel gives you. 0 is standard input, 1 standard
+intro: output, 2 standard error. This is the unix layer; it needs
+intro: `#define _POSIX_C_SOURCE 200809L` before the includes, plus
+intro: <unistd.h> and <fcntl.h>.
+intro:
+intro:     int fd = open(path, O_RDONLY);               /* -1 on error */
+intro:     int out = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+intro:     ssize_t n = read(fd, buf, sizeof buf);   /* 0 = end, -1 = error */
+intro:     ssize_t w = write(out, buf, n);          /* bytes written */
+intro:     close(fd);
+intro:
+intro: `O_CREAT` makes the file if missing; the third argument is then its
+intro: permission bits (octal; the process umask clears some). `O_TRUNC`
+intro: empties an existing file the moment you open it -- so copying a file
+intro: onto itself destroys it before the first read. Check for that.
+intro:
+intro: `read` and `write` do not promise to move what you asked. A read from
+intro: a pipe returns whatever has arrived: 3 bytes when you asked for 4096.
+intro: A write can take only part of a big buffer. Both can fail with
+intro: `EINTR`, a signal arriving mid-call; that is not an error, so call
+intro: again. So you loop:
+intro:
+intro:     while (n > 0) {
+intro:         ssize_t w = write(fd, p, n);
+intro:         if (w < 0) { if (errno == EINTR) continue; return -1; }
+intro:         p += w;  n -= (size_t)w;
+intro:     }
+intro:
+intro: `read` returning 0 is end of file. Reading "exactly N bytes" means
+intro: looping until you have N or see 0.
+intro:
+intro: stdio sits on top and keeps its own buffer. `printf` to a pipe or file
+intro: does not write until the buffer fills or the program ends, but
+intro: `write(1, ...)` goes at once. Mix the two on one fd and the output
+intro: reorders. Call `fflush(stdout)` before a raw write, or use only one
+intro: layer for a given fd. Close what you open, and check `close` on a file
+intro: you wrote: some errors only show there.
+---
+q: recs4.c -- read exact 4-byte records from a pipe
+spec: Read standard input as records of exactly 4 bytes using `read` on file
+spec: descriptor 0 -- not stdio. Print each record as 8 lowercase hex digits
+spec: on its own line.
+spec:
+spec: A pipe may hand over fewer bytes than you ask for, so a record can
+spec: arrive in pieces; keep reading until you have all 4 or the input ends.
+spec: If the input ends partway through a record, print `partial N` (N the
+spec: bytes of it) and exit 1. A read error prints `recs4: read error` to
+spec: standard error and exits 1. Otherwise exit 0. Empty input prints
+spec: nothing.
+file: recs4.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <unistd.h>
+prog: 
+prog: /* read exactly n bytes unless the stream ends first; returns how many */
+prog: static ssize_t read_full(int fd, unsigned char *buf, size_t n)
+prog: {
+prog: 	size_t got = 0;
+prog: 	while (got < n) {
+prog: 		ssize_t r = read(fd, buf + got, n - got);
+prog: 		if (r < 0) {
+prog: 			if (errno == EINTR)
+prog: 				continue;
+prog: 			return -1;
+prog: 		}
+prog: 		if (r == 0)
+prog: 			break;
+prog: 		got += (size_t)r;
+prog: 	}
+prog: 	return (ssize_t)got;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	unsigned char rec[4];
+prog: 	for (;;) {
+prog: 		ssize_t n = read_full(0, rec, sizeof rec);
+prog: 		if (n < 0) {
+prog: 			fprintf(stderr, "recs4: read error\n");
+prog: 			return 1;
+prog: 		}
+prog: 		if (n == 0)
+prog: 			return 0;
+prog: 		if (n < (ssize_t)sizeof rec) {
+prog: 			printf("partial %zd\n", n);
+prog: 			return 1;
+prog: 		}
+prog: 		printf("%02x%02x%02x%02x\n", rec[0], rec[1], rec[2], rec[3]);
+prog: 	}
+prog: }
+case: printf 'abcdefgh' | recs4
+case: printf 'abcde' | recs4; echo $?
+case: printf '\000\377\200\001' | recs4; printf '' | recs4
+case: (printf ab; sleep 1; printf cdef) | recs4
+hint: an inner loop that adds up what read returns until the count reaches 4, a zero return ends it early, and EINTR means try again
+---
+q: rawcat.c -- cat with raw file descriptors
+spec: With no arguments copy standard input to standard output. Otherwise
+spec: copy each named file, in order, to standard output. Use `open`,
+spec: `read`, `write` and `close` with a 4096-byte buffer; no stdio for the
+spec: data. A short `write` must be finished, and EINTR retried.
+spec:
+spec: A file that cannot be opened prints `rawcat: cannot open NAME` to
+spec: standard error; carry on with the rest and exit 1 at the end. Any
+spec: read or write failure prints `rawcat: error on NAME` (NAME is `stdin`
+spec: when reading standard input) and counts the same way. Exit 0 if
+spec: everything copied.
+file: rawcat.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <fcntl.h>
+prog: #include <stdio.h>
+prog: #include <unistd.h>
+prog: 
+prog: static int write_all(int fd, const char *buf, size_t n)
+prog: {
+prog: 	while (n > 0) {
+prog: 		ssize_t w = write(fd, buf, n);
+prog: 		if (w < 0) {
+prog: 			if (errno == EINTR)
+prog: 				continue;
+prog: 			return -1;
+prog: 		}
+prog: 		buf += w;
+prog: 		n -= (size_t)w;
+prog: 	}
+prog: 	return 0;
+prog: }
+prog: 
+prog: static int copy_fd(int in)
+prog: {
+prog: 	char buf[4096];
+prog: 	for (;;) {
+prog: 		ssize_t r = read(in, buf, sizeof buf);
+prog: 		if (r < 0) {
+prog: 			if (errno == EINTR)
+prog: 				continue;
+prog: 			return -1;
+prog: 		}
+prog: 		if (r == 0)
+prog: 			return 0;
+prog: 		if (write_all(1, buf, (size_t)r) != 0)
+prog: 			return -1;
+prog: 	}
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	int status = 0;
+prog: 	if (argc == 1) {
+prog: 		if (copy_fd(0) == 0)
+prog: 			return 0;
+prog: 		fprintf(stderr, "rawcat: error on stdin\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (int i = 1; i < argc; i++) {
+prog: 		int fd = open(argv[i], O_RDONLY);
+prog: 		if (fd < 0) {
+prog: 			fprintf(stderr, "rawcat: cannot open %s\n", argv[i]);
+prog: 			status = 1;
+prog: 			continue;
+prog: 		}
+prog: 		if (copy_fd(fd) != 0) {
+prog: 			fprintf(stderr, "rawcat: error on %s\n", argv[i]);
+prog: 			status = 1;
+prog: 		}
+prog: 		close(fd);
+prog: 	}
+prog: 	return status;
+prog: }
+case: printf 'one\ntwo\n' | rawcat
+case: printf 'a\n' > rc1; printf 'b' > rc2; rawcat rc1 rc2 rc1
+case: printf x > rc1; rawcat nothere rc1 2>&1; echo $?
+case: yes | head -n 5000 > rcbig; rawcat rcbig | wc -c; rawcat rcbig rcbig | wc -c
+hint: a copy loop of read into a buffer, then write the n bytes read -- not the buffer size -- inside a loop that handles a short write
+---
+q: mixout.c -- stdio and raw writes in order
+spec: Print each command-line argument on its own line, in argument order,
+spec: but alternate how: the first, third, fifth ... with `printf`, the
+spec: second, fourth ... with `write(1, ...)`. When standard output is a
+spec: pipe or a file the lines must still come out in argument order, not
+spec: reordered. No arguments prints nothing. Exit 0.
+file: mixout.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: #include <unistd.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	for (int i = 1; i < argc; i++) {
+prog: 		if (i % 2 == 1) {
+prog: 			printf("%s\n", argv[i]);
+prog: 		} else {
+prog: 			/* the raw write jumps the queue unless stdio is flushed first */
+prog: 			fflush(stdout);
+prog: 			size_t n = strlen(argv[i]);
+prog: 			if (write(1, argv[i], n) != (ssize_t)n || write(1, "\n", 1) != 1)
+prog: 				return 1;
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: mixout a b c d | cat
+case: mixout one | cat; mixout x y > mxo; cat mxo
+case: mixout; echo $?
+hint: printf only fills stdio buffer; push it out with fflush(stdout) before every raw write
+---
+q: fdcopy.c -- copy a file to a new file
+spec: `fdcopy SRC DST` copies SRC byte for byte to DST, using `open`, `read`,
+spec: `write` and `close`. DST is created with mode 0644 (the umask may
+spec: clear bits) or, if it exists, emptied first. Print
+spec: `copied N bytes` (N the byte count) and exit 0.
+spec:
+spec: If SRC and DST are the same file, print `fdcopy: same file` to
+spec: standard error and exit 1 before touching either (a truncating open
+spec: would destroy it). Compare the device and inode from `stat`. If SRC
+spec: cannot be opened print `fdcopy: cannot open SRC`, exit 1, and create
+spec: nothing. If DST cannot be created print `fdcopy: cannot create DST`
+spec: and exit 1. Any other failure, including a failing `close` of DST,
+spec: prints `fdcopy: copy failed` and exits 1. Any other number of arguments
+spec: prints `usage: fdcopy SRC DST` and exits 2.
+file: fdcopy.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <fcntl.h>
+prog: #include <stdio.h>
+prog: #include <sys/stat.h>
+prog: #include <unistd.h>
+prog: 
+prog: static int write_all(int fd, const char *buf, size_t n)
+prog: {
+prog: 	while (n > 0) {
+prog: 		ssize_t w = write(fd, buf, n);
+prog: 		if (w < 0) {
+prog: 			if (errno == EINTR)
+prog: 				continue;
+prog: 			return -1;
+prog: 		}
+prog: 		buf += w;
+prog: 		n -= (size_t)w;
+prog: 	}
+prog: 	return 0;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 3) {
+prog: 		fprintf(stderr, "usage: fdcopy SRC DST\n");
+prog: 		return 2;
+prog: 	}
+prog: 	int in = open(argv[1], O_RDONLY);
+prog: 	if (in < 0) {
+prog: 		fprintf(stderr, "fdcopy: cannot open %s\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	struct stat a, b;
+prog: 	if (fstat(in, &a) == 0 && stat(argv[2], &b) == 0
+prog: 	    && a.st_dev == b.st_dev && a.st_ino == b.st_ino) {
+prog: 		fprintf(stderr, "fdcopy: same file\n");
+prog: 		close(in);
+prog: 		return 1;
+prog: 	}
+prog: 	int out = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+prog: 	if (out < 0) {
+prog: 		fprintf(stderr, "fdcopy: cannot create %s\n", argv[2]);
+prog: 		close(in);
+prog: 		return 1;
+prog: 	}
+prog: 	char buf[4096];
+prog: 	size_t total = 0;
+prog: 	int status = 1;
+prog: 	for (;;) {
+prog: 		ssize_t r = read(in, buf, sizeof buf);
+prog: 		if (r < 0 && errno == EINTR)
+prog: 			continue;
+prog: 		if (r < 0)
+prog: 			break;
+prog: 		if (r == 0) {
+prog: 			status = 0;
+prog: 			break;
+prog: 		}
+prog: 		if (write_all(out, buf, (size_t)r) != 0)
+prog: 			break;
+prog: 		total += (size_t)r;
+prog: 	}
+prog: 	if (close(out) != 0)
+prog: 		status = 1;
+prog: 	close(in);
+prog: 	if (status != 0) {
+prog: 		fprintf(stderr, "fdcopy: copy failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("copied %zu bytes\n", total);
+prog: 	return 0;
+prog: }
+case: printf 'hello\n' > fc1; fdcopy fc1 fc2; cat fc2
+case: printf 'a long old line\n' > fc2; printf 'new\n' > fc1; fdcopy fc1 fc2; cat fc2
+case: printf x > fc1; fdcopy fc1 fc1 2>&1; echo $?; cat fc1
+case: printf x > fc1; umask 0; rm -f fc3; fdcopy fc1 fc3; stat -c %a fc3
+case: yes | head -n 5000 > fc1; fdcopy fc1 fc2; cmp fc1 fc2 && echo same
+case: fdcopy a 2>&1; echo $?; rm -f fc9; fdcopy nothere fc9 2>&1; echo $?; test -e fc9 || echo none
+hint: open both, loop read then write-all until read returns 0, then close; compare st_dev and st_ino before the O_TRUNC open

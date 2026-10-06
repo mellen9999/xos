@@ -299,6 +299,11 @@ c_lint() {
 			case "$Q_SPEC$Q_PROG$Q_CASES$Q_START$Q_PROMPT" in
 				*@*@*) echo "FAIL $lbl: an @token@ was never rendered" >&2; bad=$((bad + 1)) ;;
 			esac
+			# the spec becomes the starter's top comment: a comment marker in it
+			# ends that comment early and the starter does not compile.
+			case "$Q_PROMPT$Q_SPEC" in
+				*'*/'*|*'/*'*) echo "FAIL $lbl: q: or spec: holds a comment marker -- the starter would not compile" >&2; bad=$((bad + 1)) ;;
+			esac
 			# one name, one program: the ledger and the learner's memory both key
 			# on it, and two hello.c in two units is two lessons arguing.
 			case " $seen " in

@@ -1,0 +1,500 @@
+name: parsing text
+intro: Input is text, and text is a pointer you walk: one pointer, a
+intro: loop, one decision per character.
+intro:
+intro:     const char *p = line;
+intro:     while (*p == ' ') p++;                  /* skip blanks */
+intro:     const char *start = p;
+intro:     while (*p != '\0' && *p != ' ') p++;    /* one token */
+intro:     size_t len = (size_t)(p - start);       /* its length */
+intro:     printf("[%.*s]\n", (int)len, start);    /* print a slice */
+intro:
+intro: You rarely need to copy: a token is a start pointer and a length,
+intro: and `%.*s` prints exactly that many bytes. To keep one, `memcpy`
+intro: into a buffer you sized and add the `\0` yourself.
+intro:
+intro: Do not use `strtok`. It splits by writing NULs into your string and
+intro: remembers its place in a hidden static variable: a second tokenizer
+intro: anywhere in the program breaks the first, it is not safe with
+intro: threads, and it swallows empty fields, so `a,,b` loses one. The
+intro: pointer walk costs three lines and has none of those problems.
+intro:
+intro: Trimming is the same walk from both ends: skip blanks forward, then
+intro: step `end` back while the byte before it is blank. Split
+intro: `key = value` at the FIRST `=` with `strchr`, so a value may hold
+intro: more. Count `\r` as a blank: files from other systems end lines in
+intro: `\r\n`.
+intro:
+intro: CSV adds quoting. A field in double quotes may hold commas, and a
+intro: doubled `""` inside it is one quote. Walk it with a small state
+intro: machine; unquoting in place is safe, because the result is never
+intro: longer than the input.
+intro:
+intro: Say WHERE input is wrong. A column is `p - line + 1`, 1-based,
+intro: counted in bytes: `line 3 col 7: expected )` can be fixed without a
+intro: hunt. Errors go to stderr, and `fflush(stdout)` comes first: stdout
+intro: is buffered and stderr is not, so on one terminal an error can
+intro: otherwise print BEFORE output the program made earlier.
+---
+q: wordsplit.c -- split lines into words
+spec: Reads standard input and prints every word on every line, one per
+spec: output line, as `LINE.INDEX [WORD]`: LINE counts input lines from 1,
+spec: INDEX counts the words on that line from 1. Words are separated by
+spec: any run of spaces and tabs; leading and trailing blanks are
+spec: ignored; a line with no words prints nothing. Lines are at most 200
+spec: characters.
+spec:
+spec: A word that STARTS with a double quote runs to the next double quote
+spec: and may hold blanks; the quotes are not part of the word, and `""`
+spec: is an empty word. After the closing quote there must be a blank or
+spec: the end of the line. A quote anywhere else is an ordinary character.
+spec:
+spec: Walk the line with a pointer. Do not use `strtok`. Print a word with
+spec: `%.*s` from its start and length.
+spec:
+spec: An opening quote with no closing one prints `wordsplit: line L col
+spec: C: unterminated quote` (C is the column of the opening quote, from
+spec: 1) and text right after a closing quote prints `wordsplit: line L
+spec: col C: text after closing quote` (C is that text's column). Either
+spec: goes to standard error, after flushing standard output, and exits 1;
+spec: words of earlier lines stay printed.
+file: wordsplit.c
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: static int fail(int lineno, size_t col, const char *msg)
+prog: {
+prog: 	fflush(stdout);
+prog: 	fprintf(stderr, "wordsplit: line %d col %zu: %s\n", lineno, col, msg);
+prog: 	return 1;
+prog: }
+prog: 
+prog: static int is_blank(char c)
+prog: {
+prog: 	return c == ' ' || c == '\t';
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char line[256];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\n")] = '\0';
+prog: 
+prog: 		const char *p = line;
+prog: 		for (int idx = 1;; idx++) {
+prog: 			while (is_blank(*p))
+prog: 				p++;
+prog: 			if (*p == '\0')
+prog: 				break;
+prog: 
+prog: 			const char *start = p, *end;
+prog: 			if (*p == '"') {
+prog: 				start = ++p;
+prog: 				while (*p != '"' && *p != '\0')
+prog: 					p++;
+prog: 				if (*p == '\0')
+prog: 					return fail(lineno, (size_t)(start - line), "unterminated quote");
+prog: 				end = p++;
+prog: 				if (*p != '\0' && !is_blank(*p))
+prog: 					return fail(lineno, (size_t)(p - line) + 1,
+prog: 								"text after closing quote");
+prog: 			} else {
+prog: 				while (*p != '\0' && !is_blank(*p))
+prog: 					p++;
+prog: 				end = p;
+prog: 			}
+prog: 			printf("%d.%d [%.*s]\n", lineno, idx, (int)(end - start), start);
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'one two  three\n' | wordsplit
+case: printf '  lead\ttab   trail  \n\n   \nx\n' | wordsplit
+case: printf 'say "hello big world" now ""\n' | wordsplit; printf 'ab"cd ef\n' | wordsplit
+case: printf 'ok\nbad "unclosed here\n' | wordsplit 2>&1; echo $?
+case: printf '"a"b\n' | wordsplit 2>&1; echo $?
+hint: skip blanks, then either run to the next quote or to the next blank, and print end minus start bytes from start
+---
+q: cfgget.c -- read one setting from a config file
+spec: Takes one argument, a KEY, and reads a config file from standard
+spec: input. Prints the value of KEY, with a newline, exit 0. If KEY is set
+spec: more than once the LAST one wins. If it is never set print
+spec: `cfgget: KEY not set` to standard error and exit 1. No argument, or
+spec: more than one, prints `usage: cfgget KEY` and exits 2.
+spec:
+spec: Every line is one of: blank (only blanks), a comment (first
+spec: non-blank character is `#`), or `key = value`. Blanks are spaces,
+spec: tabs and carriage returns. The key is the text before the FIRST `=`
+spec: and the value is everything after it; both lose their leading and
+spec: trailing blanks. Keys are letters, digits, `_`, `.` and `-`. A value
+spec: may be empty and may hold `=`, `#` and blanks inside. Lines are at
+spec: most 200 characters.
+spec:
+spec: The WHOLE input is checked, even after KEY is found. A bad line
+spec: prints `cfgget: line L col C: MESSAGE` to standard error and exits
+spec: 1, with C counted from 1 in the line as written: `expected key=value`
+spec: (no `=`; C is the first non-blank), `empty key` (C is the `=`), or
+spec: `bad character in key` (C is that character, a space inside the key
+spec: included).
+file: cfgget.c
+prog: #include <ctype.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: static int fail(int lineno, size_t col, const char *msg)
+prog: {
+prog: 	fflush(stdout);
+prog: 	fprintf(stderr, "cfgget: line %d col %zu: %s\n", lineno, col, msg);
+prog: 	return 1;
+prog: }
+prog: 
+prog: /* space, tab, and the CR left by a \r\n line ending */
+prog: static int is_blank(char c)
+prog: {
+prog: 	return c == ' ' || c == '\t' || c == '\r';
+prog: }
+prog: 
+prog: static int is_keychar(char c)
+prog: {
+prog: 	return isalnum((unsigned char)c) || c == '_' || c == '.' || c == '-';
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: cfgget KEY\n");
+prog: 		return 2;
+prog: 	}
+prog: 	size_t want = strlen(argv[1]);
+prog: 	char found[256];
+prog: 	int have = 0;
+prog: 
+prog: 	char line[256];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\n")] = '\0';
+prog: 
+prog: 		char *p = line;
+prog: 		while (is_blank(*p))
+prog: 			p++;
+prog: 		if (*p == '\0' || *p == '#')
+prog: 			continue;
+prog: 
+prog: 		char *eq = strchr(p, '=');
+prog: 		if (eq == NULL)
+prog: 			return fail(lineno, (size_t)(p - line) + 1, "expected key=value");
+prog: 		if (eq == p)
+prog: 			return fail(lineno, (size_t)(eq - line) + 1, "empty key");
+prog: 
+prog: 		char *kend = eq;
+prog: 		while (is_blank(kend[-1]))
+prog: 			kend--;
+prog: 		for (const char *q = p; q < kend; q++)
+prog: 			if (!is_keychar(*q))
+prog: 				return fail(lineno, (size_t)(q - line) + 1, "bad character in key");
+prog: 
+prog: 		char *val = eq + 1;
+prog: 		while (is_blank(*val))
+prog: 			val++;
+prog: 		char *vend = val + strlen(val);
+prog: 		while (vend > val && is_blank(vend[-1]))
+prog: 			vend--;
+prog: 
+prog: 		if ((size_t)(kend - p) == want && memcmp(p, argv[1], want) == 0) {
+prog: 			memcpy(found, val, (size_t)(vend - val));
+prog: 			found[vend - val] = '\0';
+prog: 			have = 1;
+prog: 		}
+prog: 	}
+prog: 
+prog: 	if (!have) {
+prog: 		fprintf(stderr, "cfgget: %s not set\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	puts(found);
+prog: 	return 0;
+prog: }
+case: printf '# cfg\nname = demo\n\nport=8080\n' | cfgget port; printf '# cfg\nname = demo\n' | cfgget name
+case: printf 'a=1\na = 2\n' | cfgget a
+case: printf '  k  =   spaced out value  \r\nx=y\n' | cfgget k | od -c
+case: printf 'url=http://x/?a=b#frag\n  # note\n' | cfgget url; printf 'e=\n' | cfgget e | wc -c
+case: printf 'a=1\n' | cfgget zz 2>&1; echo $?; cfgget 2>&1; echo $?
+case: for p in novalue '  =v' 'my key=1' '  x  y = 2' ' a.b-c_d=ok'; do printf '%s\n' "$p" | cfgget a 2>&1; echo $?; done
+hint: find the first = with strchr; trim the key by stepping its end back, check each key character, then trim the value the same way
+---
+q: csvcol.c -- one column of a CSV file
+spec: Takes one argument N (a whole number, at least 1) and prints the Nth
+spec: field of every row of the CSV on standard input, one per line. A bad
+spec: N or another argument count prints `usage: csvcol N` to standard
+spec: error and exits 2.
+spec:
+spec: Fields are separated by commas. A field may be wrapped in double
+spec: quotes, and then it may hold commas, and `""` inside means one
+spec: quote; the wrapping quotes are not part of the value. A row ends at
+spec: the line end; `\r\n` counts as one (the `\r` is not part of the last
+spec: field). An empty line is a row with one empty field. Lines are at
+spec: most 500 characters. Parse by walking a pointer: no `strtok`.
+spec:
+spec: Check every field of every row, not just the Nth. A problem prints
+spec: `csvcol: line L col C: MESSAGE` to standard error after flushing
+spec: standard output, and exits 1; rows before it stay printed.
+spec: C counts bytes from 1. Messages: `unterminated quote` (C is the
+spec: opening quote), `text after closing quote` (C is that text), and
+spec: `quote inside unquoted field` (C is that quote). A row with fewer
+spec: than N fields prints `csvcol: line L: no column N` and exits 1.
+file: csvcol.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: /* Parse the field at *pp in place: unquote it, end it with a NUL, and leave
+prog:    *pp on the next field (NULL after the last). Returns 0, or the 1-based
+prog:    column of a syntax error with *why set. */
+prog: static size_t field(const char *line, char **pp, char **out, const char **why)
+prog: {
+prog: 	char *p = *pp, *w = p;
+prog: 	*out = p;
+prog: 	if (*p == '"') {
+prog: 		size_t open = (size_t)(p - line) + 1;
+prog: 		p++;
+prog: 		for (;;) {
+prog: 			if (*p == '\0') {
+prog: 				*why = "unterminated quote";
+prog: 				return open;
+prog: 			}
+prog: 			if (*p == '"') {
+prog: 				if (p[1] != '"')
+prog: 					break;
+prog: 				*w++ = '"';
+prog: 				p += 2;
+prog: 			} else {
+prog: 				*w++ = *p++;
+prog: 			}
+prog: 		}
+prog: 		p++;
+prog: 		if (*p != ',' && *p != '\0') {
+prog: 			*why = "text after closing quote";
+prog: 			return (size_t)(p - line) + 1;
+prog: 		}
+prog: 	} else {
+prog: 		while (*p != ',' && *p != '\0') {
+prog: 			if (*p == '"') {
+prog: 				*why = "quote inside unquoted field";
+prog: 				return (size_t)(p - line) + 1;
+prog: 			}
+prog: 			*w++ = *p++;
+prog: 		}
+prog: 	}
+prog: 	*pp = *p == ',' ? p + 1 : NULL;
+prog: 	*w = '\0';
+prog: 	return 0;
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long n = argc == 2 ? strtol(argv[1], &end, 10) : 0;
+prog: 	if (argc != 2 || errno != 0 || end == argv[1] || *end != '\0' || n < 1) {
+prog: 		fprintf(stderr, "usage: csvcol N\n");
+prog: 		return 2;
+prog: 	}
+prog: 
+prog: 	char line[512];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\r\n")] = '\0';
+prog: 
+prog: 		char *rest = line, *f, *wanted = NULL;
+prog: 		for (long i = 1; rest != NULL; i++) {
+prog: 			const char *why;
+prog: 			size_t col = field(line, &rest, &f, &why);
+prog: 			if (col != 0) {
+prog: 				fflush(stdout);
+prog: 				fprintf(stderr, "csvcol: line %d col %zu: %s\n", lineno, col, why);
+prog: 				return 1;
+prog: 			}
+prog: 			if (i == n)
+prog: 				wanted = f;
+prog: 		}
+prog: 		if (wanted == NULL) {
+prog: 			fflush(stdout);
+prog: 			fprintf(stderr, "csvcol: line %d: no column %ld\n", lineno, n);
+prog: 			return 1;
+prog: 		}
+prog: 		puts(wanted);
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'a,b,c\n1,2,3\n' | csvcol 2
+case: printf 'name,note\nbob,"hi, there"\n"x ""q"" y",z\n' | csvcol 1; printf 'name,note\nbob,"hi, there"\n"x ""q"" y",z\n' | csvcol 2
+case: printf 'a,,c\n\n,\n' | csvcol 1 | wc -l; printf 'a,b\r\nc,d\r\n' | csvcol 2 | od -c
+case: for p in '"abc' 'a,"b"x' 'a,b"c' a; do printf '%s\n' "$p" | csvcol 2 2>&1; echo $?; done
+case: csvcol 2>&1; echo $?; csvcol 0 2>&1; echo $?; printf 'x,y\nz\n' | csvcol 2 2>&1; echo $?
+hint: a quoted field copies characters until a lone quote, turning each doubled quote into one; an unquoted one runs to the next comma
+---
+q: exprcalc.c -- a calculator with real error messages
+spec: Reads one arithmetic expression per line from standard input and
+spec: prints its value, one per line. Whole numbers, `+`, `-`, `*`, `/`,
+spec: parentheses, unary minus, and spaces or tabs anywhere between
+spec: tokens. `*` and `/` bind tighter than `+` and `-`; each operator
+spec: groups left to right (`2 - 3 - 4` is -5); division truncates toward
+spec: zero (`-7 / 2` is -3). Lines that are only blanks are skipped. Lines
+spec: are at most 200 characters.
+spec:
+spec: Every number and every intermediate result must lie between
+spec: -1000000000 and 1000000000, so nothing can overflow (use `long
+spec: long`). Parse with recursive descent: one function per precedence
+spec: level, walking a pointer along the line; no `strtok`, no `sscanf`.
+spec:
+spec: The first bad line stops the run: print `exprcalc: line L col C:
+spec: MESSAGE` to standard error after flushing standard output, and exit
+spec: 1. C is the column, from 1, where the problem is found (one past the
+spec: end of the line when it ran out). Messages: `expected number`,
+spec: `expected )`, `unexpected text` (something is left after a complete
+spec: expression), `division by zero` (C is the `/`) and `out of range`
+spec: (C is the number, or the operator that made the result too big).
+spec: Values of lines before it stay printed.
+file: exprcalc.c
+prog: #include <ctype.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: #define LIMIT 1000000000LL
+prog: 
+prog: struct parse {
+prog: 	const char *start, *p;   /* the line, and the next byte to read */
+prog: 	const char *err;         /* first error, or NULL */
+prog: 	size_t col;              /* where it was */
+prog: };
+prog: 
+prog: static void fail(struct parse *ps, const char *at, const char *msg)
+prog: {
+prog: 	if (ps->err == NULL) {
+prog: 		ps->err = msg;
+prog: 		ps->col = (size_t)(at - ps->start) + 1;
+prog: 	}
+prog: }
+prog: 
+prog: static void skip(struct parse *ps)
+prog: {
+prog: 	while (*ps->p == ' ' || *ps->p == '\t')
+prog: 		ps->p++;
+prog: }
+prog: 
+prog: static long long expr(struct parse *ps);
+prog: 
+prog: static long long primary(struct parse *ps)
+prog: {
+prog: 	skip(ps);
+prog: 	if (isdigit((unsigned char)*ps->p)) {
+prog: 		const char *at = ps->p;
+prog: 		long long v = 0;
+prog: 		while (isdigit((unsigned char)*ps->p)) {
+prog: 			v = v * 10 + (*ps->p++ - '0');
+prog: 			if (v > LIMIT) {
+prog: 				fail(ps, at, "out of range");
+prog: 				return 0;
+prog: 			}
+prog: 		}
+prog: 		return v;
+prog: 	}
+prog: 	if (*ps->p == '(') {
+prog: 		ps->p++;
+prog: 		long long v = expr(ps);
+prog: 		skip(ps);
+prog: 		if (ps->err == NULL && *ps->p != ')')
+prog: 			fail(ps, ps->p, "expected )");
+prog: 		else if (ps->err == NULL)
+prog: 			ps->p++;
+prog: 		return v;
+prog: 	}
+prog: 	fail(ps, ps->p, "expected number");
+prog: 	return 0;
+prog: }
+prog: 
+prog: static long long unary(struct parse *ps)
+prog: {
+prog: 	skip(ps);
+prog: 	if (*ps->p == '-') {
+prog: 		ps->p++;
+prog: 		return -unary(ps);
+prog: 	}
+prog: 	return primary(ps);
+prog: }
+prog: 
+prog: static long long term(struct parse *ps)
+prog: {
+prog: 	long long v = unary(ps);
+prog: 	for (;;) {
+prog: 		skip(ps);
+prog: 		const char *at = ps->p;
+prog: 		char op = *ps->p;
+prog: 		if (ps->err != NULL || (op != '*' && op != '/'))
+prog: 			return v;
+prog: 		ps->p++;
+prog: 		long long r = unary(ps);
+prog: 		if (ps->err != NULL)
+prog: 			return 0;
+prog: 		if (op == '/' && r == 0) {
+prog: 			fail(ps, at, "division by zero");
+prog: 			return 0;
+prog: 		}
+prog: 		v = op == '*' ? v * r : v / r;
+prog: 		if (v > LIMIT || v < -LIMIT) {
+prog: 			fail(ps, at, "out of range");
+prog: 			return 0;
+prog: 		}
+prog: 	}
+prog: }
+prog: 
+prog: static long long expr(struct parse *ps)
+prog: {
+prog: 	long long v = term(ps);
+prog: 	for (;;) {
+prog: 		skip(ps);
+prog: 		const char *at = ps->p;
+prog: 		char op = *ps->p;
+prog: 		if (ps->err != NULL || (op != '+' && op != '-'))
+prog: 			return v;
+prog: 		ps->p++;
+prog: 		long long r = term(ps);
+prog: 		if (ps->err != NULL)
+prog: 			return 0;
+prog: 		v = op == '+' ? v + r : v - r;
+prog: 		if (v > LIMIT || v < -LIMIT) {
+prog: 			fail(ps, at, "out of range");
+prog: 			return 0;
+prog: 		}
+prog: 	}
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char line[256];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\n")] = '\0';
+prog: 
+prog: 		struct parse ps = { .start = line, .p = line };
+prog: 		skip(&ps);
+prog: 		if (*ps.p == '\0')
+prog: 			continue;
+prog: 		long long v = expr(&ps);
+prog: 		skip(&ps);
+prog: 		if (ps.err == NULL && *ps.p != '\0')
+prog: 			fail(&ps, ps.p, "unexpected text");
+prog: 		if (ps.err != NULL) {
+prog: 			fflush(stdout);
+prog: 			fprintf(stderr, "exprcalc: line %d col %zu: %s\n", lineno, ps.col,
+prog: 					ps.err);
+prog: 			return 1;
+prog: 		}
+prog: 		printf("%lld\n", v);
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf '1 + 2 * 3\n(1 + 2) * 3\n10 / 3\n-7 / 2\n' | exprcalc
+case: printf '2 - 3 - 4\n100 / 10 / 5\n--5\n- (2 + 3)\n  42  \n' | exprcalc
+case: printf '\n1+1\n\n' | exprcalc; printf '2 * -3\n' | exprcalc
+case: printf '1 + \n' | exprcalc 2>&1; echo $?; printf '4\n(1 + 2\n' | exprcalc 2>&1; echo $?
+case: for p in '7 / 0' '2 3' '1 + a' '3 )' 1000000001 '30000 * 40000 * 1000' '('; do printf '%s\n' "$p" | exprcalc 2>&1; echo $?; done
+hint: expr handles plus and minus by calling term; term handles times and divide by calling unary; unary handles a minus sign; primary reads a number or a parenthesised expr

@@ -1,0 +1,548 @@
+name: hash tables
+intro: A hash table finds a value by key in about one step, however many
+intro: items it holds. A hash function turns the key into a number; that
+intro: number mod the bucket count picks a slot. Two keys in one slot is a
+intro: collision, not an error: with chaining each bucket is a linked list.
+intro:
+intro: FNV-1a is a hash small enough to type from memory:
+intro:
+intro:     uint32_t h = 2166136261u;
+intro:     for (const unsigned char *p = s; *p; p++) {
+intro:         h ^= *p;
+intro:         h *= 16777619u;
+intro:     }
+intro:
+intro: Unsigned arithmetic wraps by definition, which is what a hash
+intro: wants; signed overflow is undefined, so never hash with `int`. Read
+intro: the bytes as `unsigned char`: a plain `char` may be signed, and a
+intro: byte like 0xC3 would sign-extend and change the hash. It is fast and
+intro: fine for tables, and no defence if an attacker chooses the keys.
+intro:
+intro:     struct entry **bucket = &table[h % nbuckets];
+intro:
+intro: Lookup walks the chain with `strcmp`. Insert at the front of the
+intro: chain; a key already there is updated, not added twice. Delete is
+intro: the pointer-to-pointer unlink from the last unit.
+intro:
+intro: Chains stay short only while the table is not too full. The load
+intro: factor is items / buckets. Past about 3/4, allocate twice the
+intro: buckets and RELINK every node into the new array. A node's bucket
+intro: depends on the bucket count, so recompute it -- keep the old index
+intro: and lookups miss keys that are really there. Doubling each time
+intro: keeps the average cost per insert small.
+intro:
+intro: A table has no order: walk the buckets and the output depends on
+intro: the hash and the size. To print deterministically, collect the
+intro: entries in an array, `qsort` by key, and print that.
+---
+q: strhash.c -- hash words, pick buckets
+spec: Takes a bucket count and one or more words:
+spec: `strhash 8 foobar` prints the 32-bit FNV-1a hash of each word as
+spec: eight lowercase hex digits, a space, the bucket number (the hash
+spec: modulo the bucket count, in decimal), a space, and the word. One
+spec: line per word, in argument order.
+spec:
+spec: FNV-1a: start at 2166136261, and for each BYTE of the word xor the
+spec: byte in, then multiply by 16777619, all in uint32_t. Bytes above 127
+spec: (any UTF-8 text) must hash as unsigned values. The empty word hashes
+spec: to its starting value.
+spec:
+spec: The bucket count must be a whole number from 1 to 1000000, else
+spec: `strhash: bad bucket count` on standard error and exit 1. Fewer than
+spec: two arguments prints `usage: strhash BUCKETS WORD...` and exits 2.
+file: strhash.c
+prog: #include <errno.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: #define MAXBUCKETS 1000000
+prog: 
+prog: /* FNV-1a, 32 bit: xor the byte in, then multiply */
+prog: static uint32_t fnv1a(const char *s)
+prog: {
+prog: 	uint32_t h = 2166136261u;
+prog: 	for (const unsigned char *p = (const unsigned char *)s; *p != '\0'; p++) {
+prog: 		h ^= *p;
+prog: 		h *= 16777619u;
+prog: 	}
+prog: 	return h;
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc < 3) {
+prog: 		fprintf(stderr, "usage: strhash BUCKETS WORD...\n");
+prog: 		return 2;
+prog: 	}
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long n = strtol(argv[1], &end, 10);
+prog: 	if (errno != 0 || end == argv[1] || *end != '\0' || n < 1 ||
+prog: 		n > MAXBUCKETS) {
+prog: 		fprintf(stderr, "strhash: bad bucket count\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (int i = 2; i < argc; i++) {
+prog: 		uint32_t h = fnv1a(argv[i]);
+prog: 		printf("%08x %u %s\n", (unsigned)h, (unsigned)(h % (uint32_t)n),
+prog: 			   argv[i]);
+prog: 	}
+prog: 	return 0;
+prog: }
+case: strhash 8 '' a foobar
+case: strhash 1000 hello world; strhash 1 x
+case: strhash 16 "$(printf '\303\251')"
+case: strhash 0 a 2>&1; echo $?; strhash x a 2>&1; echo $?; strhash 1000001 a 2>&1; echo $?
+case: strhash 8; echo $?
+hint: h ^= byte then h *= prime, in that order, on a uint32_t; walk the string through a pointer to unsigned char
+---
+q: kvstore.c -- a key-value store on a hash table
+spec: Reads commands from standard input, one per line, and keeps keys and
+spec: values in a chained hash table you write: FNV-1a on the key, bucket
+spec: = hash mod bucket count. Lines are at most 100 characters. Empty
+spec: lines are skipped (they still count in line numbers).
+spec:
+spec: `set KEY VALUE` stores a value (everything after the key and its
+spec: spaces, spaces inside included); an existing key is updated, not
+spec: duplicated. `get KEY` prints its value. `del KEY` removes it.
+spec: `count` prints the number of keys. `dump` prints every `KEY=VALUE`,
+spec: sorted by key with strcmp, one per line. `stats` prints
+spec: `buckets B items N longest L`, L being the longest chain.
+spec:
+spec: A key is one to 31 characters with no space; a value is one to 63
+spec: characters. The table starts with 4 buckets. Before adding a NEW key
+spec: it doubles the buckets (relinking every entry by its new index) if
+spec: the new item count times 4 would exceed the bucket count times 3.
+spec: Deleting never shrinks the table.
+spec:
+spec: The first failing command stops the run: `kvstore: line L: MESSAGE`
+spec: on standard error, free everything, exit 1. Messages: `unknown
+spec: command`; `bad argument` (missing or bad key or value, or an
+spec: argument to count, dump or stats); `no such key` (get or del).
+spec: End of input frees everything and exits 0.
+file: kvstore.c
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define KEYMAX 31
+prog: #define VALMAX 63
+prog: 
+prog: struct entry {
+prog: 	struct entry *next;
+prog: 	char key[KEYMAX + 1];
+prog: 	char val[VALMAX + 1];
+prog: };
+prog: 
+prog: struct table {
+prog: 	struct entry **bucket;
+prog: 	size_t nbuckets;
+prog: 	size_t items;
+prog: };
+prog: 
+prog: static uint32_t fnv1a(const char *s)
+prog: {
+prog: 	uint32_t h = 2166136261u;
+prog: 	for (const unsigned char *p = (const unsigned char *)s; *p != '\0'; p++) {
+prog: 		h ^= *p;
+prog: 		h *= 16777619u;
+prog: 	}
+prog: 	return h;
+prog: }
+prog: 
+prog: static struct entry **slot(const struct table *t, const char *key)
+prog: {
+prog: 	return &t->bucket[fnv1a(key) % t->nbuckets];
+prog: }
+prog: 
+prog: /* the link that points at key's entry, or at the NULL that ends its chain */
+prog: static struct entry **find(const struct table *t, const char *key)
+prog: {
+prog: 	struct entry **pp = slot(t, key);
+prog: 	while (*pp != NULL && strcmp((*pp)->key, key) != 0)
+prog: 		pp = &(*pp)->next;
+prog: 	return pp;
+prog: }
+prog: 
+prog: /* double the bucket array and relink every entry by its NEW index */
+prog: static int grow(struct table *t)
+prog: {
+prog: 	size_t nb = t->nbuckets * 2;
+prog: 	struct entry **nbk = calloc(nb, sizeof *nbk);
+prog: 	if (nbk == NULL)
+prog: 		return -1;
+prog: 	for (size_t i = 0; i < t->nbuckets; i++) {
+prog: 		struct entry *e = t->bucket[i];
+prog: 		while (e != NULL) {
+prog: 			struct entry *next = e->next;
+prog: 			struct entry **to = &nbk[fnv1a(e->key) % nb];
+prog: 			e->next = *to;
+prog: 			*to = e;
+prog: 			e = next;
+prog: 		}
+prog: 	}
+prog: 	free(t->bucket);
+prog: 	t->bucket = nbk;
+prog: 	t->nbuckets = nb;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static int set(struct table *t, const char *key, const char *val)
+prog: {
+prog: 	struct entry **pp = find(t, key);
+prog: 	if (*pp != NULL) {
+prog: 		strcpy((*pp)->val, val);
+prog: 		return 0;
+prog: 	}
+prog: 	if ((t->items + 1) * 4 > t->nbuckets * 3 && grow(t) != 0)
+prog: 		return -1;
+prog: 	struct entry *e = malloc(sizeof *e);
+prog: 	if (e == NULL)
+prog: 		return -1;
+prog: 	strcpy(e->key, key);
+prog: 	strcpy(e->val, val);
+prog: 	struct entry **head = slot(t, key);
+prog: 	e->next = *head;
+prog: 	*head = e;
+prog: 	t->items++;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static void del(struct table *t, struct entry **pp)
+prog: {
+prog: 	struct entry *gone = *pp;
+prog: 	*pp = gone->next;
+prog: 	free(gone);
+prog: 	t->items--;
+prog: }
+prog: 
+prog: static int by_key(const void *a, const void *b)
+prog: {
+prog: 	const struct entry *x = *(const struct entry *const *)a;
+prog: 	const struct entry *y = *(const struct entry *const *)b;
+prog: 	return strcmp(x->key, y->key);
+prog: }
+prog: 
+prog: static int dump(const struct table *t)
+prog: {
+prog: 	struct entry **all = malloc((t->items + 1) * sizeof *all);
+prog: 	if (all == NULL)
+prog: 		return -1;
+prog: 	size_t n = 0;
+prog: 	for (size_t i = 0; i < t->nbuckets; i++)
+prog: 		for (struct entry *e = t->bucket[i]; e != NULL; e = e->next)
+prog: 			all[n++] = e;
+prog: 	qsort(all, n, sizeof *all, by_key);
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		printf("%s=%s\n", all[i]->key, all[i]->val);
+prog: 	free(all);
+prog: 	return 0;
+prog: }
+prog: 
+prog: static void stats(const struct table *t)
+prog: {
+prog: 	size_t longest = 0;
+prog: 	for (size_t i = 0; i < t->nbuckets; i++) {
+prog: 		size_t len = 0;
+prog: 		for (const struct entry *e = t->bucket[i]; e != NULL; e = e->next)
+prog: 			len++;
+prog: 		if (len > longest)
+prog: 			longest = len;
+prog: 	}
+prog: 	printf("buckets %zu items %zu longest %zu\n", t->nbuckets, t->items,
+prog: 		   longest);
+prog: }
+prog: 
+prog: /* one word, at most KEYMAX long, no spaces */
+prog: static int is_key(const char *s)
+prog: {
+prog: 	return s[0] != '\0' && strlen(s) <= KEYMAX && strchr(s, ' ') == NULL;
+prog: }
+prog: 
+prog: static const char *run(struct table *t, char *line)
+prog: {
+prog: 	char *arg = strchr(line, ' ');
+prog: 	if (arg != NULL) {
+prog: 		*arg++ = '\0';
+prog: 		while (*arg == ' ')
+prog: 			arg++;
+prog: 	} else {
+prog: 		arg = line + strlen(line);
+prog: 	}
+prog: 
+prog: 	if (strcmp(line, "set") == 0) {
+prog: 		char *val = strchr(arg, ' ');
+prog: 		if (val == NULL)
+prog: 			return "bad argument";
+prog: 		*val++ = '\0';
+prog: 		while (*val == ' ')
+prog: 			val++;
+prog: 		if (!is_key(arg) || *val == '\0' || strlen(val) > VALMAX)
+prog: 			return "bad argument";
+prog: 		return set(t, arg, val) != 0 ? "out of memory" : NULL;
+prog: 	}
+prog: 	if (strcmp(line, "get") == 0 || strcmp(line, "del") == 0) {
+prog: 		if (!is_key(arg))
+prog: 			return "bad argument";
+prog: 		struct entry **pp = find(t, arg);
+prog: 		if (*pp == NULL)
+prog: 			return "no such key";
+prog: 		if (line[0] == 'g')
+prog: 			puts((*pp)->val);
+prog: 		else
+prog: 			del(t, pp);
+prog: 		return NULL;
+prog: 	}
+prog: 	int is_count = strcmp(line, "count") == 0;
+prog: 	int is_dump = strcmp(line, "dump") == 0;
+prog: 	int is_stats = strcmp(line, "stats") == 0;
+prog: 	if (!is_count && !is_dump && !is_stats)
+prog: 		return "unknown command";
+prog: 	if (*arg != '\0')
+prog: 		return "bad argument";
+prog: 	if (is_count)
+prog: 		printf("%zu\n", t->items);
+prog: 	else if (is_stats)
+prog: 		stats(t);
+prog: 	else if (dump(t) != 0)
+prog: 		return "out of memory";
+prog: 	return NULL;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct table t = { .nbuckets = 4 };
+prog: 	t.bucket = calloc(t.nbuckets, sizeof *t.bucket);
+prog: 	if (t.bucket == NULL) {
+prog: 		fprintf(stderr, "kvstore: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	int status = 0;
+prog: 	char line[128];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\n")] = '\0';
+prog: 		if (line[0] == '\0')
+prog: 			continue;
+prog: 		const char *err = run(&t, line);
+prog: 		if (err != NULL) {
+prog: 			fprintf(stderr, "kvstore: line %d: %s\n", lineno, err);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 
+prog: 	for (size_t i = 0; i < t.nbuckets; i++) {
+prog: 		struct entry *e = t.bucket[i];
+prog: 		while (e != NULL) {
+prog: 			struct entry *next = e->next;
+prog: 			free(e);
+prog: 			e = next;
+prog: 		}
+prog: 	}
+prog: 	free(t.bucket);
+prog: 	return status;
+prog: }
+case: printf 'set a 1\nset b hello world\nget b\nget a\ncount\n' | kvstore
+case: printf 'set a 1\nset a 2\ncount\nget a\n' | kvstore
+case: printf 'set pear 3\nset apple 1\nset fig 2\ndel pear\ndump\ncount\n' | kvstore
+case: printf 'stats\nset a 1\nset b 1\nset c 1\nstats\nset d 1\nstats\n' | kvstore
+case: seq 1 100 | sed 's/.*/set k& v/' | { cat; echo stats; } | kvstore
+case: for p in frob set 'set k' 'get' 'get a b' 'get nokey' 'del nokey' 'count x'; do printf '%s\n' "$p" | kvstore 2>&1; echo $?; done
+hint: find returns the link pointing at the entry (or at the NULL ending the chain), so get, set-update and del can all share it
+---
+q: wordfreq.c -- most common words
+spec: Counts the words in standard input and prints the most common. A
+spec: word is a maximal run of ASCII letters, lowercased: `Don't` is the
+spec: words `don` and `t`. Takes an optional N (a whole number, at least
+spec: 1; default 10): print the N most frequent words, one per line as
+spec: `COUNT WORD`. Most frequent first; equal counts in strcmp order of the
+spec: word. Fewer than N distinct words prints them all. No words prints
+spec: nothing.
+spec:
+spec: Count with a chained hash table you write (FNV-1a, entries holding
+spec: a counter) that starts at 8 buckets and doubles when it passes
+spec: three quarters full. Sort an array of the entries to print; never
+spec: print in table order. Free everything before you exit.
+spec:
+spec: A word longer than 31 letters prints `wordfreq: word too long` to
+spec: standard error, nothing to standard output, exit 1. A bad N or more
+spec: than one argument prints `usage: wordfreq [N]` and exits 2.
+file: wordfreq.c
+prog: #include <ctype.h>
+prog: #include <errno.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define WORDMAX 31
+prog: 
+prog: struct entry {
+prog: 	struct entry *next;
+prog: 	size_t count;
+prog: 	char word[];
+prog: };
+prog: 
+prog: struct table {
+prog: 	struct entry **bucket;
+prog: 	size_t nbuckets;
+prog: 	size_t items;
+prog: };
+prog: 
+prog: static uint32_t fnv1a(const char *s)
+prog: {
+prog: 	uint32_t h = 2166136261u;
+prog: 	for (const unsigned char *p = (const unsigned char *)s; *p != '\0'; p++) {
+prog: 		h ^= *p;
+prog: 		h *= 16777619u;
+prog: 	}
+prog: 	return h;
+prog: }
+prog: 
+prog: static int grow(struct table *t)
+prog: {
+prog: 	size_t nb = t->nbuckets * 2;
+prog: 	struct entry **nbk = calloc(nb, sizeof *nbk);
+prog: 	if (nbk == NULL)
+prog: 		return -1;
+prog: 	for (size_t i = 0; i < t->nbuckets; i++) {
+prog: 		struct entry *e = t->bucket[i];
+prog: 		while (e != NULL) {
+prog: 			struct entry *next = e->next;
+prog: 			struct entry **to = &nbk[fnv1a(e->word) % nb];
+prog: 			e->next = *to;
+prog: 			*to = e;
+prog: 			e = next;
+prog: 		}
+prog: 	}
+prog: 	free(t->bucket);
+prog: 	t->bucket = nbk;
+prog: 	t->nbuckets = nb;
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* count one more sighting of word */
+prog: static int see(struct table *t, const char *word)
+prog: {
+prog: 	struct entry **pp = &t->bucket[fnv1a(word) % t->nbuckets];
+prog: 	for (; *pp != NULL; pp = &(*pp)->next) {
+prog: 		if (strcmp((*pp)->word, word) == 0) {
+prog: 			(*pp)->count++;
+prog: 			return 0;
+prog: 		}
+prog: 	}
+prog: 	if ((t->items + 1) * 4 > t->nbuckets * 3) {
+prog: 		if (grow(t) != 0)
+prog: 			return -1;
+prog: 		pp = &t->bucket[fnv1a(word) % t->nbuckets];
+prog: 	}
+prog: 	size_t len = strlen(word);
+prog: 	struct entry *e = malloc(sizeof *e + len + 1);
+prog: 	if (e == NULL)
+prog: 		return -1;
+prog: 	memcpy(e->word, word, len + 1);
+prog: 	e->count = 1;
+prog: 	e->next = *pp;
+prog: 	*pp = e;
+prog: 	t->items++;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static int by_rank(const void *a, const void *b)
+prog: {
+prog: 	const struct entry *x = *(const struct entry *const *)a;
+prog: 	const struct entry *y = *(const struct entry *const *)b;
+prog: 	if (x->count != y->count)
+prog: 		return x->count > y->count ? -1 : 1;
+prog: 	return strcmp(x->word, y->word);
+prog: }
+prog: 
+prog: static void free_table(struct table *t)
+prog: {
+prog: 	for (size_t i = 0; i < t->nbuckets; i++) {
+prog: 		struct entry *e = t->bucket[i];
+prog: 		while (e != NULL) {
+prog: 			struct entry *next = e->next;
+prog: 			free(e);
+prog: 			e = next;
+prog: 		}
+prog: 	}
+prog: 	free(t->bucket);
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	long top = 10;
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: wordfreq [N]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (argc == 2) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		top = strtol(argv[1], &end, 10);
+prog: 		if (errno != 0 || end == argv[1] || *end != '\0' || top < 1) {
+prog: 			fprintf(stderr, "usage: wordfreq [N]\n");
+prog: 			return 2;
+prog: 		}
+prog: 	}
+prog: 
+prog: 	struct table t = { .nbuckets = 8 };
+prog: 	t.bucket = calloc(t.nbuckets, sizeof *t.bucket);
+prog: 	if (t.bucket == NULL) {
+prog: 		fprintf(stderr, "wordfreq: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	int status = 1;
+prog: 	struct entry **all = NULL;
+prog: 	char word[WORDMAX + 1];
+prog: 	size_t len = 0;
+prog: 	int c;
+prog: 	do {
+prog: 		c = getchar();
+prog: 		if (c != EOF && isalpha(c)) {
+prog: 			if (len == WORDMAX) {
+prog: 				fprintf(stderr, "wordfreq: word too long\n");
+prog: 				goto done;
+prog: 			}
+prog: 			word[len++] = (char)tolower(c);
+prog: 		} else if (len > 0) {
+prog: 			word[len] = '\0';
+prog: 			len = 0;
+prog: 			if (see(&t, word) != 0) {
+prog: 				fprintf(stderr, "wordfreq: out of memory\n");
+prog: 				goto done;
+prog: 			}
+prog: 		}
+prog: 	} while (c != EOF);
+prog: 
+prog: 	all = malloc((t.items + 1) * sizeof *all);
+prog: 	if (all == NULL) {
+prog: 		fprintf(stderr, "wordfreq: out of memory\n");
+prog: 		goto done;
+prog: 	}
+prog: 	size_t n = 0;
+prog: 	for (size_t i = 0; i < t.nbuckets; i++)
+prog: 		for (struct entry *e = t.bucket[i]; e != NULL; e = e->next)
+prog: 			all[n++] = e;
+prog: 	qsort(all, n, sizeof *all, by_rank);
+prog: 	for (size_t i = 0; i < n && i < (size_t)top; i++)
+prog: 		printf("%zu %s\n", all[i]->count, all[i]->word);
+prog: 	status = 0;
+prog: 
+prog: done:
+prog: 	free(all);
+prog: 	free_table(&t);
+prog: 	return status;
+prog: }
+case: printf 'the cat and the hat. The end\n' | wordfreq
+case: printf 'the cat and the hat. The end\n' | wordfreq 2
+case: printf "Don't stop\n" | wordfreq
+case: { seq 1 150; seq 1 150; seq 1 5; } | tr '0-9' 'a-j' | wordfreq 4
+case: wordfreq </dev/null; echo $?; wordfreq 0 2>&1; echo $?; wordfreq 1 2 2>&1; echo $?
+case: printf '%040d\n' 0 | tr 0 a | wordfreq 2>&1; echo $?
+hint: when a letter ends the word, look it up: a hit bumps its count, a miss makes an entry; sort a pointer array by count descending, then by word

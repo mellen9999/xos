@@ -1,0 +1,458 @@
+name: the preprocessor
+intro: Before the compiler sees your code a text pass runs: `#include`
+intro: pastes a file in, `#define` replaces names with text, `#if` keeps
+intro: or drops whole blocks. It works on tokens, not meaning -- it knows
+intro: nothing of types or precedence. That is its power and its trap.
+intro:
+intro: Prefer a real feature when one exists. A constant is
+intro: `static const int max = 8;`, a set of related integers is an `enum`:
+intro: typed, scoped, visible in a debugger. `#define MAX 8` is for what
+intro: only the preprocessor can do.
+intro:
+intro: A function-like macro is substitution, so parenthesise every
+intro: argument and the whole body:
+intro:
+intro:     #define SQUARE(x) ((x) * (x))
+intro:
+intro: Without them SQUARE(1 + 2) is 1 + 2 * 1 + 2, which is 5. An
+intro: argument with a side effect runs once per appearance: SQUARE(i++)
+intro: is undefined behaviour and MAX(f(), 0) calls f twice. A
+intro: `static inline` function has none of these problems; use one.
+intro:
+intro: A macro of several statements goes in `do { ... } while (0)`: ONE
+intro: statement, so it survives an unbraced `if`/`else`.
+intro: `#x` turns an argument into a string literal; `a##b` glues two
+intro: tokens into one name:
+intro:
+intro:     #define SHOW(e) printf("%s = %d\n", #e, (e))
+intro:     #define GET(T) T get_##T(void) { return T##_val; }
+intro:
+intro: `__FILE__` and `__LINE__` are the file and line where they are
+intro: written. Inside a macro they report the CALLER: how `assert` says
+intro: where it failed. An X-macro writes a list once and expands it twice:
+intro:
+intro:     #define COLORS(X) X(RED) X(GREEN) X(BLUE)
+intro:     #define AS_ENUM(c) COLOR_##c,
+intro:     #define AS_NAME(c) #c,
+intro:     enum { COLORS(AS_ENUM) COLOR_N };
+intro:     static const char *name[] = { COLORS(AS_NAME) };
+intro:
+intro: Add a colour in one place and enum and names cannot drift apart.
+intro: `#ifdef X`, `#ifndef X`, `#if EXPR`, `#else`, `#endif` choose code
+intro: at compile time (`#ifdef NDEBUG` is how `assert` switches off);
+intro: `#error "msg"` stops the build. Real programs are many `.c` files
+intro: plus headers of declarations, each opened with an include guard
+intro: (`#ifndef STACK_H` / `#define STACK_H` ... `#endif`) so a second
+intro: include pastes nothing. Here every program is one file.
+---
+q: macrolab.c -- make the macros safe
+spec: The file is given: `main` uses four macros, and the file starts them
+spec: off as naive one-liners that compile and are wrong. Rewrite the
+spec: macros and leave `main` alone. It must print exactly these lines and
+spec: exit 0:
+spec:
+spec: `9`, `4`, `3`, `14`, `5 2`, `5 1`, `1 2`
+spec:
+spec: `SQUARE(x)` is x times x. `ABS(x)` is the absolute value. `MAX(a, b)`
+spec: is the larger one, the plain macro: it names its winner twice, so
+spec: the `5 2` line shows the winner's side effect running TWICE, while
+spec: `5 1` shows it running once when the other one wins. `SWAP_INT(a, b)`
+spec: swaps two ints and must be a single statement, because `main` uses
+spec: it as the body of an `if` and under an `else`.
+spec:
+spec: Each of the first four lines goes wrong if an argument or the body
+spec: is not parenthesised: `SQUARE(1 + 2)` must be 9, not 5.
+file: macrolab.c
+start: #include <stdio.h>
+start: 
+start: static int calls;
+start: 
+start: static int tick(int v)
+start: {
+start: 	calls++;
+start: 	return v;
+start: }
+start: 
+start: /* naive first tries: they compile, and they are wrong */
+start: #define SQUARE(x) x * x
+start: #define ABS(x) x < 0 ? -x : x
+start: #define MAX(a, b) a > b ? a : b
+start: #define SWAP_INT(a, b) ((void)0)    /* does nothing yet */
+start: 
+start: int main(void)
+start: {
+start: 	printf("%d\n", SQUARE(1 + 2));
+start: 	printf("%d\n", 100 / SQUARE(2 + 3));
+start: 	printf("%d\n", ABS(-5 + 2));
+start: 	printf("%d\n", MAX(7, 3) * 2);
+start: 
+start: 	int m;
+start: 	calls = 0;
+start: 	m = MAX(tick(5), 1);
+start: 	printf("%d %d\n", m, calls);
+start: 	calls = 0;
+start: 	m = MAX(tick(1), 5);
+start: 	printf("%d %d\n", m, calls);
+start: 
+start: 	int a = 1, b = 2;
+start: 	SWAP_INT(a, b);
+start: 	if (a > b)
+start: 		SWAP_INT(a, b);
+start: 	else
+start: 		a = 0;
+start: 	printf("%d %d\n", a, b);
+start: 	return 0;
+start: }
+prog: #include <stdio.h>
+prog: 
+prog: static int calls;
+prog: 
+prog: static int tick(int v)
+prog: {
+prog: 	calls++;
+prog: 	return v;
+prog: }
+prog: 
+prog: #define SQUARE(x) ((x) * (x))
+prog: #define ABS(x) ((x) < 0 ? -(x) : (x))
+prog: #define MAX(a, b) ((a) > (b) ? (a) : (b))
+prog: #define SWAP_INT(a, b)         \
+prog: 	do {                       \
+prog: 		int t_ = (a);          \
+prog: 		(a) = (b);             \
+prog: 		(b) = t_;              \
+prog: 	} while (0)
+prog: 
+prog: int main(void)
+prog: {
+prog: 	printf("%d\n", SQUARE(1 + 2));
+prog: 	printf("%d\n", 100 / SQUARE(2 + 3));
+prog: 	printf("%d\n", ABS(-5 + 2));
+prog: 	printf("%d\n", MAX(7, 3) * 2);
+prog: 
+prog: 	int m;
+prog: 	calls = 0;
+prog: 	m = MAX(tick(5), 1);
+prog: 	printf("%d %d\n", m, calls);
+prog: 	calls = 0;
+prog: 	m = MAX(tick(1), 5);
+prog: 	printf("%d %d\n", m, calls);
+prog: 
+prog: 	int a = 1, b = 2;
+prog: 	SWAP_INT(a, b);
+prog: 	if (a > b)
+prog: 		SWAP_INT(a, b);
+prog: 	else
+prog: 		a = 0;
+prog: 	printf("%d %d\n", a, b);
+prog: 	return 0;
+prog: }
+case: macrolab
+case: macrolab; echo $?
+case: macrolab | head -n 4
+case: macrolab | tail -n 3
+hint: wrap each use of the argument in parentheses, wrap the whole body too, and put the swap inside do with a while of zero
+---
+q: statgen.c -- one macro, many functions
+spec: The file is given: four lines `DEFINE_STATS(int)`, `long`, `double`
+spec: and `byte` stamp out functions, and `main` calls `min_int`, `max_int`
+spec: and so on for each. The macro is a stub with the right names and
+spec: wrong bodies. Fix it: `min_T` and `max_T` are static functions taking
+spec: `const T *v` and `size_t n` (n at least 1), returning the smallest or
+spec: largest element as T. The names are glued with `##`: that part is
+spec: written for you. Do not change `main`.
+spec:
+spec: The program prints `int -2 9`, `long -5 100000`, `double -0.25 1000`
+spec: and `byte 7 255` on four lines and exits 0. (`byte` is a typedef
+spec: for unsigned char: `##` pastes ONE token, so `unsigned char` would
+spec: not make a name.)
+file: statgen.c
+start: #include <stdio.h>
+start: 
+start: typedef unsigned char byte;
+start: 
+start: /* a stub: the right names and shapes, wrong bodies */
+start: #define DEFINE_STATS(T)                         \
+start: 	static T min_##T(const T *v, size_t n)      \
+start: 	{                                           \
+start: 		(void)n;                                \
+start: 		return v[0];                            \
+start: 	}                                           \
+start: 	static T max_##T(const T *v, size_t n)      \
+start: 	{                                           \
+start: 		(void)n;                                \
+start: 		return v[0];                            \
+start: 	}
+start: 
+start: DEFINE_STATS(int)
+start: DEFINE_STATS(long)
+start: DEFINE_STATS(double)
+start: DEFINE_STATS(byte)
+start: 
+start: int main(void)
+start: {
+start: 	int a[] = { 4, -2, 9, 0 };
+start: 	long b[] = { 100000L, -5L, 70000L };
+start: 	double c[] = { 2.5, -0.25, 1e3 };
+start: 	byte d[] = { 200, 7, 64, 255 };
+start: 
+start: 	printf("int %d %d\n", min_int(a, 4), max_int(a, 4));
+start: 	printf("long %ld %ld\n", min_long(b, 3), max_long(b, 3));
+start: 	printf("double %g %g\n", min_double(c, 3), max_double(c, 3));
+start: 	printf("byte %d %d\n", min_byte(d, 4), max_byte(d, 4));
+start: 	return 0;
+start: }
+prog: #include <stdio.h>
+prog: 
+prog: typedef unsigned char byte;
+prog: 
+prog: /* one body, stamped out per type: T##_ glues the type onto the name */
+prog: #define DEFINE_STATS(T)                         \
+prog: 	static T min_##T(const T *v, size_t n)      \
+prog: 	{                                           \
+prog: 		T m = v[0];                             \
+prog: 		for (size_t i = 1; i < n; i++)          \
+prog: 			if (v[i] < m)                       \
+prog: 				m = v[i];                       \
+prog: 		return m;                               \
+prog: 	}                                           \
+prog: 	static T max_##T(const T *v, size_t n)      \
+prog: 	{                                           \
+prog: 		T m = v[0];                             \
+prog: 		for (size_t i = 1; i < n; i++)          \
+prog: 			if (v[i] > m)                       \
+prog: 				m = v[i];                       \
+prog: 		return m;                               \
+prog: 	}
+prog: 
+prog: DEFINE_STATS(int)
+prog: DEFINE_STATS(long)
+prog: DEFINE_STATS(double)
+prog: DEFINE_STATS(byte)
+prog: 
+prog: int main(void)
+prog: {
+prog: 	int a[] = { 4, -2, 9, 0 };
+prog: 	long b[] = { 100000L, -5L, 70000L };
+prog: 	double c[] = { 2.5, -0.25, 1e3 };
+prog: 	byte d[] = { 200, 7, 64, 255 };
+prog: 
+prog: 	printf("int %d %d\n", min_int(a, 4), max_int(a, 4));
+prog: 	printf("long %ld %ld\n", min_long(b, 3), max_long(b, 3));
+prog: 	printf("double %g %g\n", min_double(c, 3), max_double(c, 3));
+prog: 	printf("byte %d %d\n", min_byte(d, 4), max_byte(d, 4));
+prog: 	return 0;
+prog: }
+case: statgen
+case: statgen; echo $?
+case: statgen | tail -n 2
+hint: keep the best so far, starting at v[0], and loop from index 1; min keeps the smaller, max the larger
+---
+q: xenum.c -- an enum and its names from one list
+spec: The file is given with the list `LEVELS(X)`. Build from it, with no
+spec: second copy of the names, an enum of levels (TRACE is 0 and they
+spec: count up in list order) and an array of their names as strings. Add a
+spec: `_Static_assert` that the array and the enum have the same size.
+spec:
+spec: With no argument print every level as `NUMBER NAME`, one per line.
+spec: With one argument that is a level name, exactly as written (`WARN`,
+spec: not `warn`), print its number. If it is a whole decimal number from 0
+spec: to the last level, print its name. Anything else prints `xenum:
+spec: unknown ARG` to standard error and exits 1. Two or more arguments
+spec: print `usage: xenum [ARG]` to standard error and exit 2.
+file: xenum.c
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define LEVELS(X) \
+start: 	X(TRACE)      \
+start: 	X(DEBUG)      \
+start: 	X(INFO)       \
+start: 	X(WARN)       \
+start: 	X(ERROR)      \
+start: 	X(FATAL)
+start: 
+start: /* make the enum and the name table from LEVELS: the list written once */
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	return 0;
+start: }
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define LEVELS(X) \
+prog: 	X(TRACE)      \
+prog: 	X(DEBUG)      \
+prog: 	X(INFO)       \
+prog: 	X(WARN)       \
+prog: 	X(ERROR)      \
+prog: 	X(FATAL)
+prog: 
+prog: #define AS_ENUM(name) LV_##name,
+prog: #define AS_NAME(name) #name,
+prog: 
+prog: enum level { LEVELS(AS_ENUM) LV_COUNT };
+prog: 
+prog: static const char *const names[] = { LEVELS(AS_NAME) };
+prog: 
+prog: _Static_assert(sizeof names / sizeof *names == LV_COUNT, "table out of step");
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: xenum [ARG]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (argc == 1) {
+prog: 		for (int i = 0; i < LV_COUNT; i++)
+prog: 			printf("%d %s\n", i, names[i]);
+prog: 		return 0;
+prog: 	}
+prog: 
+prog: 	for (int i = 0; i < LV_COUNT; i++) {
+prog: 		if (strcmp(argv[1], names[i]) == 0) {
+prog: 			printf("%d\n", i);
+prog: 			return 0;
+prog: 		}
+prog: 	}
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long n = strtol(argv[1], &end, 10);
+prog: 	if (errno == 0 && end != argv[1] && *end == '\0' && n >= 0 && n < LV_COUNT) {
+prog: 		puts(names[n]);
+prog: 		return 0;
+prog: 	}
+prog: 	fprintf(stderr, "xenum: unknown %s\n", argv[1]);
+prog: 	return 1;
+prog: }
+case: xenum
+case: xenum WARN; xenum TRACE; xenum 0; xenum 4; xenum 5
+case: xenum 6 2>&1; echo $?; xenum -1 2>&1; echo $?; xenum warn 2>&1; echo $?; xenum 2x 2>&1; echo $?
+case: xenum a b 2>&1; echo $?
+hint: one macro makes LV_ names with ##, another makes strings with #, and each is passed to LEVELS as its X
+---
+q: chkmac.c -- an assert that says where it failed
+spec: The file is given: it runs a list of checks in `main`, each written
+spec: `CHECK(expression);`, and the stub `CHECK` above it counts but never
+spec: reports. Rewrite the macro; do not add or remove lines inside `main`.
+spec:
+spec: `CHECK` counts the check in `checks`. If `cond` is false it also
+spec: counts a failure in `failed` and prints to standard error:
+spec: `FILE:LINE: check failed: TEXT` where FILE is `__FILE__`, LINE is
+spec: `__LINE__` minus `base_line` (so the first check in `main` is line 1
+spec: whatever you put above it), and TEXT is the expression as written,
+spec: with `#cond`. It must be one statement (it is used as an unbraced
+spec: `if` body) and must evaluate `cond` exactly once.
+spec:
+spec: The program then prints `9 checks, 2 failed` and exits 1, because
+spec: two checks are written to fail: `chkmac.c:6: check failed:
+spec: is_leap(2023)` and `chkmac.c:12: check failed: clamp(7, 8, 9) == 7`.
+file: chkmac.c
+start: #include <stdio.h>
+start: 
+start: static int checks, failed;
+start: static int base_line;
+start: static int counter;
+start: 
+start: static int bump(void)
+start: {
+start: 	return ++counter;
+start: }
+start: 
+start: static int clamp(int v, int lo, int hi)
+start: {
+start: 	return v < lo ? lo : v > hi ? hi : v;
+start: }
+start: 
+start: static int is_leap(int y)
+start: {
+start: 	return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+start: }
+start: 
+start: /* a stub: it counts, and never reports */
+start: #define CHECK(cond)         \
+start: 	do {                    \
+start: 		checks++;           \
+start: 		(void)(cond);       \
+start: 		(void)base_line;    \
+start: 	} while (0)
+start: 
+start: int main(void)
+start: {
+start: 	base_line = __LINE__;
+start: 	CHECK(clamp(5, 0, 10) == 5);
+start: 	CHECK(clamp(-3, 0, 10) == 0);
+start: 	CHECK(clamp(99, 0, 10) == 10);
+start: 	CHECK(is_leap(2000));
+start: 	CHECK(!is_leap(1900));
+start: 	CHECK(is_leap(2023));
+start: 	CHECK(bump() == 1);
+start: 	CHECK(bump() == 2);
+start: 	if (failed == 0)
+start: 		CHECK(0);
+start: 	else
+start: 		CHECK(clamp(7, 8, 9) == 7);
+start: 	printf("%d checks, %d failed\n", checks, failed);
+start: 	return failed != 0;
+start: }
+prog: #include <stdio.h>
+prog: 
+prog: static int checks, failed;
+prog: static int base_line;
+prog: static int counter;
+prog: 
+prog: static int bump(void)
+prog: {
+prog: 	return ++counter;
+prog: }
+prog: 
+prog: static int clamp(int v, int lo, int hi)
+prog: {
+prog: 	return v < lo ? lo : v > hi ? hi : v;
+prog: }
+prog: 
+prog: static int is_leap(int y)
+prog: {
+prog: 	return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+prog: }
+prog: 
+prog: /* do { } while (0): one statement, so it is safe under an unbraced if/else;
+prog:    cond is written once, so a side effect in it runs once */
+prog: #define CHECK(cond)                                                    \
+prog: 	do {                                                               \
+prog: 		checks++;                                                      \
+prog: 		if (!(cond)) {                                                 \
+prog: 			failed++;                                                  \
+prog: 			fprintf(stderr, "%s:%d: check failed: %s\n", __FILE__,     \
+prog: 					__LINE__ - base_line, #cond);                      \
+prog: 		}                                                              \
+prog: 	} while (0)
+prog: 
+prog: int main(void)
+prog: {
+prog: 	base_line = __LINE__;
+prog: 	CHECK(clamp(5, 0, 10) == 5);
+prog: 	CHECK(clamp(-3, 0, 10) == 0);
+prog: 	CHECK(clamp(99, 0, 10) == 10);
+prog: 	CHECK(is_leap(2000));
+prog: 	CHECK(!is_leap(1900));
+prog: 	CHECK(is_leap(2023));
+prog: 	CHECK(bump() == 1);
+prog: 	CHECK(bump() == 2);
+prog: 	if (failed == 0)
+prog: 		CHECK(0);
+prog: 	else
+prog: 		CHECK(clamp(7, 8, 9) == 7);
+prog: 	printf("%d checks, %d failed\n", checks, failed);
+prog: 	return failed != 0;
+prog: }
+case: chkmac 2>&1; echo $?
+case: chkmac 2>/dev/null
+case: chkmac 2>&1 >/dev/null
+hint: do, then count, then if not cond count a failure and fprintf with __FILE__, the line minus base_line, and the stringified cond, then while zero

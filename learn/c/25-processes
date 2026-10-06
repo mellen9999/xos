@@ -1,0 +1,274 @@
+name: processes
+intro: Every program you run was started by another one. A shell makes a
+intro: new process with `fork`, and that process turns into your command
+intro: with `exec`. Put the POSIX line first, and include <unistd.h> and
+intro: <sys/wait.h>.
+intro:
+intro:     pid_t pid = fork();
+intro:
+intro: `fork` copies the running program -- memory, open files, everything
+intro: -- and returns twice. In the original (the parent) it returns the
+intro: child's pid; in the copy (the child) it returns 0; on failure it
+intro: returns -1 and there is no child. Both processes carry on from the
+intro: same line.
+intro:
+intro:     if (pid == 0) {
+intro:         execvp(argv[1], argv + 1);   /* returns only on failure */
+intro:         _exit(127);
+intro:     }
+intro:     int status;
+intro:     waitpid(pid, &status, 0);
+intro:
+intro: `execvp(file, argv)` replaces the child with another program. It
+intro: looks `file` up on PATH; `argv` is a NULL-ended array of strings
+intro: whose first item is the program's own name. If it returns at all, it
+intro: failed.
+intro:
+intro: Why `_exit` and not `exit`? `exit` flushes stdio buffers. The child
+intro: holds a copy of whatever the parent printed but had not flushed yet,
+intro: so the text comes out twice. `_exit` leaves at once and flushes
+intro: nothing. The rule: a child that does not exec leaves with `_exit`,
+intro: and a parent that printed `fflush(stdout)`s before it forks.
+intro:
+intro: `waitpid(pid, &status, 0)` waits for that child and collects it; a
+intro: child nobody collects lingers as a zombie. `status` is packed bits
+intro: -- never print it raw. Ask it:
+intro:
+intro:     WIFEXITED(status)     then WEXITSTATUS(status) is the exit code
+intro:     WIFSIGNALED(status)   then WTERMSIG(status) is the signal number
+intro:
+intro: A child killed by a signal has no exit code. Plain `wait` takes
+intro: whichever child ends first, which is not repeatable. `waitpid` with
+intro: a pid takes the one you name, so you can report in the order you
+intro: started them.
+---
+q: twoways.c -- fork, and tell the two apart
+spec: Print `before`, then `fork`. The child prints `child` and exits with
+spec: status 7. The parent waits for it, then prints
+spec: `parent: child exited with 7` (the 7 comes from the child's real
+spec: status) and exits 0. Each line appears exactly once, in that order.
+spec:
+spec: Careful: when standard output is a file or a pipe, text printed
+spec: before the fork but not flushed is copied into the child.
+spec:
+spec: If `fork` fails print `twoways: fork failed` to standard error and
+spec: exit 1.
+file: twoways.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	printf("before\n");
+prog: 	fflush(stdout);
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "twoways: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		printf("child\n");
+prog: 		exit(7);
+prog: 	}
+prog: 	int status;
+prog: 	if (waitpid(pid, &status, 0) < 0) {
+prog: 		fprintf(stderr, "twoways: wait failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (WIFEXITED(status))
+prog: 		printf("parent: child exited with %d\n", WEXITSTATUS(status));
+prog: 	return 0;
+prog: }
+case: twoways
+case: twoways; echo $?
+case: twoways | cat
+hint: fflush(stdout) before fork; in the child branch (pid == 0) print and exit(7); in the parent waitpid, then WEXITSTATUS
+---
+q: trycmd.c -- run a command, no arguments
+spec: Take exactly one argument, the name of a command. Print
+spec: `trying NAME`, then run that command (found through PATH, given no
+spec: arguments of its own) in a child process and wait for it. Then print
+spec: one line: `ok` if it exited with status 0, `not found` if it exited
+spec: with status 127, `failed` for anything else (including a signal).
+spec: Exit 0 in every case that gets that far.
+spec:
+spec: If the exec fails the child must leave with `_exit(127)`: plain
+spec: `exit` would flush a second copy of `trying NAME`.
+spec:
+spec: No argument or more than one prints `usage: trycmd NAME` to standard
+spec: error and exits 2. If `fork` fails print `trycmd: fork failed` to
+spec: standard error and exit 1.
+file: trycmd.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <stdio.h>
+prog: #include <unistd.h>
+prog: #include <sys/wait.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: trycmd NAME\n");
+prog: 		return 2;
+prog: 	}
+prog: 	printf("trying %s\n", argv[1]);
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "trycmd: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		char *const cmd[] = {argv[1], NULL};
+prog: 		execvp(cmd[0], cmd);
+prog: 		_exit(127);
+prog: 	}
+prog: 	int status;
+prog: 	if (waitpid(pid, &status, 0) < 0) {
+prog: 		fprintf(stderr, "trycmd: wait failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+prog: 		printf("ok\n");
+prog: 	else if (WIFEXITED(status) && WEXITSTATUS(status) == 127)
+prog: 		printf("not found\n");
+prog: 	else
+prog: 		printf("failed\n");
+prog: 	return 0;
+prog: }
+case: trycmd true
+case: trycmd false
+case: trycmd nosuchprogram
+case: trycmd; echo $?
+case: trycmd true; echo $?
+hint: execvp takes the name and a NULL-ended array holding the name again; if it returns, the child must _exit(127)
+---
+q: runcmd.c -- run a command and say how it ended
+spec: Run the command given as the arguments: `runcmd echo hi there` runs
+spec: `echo` with the arguments `hi` and `there`. Start it in a child with
+spec: `execvp`, wait for it, then print one line: `exit N` if it exited
+spec: with status N, or `signal S` if a signal S ended it. Exit 0 once it
+spec: has reported. The command's own output comes first, as it runs.
+spec:
+spec: If the command cannot be run, the child prints
+spec: `runcmd: cannot run NAME` to standard error and exits with status
+spec: 127, so the parent reports `exit 127`.
+spec:
+spec: No arguments prints `usage: runcmd CMD [ARG...]` to standard error
+spec: and exits 2. If `fork` fails print `runcmd: fork failed` and exit 1.
+file: runcmd.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc < 2) {
+prog: 		fprintf(stderr, "usage: runcmd CMD [ARG...]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "runcmd: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		execvp(argv[1], argv + 1);
+prog: 		fprintf(stderr, "runcmd: cannot run %s\n", argv[1]);
+prog: 		_exit(127);
+prog: 	}
+prog: 	int status;
+prog: 	pid_t got;
+prog: 	do {
+prog: 		got = waitpid(pid, &status, 0);
+prog: 	} while (got < 0 && errno == EINTR);
+prog: 	if (got < 0) {
+prog: 		fprintf(stderr, "runcmd: wait failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (WIFEXITED(status))
+prog: 		printf("exit %d\n", WEXITSTATUS(status));
+prog: 	else if (WIFSIGNALED(status))
+prog: 		printf("signal %d\n", WTERMSIG(status));
+prog: 	return 0;
+prog: }
+case: runcmd echo hi there
+case: runcmd sh -c 'exit 5'
+case: runcmd sh -c 'kill -9 $$'
+case: runcmd nosuchprogram
+case: runcmd; echo $?
+case: runcmd false; echo $?
+hint: execvp(argv[1], argv + 1); then WIFEXITED/WEXITSTATUS or WIFSIGNALED/WTERMSIG on the status waitpid gave you
+---
+q: reapall.c -- start N children, reap them in order
+spec: Take one argument N, a whole number from 1 to 20. Start N children.
+spec: Child number I (counting from 1) exits at once with status I times
+spec: 10. The parent starts them all first, then collects them one at a
+spec: time in the order it started them -- by pid, with `waitpid` -- and
+spec: prints `child I exit S` for each, S being the status that child
+spec: really exited with. Last line: `reaped N`. Exit 0.
+spec:
+spec: Anything else (no argument, more than one, not a number, below 1 or
+spec: above 20) prints `usage: reapall N` to standard error and exits 2.
+spec: If a `fork` fails, stop starting more, still collect the ones that
+spec: started, print `reapall: fork failed` to standard error, and exit 1.
+file: reapall.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: #define MAXKIDS 20
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	long n = 0;
+prog: 	char *end = NULL;
+prog: 	if (argc == 2) {
+prog: 		errno = 0;
+prog: 		n = strtol(argv[1], &end, 10);
+prog: 	}
+prog: 	if (argc != 2 || errno != 0 || end == argv[1] || *end != '\0' || n < 1 || n > MAXKIDS) {
+prog: 		fprintf(stderr, "usage: reapall N\n");
+prog: 		return 2;
+prog: 	}
+prog: 	pid_t pids[MAXKIDS];
+prog: 	long started = 0;
+prog: 	int status = 0;
+prog: 	for (long i = 1; i <= n; i++) {
+prog: 		pid_t pid = fork();
+prog: 		if (pid < 0) {
+prog: 			fprintf(stderr, "reapall: fork failed\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (pid == 0)
+prog: 			_exit((int)(i * 10));
+prog: 		pids[started++] = pid;
+prog: 	}
+prog: 	for (long i = 0; i < started; i++) {
+prog: 		int st;
+prog: 		if (waitpid(pids[i], &st, 0) < 0 || !WIFEXITED(st)) {
+prog: 			fprintf(stderr, "reapall: wait failed\n");
+prog: 			status = 1;
+prog: 			continue;
+prog: 		}
+prog: 		printf("child %ld exit %d\n", i + 1, WEXITSTATUS(st));
+prog: 	}
+prog: 	if (status == 0)
+prog: 		printf("reaped %ld\n", started);
+prog: 	return status;
+prog: }
+case: reapall 3
+case: reapall 1
+case: reapall 20 | wc -l
+case: reapall 0; echo $?
+case: reapall 21; echo $?
+case: reapall x; echo $?
+case: reapall; echo $?
+hint: keep the pids in an array as you fork; the child does _exit(i * 10); then loop over the array calling waitpid on each pid

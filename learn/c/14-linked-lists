@@ -1,0 +1,582 @@
+name: linked lists
+intro: An array is one block, so inserting in the middle moves everything
+intro: after it. A linked list is many small blocks, each holding a value
+intro: and a pointer to the next; adding or removing touches only the
+intro: neighbours:
+intro:
+intro:     struct node {
+intro:         long val;
+intro:         struct node *next;      /* NULL marks the end */
+intro:     };
+intro:
+intro: The list is a pointer to the first node, `head`; NULL is the empty
+intro: list. Each node is its own malloc, so check each one and free each
+intro: one. Read `next` BEFORE you free -- after free the node is gone:
+intro:
+intro:     while (n != NULL) {
+intro:         struct node *next = n->next;
+intro:         free(n);
+intro:         n = next;
+intro:     }
+intro:
+intro: A function that may change the head (push, delete the first node)
+intro: cannot do it through a copy, so it takes `struct node **head`, the
+intro: address of the caller's pointer. Better: walk with a pointer to the
+intro: LINK you stand on, not to the node:
+intro:
+intro:     struct node **pp = head;
+intro:     while (*pp != NULL && (*pp)->val < val)
+intro:         pp = &(*pp)->next;
+intro:     n->next = *pp;      /* new node points at what was there */
+intro:     *pp = n;            /* and the link now points at it */
+intro:
+intro: `*pp` is whichever pointer holds the current node -- `head` itself
+intro: or some node's `next` -- so insert and delete are the same code at
+intro: the front, the middle and the end. No head special case.
+intro: To delete: `struct node *gone = *pp; *pp = gone->next; free(gone);`
+intro: and do NOT advance pp: the next node has slid into `*pp`.
+intro:
+intro: Reverse in place by turning each `next` around: keep prev, cur, and
+intro: the next you saved before overwriting. A list costs a malloc per
+intro: item and a cache miss per step; use one when you insert and remove
+intro: a lot, not as plain storage.
+---
+q: listcmd.c -- a list you drive by commands
+spec: Keeps a singly linked list of `long` values, one malloc per node,
+spec: and runs commands from standard input, one per line. Empty lines are
+spec: skipped (they still count in line numbers).
+spec:
+spec: `push N` puts N at the front. `add N` puts it at the end. `pop`
+spec: removes the front. `rev` reverses the list in place by relinking
+spec: (no new nodes). `show` prints the values in order, separated by single
+spec: spaces, inside square brackets, then a newline: `[2 1 3]`, and `[]`
+spec: when empty. `count` prints how many nodes there are.
+spec:
+spec: The first failing command stops the run: print `listcmd: line L:
+spec: MESSAGE` to standard error, free the list, exit 1. Messages:
+spec: `unknown command`; `bad number` (N missing, not a whole number, or
+spec: too big for a long); `bad argument` (pop, rev, show or count given
+spec: an argument); `list empty` (pop on an empty list). End of input
+spec: frees the list and exits 0. Take the head by `struct node **` so no
+spec: function special-cases the first node.
+file: listcmd.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: struct node {
+prog: 	long val;
+prog: 	struct node *next;
+prog: };
+prog: 
+prog: static struct node *node_new(long val, struct node *next)
+prog: {
+prog: 	struct node *n = malloc(sizeof *n);
+prog: 	if (n != NULL) {
+prog: 		n->val = val;
+prog: 		n->next = next;
+prog: 	}
+prog: 	return n;
+prog: }
+prog: 
+prog: static int push(struct node **head, long val)
+prog: {
+prog: 	struct node *n = node_new(val, *head);
+prog: 	if (n == NULL)
+prog: 		return -1;
+prog: 	*head = n;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static int append(struct node **head, long val)
+prog: {
+prog: 	struct node **pp = head;
+prog: 	while (*pp != NULL)
+prog: 		pp = &(*pp)->next;
+prog: 	struct node *n = node_new(val, NULL);
+prog: 	if (n == NULL)
+prog: 		return -1;
+prog: 	*pp = n;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static void pop(struct node **head)
+prog: {
+prog: 	struct node *gone = *head;
+prog: 	*head = gone->next;
+prog: 	free(gone);
+prog: }
+prog: 
+prog: static void reverse(struct node **head)
+prog: {
+prog: 	struct node *prev = NULL, *cur = *head;
+prog: 	while (cur != NULL) {
+prog: 		struct node *next = cur->next;
+prog: 		cur->next = prev;
+prog: 		prev = cur;
+prog: 		cur = next;
+prog: 	}
+prog: 	*head = prev;
+prog: }
+prog: 
+prog: static void show(const struct node *n)
+prog: {
+prog: 	putchar('[');
+prog: 	for (; n != NULL; n = n->next)
+prog: 		printf(n->next != NULL ? "%ld " : "%ld", n->val);
+prog: 	puts("]");
+prog: }
+prog: 
+prog: static size_t count(const struct node *n)
+prog: {
+prog: 	size_t c = 0;
+prog: 	for (; n != NULL; n = n->next)
+prog: 		c++;
+prog: 	return c;
+prog: }
+prog: 
+prog: static void free_all(struct node *n)
+prog: {
+prog: 	while (n != NULL) {
+prog: 		struct node *next = n->next;
+prog: 		free(n);
+prog: 		n = next;
+prog: 	}
+prog: }
+prog: 
+prog: static bool parse_num(const char *s, long *out)
+prog: {
+prog: 	if (s == NULL)
+prog: 		return false;
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	*out = strtol(s, &end, 10);
+prog: 	return errno == 0 && end != s && *end == '\0';
+prog: }
+prog: 
+prog: static bool is(const char *cmd, const char *name)
+prog: {
+prog: 	return strcmp(cmd, name) == 0;
+prog: }
+prog: 
+prog: /* run one command; return NULL, or the error message */
+prog: static const char *run(struct node **head, char *line)
+prog: {
+prog: 	char *arg = strchr(line, ' ');
+prog: 	if (arg != NULL) {
+prog: 		*arg++ = '\0';
+prog: 		while (*arg == ' ')
+prog: 			arg++;
+prog: 	}
+prog: 
+prog: 	if (is(line, "push") || is(line, "add")) {
+prog: 		long x;
+prog: 		if (!parse_num(arg, &x))
+prog: 			return "bad number";
+prog: 		int rc = is(line, "push") ? push(head, x) : append(head, x);
+prog: 		return rc != 0 ? "out of memory" : NULL;
+prog: 	}
+prog: 	if (!is(line, "pop") && !is(line, "rev") && !is(line, "show") &&
+prog: 		!is(line, "count"))
+prog: 		return "unknown command";
+prog: 	if (arg != NULL)
+prog: 		return "bad argument";
+prog: 
+prog: 	if (is(line, "pop")) {
+prog: 		if (*head == NULL)
+prog: 			return "list empty";
+prog: 		pop(head);
+prog: 	} else if (is(line, "rev")) {
+prog: 		reverse(head);
+prog: 	} else if (is(line, "show")) {
+prog: 		show(*head);
+prog: 	} else {
+prog: 		printf("%zu\n", count(*head));
+prog: 	}
+prog: 	return NULL;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct node *head = NULL;
+prog: 	int status = 0;
+prog: 	char line[128];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\n")] = '\0';
+prog: 		if (line[0] == '\0')
+prog: 			continue;
+prog: 		const char *err = run(&head, line);
+prog: 		if (err != NULL) {
+prog: 			fprintf(stderr, "listcmd: line %d: %s\n", lineno, err);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	free_all(head);
+prog: 	return status;
+prog: }
+case: printf 'push 1\npush 2\nadd 3\nshow\n' | listcmd
+case: printf 'add 1\nadd 2\nadd 3\nrev\nshow\npop\nshow\ncount\n' | listcmd
+case: printf 'show\nrev\ncount\n' | listcmd
+case: printf 'push 1\npop\npop\n' | listcmd 2>&1; echo $?
+case: for p in push 'push x' 'push 9999999999999999999999' 'show 1' jump; do printf '%s\n' "$p" | listcmd 2>&1; echo $?; done
+hint: append walks a pointer to the link, starting at head, until the link holds NULL, then stores the new node there
+---
+q: sortins.c -- sorted insertion, with counts
+spec: Reads whole numbers from standard input, one per line, and keeps
+spec: them in a sorted singly linked list: each new number is inserted at
+spec: its place, not sorted afterwards. A number already in the list does
+spec: not get a second node; its node counts how many times it was seen.
+spec:
+spec: With no argument print every number, ascending, one per line,
+spec: repeated as often as it was read. With `-u` print each distinct
+spec: number once. With `-c` print `COUNT VALUE` for each distinct number
+spec: (like `uniq -c`, but sorted and without padding). Values span the
+spec: full `long` range. Free the list before you exit.
+spec:
+spec: A bad line (blank included) prints `sortins: line L: bad number`
+spec: to standard error, nothing to standard output, exit 1. Any other
+spec: arguments print `usage: sortins [OPTION]` to standard error and
+spec: exit 2. Empty input prints nothing and exits 0.
+file: sortins.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: struct node {
+prog: 	long val;
+prog: 	size_t count;
+prog: 	struct node *next;
+prog: };
+prog: 
+prog: /* keep the list sorted; an equal value bumps the count of its node */
+prog: static int insert(struct node **head, long val)
+prog: {
+prog: 	struct node **pp = head;
+prog: 	while (*pp != NULL && (*pp)->val < val)
+prog: 		pp = &(*pp)->next;
+prog: 	if (*pp != NULL && (*pp)->val == val) {
+prog: 		(*pp)->count++;
+prog: 		return 0;
+prog: 	}
+prog: 	struct node *n = malloc(sizeof *n);
+prog: 	if (n == NULL)
+prog: 		return -1;
+prog: 	*n = (struct node){ .val = val, .count = 1, .next = *pp };
+prog: 	*pp = n;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static void free_all(struct node *n)
+prog: {
+prog: 	while (n != NULL) {
+prog: 		struct node *next = n->next;
+prog: 		free(n);
+prog: 		n = next;
+prog: 	}
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	bool uniq = false, counts = false;
+prog: 	if (argc == 2 && strcmp(argv[1], "-u") == 0)
+prog: 		uniq = true;
+prog: 	else if (argc == 2 && strcmp(argv[1], "-c") == 0)
+prog: 		counts = true;
+prog: 	else if (argc != 1) {
+prog: 		fprintf(stderr, "usage: sortins [OPTION]\n");
+prog: 		return 2;
+prog: 	}
+prog: 
+prog: 	struct node *head = NULL;
+prog: 	int status = 0;
+prog: 	char line[64];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "sortins: line %d: bad number\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (insert(&head, x) != 0) {
+prog: 			fprintf(stderr, "sortins: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 
+prog: 	if (status == 0) {
+prog: 		for (const struct node *n = head; n != NULL; n = n->next) {
+prog: 			if (counts)
+prog: 				printf("%zu %ld\n", n->count, n->val);
+prog: 			else
+prog: 				for (size_t i = 0; i < (uniq ? 1 : n->count); i++)
+prog: 					printf("%ld\n", n->val);
+prog: 		}
+prog: 	}
+prog: 	free_all(head);
+prog: 	return status;
+prog: }
+case: printf '3\n1\n2\n1\n' | sortins
+case: printf '3\n1\n2\n1\n3\n3\n' | sortins -u
+case: printf '3\n1\n2\n1\n3\n3\n' | sortins -c
+case: printf '5\n9223372036854775807\n-9223372036854775808\n0\n' | sortins
+case: sortins </dev/null; echo $?; sortins -x 2>&1; echo $?; printf '1\nx\n' | sortins 2>&1; echo $?
+hint: walk with a pointer to the link while the node's value is smaller; if the node there is equal bump its count, else link a new node in front of it
+---
+q: lprune.c -- delete nodes by rule
+spec: Takes one argument, RULE. Reads whole numbers from standard input,
+spec: one per line, into a linked list in input order, deletes the nodes
+spec: the rule names, and prints what is left, one per line.
+spec:
+spec: `even` deletes even numbers, `odd` odd ones (a negative odd number
+spec: is odd), `neg` numbers below 0, and `dup` any node whose value
+spec: already appears in an EARLIER node: it keeps the first of each.
+spec:
+spec: Look the rule up in a table of function pointers, and delete with a
+spec: pointer to the link so that the first node, a run of adjacent
+spec: matches and the last node need no special cases. Free every node,
+spec: kept or deleted, before you exit.
+spec:
+spec: A bad line prints `lprune: line L: bad number` to standard error,
+spec: nothing to standard output, exit 1. Not exactly one argument prints
+spec: `usage: lprune RULE`, an unknown RULE prints `lprune: unknown rule
+spec: NAME`, both to standard error, exit 2. If nothing is left print
+spec: nothing and exit 0.
+file: lprune.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: struct node {
+prog: 	long val;
+prog: 	struct node *next;
+prog: };
+prog: 
+prog: typedef bool (*dropfn)(const struct node *head, const struct node *n);
+prog: 
+prog: static bool drop_even(const struct node *head, const struct node *n)
+prog: {
+prog: 	(void)head;
+prog: 	return n->val % 2 == 0;
+prog: }
+prog: 
+prog: static bool drop_odd(const struct node *head, const struct node *n)
+prog: {
+prog: 	(void)head;
+prog: 	return n->val % 2 != 0;
+prog: }
+prog: 
+prog: static bool drop_neg(const struct node *head, const struct node *n)
+prog: {
+prog: 	(void)head;
+prog: 	return n->val < 0;
+prog: }
+prog: 
+prog: /* true when an earlier node already holds this value */
+prog: static bool drop_dup(const struct node *head, const struct node *n)
+prog: {
+prog: 	for (const struct node *p = head; p != n; p = p->next)
+prog: 		if (p->val == n->val)
+prog: 			return true;
+prog: 	return false;
+prog: }
+prog: 
+prog: static const struct {
+prog: 	const char *name;
+prog: 	dropfn fn;
+prog: } rules[] = {
+prog: 	{ "even", drop_even }, { "odd", drop_odd },
+prog: 	{ "neg", drop_neg },   { "dup", drop_dup },
+prog: };
+prog: 
+prog: static void prune(struct node **head, dropfn drop)
+prog: {
+prog: 	struct node **pp = head;
+prog: 	while (*pp != NULL) {
+prog: 		if (drop(*head, *pp)) {
+prog: 			struct node *gone = *pp;
+prog: 			*pp = gone->next;       /* the next node slides into *pp */
+prog: 			free(gone);
+prog: 		} else {
+prog: 			pp = &(*pp)->next;
+prog: 		}
+prog: 	}
+prog: }
+prog: 
+prog: static void free_all(struct node *n)
+prog: {
+prog: 	while (n != NULL) {
+prog: 		struct node *next = n->next;
+prog: 		free(n);
+prog: 		n = next;
+prog: 	}
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: lprune RULE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	dropfn drop = NULL;
+prog: 	for (size_t i = 0; i < sizeof rules / sizeof *rules; i++)
+prog: 		if (strcmp(argv[1], rules[i].name) == 0)
+prog: 			drop = rules[i].fn;
+prog: 	if (drop == NULL) {
+prog: 		fprintf(stderr, "lprune: unknown rule %s\n", argv[1]);
+prog: 		return 2;
+prog: 	}
+prog: 
+prog: 	struct node *head = NULL, **tail = &head;
+prog: 	int status = 0;
+prog: 	char line[64];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "lprune: line %d: bad number\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		struct node *n = malloc(sizeof *n);
+prog: 		if (n == NULL) {
+prog: 			fprintf(stderr, "lprune: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		*n = (struct node){ .val = x };
+prog: 		*tail = n;
+prog: 		tail = &n->next;
+prog: 	}
+prog: 
+prog: 	if (status == 0) {
+prog: 		prune(&head, drop);
+prog: 		for (const struct node *n = head; n != NULL; n = n->next)
+prog: 			printf("%ld\n", n->val);
+prog: 	}
+prog: 	free_all(head);
+prog: 	return status;
+prog: }
+case: printf '1\n2\n3\n4\n' | lprune even
+case: printf '2\n4\n5\n6\n' | lprune even
+case: printf '5\n3\n5\n5\n7\n3\n' | lprune dup
+case: printf '3\n-1\n-2\n0\n' | lprune neg; printf '1\n-3\n5\n' | lprune odd; echo $?
+case: lprune 2>&1; echo $?; lprune bogus </dev/null 2>&1; echo $?; printf '1\nz\n' | lprune dup 2>&1; echo $?
+hint: after a delete leave the walking pointer where it is, since the next node has slid into the link; only step forward when you keep a node
+---
+q: lmerge.c -- merge two sorted lists
+spec: Standard input holds two lists of whole numbers, one per line, each
+spec: ascending (equal neighbours are fine). A single empty line separates
+spec: them. With no empty line the whole input is the first list and the
+spec: second is empty; a leading empty line makes the first list empty.
+spec:
+spec: Build each list as a linked list, then merge by RELINKING the
+spec: existing nodes into one ascending list -- the merge step of merge
+spec: sort, with no new allocation. Print the result one number per line,
+spec: and free the nodes before you exit. Empty input prints nothing.
+spec:
+spec: A line that is not a whole number, or a second empty line, prints
+spec: `lmerge: line L: bad number`; a number smaller than the one before
+spec: it in the same list prints `lmerge: line L: not ascending` (L counts
+spec: from 1). Either way: standard error, nothing to standard output,
+spec: free what you built, exit 1.
+file: lmerge.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: struct node {
+prog: 	long val;
+prog: 	struct node *next;
+prog: };
+prog: 
+prog: /* relink the nodes of two ascending lists into one; no allocation */
+prog: static struct node *merge(struct node *a, struct node *b)
+prog: {
+prog: 	struct node *head = NULL, **tail = &head;
+prog: 	while (a != NULL && b != NULL) {
+prog: 		struct node **from = b->val < a->val ? &b : &a;
+prog: 		*tail = *from;
+prog: 		*from = (*from)->next;
+prog: 		tail = &(*tail)->next;
+prog: 	}
+prog: 	*tail = a != NULL ? a : b;
+prog: 	return head;
+prog: }
+prog: 
+prog: static void free_all(struct node *n)
+prog: {
+prog: 	while (n != NULL) {
+prog: 		struct node *next = n->next;
+prog: 		free(n);
+prog: 		n = next;
+prog: 	}
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct node *list[2] = { NULL, NULL };
+prog: 	struct node **tail[2] = { &list[0], &list[1] };
+prog: 	int cur = 0;
+prog: 	long last = 0;
+prog: 	const char *err = NULL;
+prog: 	int lineno = 0;
+prog: 	char line[64];
+prog: 
+prog: 	while (err == NULL && fgets(line, sizeof line, stdin) != NULL) {
+prog: 		lineno++;
+prog: 		if (strcmp(line, "\n") == 0 && cur == 0) {
+prog: 			cur = 1;
+prog: 			continue;
+prog: 		}
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			err = "bad number";
+prog: 		} else if (list[cur] != NULL && x < last) {
+prog: 			err = "not ascending";
+prog: 		} else {
+prog: 			struct node *n = malloc(sizeof *n);
+prog: 			if (n == NULL) {
+prog: 				err = "out of memory";
+prog: 			} else {
+prog: 				*n = (struct node){ .val = x };
+prog: 				*tail[cur] = n;
+prog: 				tail[cur] = &n->next;
+prog: 				last = x;
+prog: 			}
+prog: 		}
+prog: 	}
+prog: 
+prog: 	int status = 0;
+prog: 	if (err != NULL) {
+prog: 		fprintf(stderr, "lmerge: line %d: %s\n", lineno, err);
+prog: 		status = 1;
+prog: 		free_all(list[0]);
+prog: 		free_all(list[1]);
+prog: 	} else {
+prog: 		struct node *all = merge(list[0], list[1]);
+prog: 		for (const struct node *n = all; n != NULL; n = n->next)
+prog: 			printf("%ld\n", n->val);
+prog: 		free_all(all);
+prog: 	}
+prog: 	return status;
+prog: }
+case: printf '1\n4\n9\n\n2\n3\n10\n' | lmerge
+case: printf '1\n1\n\n1\n' | lmerge; printf '1\n2\n' | lmerge; printf '\n5\n6\n' | lmerge; printf '5\n\n' | lmerge
+case: printf '1\n3\n2\n' | lmerge 2>&1; echo $?
+case: printf '1\n\n2\n\n3\n' | lmerge 2>&1; echo $?; printf '1\n\n3\n2\n' | lmerge 2>&1; echo $?
+case: lmerge </dev/null; echo $?; printf '1\nx\n' | lmerge 2>&1; echo $?
+hint: keep a pointer to the last link of the result; each step moves the smaller front node of the two lists onto it, and at the end the link takes whichever list still has nodes

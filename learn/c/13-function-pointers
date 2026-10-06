@@ -1,0 +1,562 @@
+name: function pointers
+intro: A function has an address, like a variable. A pointer to one lets
+intro: you pass behaviour as data: "sort with THIS comparison", "run THAT
+intro: handler". The declaration is the return type, the pointer name in
+intro: parentheses, then the parameters:
+intro:
+intro:     int (*cmp)(const void *, const void *);
+intro:
+intro: Drop the parentheses and it is a function returning a pointer, which
+intro: is not what you meant. Nobody reads those twice, so use a typedef:
+intro:
+intro:     typedef int (*cmpfn)(const void *, const void *);
+intro:     cmpfn f = by_len;     /* a function name is its address */
+intro:     int r = f(a, b);      /* call through it like a function */
+intro:
+intro: `qsort` is the one you have met. It calls your comparator with
+intro: pointers TO two array elements. For an array of `char *` those are
+intro: `char **` hiding behind `const void *` -- cast once, at the top.
+intro:
+intro: A table pairs a name with a function and replaces a long if/else
+intro: or switch chain. Adding a command is one new row:
+intro:
+intro:     static const struct { const char *name; handler fn; } tab[] = {
+intro:         { "add", h_add }, { "pop", h_pop },
+intro:     };
+intro:
+intro: Loop over `sizeof tab / sizeof *tab` rows, `strcmp` the name, call
+intro: `tab[i].fn(...)`. A name that matches no row is an error to report.
+intro:
+intro: C has no closures, so a callback that needs state takes a `void *`
+intro: context beside it. The caller passes the address of its own struct;
+intro: the callback converts it back. The compiler cannot check this, so
+intro: convert to exactly the type that was passed:
+intro:
+intro:     typedef void (*visit_fn)(const char *line, void *ctx);
+intro:     struct tally *t = ctx;    /* void * converts without a cast */
+intro:
+intro: Calling a null or mistyped function pointer is undefined behaviour,
+intro: usually a crash. A table row you forgot to fill in is a null.
+---
+q: sortby.c -- sort lines by a chosen rule
+spec: Takes one argument, the MODE, and sorts the lines of standard input
+spec: by it, printing one per line:
+spec:
+spec: `alpha` -- strcmp order. `ralpha` -- reverse strcmp order.
+spec: `len` -- shortest first; lines of equal length in strcmp order.
+spec: `num` -- by the number at the start of the line (strtol, base 10;
+spec: text that is not a number counts as 0); equal numbers in strcmp order.
+spec:
+spec: Pick the comparator through a table of names and function pointers,
+spec: and sort with `qsort`. Lines are at most 60 characters and there are
+spec: at most 256 of them; a 257th prints `sortby: too many lines` to
+spec: standard error, prints nothing to standard output, and exits 1.
+spec: A wrong argument count prints `usage: sortby MODE` and a MODE not in
+spec: the table prints `sortby: unknown mode NAME`, both to standard error,
+spec: both exit 2. Empty input prints nothing and exits 0.
+file: sortby.c
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXLINES 256
+prog: #define MAXLEN 64
+prog: 
+prog: typedef int (*cmpfn)(const void *, const void *);
+prog: 
+prog: /* qsort passes pointers TO the elements; the elements are char *, so each
+prog:    argument is really a char ** hiding behind const void * */
+prog: static const char *text(const void *p)
+prog: {
+prog: 	return *(const char *const *)p;
+prog: }
+prog: 
+prog: static int by_alpha(const void *a, const void *b)
+prog: {
+prog: 	return strcmp(text(a), text(b));
+prog: }
+prog: 
+prog: static int by_ralpha(const void *a, const void *b)
+prog: {
+prog: 	return by_alpha(b, a);
+prog: }
+prog: 
+prog: static int by_len(const void *a, const void *b)
+prog: {
+prog: 	size_t x = strlen(text(a)), y = strlen(text(b));
+prog: 	if (x != y)
+prog: 		return x < y ? -1 : 1;
+prog: 	return by_alpha(a, b);
+prog: }
+prog: 
+prog: static int by_num(const void *a, const void *b)
+prog: {
+prog: 	long x = strtol(text(a), NULL, 10), y = strtol(text(b), NULL, 10);
+prog: 	if (x != y)
+prog: 		return x < y ? -1 : 1;
+prog: 	return by_alpha(a, b);
+prog: }
+prog: 
+prog: static const struct {
+prog: 	const char *name;
+prog: 	cmpfn cmp;
+prog: } modes[] = {
+prog: 	{ "alpha", by_alpha },
+prog: 	{ "ralpha", by_ralpha },
+prog: 	{ "len", by_len },
+prog: 	{ "num", by_num },
+prog: };
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 2) {
+prog: 		fprintf(stderr, "usage: sortby MODE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	cmpfn cmp = NULL;
+prog: 	for (size_t i = 0; i < sizeof modes / sizeof *modes; i++)
+prog: 		if (strcmp(argv[1], modes[i].name) == 0)
+prog: 			cmp = modes[i].cmp;
+prog: 	if (cmp == NULL) {
+prog: 		fprintf(stderr, "sortby: unknown mode %s\n", argv[1]);
+prog: 		return 2;
+prog: 	}
+prog: 
+prog: 	static char store[MAXLINES][MAXLEN];
+prog: 	const char *ptrs[MAXLINES];
+prog: 	size_t n = 0;
+prog: 	while (n < MAXLINES && fgets(store[n], MAXLEN, stdin) != NULL) {
+prog: 		store[n][strcspn(store[n], "\n")] = '\0';
+prog: 		ptrs[n] = store[n];
+prog: 		n++;
+prog: 	}
+prog: 	if (n == MAXLINES && getchar() != EOF) {
+prog: 		fprintf(stderr, "sortby: too many lines\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	qsort(ptrs, n, sizeof *ptrs, cmp);
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		puts(ptrs[i]);
+prog: 	return 0;
+prog: }
+case: printf 'pear\nfig\napple\n' | sortby alpha
+case: printf 'pear\nfig\napple\n' | sortby ralpha
+case: printf 'bb\naa\nc\ndddd\n' | sortby len
+case: printf '10\n9\n-3\n100\n09\nabc\n' | sortby num
+case: sortby; echo $?; sortby shuffle </dev/null 2>&1; echo $?; sortby alpha </dev/null; echo $?
+case: seq 1 300 | sortby num 2>&1; echo $?
+hint: qsort wants a function of two const void pointers; each really points at a char pointer, so read it as a pointer to const char pointer
+---
+q: mapfilter.c -- transform, then keep
+spec: Takes two arguments, MAP and KEEP, and reads whole numbers from
+spec: standard input, one per line. It applies MAP to every number, then
+spec: keeps only the results KEEP accepts, and prints those, one per line,
+spec: in input order. The filter sees the mapped values, not the originals.
+spec:
+spec: MAP is one of `double`, `square`, `negate`, `same`. KEEP is one of
+spec: `even`, `odd`, `pos` (greater than 0), `all`. Look both up in tables
+spec: of function pointers, and write one `apply` and one `filter` that
+spec: know nothing about which function they were handed.
+spec:
+spec: Every input number must be between -30000 and 30000 so that
+spec: squaring cannot overflow. A bad line (blank included) prints
+spec: `mapfilter: line L: bad number`, one out of range prints
+spec: `mapfilter: line L: out of range` (L counts from 1), and more than
+spec: 1000 numbers prints `mapfilter: too many numbers`; all go to standard
+spec: error, print nothing to standard output and exit 1. A wrong argument
+spec: count prints `usage: mapfilter MAP KEEP`, an unknown name prints
+spec: `mapfilter: unknown map NAME` or `mapfilter: unknown keep NAME` (the
+spec: map is checked first); all exit 2 before any input is read.
+spec: Empty input prints nothing and exits 0. Negative odd numbers are odd.
+file: mapfilter.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXN 1000
+prog: #define LIMIT 30000
+prog: 
+prog: typedef long (*mapfn)(long);
+prog: typedef bool (*keepfn)(long);
+prog: 
+prog: static long twice(long x) { return x * 2; }
+prog: static long square(long x) { return x * x; }
+prog: static long negate(long x) { return -x; }
+prog: static long same(long x) { return x; }
+prog: 
+prog: static bool is_even(long x) { return x % 2 == 0; }
+prog: static bool is_odd(long x) { return x % 2 != 0; }
+prog: static bool is_pos(long x) { return x > 0; }
+prog: static bool is_any(long x) { (void)x; return true; }
+prog: 
+prog: static const struct {
+prog: 	const char *name;
+prog: 	mapfn fn;
+prog: } maps[] = {
+prog: 	{ "double", twice }, { "square", square },
+prog: 	{ "negate", negate }, { "same", same },
+prog: };
+prog: 
+prog: static const struct {
+prog: 	const char *name;
+prog: 	keepfn fn;
+prog: } keeps[] = {
+prog: 	{ "even", is_even }, { "odd", is_odd },
+prog: 	{ "pos", is_pos }, { "all", is_any },
+prog: };
+prog: 
+prog: /* run map over v in place */
+prog: static void apply(long *v, size_t n, mapfn fn)
+prog: {
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		v[i] = fn(v[i]);
+prog: }
+prog: 
+prog: /* move the elements fn accepts to the front; return how many */
+prog: static size_t filter(long *v, size_t n, keepfn fn)
+prog: {
+prog: 	size_t kept = 0;
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		if (fn(v[i]))
+prog: 			v[kept++] = v[i];
+prog: 	return kept;
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc != 3) {
+prog: 		fprintf(stderr, "usage: mapfilter MAP KEEP\n");
+prog: 		return 2;
+prog: 	}
+prog: 	mapfn map = NULL;
+prog: 	for (size_t i = 0; i < sizeof maps / sizeof *maps; i++)
+prog: 		if (strcmp(argv[1], maps[i].name) == 0)
+prog: 			map = maps[i].fn;
+prog: 	if (map == NULL) {
+prog: 		fprintf(stderr, "mapfilter: unknown map %s\n", argv[1]);
+prog: 		return 2;
+prog: 	}
+prog: 	keepfn keep = NULL;
+prog: 	for (size_t i = 0; i < sizeof keeps / sizeof *keeps; i++)
+prog: 		if (strcmp(argv[2], keeps[i].name) == 0)
+prog: 			keep = keeps[i].fn;
+prog: 	if (keep == NULL) {
+prog: 		fprintf(stderr, "mapfilter: unknown keep %s\n", argv[2]);
+prog: 		return 2;
+prog: 	}
+prog: 
+prog: 	long v[MAXN];
+prog: 	size_t n = 0;
+prog: 	char line[64];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "mapfilter: line %d: bad number\n", lineno);
+prog: 			return 1;
+prog: 		}
+prog: 		if (x > LIMIT || x < -LIMIT) {
+prog: 			fprintf(stderr, "mapfilter: line %d: out of range\n", lineno);
+prog: 			return 1;
+prog: 		}
+prog: 		if (n == MAXN) {
+prog: 			fprintf(stderr, "mapfilter: too many numbers\n");
+prog: 			return 1;
+prog: 		}
+prog: 		v[n++] = x;
+prog: 	}
+prog: 
+prog: 	apply(v, n, map);
+prog: 	n = filter(v, n, keep);
+prog: 	for (size_t i = 0; i < n; i++)
+prog: 		printf("%ld\n", v[i]);
+prog: 	return 0;
+prog: }
+case: printf '1\n2\n3\n' | mapfilter double odd; echo $?
+case: printf '1\n2\n-3\n' | mapfilter negate pos
+case: printf '7\n-3\n-2\n' | mapfilter same odd
+case: printf '5\n-7\n0\n' | mapfilter square all
+case: printf '1\n40000\n' | mapfilter same all 2>&1; echo $?; printf '1\nx\n' | mapfilter same all 2>&1; echo $?
+case: mapfilter a b c 2>&1; echo $?; mapfilter nope nope </dev/null 2>&1; echo $?; mapfilter same nope </dev/null 2>&1; echo $?
+hint: map the whole array first, then compact the survivors to the front; odd means remainder is not 0, because -3 % 2 is -1
+---
+q: cmdtab.c -- a stack machine with a command table
+spec: Reads commands from standard input, one per line, and runs them on
+spec: a stack of at most 16 numbers. A command is a name, then optionally
+spec: one space-separated argument. Empty lines are skipped (they still
+spec: count in line numbers).
+spec:
+spec: `push N` puts N on the stack. `pop` drops the top. `dup` copies it.
+spec: `swap` exchanges the top two. `add`, `sub`, `mul`, `div` take the
+spec: top two, A below B, and push A+B, A-B, A*B, A/B (C division, toward
+spec: zero). `print` shows the top as a decimal and a newline, and leaves
+spec: it there. Only `push` takes an argument.
+spec:
+spec: Find the command in a table of names and handler function pointers,
+spec: not a chain of ifs. Every handler returns an error code from an
+spec: enum, and a table of messages turns it into text.
+spec:
+spec: Stack values must stay between -1000000000 and 1000000000, so no
+spec: arithmetic can overflow. The first failing command stops the run:
+spec: print `cmdtab: line L: MESSAGE` to standard error and exit 1. The
+spec: messages are `unknown command`, `stack empty` (too few items),
+spec: `stack full`, `bad number` (push argument not a whole number),
+spec: `out of range`, `bad argument` (push without one, or any other
+spec: command with one) and `divide by zero`. Check an argument first, then
+spec: the stack depth, then the arithmetic. End of input exits 0.
+file: cmdtab.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define DEPTH 16
+prog: #define LIMIT 1000000000L
+prog: 
+prog: enum err { OK, E_UNKNOWN, E_EMPTY, E_FULL, E_NUM, E_RANGE, E_ARG, E_DIV };
+prog: 
+prog: static const char *const errtext[] = {
+prog: 	[OK] = "ok",
+prog: 	[E_UNKNOWN] = "unknown command",
+prog: 	[E_EMPTY] = "stack empty",
+prog: 	[E_FULL] = "stack full",
+prog: 	[E_NUM] = "bad number",
+prog: 	[E_RANGE] = "out of range",
+prog: 	[E_ARG] = "bad argument",
+prog: 	[E_DIV] = "divide by zero",
+prog: };
+prog: 
+prog: struct stack {
+prog: 	long v[DEPTH];
+prog: 	size_t n;
+prog: };
+prog: 
+prog: typedef enum err (*handler)(struct stack *s, const char *arg);
+prog: 
+prog: static enum err put(struct stack *s, long x)
+prog: {
+prog: 	if (s->n == DEPTH)
+prog: 		return E_FULL;
+prog: 	if (x > LIMIT || x < -LIMIT)
+prog: 		return E_RANGE;
+prog: 	s->v[s->n++] = x;
+prog: 	return OK;
+prog: }
+prog: 
+prog: static enum err h_push(struct stack *s, const char *arg)
+prog: {
+prog: 	if (arg == NULL)
+prog: 		return E_ARG;
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long x = strtol(arg, &end, 10);
+prog: 	if (errno != 0 || end == arg || *end != '\0')
+prog: 		return E_NUM;
+prog: 	return put(s, x);
+prog: }
+prog: 
+prog: static enum err h_pop(struct stack *s, const char *arg)
+prog: {
+prog: 	if (arg != NULL)
+prog: 		return E_ARG;
+prog: 	if (s->n < 1)
+prog: 		return E_EMPTY;
+prog: 	s->n--;
+prog: 	return OK;
+prog: }
+prog: 
+prog: static enum err h_dup(struct stack *s, const char *arg)
+prog: {
+prog: 	if (arg != NULL)
+prog: 		return E_ARG;
+prog: 	if (s->n < 1)
+prog: 		return E_EMPTY;
+prog: 	return put(s, s->v[s->n - 1]);
+prog: }
+prog: 
+prog: static enum err h_swap(struct stack *s, const char *arg)
+prog: {
+prog: 	if (arg != NULL)
+prog: 		return E_ARG;
+prog: 	if (s->n < 2)
+prog: 		return E_EMPTY;
+prog: 	long t = s->v[s->n - 1];
+prog: 	s->v[s->n - 1] = s->v[s->n - 2];
+prog: 	s->v[s->n - 2] = t;
+prog: 	return OK;
+prog: }
+prog: 
+prog: static enum err h_print(struct stack *s, const char *arg)
+prog: {
+prog: 	if (arg != NULL)
+prog: 		return E_ARG;
+prog: 	if (s->n < 1)
+prog: 		return E_EMPTY;
+prog: 	printf("%ld\n", s->v[s->n - 1]);
+prog: 	return OK;
+prog: }
+prog: 
+prog: /* take two off, push one back: the shape shared by every operator */
+prog: static enum err pop2(struct stack *s, const char *arg, long *a, long *b)
+prog: {
+prog: 	if (arg != NULL)
+prog: 		return E_ARG;
+prog: 	if (s->n < 2)
+prog: 		return E_EMPTY;
+prog: 	*b = s->v[--s->n];
+prog: 	*a = s->v[--s->n];
+prog: 	return OK;
+prog: }
+prog: 
+prog: static enum err h_add(struct stack *s, const char *arg)
+prog: {
+prog: 	long a, b;
+prog: 	enum err e = pop2(s, arg, &a, &b);
+prog: 	return e != OK ? e : put(s, a + b);
+prog: }
+prog: 
+prog: static enum err h_sub(struct stack *s, const char *arg)
+prog: {
+prog: 	long a, b;
+prog: 	enum err e = pop2(s, arg, &a, &b);
+prog: 	return e != OK ? e : put(s, a - b);
+prog: }
+prog: 
+prog: static enum err h_mul(struct stack *s, const char *arg)
+prog: {
+prog: 	long a, b;
+prog: 	enum err e = pop2(s, arg, &a, &b);
+prog: 	return e != OK ? e : put(s, a * b);
+prog: }
+prog: 
+prog: static enum err h_div(struct stack *s, const char *arg)
+prog: {
+prog: 	long a, b;
+prog: 	enum err e = pop2(s, arg, &a, &b);
+prog: 	if (e != OK)
+prog: 		return e;
+prog: 	return b == 0 ? E_DIV : put(s, a / b);
+prog: }
+prog: 
+prog: static const struct {
+prog: 	const char *name;
+prog: 	handler fn;
+prog: } table[] = {
+prog: 	{ "push", h_push }, { "pop", h_pop },   { "dup", h_dup },
+prog: 	{ "swap", h_swap }, { "add", h_add },   { "sub", h_sub },
+prog: 	{ "mul", h_mul },   { "div", h_div },   { "print", h_print },
+prog: };
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct stack st = { .n = 0 };
+prog: 	char line[128];
+prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+prog: 		line[strcspn(line, "\n")] = '\0';
+prog: 		if (line[0] == '\0')
+prog: 			continue;
+prog: 
+prog: 		char *arg = strchr(line, ' ');
+prog: 		if (arg != NULL) {
+prog: 			*arg++ = '\0';
+prog: 			while (*arg == ' ')
+prog: 				arg++;
+prog: 			if (*arg == '\0')
+prog: 				arg = NULL;
+prog: 		}
+prog: 
+prog: 		enum err e = E_UNKNOWN;
+prog: 		for (size_t i = 0; i < sizeof table / sizeof *table; i++)
+prog: 			if (strcmp(line, table[i].name) == 0)
+prog: 				e = table[i].fn(&st, arg);
+prog: 		if (e != OK) {
+prog: 			fprintf(stderr, "cmdtab: line %d: %s\n", lineno, errtext[e]);
+prog: 			return 1;
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'push 3\npush 4\nadd\nprint\n' | cmdtab
+case: printf 'push 10\npush 3\ndiv\nprint\npush -10\npush 3\ndiv\nprint\n' | cmdtab
+case: printf 'push 2\ndup\nmul\ndup\nmul\nprint\npush 5\nswap\nsub\nprint\n' | cmdtab
+case: for p in frob pop push 'push 1x' 'add 3' 'push 2000000000'; do printf '%s\n' "$p" | cmdtab 2>&1; echo $?; done
+case: printf 'push 1\n\npush 0\ndiv\n' | cmdtab 2>&1; echo $?; printf 'push 100000\ndup\nmul\n' | cmdtab 2>&1; echo $?
+case: seq 1 17 | sed 's/^/push /' | cmdtab 2>&1; echo $?
+hint: each handler gets the stack and the argument and returns an error code; main finds the row by name and prints the message for any code that is not OK
+---
+q: ctxcount.c -- which lines mention each word
+spec: Takes one or more WORD arguments. Reads standard input and, for each
+spec: word, counts the LINES that contain it as a substring (a line with
+spec: the word twice counts once). Prints one line per word in argument
+spec: order, `WORD: COUNT`, then `lines: TOTAL` for the number of input
+spec: lines read. A last line with no newline still counts. Lines are at
+spec: most 200 characters. No arguments prints `usage: ctxcount WORD...`
+spec: to standard error and exits 2.
+spec:
+spec: Do the reading in a function that takes a callback and a `void *`
+spec: context, and hand it a struct holding the words and the counts.
+file: ctxcount.c
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXLINE 256
+prog: 
+prog: typedef void (*line_fn)(const char *line, void *ctx);
+prog: 
+prog: struct counts {
+prog: 	size_t nwords;
+prog: 	char **words;
+prog: 	size_t *hits;   /* hits[i]: lines containing words[i] */
+prog: 	size_t lines;
+prog: };
+prog: 
+prog: /* hand every line of f, newline stripped, to fn along with ctx */
+prog: static void each_line(FILE *f, line_fn fn, void *ctx)
+prog: {
+prog: 	char buf[MAXLINE];
+prog: 	while (fgets(buf, sizeof buf, f) != NULL) {
+prog: 		buf[strcspn(buf, "\n")] = '\0';
+prog: 		fn(buf, ctx);
+prog: 	}
+prog: }
+prog: 
+prog: static void count_line(const char *line, void *ctx)
+prog: {
+prog: 	struct counts *c = ctx;
+prog: 	c->lines++;
+prog: 	for (size_t i = 0; i < c->nwords; i++)
+prog: 		if (strstr(line, c->words[i]) != NULL)
+prog: 			c->hits[i]++;
+prog: }
+prog: 
+prog: int main(int argc, char *argv[])
+prog: {
+prog: 	if (argc < 2) {
+prog: 		fprintf(stderr, "usage: ctxcount WORD...\n");
+prog: 		return 2;
+prog: 	}
+prog: 	struct counts c = { .nwords = (size_t)argc - 1, .words = argv + 1 };
+prog: 	c.hits = calloc(c.nwords, sizeof *c.hits);
+prog: 	if (c.hits == NULL) {
+prog: 		fprintf(stderr, "ctxcount: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 
+prog: 	each_line(stdin, count_line, &c);
+prog: 
+prog: 	for (size_t i = 0; i < c.nwords; i++)
+prog: 		printf("%s: %zu\n", c.words[i], c.hits[i]);
+prog: 	printf("lines: %zu\n", c.lines);
+prog: 	free(c.hits);
+prog: 	return 0;
+prog: }
+case: printf 'apple pie\nbanana\napple apple\n\n' | ctxcount apple an zzz
+case: printf 'no newline' | ctxcount new x
+case: ctxcount a </dev/null
+case: ctxcount; echo $?
+hint: the callback gets one line and the context; bump the line total, then for each word test strstr and bump that word's counter once

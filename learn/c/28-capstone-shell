@@ -1,0 +1,1623 @@
+name: capstone: a shell
+intro: You now hold every piece of a shell. The shell on this box is a
+intro: loop:
+intro:
+intro:     read a line, split it into words, run it, keep the status
+intro:
+intro: Reading: `getline(&line, &cap, stdin)` returns the length (or -1 at
+intro: the end) and grows `line` as needed with `malloc` underneath, so no
+intro: line is too long for it. Free the buffer once, at the end.
+intro:
+intro: Splitting is where the care goes. Blanks separate words, quotes
+intro: group them, and `|`, `<`, `>` are operators even without blanks
+intro: around them. Write it as one pass over the characters with a few
+intro: flags, not as a pile of special cases.
+intro:
+intro: Running is what you learned in the last three units. `fork`, then
+intro: `execvp(argv[0], argv)` in the child, then `waitpid`. The status the
+intro: shell keeps is the exit code, or 128 plus the signal number: that is
+intro: why a killed command shows 137, and why a missing command is 127
+intro: (and one that exists but cannot run, 126). `$?` is that number.
+intro:
+intro: Some commands cannot be run by a child. `cd` changes the directory
+intro: of the process that calls `chdir`; a child's `cd` would vanish with
+intro: the child. So the shell handles `cd` and `exit` itself.
+intro:
+intro: A pipeline `a | b | c` is two pipes and three children, all started
+intro: before any is waited for. In each child `dup2` puts the pipe on 0 or
+intro: 1, then every pipe descriptor is closed: a spare write end anywhere
+intro: keeps the reader waiting forever. A redirection is the same move
+intro: with a file: in the child, `open` it, `dup2` it onto 0 or 1, `close`
+intro: it.
+intro:
+intro: Four programs, each a complete shell a little bigger than the last.
+intro: Each starts in vi as the previous one, so you grow it instead of
+intro: retyping it: `shtok` splits lines, `shrun` runs them, `shpipe` joins
+intro: them, `minish` redirects them. In vi, `:%s/old/new/g` renames every
+intro: `old` in the file -- use it for the message prefix. Keep all four;
+intro: the next unit builds an interpreter the same way.
+---
+q: shtok.c -- split command lines into words
+spec: Read standard input a line at a time and split each line into
+spec: tokens the way a shell does. For each line print the number of
+spec: tokens, a colon, then every token preceded by one space. A word
+spec: prints inside square brackets; an operator prints bare.
+spec: `echo "a b" > f` gives `4: [echo] [a b] > [f]`. Exit 0.
+spec:
+spec: The rules:
+spec: - Spaces and tabs separate tokens and are otherwise ignored.
+spec: - A double quote starts a quoted stretch that ends at the next double
+spec:   quote. Inside it, blanks and operators are plain characters. The
+spec:   quote marks themselves are dropped. A stretch may touch other
+spec:   text: `a"b c"d` is the single word `ab cd`, and `""` is one empty
+spec:   word.
+spec: - Outside quotes, each of the vertical bar, `<` and `>` is a token
+spec:   of its own (an operator), with or without blanks around it.
+spec: - The two characters `$?` anywhere in a word, quoted or not, become
+spec:   `0` (nothing has run yet, so the last status is 0).
+spec: - A line with no tokens prints `0:`.
+spec: - A line whose quote is never closed prints the single line
+spec:   `error: unterminated quote` instead, and reading goes on. Then
+spec:   the exit status is 1 rather than 0.
+spec:
+spec: The last line counts even without a final newline. Lines may be any
+spec: length. A failed read or allocation prints `shtok: read error` or
+spec: `shtok: out of memory` to standard error and exits 1.
+file: shtok.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: typedef struct {
+prog: 	char *text;
+prog: 	bool op;
+prog: } tok;
+prog: 
+prog: static bool is_op(char c)
+prog: {
+prog: 	return c == '|' || c == '<' || c == '>';
+prog: }
+prog: 
+prog: static bool is_blank(char c)
+prog: {
+prog: 	return c == ' ' || c == '\t';
+prog: }
+prog: 
+prog: /*
+prog:  * Split s into toks, copying each token's text into buf. Returns the token
+prog:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+prog:  * bytes and toks strlen(s) + 1 entries.
+prog:  */
+prog: static long tokenize(const char *s, int status, char *buf, tok *toks)
+prog: {
+prog: 	long n = 0;
+prog: 	char *out = buf;
+prog: 	while (*s != '\0') {
+prog: 		if (is_blank(*s)) {
+prog: 			s++;
+prog: 			continue;
+prog: 		}
+prog: 		toks[n].text = out;
+prog: 		if (is_op(*s)) {
+prog: 			toks[n].op = true;
+prog: 			*out++ = *s++;
+prog: 		} else {
+prog: 			toks[n].op = false;
+prog: 			bool quoted = false;
+prog: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+prog: 				if (*s == '"') {
+prog: 					quoted = !quoted;
+prog: 					s++;
+prog: 				} else if (s[0] == '$' && s[1] == '?') {
+prog: 					out += sprintf(out, "%d", status);
+prog: 					s += 2;
+prog: 				} else {
+prog: 					*out++ = *s++;
+prog: 				}
+prog: 			}
+prog: 			if (quoted)
+prog: 				return -1;
+prog: 		}
+prog: 		*out++ = '\0';
+prog: 		n++;
+prog: 	}
+prog: 	return n;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		char *buf = malloc(2 * (size_t)len + 1);
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (buf == NULL || toks == NULL) {
+prog: 			fprintf(stderr, "shtok: out of memory\n");
+prog: 			free(buf);
+prog: 			free(toks);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		long n = tokenize(line, 0, buf, toks);
+prog: 		if (n < 0) {
+prog: 			printf("error: unterminated quote\n");
+prog: 			status = 1;
+prog: 		} else {
+prog: 			printf("%ld:", n);
+prog: 			for (long i = 0; i < n; i++) {
+prog: 				if (toks[i].op)
+prog: 					printf(" %s", toks[i].text);
+prog: 				else
+prog: 					printf(" [%s]", toks[i].text);
+prog: 			}
+prog: 			putchar('\n');
+prog: 		}
+prog: 		free(buf);
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (ferror(stdin)) {
+prog: 		fprintf(stderr, "shtok: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+case: printf 'echo hello world\n' | shtok
+case: printf 'echo "a   b" x\n' | shtok
+case: printf 'ls|wc >out <in\n' | shtok
+case: printf 'a"b c"d "" "|" x$?y\n' | shtok
+case: printf '\n  \t \n' | shtok
+case: printf 'echo "oops\nok $?\n' | shtok; echo $?
+case: printf 'a b' | shtok
+hint: one pass over the characters: skip blanks, a lone bar, < or > is its own token, otherwise build a word and flip a quoted flag at each double quote; getline reads a line of any length
+---
+q: shrun.c -- a shell that runs commands
+spec: Grow `shtok.c` into a shell. Read standard input a line at a time,
+spec: split each line into tokens by the same rules as `shtok` (the
+spec: tokenizer is the same code), and run it. Print no prompt. A command's
+spec: output is its own business: the shell itself prints nothing but
+spec: error messages, and those go to standard error. Keep a status, the
+spec: last command's, starting at 0; `$?` in a word now becomes that
+spec: status as a decimal number.
+spec:
+spec: What a line does:
+spec: - No tokens: nothing happens and the status is unchanged.
+spec: - An operator token: print `shrun: operators not supported yet`,
+spec:   status 2, run nothing.
+spec: - A quote never closed: print `shrun: unterminated quote`, status 2.
+spec: - `cd DIR` changes directory in the shell itself: status 0, or if
+spec:   `chdir` fails print `shrun: cd: DIR: cannot cd` and status 1.
+spec:   Without exactly one argument print `shrun: cd: usage: cd DIR`,
+spec:   status 2.
+spec: - `exit` ends the shell with the current status. `exit N`, N a whole
+spec:   number from 0 up, ends it with N modulo 256. Any other argument
+spec:   prints `shrun: exit: bad status`, status 2, and the shell goes on.
+spec: - Anything else is a command: `fork`, then `execvp` with the words
+spec:   as argv, and the parent waits. The status is the command's exit
+spec:   code, or 128 plus the signal number if a signal ended it.
+spec:
+spec: If `execvp` fails the child prints `shrun: NAME: not found` (status
+spec: 127) when the file does not exist, or `shrun: NAME: cannot execute`
+spec: (status 126) for any other reason, NAME being the command word.
+spec:
+spec: At end of input the shell exits with the last status. Failed
+spec: `fork`, `waitpid` or allocation print `shrun: fork failed`,
+spec: `shrun: wait failed` or `shrun: out of memory` and give status 1.
+file: shrun.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: typedef struct {
+prog: 	char *text;
+prog: 	bool op;
+prog: } tok;
+prog: 
+prog: static bool is_op(char c)
+prog: {
+prog: 	return c == '|' || c == '<' || c == '>';
+prog: }
+prog: 
+prog: static bool is_blank(char c)
+prog: {
+prog: 	return c == ' ' || c == '\t';
+prog: }
+prog: 
+prog: /*
+prog:  * Split s into toks, copying each token's text into buf. Returns the token
+prog:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+prog:  * bytes and toks strlen(s) + 1 entries.
+prog:  */
+prog: static long tokenize(const char *s, int status, char *buf, tok *toks)
+prog: {
+prog: 	long n = 0;
+prog: 	char *out = buf;
+prog: 	while (*s != '\0') {
+prog: 		if (is_blank(*s)) {
+prog: 			s++;
+prog: 			continue;
+prog: 		}
+prog: 		toks[n].text = out;
+prog: 		if (is_op(*s)) {
+prog: 			toks[n].op = true;
+prog: 			*out++ = *s++;
+prog: 		} else {
+prog: 			toks[n].op = false;
+prog: 			bool quoted = false;
+prog: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+prog: 				if (*s == '"') {
+prog: 					quoted = !quoted;
+prog: 					s++;
+prog: 				} else if (s[0] == '$' && s[1] == '?') {
+prog: 					out += sprintf(out, "%d", status);
+prog: 					s += 2;
+prog: 				} else {
+prog: 					*out++ = *s++;
+prog: 				}
+prog: 			}
+prog: 			if (quoted)
+prog: 				return -1;
+prog: 		}
+prog: 		*out++ = '\0';
+prog: 		n++;
+prog: 	}
+prog: 	return n;
+prog: }
+prog: 
+prog: static int do_cd(char **argv)
+prog: {
+prog: 	if (argv[1] == NULL || argv[2] != NULL) {
+prog: 		fprintf(stderr, "shrun: cd: usage: cd DIR\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (chdir(argv[1]) != 0) {
+prog: 		fprintf(stderr, "shrun: cd: %s: cannot cd\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* returns the new status; sets *quit when the shell should leave */
+prog: static int do_exit(char **argv, int status, bool *quit)
+prog: {
+prog: 	long code = status;
+prog: 	if (argv[1] != NULL) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		code = strtol(argv[1], &end, 10);
+prog: 		if (argv[2] != NULL || errno != 0 || end == argv[1] || *end != '\0' || code < 0) {
+prog: 			fprintf(stderr, "shrun: exit: bad status\n");
+prog: 			return 2;
+prog: 		}
+prog: 	}
+prog: 	*quit = true;
+prog: 	return (int)(code % 256);
+prog: }
+prog: 
+prog: static int decode(int st)
+prog: {
+prog: 	return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+prog: }
+prog: 
+prog: static int run(char **argv)
+prog: {
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "shrun: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		execvp(argv[0], argv);
+prog: 		int code = errno == ENOENT ? 127 : 126;
+prog: 		fprintf(stderr, "shrun: %s: %s\n", argv[0], code == 127 ? "not found" : "cannot execute");
+prog: 		_exit(code);
+prog: 	}
+prog: 	int st;
+prog: 	pid_t got;
+prog: 	do {
+prog: 		got = waitpid(pid, &st, 0);
+prog: 	} while (got < 0 && errno == EINTR);
+prog: 	if (got < 0) {
+prog: 		fprintf(stderr, "shrun: wait failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	return decode(st);
+prog: }
+prog: 
+prog: /* one line's tokens: run it, return the new status */
+prog: static int command(tok *toks, long n, int status, bool *quit)
+prog: {
+prog: 	char **argv = malloc(((size_t)n + 1) * sizeof *argv);
+prog: 	if (argv == NULL) {
+prog: 		fprintf(stderr, "shrun: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (long i = 0; i < n; i++) {
+prog: 		if (toks[i].op) {
+prog: 			fprintf(stderr, "shrun: operators not supported yet\n");
+prog: 			free(argv);
+prog: 			return 2;
+prog: 		}
+prog: 		argv[i] = toks[i].text;
+prog: 	}
+prog: 	argv[n] = NULL;
+prog: 	int rc;
+prog: 	if (strcmp(argv[0], "cd") == 0)
+prog: 		rc = do_cd(argv);
+prog: 	else if (strcmp(argv[0], "exit") == 0)
+prog: 		rc = do_exit(argv, status, quit);
+prog: 	else
+prog: 		rc = run(argv);
+prog: 	free(argv);
+prog: 	return rc;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	bool quit = false;
+prog: 	while (!quit && (len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		char *buf = malloc(2 * (size_t)len + 1);
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (buf == NULL || toks == NULL) {
+prog: 			fprintf(stderr, "shrun: out of memory\n");
+prog: 			free(buf);
+prog: 			free(toks);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		long n = tokenize(line, status, buf, toks);
+prog: 		if (n < 0) {
+prog: 			fprintf(stderr, "shrun: unterminated quote\n");
+prog: 			status = 2;
+prog: 		} else if (n > 0) {
+prog: 			status = command(toks, n, status, &quit);
+prog: 		}
+prog: 		free(buf);
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (!quit && ferror(stdin)) {
+prog: 		fprintf(stderr, "shrun: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: typedef struct {
+start: 	char *text;
+start: 	bool op;
+start: } tok;
+start: 
+start: static bool is_op(char c)
+start: {
+start: 	return c == '|' || c == '<' || c == '>';
+start: }
+start: 
+start: static bool is_blank(char c)
+start: {
+start: 	return c == ' ' || c == '\t';
+start: }
+start: 
+start: /*
+start:  * Split s into toks, copying each token's text into buf. Returns the token
+start:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+start:  * bytes and toks strlen(s) + 1 entries.
+start:  */
+start: static long tokenize(const char *s, int status, char *buf, tok *toks)
+start: {
+start: 	long n = 0;
+start: 	char *out = buf;
+start: 	while (*s != '\0') {
+start: 		if (is_blank(*s)) {
+start: 			s++;
+start: 			continue;
+start: 		}
+start: 		toks[n].text = out;
+start: 		if (is_op(*s)) {
+start: 			toks[n].op = true;
+start: 			*out++ = *s++;
+start: 		} else {
+start: 			toks[n].op = false;
+start: 			bool quoted = false;
+start: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+start: 				if (*s == '"') {
+start: 					quoted = !quoted;
+start: 					s++;
+start: 				} else if (s[0] == '$' && s[1] == '?') {
+start: 					out += sprintf(out, "%d", status);
+start: 					s += 2;
+start: 				} else {
+start: 					*out++ = *s++;
+start: 				}
+start: 			}
+start: 			if (quoted)
+start: 				return -1;
+start: 		}
+start: 		*out++ = '\0';
+start: 		n++;
+start: 	}
+start: 	return n;
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		char *buf = malloc(2 * (size_t)len + 1);
+start: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+start: 		if (buf == NULL || toks == NULL) {
+start: 			fprintf(stderr, "shtok: out of memory\n");
+start: 			free(buf);
+start: 			free(toks);
+start: 			status = 1;
+start: 			break;
+start: 		}
+start: 		long n = tokenize(line, 0, buf, toks);
+start: 		if (n < 0) {
+start: 			printf("error: unterminated quote\n");
+start: 			status = 1;
+start: 		} else {
+start: 			printf("%ld:", n);
+start: 			for (long i = 0; i < n; i++) {
+start: 				if (toks[i].op)
+start: 					printf(" %s", toks[i].text);
+start: 				else
+start: 					printf(" [%s]", toks[i].text);
+start: 			}
+start: 			putchar('\n');
+start: 		}
+start: 		free(buf);
+start: 		free(toks);
+start: 	}
+start: 	free(line);
+start: 	if (ferror(stdin)) {
+start: 		fprintf(stderr, "shtok: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
+case: printf 'echo hi there\ntrue\nfalse\necho "a   b"\n' | shrun
+case: printf 'false\necho $?\nsh -c "exit 7"\necho "status $?"\n' | shrun
+case: mkdir d; printf 'hi\n' > d/f; printf 'cd d\ncat f\ncd ..\ncd nothere\necho $?\ncd\necho $?\n' | shrun
+case: printf x > f; printf 'nosuchcmd\necho $?\n./f\necho $?\n' | shrun
+case: printf 'sh -c "kill -9 $$"\necho $?\n' | shrun
+case: printf 'echo a | cat\necho $?\necho "oops\necho $?\n' | shrun
+case: printf 'exit 3\necho never\n' | shrun; echo $?
+case: printf 'false\nexit\n' | shrun; echo $?; printf 'exit x\necho $?\n' | shrun
+hint: start from shtok: replace the printing with a command function; cd and exit are handled by the shell itself, everything else is fork, execvp, waitpid; a signal death is 128 plus WTERMSIG
+---
+q: shpipe.c -- add pipelines
+spec: Grow `shrun.c` so a line can be a pipeline: any number of commands,
+spec: each joined to the next by the vertical bar (blanks around it or
+spec: not). Everything from `shrun` still holds, with the prefix `shpipe:`
+spec: in its messages (in vi, `:%s/shrun/shpipe/g` does it).
+spec:
+spec: A pipeline starts all its commands at once. Each command's standard
+spec: output is a pipe feeding the next one's standard input; the first
+spec: reads the shell's input and the last writes its output as usual.
+spec: Close every spare end of every pipe, in the shell and in each child,
+spec: or the last command never sees end of file. The shell waits for all
+spec: of them, and the status of the pipeline is the last command's.
+spec:
+spec: Changes:
+spec: - `cd` and `exit` are handled by the shell only when they are the
+spec:   whole line. Inside a pipeline they are looked up like any command
+spec:   (so they fail as `not found`).
+spec: - A vertical bar with no command on one side (first on the line,
+spec:   last on the line, or two in a row) prints `shpipe: empty command`,
+spec:   status 2.
+spec: - `<` and `>` are still not supported: print
+spec:   `shpipe: redirection not supported yet`, status 2.
+spec: - A pipe that cannot be made prints `shpipe: pipe failed`; a
+spec:   failed fork prints `shpipe: fork failed`. Either way the commands
+spec:   already started are still waited for, and the status is 1.
+file: shpipe.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: typedef struct {
+prog: 	char *text;
+prog: 	bool op;
+prog: } tok;
+prog: 
+prog: static bool is_op(char c)
+prog: {
+prog: 	return c == '|' || c == '<' || c == '>';
+prog: }
+prog: 
+prog: static bool is_blank(char c)
+prog: {
+prog: 	return c == ' ' || c == '\t';
+prog: }
+prog: 
+prog: /*
+prog:  * Split s into toks, copying each token's text into buf. Returns the token
+prog:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+prog:  * bytes and toks strlen(s) + 1 entries.
+prog:  */
+prog: static long tokenize(const char *s, int status, char *buf, tok *toks)
+prog: {
+prog: 	long n = 0;
+prog: 	char *out = buf;
+prog: 	while (*s != '\0') {
+prog: 		if (is_blank(*s)) {
+prog: 			s++;
+prog: 			continue;
+prog: 		}
+prog: 		toks[n].text = out;
+prog: 		if (is_op(*s)) {
+prog: 			toks[n].op = true;
+prog: 			*out++ = *s++;
+prog: 		} else {
+prog: 			toks[n].op = false;
+prog: 			bool quoted = false;
+prog: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+prog: 				if (*s == '"') {
+prog: 					quoted = !quoted;
+prog: 					s++;
+prog: 				} else if (s[0] == '$' && s[1] == '?') {
+prog: 					out += sprintf(out, "%d", status);
+prog: 					s += 2;
+prog: 				} else {
+prog: 					*out++ = *s++;
+prog: 				}
+prog: 			}
+prog: 			if (quoted)
+prog: 				return -1;
+prog: 		}
+prog: 		*out++ = '\0';
+prog: 		n++;
+prog: 	}
+prog: 	return n;
+prog: }
+prog: 
+prog: static int do_cd(char **argv)
+prog: {
+prog: 	if (argv[1] == NULL || argv[2] != NULL) {
+prog: 		fprintf(stderr, "shpipe: cd: usage: cd DIR\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (chdir(argv[1]) != 0) {
+prog: 		fprintf(stderr, "shpipe: cd: %s: cannot cd\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* returns the new status; sets *quit when the shell should leave */
+prog: static int do_exit(char **argv, int status, bool *quit)
+prog: {
+prog: 	long code = status;
+prog: 	if (argv[1] != NULL) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		code = strtol(argv[1], &end, 10);
+prog: 		if (argv[2] != NULL || errno != 0 || end == argv[1] || *end != '\0' || code < 0) {
+prog: 			fprintf(stderr, "shpipe: exit: bad status\n");
+prog: 			return 2;
+prog: 		}
+prog: 	}
+prog: 	*quit = true;
+prog: 	return (int)(code % 256);
+prog: }
+prog: 
+prog: static int decode(int st)
+prog: {
+prog: 	return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+prog: }
+prog: 
+prog: typedef struct {
+prog: 	char **argv;
+prog: } cmd;
+prog: 
+prog: static void exec_cmd(char **argv)
+prog: {
+prog: 	execvp(argv[0], argv);
+prog: 	int code = errno == ENOENT ? 127 : 126;
+prog: 	fprintf(stderr, "shpipe: %s: %s\n", argv[0], code == 127 ? "not found" : "cannot execute");
+prog: 	_exit(code);
+prog: }
+prog: 
+prog: /* start every command with its stdout feeding the next one's stdin */
+prog: static int pipeline(cmd *cmds, long k)
+prog: {
+prog: 	pid_t *pids = malloc((size_t)k * sizeof *pids);
+prog: 	if (pids == NULL) {
+prog: 		fprintf(stderr, "shpipe: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	long started = 0;
+prog: 	int in = -1;
+prog: 	bool failed = false;
+prog: 	for (long i = 0; i < k; i++) {
+prog: 		int fd[2] = {-1, -1};
+prog: 		if (i + 1 < k && pipe(fd) != 0) {
+prog: 			fprintf(stderr, "shpipe: pipe failed\n");
+prog: 			failed = true;
+prog: 			break;
+prog: 		}
+prog: 		pid_t pid = fork();
+prog: 		if (pid < 0) {
+prog: 			fprintf(stderr, "shpipe: fork failed\n");
+prog: 			if (fd[0] != -1) {
+prog: 				close(fd[0]);
+prog: 				close(fd[1]);
+prog: 			}
+prog: 			failed = true;
+prog: 			break;
+prog: 		}
+prog: 		if (pid == 0) {
+prog: 			if (in != -1) {
+prog: 				dup2(in, STDIN_FILENO);
+prog: 				close(in);
+prog: 			}
+prog: 			if (fd[1] != -1) {
+prog: 				dup2(fd[1], STDOUT_FILENO);
+prog: 				close(fd[0]);
+prog: 				close(fd[1]);
+prog: 			}
+prog: 			exec_cmd(cmds[i].argv);
+prog: 		}
+prog: 		pids[started++] = pid;
+prog: 		if (in != -1)
+prog: 			close(in);
+prog: 		if (fd[1] != -1)
+prog: 			close(fd[1]);
+prog: 		in = fd[0];
+prog: 	}
+prog: 	if (in != -1)
+prog: 		close(in);
+prog: 	int rc = 0;
+prog: 	for (long i = 0; i < started; i++) {
+prog: 		int st;
+prog: 		pid_t got;
+prog: 		do {
+prog: 			got = waitpid(pids[i], &st, 0);
+prog: 		} while (got < 0 && errno == EINTR);
+prog: 		if (got < 0) {
+prog: 			fprintf(stderr, "shpipe: wait failed\n");
+prog: 			failed = true;
+prog: 		} else if (i == k - 1) {
+prog: 			rc = decode(st);
+prog: 		}
+prog: 	}
+prog: 	free(pids);
+prog: 	return failed ? 1 : rc;
+prog: }
+prog: 
+prog: /*
+prog:  * Split the tokens into commands at each vertical bar. The words go into
+prog:  * av, each command's list ending in NULL. Returns how many commands, or -1
+prog:  * after printing what is wrong.
+prog:  */
+prog: static long parse(tok *toks, long n, char **av, cmd *cmds)
+prog: {
+prog: 	long k = 1, a = 0;
+prog: 	cmds[0].argv = &av[0];
+prog: 	for (long i = 0; i < n; i++) {
+prog: 		if (!toks[i].op) {
+prog: 			av[a++] = toks[i].text;
+prog: 			continue;
+prog: 		}
+prog: 		if (toks[i].text[0] != '|') {
+prog: 			fprintf(stderr, "shpipe: redirection not supported yet\n");
+prog: 			return -1;
+prog: 		}
+prog: 		if (&av[a] == cmds[k - 1].argv) {
+prog: 			fprintf(stderr, "shpipe: empty command\n");
+prog: 			return -1;
+prog: 		}
+prog: 		av[a++] = NULL;
+prog: 		cmds[k++].argv = &av[a];
+prog: 	}
+prog: 	if (&av[a] == cmds[k - 1].argv) {
+prog: 		fprintf(stderr, "shpipe: empty command\n");
+prog: 		return -1;
+prog: 	}
+prog: 	av[a] = NULL;
+prog: 	return k;
+prog: }
+prog: 
+prog: /* one line's tokens: run it, return the new status */
+prog: static int command(tok *toks, long n, int status, bool *quit)
+prog: {
+prog: 	char **av = malloc((2 * (size_t)n + 2) * sizeof *av);
+prog: 	cmd *cmds = malloc(((size_t)n + 1) * sizeof *cmds);
+prog: 	if (av == NULL || cmds == NULL) {
+prog: 		fprintf(stderr, "shpipe: out of memory\n");
+prog: 		free(av);
+prog: 		free(cmds);
+prog: 		return 1;
+prog: 	}
+prog: 	int rc = 2;
+prog: 	long k = parse(toks, n, av, cmds);
+prog: 	if (k == 1 && strcmp(cmds[0].argv[0], "cd") == 0)
+prog: 		rc = do_cd(cmds[0].argv);
+prog: 	else if (k == 1 && strcmp(cmds[0].argv[0], "exit") == 0)
+prog: 		rc = do_exit(cmds[0].argv, status, quit);
+prog: 	else if (k > 0)
+prog: 		rc = pipeline(cmds, k);
+prog: 	free(av);
+prog: 	free(cmds);
+prog: 	return rc;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	bool quit = false;
+prog: 	while (!quit && (len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		char *buf = malloc(2 * (size_t)len + 1);
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (buf == NULL || toks == NULL) {
+prog: 			fprintf(stderr, "shpipe: out of memory\n");
+prog: 			free(buf);
+prog: 			free(toks);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		long n = tokenize(line, status, buf, toks);
+prog: 		if (n < 0) {
+prog: 			fprintf(stderr, "shpipe: unterminated quote\n");
+prog: 			status = 2;
+prog: 		} else if (n > 0) {
+prog: 			status = command(toks, n, status, &quit);
+prog: 		}
+prog: 		free(buf);
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (!quit && ferror(stdin)) {
+prog: 		fprintf(stderr, "shpipe: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: typedef struct {
+start: 	char *text;
+start: 	bool op;
+start: } tok;
+start: 
+start: static bool is_op(char c)
+start: {
+start: 	return c == '|' || c == '<' || c == '>';
+start: }
+start: 
+start: static bool is_blank(char c)
+start: {
+start: 	return c == ' ' || c == '\t';
+start: }
+start: 
+start: /*
+start:  * Split s into toks, copying each token's text into buf. Returns the token
+start:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+start:  * bytes and toks strlen(s) + 1 entries.
+start:  */
+start: static long tokenize(const char *s, int status, char *buf, tok *toks)
+start: {
+start: 	long n = 0;
+start: 	char *out = buf;
+start: 	while (*s != '\0') {
+start: 		if (is_blank(*s)) {
+start: 			s++;
+start: 			continue;
+start: 		}
+start: 		toks[n].text = out;
+start: 		if (is_op(*s)) {
+start: 			toks[n].op = true;
+start: 			*out++ = *s++;
+start: 		} else {
+start: 			toks[n].op = false;
+start: 			bool quoted = false;
+start: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+start: 				if (*s == '"') {
+start: 					quoted = !quoted;
+start: 					s++;
+start: 				} else if (s[0] == '$' && s[1] == '?') {
+start: 					out += sprintf(out, "%d", status);
+start: 					s += 2;
+start: 				} else {
+start: 					*out++ = *s++;
+start: 				}
+start: 			}
+start: 			if (quoted)
+start: 				return -1;
+start: 		}
+start: 		*out++ = '\0';
+start: 		n++;
+start: 	}
+start: 	return n;
+start: }
+start: 
+start: static int do_cd(char **argv)
+start: {
+start: 	if (argv[1] == NULL || argv[2] != NULL) {
+start: 		fprintf(stderr, "shrun: cd: usage: cd DIR\n");
+start: 		return 2;
+start: 	}
+start: 	if (chdir(argv[1]) != 0) {
+start: 		fprintf(stderr, "shrun: cd: %s: cannot cd\n", argv[1]);
+start: 		return 1;
+start: 	}
+start: 	return 0;
+start: }
+start: 
+start: /* returns the new status; sets *quit when the shell should leave */
+start: static int do_exit(char **argv, int status, bool *quit)
+start: {
+start: 	long code = status;
+start: 	if (argv[1] != NULL) {
+start: 		char *end;
+start: 		errno = 0;
+start: 		code = strtol(argv[1], &end, 10);
+start: 		if (argv[2] != NULL || errno != 0 || end == argv[1] || *end != '\0' || code < 0) {
+start: 			fprintf(stderr, "shrun: exit: bad status\n");
+start: 			return 2;
+start: 		}
+start: 	}
+start: 	*quit = true;
+start: 	return (int)(code % 256);
+start: }
+start: 
+start: static int decode(int st)
+start: {
+start: 	return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+start: }
+start: 
+start: static int run(char **argv)
+start: {
+start: 	pid_t pid = fork();
+start: 	if (pid < 0) {
+start: 		fprintf(stderr, "shrun: fork failed\n");
+start: 		return 1;
+start: 	}
+start: 	if (pid == 0) {
+start: 		execvp(argv[0], argv);
+start: 		int code = errno == ENOENT ? 127 : 126;
+start: 		fprintf(stderr, "shrun: %s: %s\n", argv[0], code == 127 ? "not found" : "cannot execute");
+start: 		_exit(code);
+start: 	}
+start: 	int st;
+start: 	pid_t got;
+start: 	do {
+start: 		got = waitpid(pid, &st, 0);
+start: 	} while (got < 0 && errno == EINTR);
+start: 	if (got < 0) {
+start: 		fprintf(stderr, "shrun: wait failed\n");
+start: 		return 1;
+start: 	}
+start: 	return decode(st);
+start: }
+start: 
+start: /* one line's tokens: run it, return the new status */
+start: static int command(tok *toks, long n, int status, bool *quit)
+start: {
+start: 	char **argv = malloc(((size_t)n + 1) * sizeof *argv);
+start: 	if (argv == NULL) {
+start: 		fprintf(stderr, "shrun: out of memory\n");
+start: 		return 1;
+start: 	}
+start: 	for (long i = 0; i < n; i++) {
+start: 		if (toks[i].op) {
+start: 			fprintf(stderr, "shrun: operators not supported yet\n");
+start: 			free(argv);
+start: 			return 2;
+start: 		}
+start: 		argv[i] = toks[i].text;
+start: 	}
+start: 	argv[n] = NULL;
+start: 	int rc;
+start: 	if (strcmp(argv[0], "cd") == 0)
+start: 		rc = do_cd(argv);
+start: 	else if (strcmp(argv[0], "exit") == 0)
+start: 		rc = do_exit(argv, status, quit);
+start: 	else
+start: 		rc = run(argv);
+start: 	free(argv);
+start: 	return rc;
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	bool quit = false;
+start: 	while (!quit && (len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		char *buf = malloc(2 * (size_t)len + 1);
+start: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+start: 		if (buf == NULL || toks == NULL) {
+start: 			fprintf(stderr, "shrun: out of memory\n");
+start: 			free(buf);
+start: 			free(toks);
+start: 			status = 1;
+start: 			break;
+start: 		}
+start: 		long n = tokenize(line, status, buf, toks);
+start: 		if (n < 0) {
+start: 			fprintf(stderr, "shrun: unterminated quote\n");
+start: 			status = 2;
+start: 		} else if (n > 0) {
+start: 			status = command(toks, n, status, &quit);
+start: 		}
+start: 		free(buf);
+start: 		free(toks);
+start: 	}
+start: 	free(line);
+start: 	if (!quit && ferror(stdin)) {
+start: 		fprintf(stderr, "shrun: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
+case: printf 'echo hello | tr a-z A-Z\n' | shpipe
+case: printf 'sh -c "echo b; echo a; echo c" | sort | tr a-z A-Z\necho $?\n' | shpipe
+case: printf 'false | true\necho $?\ntrue | false\necho $?\n' | shpipe
+case: printf 'echo x | cat | cat | cat | tr x y | wc -c\n' | shpipe
+case: printf 'echo hi | nosuchcmd\necho $?\n' | shpipe
+case: printf '| cat\necho $?\necho a |\necho $?\necho a > f\necho $?\n' | shpipe
+case: printf 'echo "a | b" | cat\necho cd | cat\nexit 4\n' | shpipe; echo $?
+hint: parse the tokens into one command per vertical bar; pipe once between each neighbouring pair, dup2 in the child, close the spare ends in both, then waitpid for every child and keep the last one's status
+---
+q: minish.c -- add redirection, finish the shell
+spec: Grow `shpipe.c` into the last shell. Everything from `shpipe` still
+spec: holds, with the prefix `minish:` in its messages. Add the two
+spec: redirections: `< FILE` makes a command's standard input come from
+spec: FILE, and `> FILE` makes its standard output go to FILE, which is
+spec: created if missing and emptied if it exists. The file name is the
+spec: word after the operator. They belong to whichever command of a
+spec: pipeline they appear in, anywhere among its words, and win over the
+spec: pipe: a command that redirects its output and is also followed by a
+spec: bar leaves the next command with empty input. If one command gives
+spec: the same redirection twice, the last one counts.
+spec:
+spec: Open the files in the child, after the pipe is wired up. If a file
+spec: cannot be opened the child prints `minish: cannot open FILE` to
+spec: standard error and exits 1, and the rest carries on as usual. A new
+spec: file gets mode 0644.
+spec:
+spec: Changes to the errors, found scanning the line from the left, first
+spec: problem wins, all with status 2:
+spec: - An operator `<` or `>` with no word after it (the line ends, or
+spec:   another operator follows) prints `minish: missing file name`.
+spec: - A command left with no words (a line that is only `> f`, or a
+spec:   pipeline stage that is only a redirection) prints
+spec:   `minish: empty command`, like a bar with nothing beside it.
+spec: - `cd` or `exit` with a redirection prints
+spec:   `minish: builtins take no redirection`.
+file: minish.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <fcntl.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: typedef struct {
+prog: 	char *text;
+prog: 	bool op;
+prog: } tok;
+prog: 
+prog: static bool is_op(char c)
+prog: {
+prog: 	return c == '|' || c == '<' || c == '>';
+prog: }
+prog: 
+prog: static bool is_blank(char c)
+prog: {
+prog: 	return c == ' ' || c == '\t';
+prog: }
+prog: 
+prog: /*
+prog:  * Split s into toks, copying each token's text into buf. Returns the token
+prog:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+prog:  * bytes and toks strlen(s) + 1 entries.
+prog:  */
+prog: static long tokenize(const char *s, int status, char *buf, tok *toks)
+prog: {
+prog: 	long n = 0;
+prog: 	char *out = buf;
+prog: 	while (*s != '\0') {
+prog: 		if (is_blank(*s)) {
+prog: 			s++;
+prog: 			continue;
+prog: 		}
+prog: 		toks[n].text = out;
+prog: 		if (is_op(*s)) {
+prog: 			toks[n].op = true;
+prog: 			*out++ = *s++;
+prog: 		} else {
+prog: 			toks[n].op = false;
+prog: 			bool quoted = false;
+prog: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+prog: 				if (*s == '"') {
+prog: 					quoted = !quoted;
+prog: 					s++;
+prog: 				} else if (s[0] == '$' && s[1] == '?') {
+prog: 					out += sprintf(out, "%d", status);
+prog: 					s += 2;
+prog: 				} else {
+prog: 					*out++ = *s++;
+prog: 				}
+prog: 			}
+prog: 			if (quoted)
+prog: 				return -1;
+prog: 		}
+prog: 		*out++ = '\0';
+prog: 		n++;
+prog: 	}
+prog: 	return n;
+prog: }
+prog: 
+prog: static int do_cd(char **argv)
+prog: {
+prog: 	if (argv[1] == NULL || argv[2] != NULL) {
+prog: 		fprintf(stderr, "minish: cd: usage: cd DIR\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (chdir(argv[1]) != 0) {
+prog: 		fprintf(stderr, "minish: cd: %s: cannot cd\n", argv[1]);
+prog: 		return 1;
+prog: 	}
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* returns the new status; sets *quit when the shell should leave */
+prog: static int do_exit(char **argv, int status, bool *quit)
+prog: {
+prog: 	long code = status;
+prog: 	if (argv[1] != NULL) {
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		code = strtol(argv[1], &end, 10);
+prog: 		if (argv[2] != NULL || errno != 0 || end == argv[1] || *end != '\0' || code < 0) {
+prog: 			fprintf(stderr, "minish: exit: bad status\n");
+prog: 			return 2;
+prog: 		}
+prog: 	}
+prog: 	*quit = true;
+prog: 	return (int)(code % 256);
+prog: }
+prog: 
+prog: static int decode(int st)
+prog: {
+prog: 	return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+prog: }
+prog: 
+prog: typedef struct {
+prog: 	char **argv;
+prog: 	const char *in;
+prog: 	const char *out;
+prog: } cmd;
+prog: 
+prog: /* open path and make it descriptor target; false (after saying why) if not */
+prog: static bool redirect(const char *path, int flags, int target)
+prog: {
+prog: 	int fd = open(path, flags, 0644);
+prog: 	if (fd < 0) {
+prog: 		fprintf(stderr, "minish: cannot open %s\n", path);
+prog: 		return false;
+prog: 	}
+prog: 	bool ok = dup2(fd, target) >= 0;
+prog: 	close(fd);
+prog: 	return ok;
+prog: }
+prog: 
+prog: static void exec_cmd(char **argv)
+prog: {
+prog: 	execvp(argv[0], argv);
+prog: 	int code = errno == ENOENT ? 127 : 126;
+prog: 	fprintf(stderr, "minish: %s: %s\n", argv[0], code == 127 ? "not found" : "cannot execute");
+prog: 	_exit(code);
+prog: }
+prog: 
+prog: /* start every command with its stdout feeding the next one's stdin */
+prog: static int pipeline(cmd *cmds, long k)
+prog: {
+prog: 	pid_t *pids = malloc((size_t)k * sizeof *pids);
+prog: 	if (pids == NULL) {
+prog: 		fprintf(stderr, "minish: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	long started = 0;
+prog: 	int in = -1;
+prog: 	bool failed = false;
+prog: 	for (long i = 0; i < k; i++) {
+prog: 		int fd[2] = {-1, -1};
+prog: 		if (i + 1 < k && pipe(fd) != 0) {
+prog: 			fprintf(stderr, "minish: pipe failed\n");
+prog: 			failed = true;
+prog: 			break;
+prog: 		}
+prog: 		pid_t pid = fork();
+prog: 		if (pid < 0) {
+prog: 			fprintf(stderr, "minish: fork failed\n");
+prog: 			if (fd[0] != -1) {
+prog: 				close(fd[0]);
+prog: 				close(fd[1]);
+prog: 			}
+prog: 			failed = true;
+prog: 			break;
+prog: 		}
+prog: 		if (pid == 0) {
+prog: 			if (in != -1) {
+prog: 				dup2(in, STDIN_FILENO);
+prog: 				close(in);
+prog: 			}
+prog: 			if (fd[1] != -1) {
+prog: 				dup2(fd[1], STDOUT_FILENO);
+prog: 				close(fd[0]);
+prog: 				close(fd[1]);
+prog: 			}
+prog: 			if (cmds[i].in != NULL && !redirect(cmds[i].in, O_RDONLY, STDIN_FILENO))
+prog: 				_exit(1);
+prog: 			if (cmds[i].out != NULL &&
+prog: 			    !redirect(cmds[i].out, O_WRONLY | O_CREAT | O_TRUNC, STDOUT_FILENO))
+prog: 				_exit(1);
+prog: 			exec_cmd(cmds[i].argv);
+prog: 		}
+prog: 		pids[started++] = pid;
+prog: 		if (in != -1)
+prog: 			close(in);
+prog: 		if (fd[1] != -1)
+prog: 			close(fd[1]);
+prog: 		in = fd[0];
+prog: 	}
+prog: 	if (in != -1)
+prog: 		close(in);
+prog: 	int rc = 0;
+prog: 	for (long i = 0; i < started; i++) {
+prog: 		int st;
+prog: 		pid_t got;
+prog: 		do {
+prog: 			got = waitpid(pids[i], &st, 0);
+prog: 		} while (got < 0 && errno == EINTR);
+prog: 		if (got < 0) {
+prog: 			fprintf(stderr, "minish: wait failed\n");
+prog: 			failed = true;
+prog: 		} else if (i == k - 1) {
+prog: 			rc = decode(st);
+prog: 		}
+prog: 	}
+prog: 	free(pids);
+prog: 	return failed ? 1 : rc;
+prog: }
+prog: 
+prog: /*
+prog:  * Split the tokens into commands at each vertical bar, setting aside each
+prog:  * command's redirections. The words go into av, each command's list ending
+prog:  * in NULL. Returns how many commands, or -1 after printing what is wrong.
+prog:  */
+prog: static long parse(tok *toks, long n, char **av, cmd *cmds)
+prog: {
+prog: 	long k = 1, a = 0;
+prog: 	cmds[0] = (cmd){&av[0], NULL, NULL};
+prog: 	for (long i = 0; i < n; i++) {
+prog: 		if (!toks[i].op) {
+prog: 			av[a++] = toks[i].text;
+prog: 			continue;
+prog: 		}
+prog: 		char c = toks[i].text[0];
+prog: 		if (c == '<' || c == '>') {
+prog: 			if (i + 1 >= n || toks[i + 1].op) {
+prog: 				fprintf(stderr, "minish: missing file name\n");
+prog: 				return -1;
+prog: 			}
+prog: 			i++;
+prog: 			if (c == '<')
+prog: 				cmds[k - 1].in = toks[i].text;
+prog: 			else
+prog: 				cmds[k - 1].out = toks[i].text;
+prog: 			continue;
+prog: 		}
+prog: 		if (&av[a] == cmds[k - 1].argv) {
+prog: 			fprintf(stderr, "minish: empty command\n");
+prog: 			return -1;
+prog: 		}
+prog: 		av[a++] = NULL;
+prog: 		cmds[k++] = (cmd){&av[a], NULL, NULL};
+prog: 	}
+prog: 	if (&av[a] == cmds[k - 1].argv) {
+prog: 		fprintf(stderr, "minish: empty command\n");
+prog: 		return -1;
+prog: 	}
+prog: 	av[a] = NULL;
+prog: 	return k;
+prog: }
+prog: 
+prog: /* one line's tokens: run it, return the new status */
+prog: static int command(tok *toks, long n, int status, bool *quit)
+prog: {
+prog: 	char **av = malloc((2 * (size_t)n + 2) * sizeof *av);
+prog: 	cmd *cmds = malloc(((size_t)n + 1) * sizeof *cmds);
+prog: 	if (av == NULL || cmds == NULL) {
+prog: 		fprintf(stderr, "minish: out of memory\n");
+prog: 		free(av);
+prog: 		free(cmds);
+prog: 		return 1;
+prog: 	}
+prog: 	int rc = 2;
+prog: 	long k = parse(toks, n, av, cmds);
+prog: 	bool builtin = k == 1 && (strcmp(cmds[0].argv[0], "cd") == 0 || strcmp(cmds[0].argv[0], "exit") == 0);
+prog: 	if (builtin && (cmds[0].in != NULL || cmds[0].out != NULL))
+prog: 		fprintf(stderr, "minish: builtins take no redirection\n");
+prog: 	else if (builtin && strcmp(cmds[0].argv[0], "cd") == 0)
+prog: 		rc = do_cd(cmds[0].argv);
+prog: 	else if (builtin)
+prog: 		rc = do_exit(cmds[0].argv, status, quit);
+prog: 	else if (k > 0)
+prog: 		rc = pipeline(cmds, k);
+prog: 	free(av);
+prog: 	free(cmds);
+prog: 	return rc;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	bool quit = false;
+prog: 	while (!quit && (len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		char *buf = malloc(2 * (size_t)len + 1);
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (buf == NULL || toks == NULL) {
+prog: 			fprintf(stderr, "minish: out of memory\n");
+prog: 			free(buf);
+prog: 			free(toks);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		long n = tokenize(line, status, buf, toks);
+prog: 		if (n < 0) {
+prog: 			fprintf(stderr, "minish: unterminated quote\n");
+prog: 			status = 2;
+prog: 		} else if (n > 0) {
+prog: 			status = command(toks, n, status, &quit);
+prog: 		}
+prog: 		free(buf);
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (!quit && ferror(stdin)) {
+prog: 		fprintf(stderr, "minish: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: typedef struct {
+start: 	char *text;
+start: 	bool op;
+start: } tok;
+start: 
+start: static bool is_op(char c)
+start: {
+start: 	return c == '|' || c == '<' || c == '>';
+start: }
+start: 
+start: static bool is_blank(char c)
+start: {
+start: 	return c == ' ' || c == '\t';
+start: }
+start: 
+start: /*
+start:  * Split s into toks, copying each token's text into buf. Returns the token
+start:  * count, or -1 if a quote is never closed. buf needs 2 * strlen(s) + 1
+start:  * bytes and toks strlen(s) + 1 entries.
+start:  */
+start: static long tokenize(const char *s, int status, char *buf, tok *toks)
+start: {
+start: 	long n = 0;
+start: 	char *out = buf;
+start: 	while (*s != '\0') {
+start: 		if (is_blank(*s)) {
+start: 			s++;
+start: 			continue;
+start: 		}
+start: 		toks[n].text = out;
+start: 		if (is_op(*s)) {
+start: 			toks[n].op = true;
+start: 			*out++ = *s++;
+start: 		} else {
+start: 			toks[n].op = false;
+start: 			bool quoted = false;
+start: 			while (*s != '\0' && (quoted || (!is_blank(*s) && !is_op(*s)))) {
+start: 				if (*s == '"') {
+start: 					quoted = !quoted;
+start: 					s++;
+start: 				} else if (s[0] == '$' && s[1] == '?') {
+start: 					out += sprintf(out, "%d", status);
+start: 					s += 2;
+start: 				} else {
+start: 					*out++ = *s++;
+start: 				}
+start: 			}
+start: 			if (quoted)
+start: 				return -1;
+start: 		}
+start: 		*out++ = '\0';
+start: 		n++;
+start: 	}
+start: 	return n;
+start: }
+start: 
+start: static int do_cd(char **argv)
+start: {
+start: 	if (argv[1] == NULL || argv[2] != NULL) {
+start: 		fprintf(stderr, "shpipe: cd: usage: cd DIR\n");
+start: 		return 2;
+start: 	}
+start: 	if (chdir(argv[1]) != 0) {
+start: 		fprintf(stderr, "shpipe: cd: %s: cannot cd\n", argv[1]);
+start: 		return 1;
+start: 	}
+start: 	return 0;
+start: }
+start: 
+start: /* returns the new status; sets *quit when the shell should leave */
+start: static int do_exit(char **argv, int status, bool *quit)
+start: {
+start: 	long code = status;
+start: 	if (argv[1] != NULL) {
+start: 		char *end;
+start: 		errno = 0;
+start: 		code = strtol(argv[1], &end, 10);
+start: 		if (argv[2] != NULL || errno != 0 || end == argv[1] || *end != '\0' || code < 0) {
+start: 			fprintf(stderr, "shpipe: exit: bad status\n");
+start: 			return 2;
+start: 		}
+start: 	}
+start: 	*quit = true;
+start: 	return (int)(code % 256);
+start: }
+start: 
+start: static int decode(int st)
+start: {
+start: 	return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+start: }
+start: 
+start: typedef struct {
+start: 	char **argv;
+start: } cmd;
+start: 
+start: static void exec_cmd(char **argv)
+start: {
+start: 	execvp(argv[0], argv);
+start: 	int code = errno == ENOENT ? 127 : 126;
+start: 	fprintf(stderr, "shpipe: %s: %s\n", argv[0], code == 127 ? "not found" : "cannot execute");
+start: 	_exit(code);
+start: }
+start: 
+start: /* start every command with its stdout feeding the next one's stdin */
+start: static int pipeline(cmd *cmds, long k)
+start: {
+start: 	pid_t *pids = malloc((size_t)k * sizeof *pids);
+start: 	if (pids == NULL) {
+start: 		fprintf(stderr, "shpipe: out of memory\n");
+start: 		return 1;
+start: 	}
+start: 	long started = 0;
+start: 	int in = -1;
+start: 	bool failed = false;
+start: 	for (long i = 0; i < k; i++) {
+start: 		int fd[2] = {-1, -1};
+start: 		if (i + 1 < k && pipe(fd) != 0) {
+start: 			fprintf(stderr, "shpipe: pipe failed\n");
+start: 			failed = true;
+start: 			break;
+start: 		}
+start: 		pid_t pid = fork();
+start: 		if (pid < 0) {
+start: 			fprintf(stderr, "shpipe: fork failed\n");
+start: 			if (fd[0] != -1) {
+start: 				close(fd[0]);
+start: 				close(fd[1]);
+start: 			}
+start: 			failed = true;
+start: 			break;
+start: 		}
+start: 		if (pid == 0) {
+start: 			if (in != -1) {
+start: 				dup2(in, STDIN_FILENO);
+start: 				close(in);
+start: 			}
+start: 			if (fd[1] != -1) {
+start: 				dup2(fd[1], STDOUT_FILENO);
+start: 				close(fd[0]);
+start: 				close(fd[1]);
+start: 			}
+start: 			exec_cmd(cmds[i].argv);
+start: 		}
+start: 		pids[started++] = pid;
+start: 		if (in != -1)
+start: 			close(in);
+start: 		if (fd[1] != -1)
+start: 			close(fd[1]);
+start: 		in = fd[0];
+start: 	}
+start: 	if (in != -1)
+start: 		close(in);
+start: 	int rc = 0;
+start: 	for (long i = 0; i < started; i++) {
+start: 		int st;
+start: 		pid_t got;
+start: 		do {
+start: 			got = waitpid(pids[i], &st, 0);
+start: 		} while (got < 0 && errno == EINTR);
+start: 		if (got < 0) {
+start: 			fprintf(stderr, "shpipe: wait failed\n");
+start: 			failed = true;
+start: 		} else if (i == k - 1) {
+start: 			rc = decode(st);
+start: 		}
+start: 	}
+start: 	free(pids);
+start: 	return failed ? 1 : rc;
+start: }
+start: 
+start: /*
+start:  * Split the tokens into commands at each vertical bar. The words go into
+start:  * av, each command's list ending in NULL. Returns how many commands, or -1
+start:  * after printing what is wrong.
+start:  */
+start: static long parse(tok *toks, long n, char **av, cmd *cmds)
+start: {
+start: 	long k = 1, a = 0;
+start: 	cmds[0].argv = &av[0];
+start: 	for (long i = 0; i < n; i++) {
+start: 		if (!toks[i].op) {
+start: 			av[a++] = toks[i].text;
+start: 			continue;
+start: 		}
+start: 		if (toks[i].text[0] != '|') {
+start: 			fprintf(stderr, "shpipe: redirection not supported yet\n");
+start: 			return -1;
+start: 		}
+start: 		if (&av[a] == cmds[k - 1].argv) {
+start: 			fprintf(stderr, "shpipe: empty command\n");
+start: 			return -1;
+start: 		}
+start: 		av[a++] = NULL;
+start: 		cmds[k++].argv = &av[a];
+start: 	}
+start: 	if (&av[a] == cmds[k - 1].argv) {
+start: 		fprintf(stderr, "shpipe: empty command\n");
+start: 		return -1;
+start: 	}
+start: 	av[a] = NULL;
+start: 	return k;
+start: }
+start: 
+start: /* one line's tokens: run it, return the new status */
+start: static int command(tok *toks, long n, int status, bool *quit)
+start: {
+start: 	char **av = malloc((2 * (size_t)n + 2) * sizeof *av);
+start: 	cmd *cmds = malloc(((size_t)n + 1) * sizeof *cmds);
+start: 	if (av == NULL || cmds == NULL) {
+start: 		fprintf(stderr, "shpipe: out of memory\n");
+start: 		free(av);
+start: 		free(cmds);
+start: 		return 1;
+start: 	}
+start: 	int rc = 2;
+start: 	long k = parse(toks, n, av, cmds);
+start: 	if (k == 1 && strcmp(cmds[0].argv[0], "cd") == 0)
+start: 		rc = do_cd(cmds[0].argv);
+start: 	else if (k == 1 && strcmp(cmds[0].argv[0], "exit") == 0)
+start: 		rc = do_exit(cmds[0].argv, status, quit);
+start: 	else if (k > 0)
+start: 		rc = pipeline(cmds, k);
+start: 	free(av);
+start: 	free(cmds);
+start: 	return rc;
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	bool quit = false;
+start: 	while (!quit && (len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		char *buf = malloc(2 * (size_t)len + 1);
+start: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+start: 		if (buf == NULL || toks == NULL) {
+start: 			fprintf(stderr, "shpipe: out of memory\n");
+start: 			free(buf);
+start: 			free(toks);
+start: 			status = 1;
+start: 			break;
+start: 		}
+start: 		long n = tokenize(line, status, buf, toks);
+start: 		if (n < 0) {
+start: 			fprintf(stderr, "shpipe: unterminated quote\n");
+start: 			status = 2;
+start: 		} else if (n > 0) {
+start: 			status = command(toks, n, status, &quit);
+start: 		}
+start: 		free(buf);
+start: 		free(toks);
+start: 	}
+start: 	free(line);
+start: 	if (!quit && ferror(stdin)) {
+start: 		fprintf(stderr, "shpipe: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
+case: printf 'echo hello > out\ncat out\ncat < out\n' | minish
+case: printf 'echo longer > f\necho two > f\ncat f\n' | minish
+case: printf 'sh -c "echo b; echo a; echo c" | sort | tr a-z A-Z > o\ncat o\ncat < o | wc -l\n' | minish
+case: printf 'cat < nothere\necho $?\necho hi > nodir/x\necho $?\n' | minish
+case: printf 'echo "a > b" | cat\necho x > "f g"\ncat "f g"\n' | minish
+case: printf 'echo a >\necho $?\n> f\necho $?\necho a | > f\necho $?\ncd > f\necho $?\n' | minish
+case: printf 'false | true\necho $?\ntrue | false\necho $?\nexit 3\n' | minish; echo $?
+hint: give each command an in and an out name next to its words; in the child, after the pipe dup2, open each with open() and dup2 it onto 0 or 1, then close the extra descriptor

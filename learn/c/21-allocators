@@ -1,0 +1,346 @@
+name: allocators
+intro: `malloc` is a general tool: any size, any lifetime, free in any order.
+intro: That generality costs. Each call finds a block, writes bookkeeping
+intro: beside it, and may fragment the heap; each `free` has to undo that. A
+intro: program that makes a hundred thousand tiny allocations spends more
+intro: time in malloc than in its own work, and has a hundred thousand
+intro: frees to forget one of.
+intro:
+intro: Most programs do not need that freedom. A whole parse, a whole
+intro: request, a whole frame of a game: everything allocated lives until
+intro: the same moment and dies together. That is a lifetime, and when many
+intro: things share one, give them one owner.
+intro:
+intro: An arena (a bump allocator) is the plainest owner. Grab one big block.
+intro: Keep a counter of how much is used. To allocate, hand out the next
+intro: bytes and move the counter:
+intro:
+intro:     struct arena { unsigned char *mem; size_t used; };
+intro:
+intro:     start = (a->used + align - 1) & ~(align - 1);
+intro:     if (start > cap || size > cap - start) return NULL;
+intro:     a->used = start + size;
+intro:     return a->mem + start;
+intro:
+intro: Alignment matters: a `long` must sit at an address that is a multiple
+intro: of its alignment (`_Alignof(long)`), or the access is undefined and on
+intro: some hardware crashes. Round `used` up to a power-of-two multiple with
+intro: the mask above before handing out. Write the fit test as
+intro: `size > cap - start`, never `start + size > cap` -- the sum can wrap.
+intro:
+intro: There is no per-object free. You release the whole arena with one
+intro: `free`. That is the point: no leaks to track, no use-after-free of one
+intro: node while another lives. The price: nothing is reclaimed early.
+intro:
+intro: A pool is the other small tool: many blocks of one size. Keep the free
+intro: ones in a list -- inside the free blocks themselves, a `union` of the
+intro: payload and a "next free" link -- so alloc and free are one step each.
+intro: Freeing a block twice corrupts that list, so check before you push.
+intro:
+intro: Always ask who owns each thing, and when it ends.
+---
+q: bumpoff.c -- hand out aligned bytes from a fixed arena
+spec: Keep an arena of 256 bytes, starting empty and 16-byte aligned. Read
+spec: lines of the form `SIZE ALIGN` from standard input. SIZE is a whole
+spec: decimal number 0 to 1000000, ALIGN a power of two from 1 to 16.
+spec:
+spec: For each line, round the used count up to a multiple of ALIGN, give
+spec: out SIZE bytes there, and print the offset where the block starts.
+spec: If it does not fit in the 256 bytes print `full` and leave the arena
+spec: as it was. A line that is not exactly two valid numbers, or has an
+spec: ALIGN that is not allowed, prints `bad` and changes nothing.
+spec: Exit 0.
+file: bumpoff.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define CAP 256
+prog: 
+prog: struct arena {
+prog: 	unsigned char *base;
+prog: 	size_t used;
+prog: };
+prog: 
+prog: /* returns the offset of the new block, or CAP + 1 when it does not fit */
+prog: static size_t arena_alloc(struct arena *a, size_t size, size_t align)
+prog: {
+prog: 	size_t start = (a->used + align - 1) & ~(align - 1);
+prog: 	if (start > CAP || size > CAP - start)
+prog: 		return CAP + 1;
+prog: 	a->used = start + size;
+prog: 	return start;
+prog: }
+prog: 
+prog: /* a whole decimal number inside lo..hi; sscanf cannot say "too big" safely */
+prog: static bool num(const char *s, long lo, long hi, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (end == s || *end != '\0' || errno == ERANGE || v < lo || v > hi)
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: /* split a line into at most four words, in place; returns how many */
+prog: static int words(char *line, char **w)
+prog: {
+prog: 	int n = 0;
+prog: 	for (char *t = strtok(line, " \n"); t != NULL && n < 4; t = strtok(NULL, " \n"))
+prog: 		w[n++] = t;
+prog: 	return n;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	_Alignas(16) static unsigned char mem[CAP];
+prog: 	struct arena a = { mem, 0 };
+prog: 	char line[64];
+prog: 
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		char *w[4];
+prog: 		long size, align;
+prog: 		if (words(line, w) != 2 || !num(w[0], 0, 1000000, &size)
+prog: 		    || !num(w[1], 1, 16, &align) || (align & (align - 1)) != 0) {
+prog: 			puts("bad");
+prog: 			continue;
+prog: 		}
+prog: 		size_t off = arena_alloc(&a, (size_t)size, (size_t)align);
+prog: 		if (off > CAP)
+prog: 			puts("full");
+prog: 		else
+prog: 			printf("%zu\n", off);
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf '10 1\n4 4\n1 1\n8 8\n' | bumpoff
+case: printf '250 1\n6 1\n1 1\n' | bumpoff
+case: printf '250 1\n100 1\n4 1\n' | bumpoff
+case: printf '3 3\n5 1\n1 16\n99999999999999999999 1\n7\n' | bumpoff
+case: printf '' | bumpoff
+hint: start = round used up to ALIGN; refuse if start is past 256 or SIZE is more than 256 - start, and only then move used
+---
+q: poolfree.c -- a four-slot pool with a free list
+spec: Keep a pool of 4 slots, numbered 0 to 3, and a free list threaded
+spec: through the free slots (initially 0, 1, 2, 3 in that order). Read
+spec: commands from standard input, one per line:
+spec:
+spec:   `alloc`    take the slot at the head of the free list and print
+spec:              `slot N`; print `full` if none is free
+spec:   `free N`   put slot N back at the head of the free list and print
+spec:              `freed`; print `bad free` if N is outside 0 to 3 or is not
+spec:              currently allocated (that catches a double free)
+spec:
+spec: Anything else, including a missing or non-numeric N, prints `?`.
+spec: A freed slot is the next one handed out. Exit 0.
+file: poolfree.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define SLOTS 4
+prog: 
+prog: /* a slot is either in use (holds a value) or free (holds the index of the
+prog:    next free slot) -- the free list lives inside the free slots themselves */
+prog: union slot {
+prog: 	int next;
+prog: 	long value;
+prog: };
+prog: 
+prog: static union slot pool[SLOTS];
+prog: static bool in_use[SLOTS];
+prog: static int free_head = 0;
+prog: 
+prog: static void pool_init(void)
+prog: {
+prog: 	for (int i = 0; i < SLOTS; i++)
+prog: 		pool[i].next = i + 1 < SLOTS ? i + 1 : -1;
+prog: 	free_head = 0;
+prog: }
+prog: 
+prog: static int pool_alloc(void)
+prog: {
+prog: 	int i = free_head;
+prog: 	if (i < 0)
+prog: 		return -1;
+prog: 	free_head = pool[i].next;
+prog: 	in_use[i] = true;
+prog: 	pool[i].value = 0;
+prog: 	return i;
+prog: }
+prog: 
+prog: static bool pool_free(int i)
+prog: {
+prog: 	if (i < 0 || i >= SLOTS || !in_use[i])
+prog: 		return false;
+prog: 	in_use[i] = false;
+prog: 	pool[i].next = free_head;
+prog: 	free_head = i;
+prog: 	return true;
+prog: }
+prog: 
+prog: /* a whole decimal number inside lo..hi; sscanf cannot say "too big" safely */
+prog: static bool num(const char *s, long lo, long hi, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (end == s || *end != '\0' || errno == ERANGE || v < lo || v > hi)
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: /* split a line into at most four words, in place; returns how many */
+prog: static int words(char *line, char **w)
+prog: {
+prog: 	int n = 0;
+prog: 	for (char *t = strtok(line, " \n"); t != NULL && n < 4; t = strtok(NULL, " \n"))
+prog: 		w[n++] = t;
+prog: 	return n;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char line[64];
+prog: 	pool_init();
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		char *w[4];
+prog: 		long i;
+prog: 		int n = words(line, w);
+prog: 		if (n == 1 && strcmp(w[0], "alloc") == 0) {
+prog: 			int slot = pool_alloc();
+prog: 			if (slot < 0)
+prog: 				puts("full");
+prog: 			else
+prog: 				printf("slot %d\n", slot);
+prog: 		} else if (n == 2 && strcmp(w[0], "free") == 0 && num(w[1], 0, 1000000, &i)) {
+prog: 			puts(pool_free((int)i) ? "freed" : "bad free");
+prog: 		} else {
+prog: 			puts("?");
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'alloc\nalloc\nalloc\nalloc\nalloc\n' | poolfree
+case: printf 'alloc\nalloc\nalloc\nfree 0\nfree 2\nalloc\nalloc\nalloc\n' | poolfree
+case: printf 'alloc\nfree 0\nfree 0\nfree 9\nfree 1\nfree x\nbogus\nalloc\n' | poolfree
+hint: new head = the freed slot; its link points at the old head -- last freed is first reused, not the lowest number
+---
+q: arenarec.c -- parse records into an arena, free once
+spec: Read lines of the form `NAME SCORE` from standard input: NAME up to 31
+spec: characters with no spaces, SCORE a whole decimal number (-1000000000
+spec: to 1000000000). Store each record, and its own copy of the name, in a
+spec: single 65536-byte arena you get from one `malloc`, linked into a list
+spec: with the newest first. Do not malloc each record.
+spec:
+spec: After the last line print the records from newest to oldest as
+spec: `NAME: SCORE`, then `best: NAME (of N)` for the highest score (the
+spec: first one read wins a tie), N being the record count. No lines at all
+spec: prints just `no records`. Release the arena with one `free`. Exit 0.
+spec:
+spec: A line that does not have exactly a name and a valid score prints
+spec: `arenarec: line L: bad record` to standard error, nothing to
+spec: standard output, and exits 1 (L from 1). If the arena runs out, print
+spec: `arenarec: arena full` instead and exit 1, likewise with no output.
+file: arenarec.c
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define ARENA_SIZE 65536
+prog: 
+prog: struct arena {
+prog: 	unsigned char *mem;
+prog: 	size_t used;
+prog: };
+prog: 
+prog: static void *arena_alloc(struct arena *a, size_t size, size_t align)
+prog: {
+prog: 	size_t start = (a->used + align - 1) & ~(align - 1);
+prog: 	if (start > ARENA_SIZE || size > ARENA_SIZE - start)
+prog: 		return NULL;
+prog: 	a->used = start + size;
+prog: 	return a->mem + start;
+prog: }
+prog: 
+prog: struct rec {
+prog: 	char *name;
+prog: 	long score;
+prog: 	struct rec *next;
+prog: };
+prog: 
+prog: /* a whole decimal number inside lo..hi; sscanf cannot say "too big" safely */
+prog: static bool num(const char *s, long lo, long hi, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (end == s || *end != '\0' || errno == ERANGE || v < lo || v > hi)
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct arena a = { malloc(ARENA_SIZE), 0 };
+prog: 	if (a.mem == NULL) {
+prog: 		fprintf(stderr, "arenarec: out of memory\n");
+prog: 		return 1;
+prog: 	}
+prog: 	struct rec *head = NULL, *best = NULL;
+prog: 	long count = 0, lineno = 0;
+prog: 	int status = 0;
+prog: 	char line[128];
+prog: 
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		lineno++;
+prog: 		char name[32], num_s[32], extra[2];
+prog: 		long score;
+prog: 		if (sscanf(line, "%31s %31s %1s", name, num_s, extra) != 2
+prog: 		    || !num(num_s, -1000000000L, 1000000000L, &score)) {
+prog: 			fprintf(stderr, "arenarec: line %ld: bad record\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		struct rec *r = arena_alloc(&a, sizeof *r, _Alignof(struct rec));
+prog: 		char *copy = arena_alloc(&a, strlen(name) + 1, 1);
+prog: 		if (r == NULL || copy == NULL) {
+prog: 			fprintf(stderr, "arenarec: arena full\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		strcpy(copy, name);
+prog: 		*r = (struct rec){ copy, score, head };
+prog: 		head = r; /* newest first */
+prog: 		count++;
+prog: 		if (best == NULL || r->score > best->score) /* ties keep the first */
+prog: 			best = r;
+prog: 	}
+prog: 	if (status == 0) {
+prog: 		for (const struct rec *r = head; r != NULL; r = r->next)
+prog: 			printf("%s: %ld\n", r->name, r->score);
+prog: 		if (best == NULL)
+prog: 			puts("no records");
+prog: 		else
+prog: 			printf("best: %s (of %ld)\n", best->name, count);
+prog: 	}
+prog: 	free(a.mem); /* one free releases every record and every name */
+prog: 	return status;
+prog: }
+case: printf 'ann 5\nbob 9\ncy 9\ndee -3\n' | arenarec
+case: printf '' | arenarec
+case: printf 'ann 1\nbob\n' | arenarec 2>&1; echo $?; printf 'ann 1x\n' | arenarec 2>&1; echo $?
+case: yes 'nm 7' | head -n 1000 | arenarec | tail -n 2
+case: yes 'nm 7' | head -n 5000 | arenarec 2>&1; echo $?
+hint: an arena_alloc(arena, size, align) that returns NULL when full; allocate the struct and the name from it, and let the one free at the end cover both

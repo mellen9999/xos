@@ -1,0 +1,463 @@
+name: state machines
+intro: Many programs are really one idea: "what am I in the middle of?" A
+intro: tokenizer is in the middle of a number, or a string. A protocol parser
+intro: is waiting for a header, or reading a body. That answer is the state,
+intro: and the whole program is: read one thing, look at (state, input),
+intro: act, pick the next state.
+intro:
+intro: Write the states as an enum, loop over the input, switch on the state:
+intro:
+intro:     enum state { START, IN_NUM, IN_STR };
+intro:
+intro:     enum state s = START;
+intro:     int c;
+intro:     while ((c = getchar()) != EOF) {
+intro:         switch (s) {
+intro:         case START:
+intro:             if (isdigit(c)) s = IN_NUM;
+intro:             break;
+intro:         case IN_NUM:
+intro:             if (!isdigit(c)) s = START;
+intro:             break;
+intro:         ...
+intro:         }
+intro:     }
+intro:
+intro: Each `case` answers one question: given this state and this byte, what
+intro: now? Keep that to a few lines and the machine stays readable. Do not
+intro: keep "am I in a string" in three booleans -- the booleans can disagree
+intro: (string and comment at once). One enum cannot.
+intro:
+intro: When the next state depends only on (state, input) and nothing else
+intro: happens, a table says it shorter: `next[state][input]`. Use a table
+intro: when every cell is data; use a switch when states do different work.
+intro:
+intro: A byte that ends one token often starts the next (the space after a
+intro: number is fine, the `+` after it is not). Give it back with
+intro: `ungetc(c, stdin)` and the START state sees it again. One byte of
+intro: pushback is guaranteed.
+intro:
+intro: At EOF the loop ends, but the machine may be mid-token. Always ask
+intro: what each state means at end of input: a number just ends, a string
+intro: is an error. Ignoring this is how real parsers accept half a file.
+---
+q: div3.c -- is this binary number a multiple of 3
+spec: Read characters from standard input. Each `0` or `1` is the next bit of
+spec: a binary number, most significant first. Print `yes` if the number is
+spec: divisible by 3, otherwise `no`, then exit 0. Empty input is the number
+spec: 0, so it prints `yes`. Newlines are skipped.
+spec:
+spec: Any other character prints `div3: bad character` to standard error and
+spec: exits 2. The input can be any length, so do not build the number: keep
+spec: only its remainder mod 3 as the state. Reading a bit b turns n into
+spec: 2n + b.
+file: div3.c
+prog: #include <stdio.h>
+prog: 
+prog: /* state = the remainder of the number so far, divided by 3.
+prog:    reading a bit b turns n into 2n + b, so the new remainder
+prog:    depends only on the old remainder and b. */
+prog: static const int next[3][2] = {
+prog: 	{0, 1},
+prog: 	{2, 0},
+prog: 	{1, 2},
+prog: };
+prog: 
+prog: int main(void)
+prog: {
+prog: 	int state = 0;
+prog: 	int c;
+prog: 	while ((c = getchar()) != EOF) {
+prog: 		if (c == '\n')
+prog: 			continue;
+prog: 		if (c != '0' && c != '1') {
+prog: 			fprintf(stderr, "div3: bad character\n");
+prog: 			return 2;
+prog: 		}
+prog: 		state = next[state][c - '0'];
+prog: 	}
+prog: 	puts(state == 0 ? "yes" : "no");
+prog: 	return 0;
+prog: }
+case: printf '110' | div3
+case: printf '1001\n' | div3
+case: printf '111' | div3
+case: printf '' | div3
+case: yes 1 | head -n 70 | tr -d '\n' | div3; yes 1 | head -n 71 | tr -d '\n' | div3
+case: printf '10x1' | div3 2>&1; echo $?
+hint: the state is 0, 1 or 2; from remainder r, reading bit b gives (2*r + b) % 3 -- a table of three rows and two columns will do
+---
+q: cstrip.c -- strip the comments from C source
+spec: Copy standard input to standard output with C comments removed.
+spec: A block comment, from slash-star to star-slash, becomes one space
+spec: (whatever it held, newlines included). A line comment, from two
+spec: slashes up to but not including the newline, is removed; the newline
+spec: stays.
+spec:
+spec: Comment markers inside a string "..." or a character constant '...'
+spec: are not comments: copy those exactly. A backslash inside either
+spec: protects the next character, so the quote in "x\"y" does not end the
+spec: string. A lone slash that starts nothing, as in `a / b`, is copied.
+spec:
+spec: An unterminated block comment prints `cstrip: unterminated comment` to
+spec: standard error after the output so far and exits 1. Otherwise exit 0.
+spec: Use one enum state variable, not several flags.
+file: cstrip.c
+prog: #include <stdio.h>
+prog: 
+prog: enum state {
+prog: 	CODE,
+prog: 	SLASH,   /* saw one / in code */
+prog: 	LINE,    /* inside // ... */
+prog: 	BLOCK,   /* inside slash-star ... */
+prog: 	STAR,    /* inside a block comment, just saw * */
+prog: 	STR,     /* inside "..." */
+prog: 	STR_ESC, /* inside "...", just saw a backslash */
+prog: 	CHR,     /* inside '...' */
+prog: 	CHR_ESC  /* inside '...', just saw a backslash */
+prog: };
+prog: 
+prog: int main(void)
+prog: {
+prog: 	enum state s = CODE;
+prog: 	int c;
+prog: 	while ((c = getchar()) != EOF) {
+prog: 		switch (s) {
+prog: 		case CODE:
+prog: 			if (c == '/') {
+prog: 				s = SLASH;
+prog: 			} else {
+prog: 				putchar(c);
+prog: 				if (c == '"')
+prog: 					s = STR;
+prog: 				else if (c == '\'')
+prog: 					s = CHR;
+prog: 			}
+prog: 			break;
+prog: 		case SLASH:
+prog: 			if (c == '*') {
+prog: 				s = BLOCK;
+prog: 			} else if (c == '/') {
+prog: 				s = LINE;
+prog: 			} else {
+prog: 				putchar('/');
+prog: 				ungetc(c, stdin); /* look at it again as code */
+prog: 				s = CODE;
+prog: 			}
+prog: 			break;
+prog: 		case LINE:
+prog: 			if (c == '\n') {
+prog: 				putchar(c);
+prog: 				s = CODE;
+prog: 			}
+prog: 			break;
+prog: 		case BLOCK:
+prog: 			if (c == '*')
+prog: 				s = STAR;
+prog: 			break;
+prog: 		case STAR:
+prog: 			if (c == '/') {
+prog: 				putchar(' ');
+prog: 				s = CODE;
+prog: 			} else if (c != '*') {
+prog: 				s = BLOCK;
+prog: 			}
+prog: 			break;
+prog: 		case STR:
+prog: 			putchar(c);
+prog: 			if (c == '\\')
+prog: 				s = STR_ESC;
+prog: 			else if (c == '"')
+prog: 				s = CODE;
+prog: 			break;
+prog: 		case STR_ESC:
+prog: 			putchar(c);
+prog: 			s = STR;
+prog: 			break;
+prog: 		case CHR:
+prog: 			putchar(c);
+prog: 			if (c == '\\')
+prog: 				s = CHR_ESC;
+prog: 			else if (c == '\'')
+prog: 				s = CODE;
+prog: 			break;
+prog: 		case CHR_ESC:
+prog: 			putchar(c);
+prog: 			s = CHR;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	if (s == SLASH)
+prog: 		putchar('/');
+prog: 	if (s == BLOCK || s == STAR) {
+prog: 		fprintf(stderr, "cstrip: unterminated comment\n");
+prog: 		return 1;
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'int a; /* c */ int b; // x\nint c;\n' | cstrip
+case: printf 'puts("/* not */ // nor"); /* gone */\n' | cstrip
+case: printf 'c = \047"\047; /* x */ d\n' | cstrip
+case: printf 's = "a\\"/*b"; /* z */\n/** doc **/x\n' | cstrip
+case: printf 'a / b /' | cstrip; echo
+case: printf 'a /* b\n' | cstrip 2>/dev/null; echo $?; printf 'a /* b' | cstrip 2>&1 >/dev/null
+hint: states for code, after-a-slash, line comment, block comment, block comment after a star, string, string after a backslash, and the same two for character constants
+---
+q: lexdump.c -- split source text into tokens
+spec: Read standard input and print one line per token, in order:
+spec:
+spec:   `NUM 42`   a run of digits
+spec:   `ID name`  a letter or underscore, then letters, digits, underscores
+spec:   `OP +`     one of + - * / ( ) , ;  and  = ! < >  and the two-character
+spec:              == != <= >=  (print `OP ==`; a lone ! is an error)
+spec:   `STR "hi"` a double-quoted string
+spec:
+spec: Whitespace separates tokens and is otherwise skipped. A number and a
+spec: name touching are two tokens: `12ab` is `NUM 12` then `ID ab`.
+spec:
+spec: Inside a string the escapes \n \t \\ and \" stand for newline,
+spec: tab, backslash and quote. Print STR with the decoded text re-escaped
+spec: the same four ways, any other byte under 0x20 or over 0x7e as \xHH
+spec: (two lowercase hex digits), and the rest as themselves. A string is
+spec: at most 256 decoded bytes.
+spec:
+spec: Errors stop the program with exit 1 and a message on standard error,
+spec: `lexdump: line L: WHY`, L counting from 1 and WHY one of
+spec: `bad character`, `bad escape`, `unterminated string` (a newline or
+spec: end of input before the closing quote) or `string too long`.
+spec: Tokens before the error are still printed. Exit 0 otherwise.
+file: lexdump.c
+prog: #include <ctype.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: enum state { START, NUM, ID, STR, ESC, OP };
+prog: 
+prog: static void put_escaped(const char *s, size_t n)
+prog: {
+prog: 	for (size_t i = 0; i < n; i++) {
+prog: 		unsigned char c = (unsigned char)s[i];
+prog: 		if (c == '\n')
+prog: 			fputs("\\n", stdout);
+prog: 		else if (c == '\t')
+prog: 			fputs("\\t", stdout);
+prog: 		else if (c == '\\' || c == '"')
+prog: 			printf("\\%c", c);
+prog: 		else if (c < 0x20 || c > 0x7e)
+prog: 			printf("\\x%02x", c);
+prog: 		else
+prog: 			putchar(c);
+prog: 	}
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	enum state s = START;
+prog: 	char buf[256];
+prog: 	size_t len = 0;
+prog: 	int op = 0;
+prog: 	long line = 1;
+prog: 	int c;
+prog: 
+prog: 	for (;;) {
+prog: 		c = getchar();
+prog: 		switch (s) {
+prog: 		case START:
+prog: 			if (c == EOF)
+prog: 				return 0;
+prog: 			if (c == '\n') {
+prog: 				line++;
+prog: 			} else if (isspace(c)) {
+prog: 				/* skip */
+prog: 			} else if (isdigit(c)) {
+prog: 				printf("NUM %c", c);
+prog: 				s = NUM;
+prog: 			} else if (isalpha(c) || c == '_') {
+prog: 				printf("ID %c", c);
+prog: 				s = ID;
+prog: 			} else if (c == '"') {
+prog: 				len = 0;
+prog: 				s = STR;
+prog: 			} else if (c == '=' || c == '!' || c == '<' || c == '>') {
+prog: 				op = c;
+prog: 				s = OP;
+prog: 			} else if (strchr("+-*/(),;", c) != NULL) {
+prog: 				printf("OP %c\n", c);
+prog: 			} else {
+prog: 				fprintf(stderr, "lexdump: line %ld: bad character\n", line);
+prog: 				return 1;
+prog: 			}
+prog: 			break;
+prog: 		case NUM:
+prog: 			if (isdigit(c)) {
+prog: 				putchar(c);
+prog: 			} else {
+prog: 				putchar('\n');
+prog: 				ungetc(c, stdin);
+prog: 				s = START;
+prog: 			}
+prog: 			break;
+prog: 		case ID:
+prog: 			if (isalnum(c) || c == '_') {
+prog: 				putchar(c);
+prog: 			} else {
+prog: 				putchar('\n');
+prog: 				ungetc(c, stdin);
+prog: 				s = START;
+prog: 			}
+prog: 			break;
+prog: 		case OP:
+prog: 			if (c == '=') {
+prog: 				printf("OP %c=\n", op);
+prog: 			} else if (op == '!') {
+prog: 				fprintf(stderr, "lexdump: line %ld: bad character\n", line);
+prog: 				return 1;
+prog: 			} else {
+prog: 				printf("OP %c\n", op);
+prog: 				ungetc(c, stdin);
+prog: 			}
+prog: 			s = START;
+prog: 			break;
+prog: 		case STR:
+prog: 			if (c == EOF || c == '\n') {
+prog: 				fprintf(stderr, "lexdump: line %ld: unterminated string\n", line);
+prog: 				return 1;
+prog: 			}
+prog: 			if (c == '"') {
+prog: 				fputs("STR \"", stdout);
+prog: 				put_escaped(buf, len);
+prog: 				puts("\"");
+prog: 				s = START;
+prog: 			} else if (c == '\\') {
+prog: 				s = ESC;
+prog: 			} else if (len == sizeof buf) {
+prog: 				fprintf(stderr, "lexdump: line %ld: string too long\n", line);
+prog: 				return 1;
+prog: 			} else {
+prog: 				buf[len++] = (char)c;
+prog: 			}
+prog: 			break;
+prog: 		case ESC: {
+prog: 			const char *from = "nt\\\"";
+prog: 			const char *to = "\n\t\\\"";
+prog: 			const char *p = c == EOF ? NULL : strchr(from, c);
+prog: 			if (p == NULL || c == '\0') {
+prog: 				fprintf(stderr, "lexdump: line %ld: bad escape\n", line);
+prog: 				return 1;
+prog: 			}
+prog: 			if (len == sizeof buf) {
+prog: 				fprintf(stderr, "lexdump: line %ld: string too long\n", line);
+prog: 				return 1;
+prog: 			}
+prog: 			buf[len++] = to[p - from];
+prog: 			s = STR;
+prog: 			break;
+prog: 		}
+prog: 		}
+prog: 	}
+prog: }
+case: printf 'x1 = 42 + foo(7);\na<=b != c >= 3 < 4 == 5 = 6\n' | lexdump
+case: printf 's = "a\\tb\\n\\"q\\\\";\n' | lexdump; printf '"\001\377"' | lexdump
+case: printf '12ab' | lexdump
+case: printf 'a\n"abc\n' | lexdump 2>&1 >/dev/null; echo $?
+case: printf 'a\n  @' | lexdump 2>/dev/null; echo $?
+case: printf '"\\q"' | lexdump 2>&1 >/dev/null; echo $?
+hint: states START, NUM, ID, OP, STR and ESC; a number or name ends on any other byte, which you push back with ungetc so START sees it
+---
+q: batchp.c -- a tiny line protocol
+spec: Read commands from standard input, one per line. The program is IDLE
+spec: until a batch starts:
+spec:
+spec:   `BEGIN name`  start a batch called name (1 to 31 characters, no
+spec:                 spaces); only valid when idle
+spec:   `ADD n`       add the whole decimal number n (-1000000 to 1000000) to
+spec:                 the batch total; only valid inside a batch
+spec:   `END`         print `name: total T from N` (T the sum, N how many
+spec:                 ADDs) and go idle; only valid inside a batch
+spec:
+spec: Blank lines are ignored. Each batch starts at total 0.
+spec:
+spec: The first problem stops everything: print `batchp: line L: WHY` to
+spec: standard error and exit 1, L counting lines from 1. WHY is one of
+spec: `line too long` (over 126 characters), `BEGIN inside a batch`,
+spec: `bad name`, `ADD outside a batch`, `bad number`, `END without BEGIN`,
+spec: `unknown command` (commands are exactly upper case), or, at end of
+spec: input inside a batch, `batch never ended` (L is the last line read).
+spec: Exit 0 if all went well.
+file: batchp.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: enum state { IDLE, IN_BATCH };
+prog: 
+prog: static int fail(long line, const char *why)
+prog: {
+prog: 	fprintf(stderr, "batchp: line %ld: %s\n", line, why);
+prog: 	return 1;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	enum state s = IDLE;
+prog: 	char buf[128];
+prog: 	char name[32] = "";
+prog: 	long total = 0;
+prog: 	long count = 0;
+prog: 	long line = 0;
+prog: 
+prog: 	while (fgets(buf, sizeof buf, stdin) != NULL) {
+prog: 		line++;
+prog: 		size_t n = strlen(buf);
+prog: 		if (n > 0 && buf[n - 1] == '\n')
+prog: 			buf[--n] = '\0';
+prog: 		else if (n == sizeof buf - 1)
+prog: 			return fail(line, "line too long");
+prog: 		if (n == 0)
+prog: 			continue;
+prog: 
+prog: 		char *arg = strchr(buf, ' ');
+prog: 		if (arg != NULL)
+prog: 			*arg++ = '\0';
+prog: 
+prog: 		if (strcmp(buf, "BEGIN") == 0) {
+prog: 			if (s == IN_BATCH)
+prog: 				return fail(line, "BEGIN inside a batch");
+prog: 			if (arg == NULL || arg[0] == '\0' || strlen(arg) >= sizeof name)
+prog: 				return fail(line, "bad name");
+prog: 			strcpy(name, arg);
+prog: 			total = 0;
+prog: 			count = 0;
+prog: 			s = IN_BATCH;
+prog: 		} else if (strcmp(buf, "ADD") == 0) {
+prog: 			if (s == IDLE)
+prog: 				return fail(line, "ADD outside a batch");
+prog: 			char *end;
+prog: 			errno = 0;
+prog: 			long v = arg == NULL ? 0 : strtol(arg, &end, 10);
+prog: 			if (arg == NULL || end == arg || *end != '\0' || errno == ERANGE
+prog: 			    || v < -1000000 || v > 1000000)
+prog: 				return fail(line, "bad number");
+prog: 			total += v;
+prog: 			count++;
+prog: 		} else if (strcmp(buf, "END") == 0) {
+prog: 			if (s == IDLE)
+prog: 				return fail(line, "END without BEGIN");
+prog: 			printf("%s: total %ld from %ld\n", name, total, count);
+prog: 			s = IDLE;
+prog: 		} else {
+prog: 			return fail(line, "unknown command");
+prog: 		}
+prog: 	}
+prog: 	if (s == IN_BATCH)
+prog: 		return fail(line, "batch never ended");
+prog: 	return 0;
+prog: }
+case: printf 'BEGIN a\nADD 5\nADD -2\nEND\n\nBEGIN b\nEND\nBEGIN c\nADD 7\nEND\n' | batchp
+case: printf 'ADD 5\n' | batchp 2>&1; echo $?
+case: printf 'BEGIN a\nBEGIN b\n' | batchp 2>&1; echo $?
+case: printf 'BEGIN a\nADD 12x\n' | batchp 2>&1; echo $?
+case: printf 'BEGIN a\nADD 1\n' | batchp 2>&1; echo $?
+case: printf 'BEGIN a\nadd 1\n' | batchp 2>&1; echo $?
+hint: one switch on IDLE or IN_BATCH is not enough -- first split the line into command and argument, then check the command against the state; strtol with endptr for the number

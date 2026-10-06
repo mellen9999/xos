@@ -1,0 +1,394 @@
+name: signals
+intro: A signal is a small message the kernel delivers to a process: SIGINT
+intro: when you press Ctrl-C, SIGTERM from a plain `kill`, SIGCHLD to a
+intro: parent whose child ended, SIGPIPE when you write to a pipe nobody
+intro: reads. SIGKILL always kills and cannot be caught. Each signal has a
+intro: default action: most kill the process (the wait status then says
+intro: WIFSIGNALED), SIGCHLD is ignored.
+intro:
+intro: Change it with `sigaction`, never `signal()` -- what `signal()` does
+intro: varies between systems.
+intro:
+intro:     static volatile sig_atomic_t hit;
+intro:     static void on_int(int sig) { (void)sig; hit = 1; }
+intro:
+intro:     struct sigaction sa;
+intro:     memset(&sa, 0, sizeof sa);
+intro:     sa.sa_handler = on_int;      /* or SIG_IGN, or SIG_DFL */
+intro:     sigemptyset(&sa.sa_mask);
+intro:     if (sigaction(SIGINT, &sa, NULL) != 0) { ...fail... }
+intro:
+intro: A handler runs in the middle of whatever your program was doing,
+intro: between any two instructions. So it may only set a flag of type
+intro: `sig_atomic_t` (declared `volatile`) and call async-signal-safe
+intro: functions such as `write` and `_exit` -- never `printf`, `malloc` or
+intro: `exit`, which may be half-finished underneath it. Set a flag; let
+intro: `main` do the real work.
+intro:
+intro: Standard signals do not queue: five SIGUSR1 sent while it is blocked
+intro: arrive as one. `sigprocmask` blocks signals so they wait as pending.
+intro: That closes a classic race: you test a flag, then sleep, and the
+intro: signal lands between the two -- you sleep forever. Block the signal
+intro: first, then `sigsuspend(&old)`, which unblocks and sleeps in one
+intro: step.
+intro:
+intro: A handler that interrupts a slow call such as `read` makes it fail
+intro: with `EINTR`: check your flag, or retry.
+intro:
+intro: SIGPIPE kills a writer silently. A tool that wants to report the
+intro: error itself sets it to SIG_IGN, and `write` then fails with
+intro: `EPIPE`.
+intro:
+intro: Never order things with `sleep`. To know a child is ready, have it
+intro: write a byte down a pipe, and wait for that byte.
+---
+q: sigcount.c -- catch a signal N times
+spec: Take two arguments: a signal NAME, one of `INT`, `TERM`, `HUP`,
+spec: `USR1`, `USR2`, `CHLD` (meaning SIGINT and so on), and a count N from
+spec: 0 to 100. Install a handler for that signal with `sigaction`, send
+spec: the signal to yourself N times with `raise`, then print
+spec: `caught C`, where C is how many times the handler ran. Exit 0.
+spec:
+spec: The handler may only touch a `volatile sig_atomic_t` counter. For
+spec: an unblocked signal `raise` does not return until the handler has
+spec: run, so C comes out equal to N.
+spec:
+spec: Any other arguments (wrong count, unknown NAME, N not a whole
+spec: number in range) print `usage: sigcount NAME N` to standard error
+spec: and exit 2. If `sigaction` fails print `sigcount: sigaction failed`
+spec: to standard error and exit 1.
+file: sigcount.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <signal.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: static volatile sig_atomic_t count;
+prog: 
+prog: static void on_signal(int sig)
+prog: {
+prog: 	(void)sig;
+prog: 	count = count + 1;
+prog: }
+prog: 
+prog: static const struct {
+prog: 	const char *name;
+prog: 	int sig;
+prog: } names[] = {
+prog: 	{"INT", SIGINT}, {"TERM", SIGTERM}, {"HUP", SIGHUP},
+prog: 	{"USR1", SIGUSR1}, {"USR2", SIGUSR2}, {"CHLD", SIGCHLD},
+prog: };
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	int sig = 0;
+prog: 	long n = -1;
+prog: 	if (argc == 3) {
+prog: 		for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
+prog: 			if (strcmp(argv[1], names[i].name) == 0)
+prog: 				sig = names[i].sig;
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		n = strtol(argv[2], &end, 10);
+prog: 		if (errno != 0 || end == argv[2] || *end != '\0')
+prog: 			n = -1;
+prog: 	}
+prog: 	if (sig == 0 || n < 0 || n > 100) {
+prog: 		fprintf(stderr, "usage: sigcount NAME N\n");
+prog: 		return 2;
+prog: 	}
+prog: 	struct sigaction sa;
+prog: 	memset(&sa, 0, sizeof sa);
+prog: 	sa.sa_handler = on_signal;
+prog: 	sigemptyset(&sa.sa_mask);
+prog: 	if (sigaction(sig, &sa, NULL) != 0) {
+prog: 		fprintf(stderr, "sigcount: sigaction failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (long i = 0; i < n; i++)
+prog: 		raise(sig);
+prog: 	printf("caught %d\n", (int)count);
+prog: 	return 0;
+prog: }
+case: sigcount USR1 3
+case: sigcount INT 1; sigcount TERM 0
+case: sigcount CHLD 5
+case: sigcount HUP 100
+case: sigcount USR2 101; echo $?
+case: sigcount KILL 1; echo $?
+case: sigcount USR1; echo $?
+hint: a static volatile sig_atomic_t counter, a handler that adds one, sigaction to install it for the chosen signal, then raise(sig) in a loop
+---
+q: sigcoalesce.c -- signals that arrive together
+spec: Take one argument N, a whole number from 0 to 100. Install a
+spec: `sigaction` handler for SIGUSR1 that counts its runs in a
+spec: `volatile sig_atomic_t`. Then block SIGUSR1 with `sigprocmask`
+spec: (remember the old mask), `raise` it N times, and print
+spec: `blocked: pending=P caught=C`: P is 1 if SIGUSR1 is pending
+spec: (`sigpending`, `sigismember`) and 0 if not, C the handler's count.
+spec:
+spec: Then put the old mask back, which lets any pending signal in, and
+spec: print `unblocked: caught=C` with the count now. Exit 0.
+spec:
+spec: A blocked signal is pending, not queued: five raises leave one
+spec: pending signal, so the handler runs once.
+spec:
+spec: Anything else prints `usage: sigcoalesce N` to standard error and
+spec: exits 2. If the setup calls fail print the line
+spec: `sigcoalesce: signal setup failed` to standard error and exit 1.
+file: sigcoalesce.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <signal.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: static volatile sig_atomic_t count;
+prog: 
+prog: static void on_usr1(int sig)
+prog: {
+prog: 	(void)sig;
+prog: 	count = count + 1;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	long n = -1;
+prog: 	char *end = NULL;
+prog: 	if (argc == 2) {
+prog: 		errno = 0;
+prog: 		n = strtol(argv[1], &end, 10);
+prog: 		if (errno != 0 || end == argv[1] || *end != '\0')
+prog: 			n = -1;
+prog: 	}
+prog: 	if (n < 0 || n > 100) {
+prog: 		fprintf(stderr, "usage: sigcoalesce N\n");
+prog: 		return 2;
+prog: 	}
+prog: 	struct sigaction sa;
+prog: 	memset(&sa, 0, sizeof sa);
+prog: 	sa.sa_handler = on_usr1;
+prog: 	sigemptyset(&sa.sa_mask);
+prog: 	sigset_t usr1, old, pending;
+prog: 	sigemptyset(&usr1);
+prog: 	sigaddset(&usr1, SIGUSR1);
+prog: 	if (sigaction(SIGUSR1, &sa, NULL) != 0 || sigprocmask(SIG_BLOCK, &usr1, &old) != 0) {
+prog: 		fprintf(stderr, "sigcoalesce: signal setup failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (long i = 0; i < n; i++)
+prog: 		raise(SIGUSR1);
+prog: 	sigpending(&pending);
+prog: 	printf("blocked: pending=%d caught=%d\n", sigismember(&pending, SIGUSR1), (int)count);
+prog: 	sigprocmask(SIG_SETMASK, &old, NULL);
+prog: 	printf("unblocked: caught=%d\n", (int)count);
+prog: 	return 0;
+prog: }
+case: sigcoalesce 5
+case: sigcoalesce 1
+case: sigcoalesce 0
+case: sigcoalesce 100
+case: sigcoalesce -1; echo $?
+case: sigcoalesce; echo $?
+hint: sigprocmask(SIG_BLOCK, &set, &old) before the raises; ask sigpending while blocked; sigprocmask(SIG_SETMASK, &old, NULL) afterwards lets it through
+---
+q: killkid.c -- kill your own child
+spec: Take one argument, MODE: `default`, `handled` or `ignored`. Make two
+spec: pipes and fork a child. The child sets itself up for its MODE, then
+spec: writes one byte to the first pipe to say it is ready, then waits:
+spec:
+spec: `default`: leaves SIGTERM alone and blocks in `read` on the second
+spec: pipe (nobody ever writes to it).
+spec: `ignored`: sets SIGTERM to `SIG_IGN`, then blocks the same way.
+spec: `handled`: blocks SIGTERM with `sigprocmask` first, installs a
+spec: handler that sets a flag, then sleeps in `sigsuspend` until the flag
+spec: is set and leaves with `_exit(42)`. (Block first, or a SIGTERM that
+spec: lands between the check and the sleep is lost.)
+spec:
+spec: The parent reads the ready byte, then sends the child SIGTERM; in
+spec: `ignored` mode it then also sends SIGKILL. It waits for the child,
+spec: and prints `exit N` or `signal S` as the child really ended: that
+spec: is `signal 15` for default, `exit 42` for handled, `signal 9` for
+spec: ignored. Exit 0. Keep the parent's end of the second pipe open
+spec: until the child has been collected.
+spec:
+spec: A missing or unknown MODE prints `usage: killkid MODE` to standard
+spec: error and exits 2. Failures print `killkid: pipe failed`,
+spec: `killkid: fork failed`, `killkid: child failed` (no ready byte
+spec: arrived) or `killkid: wait failed`, and exit 1.
+file: killkid.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <signal.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: static volatile sig_atomic_t got_term;
+prog: 
+prog: static void on_term(int sig)
+prog: {
+prog: 	(void)sig;
+prog: 	got_term = 1;
+prog: }
+prog: 
+prog: static void set_action(int sig, void (*handler)(int))
+prog: {
+prog: 	struct sigaction sa;
+prog: 	memset(&sa, 0, sizeof sa);
+prog: 	sa.sa_handler = handler;
+prog: 	sigemptyset(&sa.sa_mask);
+prog: 	if (sigaction(sig, &sa, NULL) != 0)
+prog: 		_exit(1);
+prog: }
+prog: 
+prog: /* runs in the child: set up, say so over ready_fd, then wait to be signalled */
+prog: static void child(const char *mode, int ready_fd, int hold_fd)
+prog: {
+prog: 	sigset_t term, old;
+prog: 	sigemptyset(&term);
+prog: 	sigaddset(&term, SIGTERM);
+prog: 	if (strcmp(mode, "handled") == 0) {
+prog: 		sigprocmask(SIG_BLOCK, &term, &old);
+prog: 		set_action(SIGTERM, on_term);
+prog: 	} else if (strcmp(mode, "ignored") == 0) {
+prog: 		set_action(SIGTERM, SIG_IGN);
+prog: 	}
+prog: 	if (write(ready_fd, "r", 1) != 1)
+prog: 		_exit(1);
+prog: 	if (strcmp(mode, "handled") == 0) {
+prog: 		while (!got_term)
+prog: 			sigsuspend(&old);
+prog: 		_exit(42);
+prog: 	}
+prog: 	char c;
+prog: 	if (read(hold_fd, &c, 1) < 0 && errno != EINTR)
+prog: 		_exit(1);
+prog: 	_exit(1);
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2 || (strcmp(argv[1], "default") != 0 && strcmp(argv[1], "handled") != 0 &&
+prog: 			  strcmp(argv[1], "ignored") != 0)) {
+prog: 		fprintf(stderr, "usage: killkid MODE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	int ready[2], hold[2];
+prog: 	if (pipe(ready) != 0 || pipe(hold) != 0) {
+prog: 		fprintf(stderr, "killkid: pipe failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "killkid: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		close(ready[0]);
+prog: 		close(hold[1]);
+prog: 		child(argv[1], ready[1], hold[0]);
+prog: 	}
+prog: 	close(ready[1]);
+prog: 	close(hold[0]);
+prog: 	char c;
+prog: 	ssize_t r;
+prog: 	do {
+prog: 		r = read(ready[0], &c, 1);
+prog: 	} while (r < 0 && errno == EINTR);
+prog: 	if (r != 1) {
+prog: 		fprintf(stderr, "killkid: child failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	kill(pid, SIGTERM);
+prog: 	if (strcmp(argv[1], "ignored") == 0)
+prog: 		kill(pid, SIGKILL);
+prog: 	int status;
+prog: 	if (waitpid(pid, &status, 0) < 0) {
+prog: 		fprintf(stderr, "killkid: wait failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	close(hold[1]);
+prog: 	if (WIFEXITED(status))
+prog: 		printf("exit %d\n", WEXITSTATUS(status));
+prog: 	else if (WIFSIGNALED(status))
+prog: 		printf("signal %d\n", WTERMSIG(status));
+prog: 	return 0;
+prog: }
+case: killkid default
+case: killkid handled
+case: killkid ignored
+case: killkid; echo $?
+case: killkid other; echo $?
+hint: child writes its ready byte only after its signal setup is done; in handled mode block SIGTERM, install the handler, then loop on sigsuspend(&old) until the flag is set
+---
+q: sigpipe.c -- write to a pipe nobody reads
+spec: Take one argument, MODE: `ignore` or `handle`. Set up SIGPIPE with
+spec: `sigaction` -- `SIG_IGN` for ignore, a handler that sets a
+spec: `volatile sig_atomic_t` flag for handle. Make a pipe, close its read
+spec: end, and write one byte to the write end.
+spec:
+spec: That write fails with `EPIPE`, whichever MODE. Print
+spec: `write failed: EPIPE` (your own words, not strerror's), then print
+spec: `handler ran: yes` if the flag is set and `handler ran: no` if not.
+spec: Exit 0. (If the write somehow did not fail, print
+spec: `write did not fail` instead of the first line.)
+spec:
+spec: A missing or unknown MODE prints `usage: sigpipe MODE` to standard
+spec: error and exits 2. If `sigaction` or `pipe` fails print
+spec: `sigpipe: sigaction failed` or `sigpipe: pipe failed` to standard
+spec: error and exit 1.
+file: sigpipe.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <signal.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: #include <unistd.h>
+prog: 
+prog: static volatile sig_atomic_t seen;
+prog: 
+prog: static void on_pipe(int sig)
+prog: {
+prog: 	(void)sig;
+prog: 	seen = 1;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 2 || (strcmp(argv[1], "ignore") != 0 && strcmp(argv[1], "handle") != 0)) {
+prog: 		fprintf(stderr, "usage: sigpipe MODE\n");
+prog: 		return 2;
+prog: 	}
+prog: 	struct sigaction sa;
+prog: 	memset(&sa, 0, sizeof sa);
+prog: 	sigemptyset(&sa.sa_mask);
+prog: 	sa.sa_handler = strcmp(argv[1], "ignore") == 0 ? SIG_IGN : on_pipe;
+prog: 	if (sigaction(SIGPIPE, &sa, NULL) != 0) {
+prog: 		fprintf(stderr, "sigpipe: sigaction failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	int fd[2];
+prog: 	if (pipe(fd) != 0) {
+prog: 		fprintf(stderr, "sigpipe: pipe failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	close(fd[0]);
+prog: 	ssize_t w = write(fd[1], "x", 1);
+prog: 	if (w < 0 && errno == EPIPE)
+prog: 		printf("write failed: EPIPE\n");
+prog: 	else
+prog: 		printf("write did not fail\n");
+prog: 	printf("handler ran: %s\n", seen ? "yes" : "no");
+prog: 	close(fd[1]);
+prog: 	return 0;
+prog: }
+case: sigpipe ignore
+case: sigpipe handle
+case: sigpipe; echo $?
+case: sigpipe quiet; echo $?
+hint: with the read end closed, write() returns -1 and errno is EPIPE; the signal is delivered before write returns, so the flag is already set by the time you look

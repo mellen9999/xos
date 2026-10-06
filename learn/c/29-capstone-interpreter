@@ -1,0 +1,1848 @@
+name: capstone: an interpreter
+intro: Every language you have used is a program like this one: it reads
+intro: text, splits it into tokens, works out the structure, and acts on
+intro: it. This unit builds the smallest honest one -- a calculator you can
+intro: program.
+intro:
+intro: The tokenizer turns characters into tokens and remembers the column
+intro: of each, so every later complaint can point at the exact spot. The
+intro: parser gives the tokens their shape. For arithmetic it is one
+intro: function per precedence level, each calling the next-tighter one:
+intro:
+intro:     expr    = term    { (+ or -)     term    }
+intro:     term    = unary   { (* or / or %) unary  }
+intro:     unary   = - unary | primary
+intro:     primary = number | ( expr )
+intro:
+intro: The braces mean "repeat", and a loop is what makes `10 - 3 - 2` come
+intro: out as `(10 - 3) - 2`: keep the running value, and fold in each new
+intro: operand as it arrives. Parentheses make the grammar call itself,
+intro: which is how `((1 + 2) * 3)` nests. Evaluating while you parse means
+intro: no tree to build and free.
+intro:
+intro: Three habits make an interpreter trustworthy. Check signed overflow
+intro: before you do the arithmetic -- afterwards it is too late, since
+intro: signed overflow is undefined behaviour and the compiler may assume
+intro: it never happens. Handle `INT64_MIN` as a real edge: it cannot be
+intro: negated, and `INT64_MIN / -1` overflows. And put a limit on
+intro: recursion, because a line of a million parentheses would otherwise
+intro: run the stack out and crash; a crash is not an error message.
+intro:
+intro: As with the shell, each program starts in vi as the last one.
+intro:
+intro: That is the track. You can write C that is checked, portable and
+intro: does not crash, and you can drive the system under it: files,
+intro: directories, processes, pipes, signals. Where next? Build a text
+intro: editor: put the terminal in raw mode and redraw the screen yourself
+intro: -- you already have `read`, `write` and a buffer. Build a
+intro: compressor: Huffman or LZ77 is bit-twiddling plus a table. Or read:
+intro: the tools on this machine are busybox, real C written to be small.
+intro: Start with `true`, `echo`, `cat`, `wc`, then its `sh` -- a bigger
+intro: sibling of the one you just wrote.
+intro:
+intro: One limit to know: this compiler speaks C11, not C23. Newer keywords
+intro: (`nullptr`, `constexpr`, `typeof`) and `#embed` are beyond it; on
+intro: another machine with a newer gcc you can add `-std=c23` and learn
+intro: them.
+---
+q: calctok.c -- tokens with columns
+spec: The first step of a calculator language: read standard input a line
+spec: at a time and split each line into tokens, remembering where each
+spec: one started. Columns count bytes from 1.
+spec:
+spec: The tokens: a number (one or more decimal digits; leading zeros are
+spec: fine), an operator (one of `+ - * / %`), an open parenthesis and a
+spec: close parenthesis. Spaces and tabs separate tokens and are skipped.
+spec:
+spec: For each line print one output line per token, in order: its
+spec: column, a space, its kind, and for numbers and operators a space
+spec: and the value. The kinds are `num` (the value in decimal, so `007`
+spec: shows as 7), `op` (the operator character), `open` and `close`.
+spec: Every line ends with one more token, `end`, whose column is one past
+spec: the last byte of the line; a blank line is just `1 end`.
+spec: Example, for `12+(3)`:
+spec: `1 num 12`, `3 op +`, `4 open`, `5 num 3`, `6 close`, `7 end`.
+spec:
+spec: Two mistakes are reported instead of the tokens, as a single line,
+spec: and reading goes on with the next line:
+spec: `error: col C: unexpected character 'X'` for any other byte, and
+spec: `error: col C: number too large` for a number above
+spec: 9223372036854775807 (the largest 64-bit signed integer). C is where
+spec: the character or number starts. The exit status is 1 if any line
+spec: had an error, otherwise 0.
+file: calctok.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <ctype.h>
+prog: #include <stdbool.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: enum kind { T_NUM, T_OP, T_OPEN, T_CLOSE, T_END };
+prog: 
+prog: typedef struct {
+prog: 	enum kind kind;
+prog: 	int col;
+prog: 	int64_t value;
+prog: 	char op;
+prog: } tok;
+prog: 
+prog: typedef struct {
+prog: 	int col;
+prog: 	char msg[64];
+prog: } err;
+prog: 
+prog: static bool fail(err *e, int col, const char *msg)
+prog: {
+prog: 	e->col = col;
+prog: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+prog: 	return false;
+prog: }
+prog: 
+prog: /* split s into toks, the last one T_END; toks needs strlen(s) + 1 entries */
+prog: static bool tokenize(const char *s, tok *toks, err *e)
+prog: {
+prog: 	size_t n = 0;
+prog: 	const char *p = s;
+prog: 	while (*p != '\0') {
+prog: 		int col = (int)(p - s) + 1;
+prog: 		if (*p == ' ' || *p == '\t') {
+prog: 			p++;
+prog: 			continue;
+prog: 		}
+prog: 		tok *t = &toks[n++];
+prog: 		*t = (tok){T_END, col, 0, '\0'};
+prog: 		if (isdigit((unsigned char)*p)) {
+prog: 			int64_t v = 0;
+prog: 			while (isdigit((unsigned char)*p)) {
+prog: 				int digit = *p++ - '0';
+prog: 				if (v > (INT64_MAX - digit) / 10)
+prog: 					return fail(e, col, "number too large");
+prog: 				v = v * 10 + digit;
+prog: 			}
+prog: 			t->kind = T_NUM;
+prog: 			t->value = v;
+prog: 		} else if (strchr("+-*/%", *p) != NULL) {
+prog: 			t->kind = T_OP;
+prog: 			t->op = *p++;
+prog: 		} else if (*p == '(' || *p == ')') {
+prog: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+prog: 			p++;
+prog: 		} else {
+prog: 			e->col = col;
+prog: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+prog: 			return false;
+prog: 		}
+prog: 	}
+prog: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0'};
+prog: 	return true;
+prog: }
+prog: 
+prog: static void dump(const tok *t)
+prog: {
+prog: 	for (;; t++) {
+prog: 		switch (t->kind) {
+prog: 		case T_NUM:
+prog: 			printf("%d num %lld\n", t->col, (long long)t->value);
+prog: 			break;
+prog: 		case T_OP:
+prog: 			printf("%d op %c\n", t->col, t->op);
+prog: 			break;
+prog: 		case T_OPEN:
+prog: 			printf("%d open\n", t->col);
+prog: 			break;
+prog: 		case T_CLOSE:
+prog: 			printf("%d close\n", t->col);
+prog: 			break;
+prog: 		case T_END:
+prog: 			printf("%d end\n", t->col);
+prog: 			return;
+prog: 		}
+prog: 	}
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (toks == NULL) {
+prog: 			fprintf(stderr, "calctok: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		err e;
+prog: 		if (tokenize(line, toks, &e)) {
+prog: 			dump(toks);
+prog: 		} else {
+prog: 			printf("error: col %d: %s\n", e.col, e.msg);
+prog: 			status = 1;
+prog: 		}
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (ferror(stdin)) {
+prog: 		fprintf(stderr, "calctok: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+case: printf '12+(3)\n' | calctok
+case: printf '  007 *\t10\n' | calctok
+case: printf '\n' | calctok
+case: printf '9223372036854775807\n9223372036854775808\n' | calctok; echo $?
+case: printf '1 + x\n2 $\n' | calctok; echo $?
+case: printf '4 %% 3 - 2 / 1' | calctok
+hint: walk a pointer along the line; skip blanks; a digit starts a number you build one digit at a time (check it cannot overflow before multiplying by ten); column is the pointer minus the start, plus one
+---
+q: calcexp.c -- evaluate arithmetic
+spec: Grow `calctok.c` into a calculator. Read standard input a line at a
+spec: time, split it into tokens exactly as before (including the two
+spec: lexical errors, found before anything is evaluated), then evaluate
+spec: the expression and print its value as a decimal number on its own
+spec: line. A blank line prints nothing. Everything goes to standard
+spec: output, results and errors alike, so a line's answer stays in order.
+spec:
+spec: The language, from loosest binding to tightest:
+spec: - `+` and `-`, left to right: `10 - 3 - 2` is 5.
+spec: - `*`, `/` and `%`, left to right: `100 / 10 / 5` is 2.
+spec: - unary minus, which may repeat: `- -3` is 3 and `-2 * 3` is -6.
+spec: - a number, or an expression in parentheses.
+spec:
+spec: Arithmetic is 64-bit signed. `/` drops the fraction toward zero
+spec: and `%` has the sign of its left side: `-7 / 2` is -3, `-7 % 3` is -1.
+spec:
+spec: Errors print one line, `error: col C: MESSAGE`, and the program goes
+spec: on with the next line. Evaluate as you parse, left to right: the
+spec: first problem met is the one reported, so `1/0 +` reports the
+spec: division, not the missing value after the `+`.
+spec: - `expected a value`, at the token where a number, a minus or an
+spec:   open parenthesis should have been (the `end` token counts):
+spec:   `1 +` gives col 4, `()` gives col 2.
+spec: - `expected )`, at the token found where a close parenthesis
+spec:   should be: `(1 + 2` gives col 7.
+spec: - `unexpected input`, at the first token left over once a whole
+spec:   expression is read: `2 3` gives col 3.
+spec: - `division by zero`, at the `/` or `%` token.
+spec: - `overflow`, at the operator whose result does not fit in 64 bits,
+spec:   or the minus that negates -9223372036854775808. Dividing that
+spec:   number by -1 overflows too; taking `%` by -1 gives 0.
+spec: - `nested too deeply`, at the token that opens a 101st level at
+spec:   once, where each open parenthesis and each unary minus is a level.
+spec:
+spec: The exit status is 1 if any line had an error, otherwise 0.
+file: calcexp.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <ctype.h>
+prog: #include <stdbool.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: enum kind { T_NUM, T_OP, T_OPEN, T_CLOSE, T_END };
+prog: 
+prog: typedef struct {
+prog: 	enum kind kind;
+prog: 	int col;
+prog: 	int64_t value;
+prog: 	char op;
+prog: } tok;
+prog: 
+prog: typedef struct {
+prog: 	int col;
+prog: 	char msg[64];
+prog: } err;
+prog: 
+prog: static bool fail(err *e, int col, const char *msg)
+prog: {
+prog: 	e->col = col;
+prog: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+prog: 	return false;
+prog: }
+prog: 
+prog: /* split s into toks, the last one T_END; toks needs strlen(s) + 1 entries */
+prog: static bool tokenize(const char *s, tok *toks, err *e)
+prog: {
+prog: 	size_t n = 0;
+prog: 	const char *p = s;
+prog: 	while (*p != '\0') {
+prog: 		int col = (int)(p - s) + 1;
+prog: 		if (*p == ' ' || *p == '\t') {
+prog: 			p++;
+prog: 			continue;
+prog: 		}
+prog: 		tok *t = &toks[n++];
+prog: 		*t = (tok){T_END, col, 0, '\0'};
+prog: 		if (isdigit((unsigned char)*p)) {
+prog: 			int64_t v = 0;
+prog: 			while (isdigit((unsigned char)*p)) {
+prog: 				int digit = *p++ - '0';
+prog: 				if (v > (INT64_MAX - digit) / 10)
+prog: 					return fail(e, col, "number too large");
+prog: 				v = v * 10 + digit;
+prog: 			}
+prog: 			t->kind = T_NUM;
+prog: 			t->value = v;
+prog: 		} else if (strchr("+-*/%", *p) != NULL) {
+prog: 			t->kind = T_OP;
+prog: 			t->op = *p++;
+prog: 		} else if (*p == '(' || *p == ')') {
+prog: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+prog: 			p++;
+prog: 		} else {
+prog: 			e->col = col;
+prog: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+prog: 			return false;
+prog: 		}
+prog: 	}
+prog: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0'};
+prog: 	return true;
+prog: }
+prog: 
+prog: #define MAXDEPTH 100
+prog: 
+prog: typedef struct {
+prog: 	const tok *t;
+prog: 	err *e;
+prog: 	int depth;
+prog: } parser;
+prog: 
+prog: static bool add(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+prog: 		return false;
+prog: 	*r = a + b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool sub(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b))
+prog: 		return false;
+prog: 	*r = a - b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool mul(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if (a > 0) {
+prog: 		if (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a)
+prog: 			return false;
+prog: 	} else {
+prog: 		if (b > 0 ? a < INT64_MIN / b : (a != 0 && b < INT64_MAX / a))
+prog: 			return false;
+prog: 	}
+prog: 	*r = a * b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool expr(parser *p, int64_t *out);
+prog: 
+prog: static bool enter(parser *p)
+prog: {
+prog: 	if (++p->depth > MAXDEPTH)
+prog: 		return fail(p->e, p->t->col, "nested too deeply");
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool primary(parser *p, int64_t *out)
+prog: {
+prog: 	const tok *t = p->t;
+prog: 	if (t->kind == T_NUM) {
+prog: 		p->t++;
+prog: 		*out = t->value;
+prog: 		return true;
+prog: 	}
+prog: 	if (t->kind != T_OPEN)
+prog: 		return fail(p->e, t->col, "expected a value");
+prog: 	if (!enter(p))
+prog: 		return false;
+prog: 	p->t++;
+prog: 	if (!expr(p, out))
+prog: 		return false;
+prog: 	if (p->t->kind != T_CLOSE)
+prog: 		return fail(p->e, p->t->col, "expected )");
+prog: 	p->t++;
+prog: 	p->depth--;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool unary(parser *p, int64_t *out)
+prog: {
+prog: 	const tok *t = p->t;
+prog: 	if (t->kind != T_OP || t->op != '-')
+prog: 		return primary(p, out);
+prog: 	if (!enter(p))
+prog: 		return false;
+prog: 	p->t++;
+prog: 	if (!unary(p, out))
+prog: 		return false;
+prog: 	if (*out == INT64_MIN)
+prog: 		return fail(p->e, t->col, "overflow");
+prog: 	*out = -*out;
+prog: 	p->depth--;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool term(parser *p, int64_t *out)
+prog: {
+prog: 	if (!unary(p, out))
+prog: 		return false;
+prog: 	while (p->t->kind == T_OP && strchr("*/%", p->t->op) != NULL) {
+prog: 		const tok *op = p->t++;
+prog: 		int64_t rhs;
+prog: 		if (!unary(p, &rhs))
+prog: 			return false;
+prog: 		if (op->op == '*') {
+prog: 			if (!mul(*out, rhs, out))
+prog: 				return fail(p->e, op->col, "overflow");
+prog: 		} else if (rhs == 0) {
+prog: 			return fail(p->e, op->col, "division by zero");
+prog: 		} else if (op->op == '/') {
+prog: 			if (*out == INT64_MIN && rhs == -1)
+prog: 				return fail(p->e, op->col, "overflow");
+prog: 			*out /= rhs;
+prog: 		} else {
+prog: 			*out = rhs == -1 ? 0 : *out % rhs;
+prog: 		}
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool expr(parser *p, int64_t *out)
+prog: {
+prog: 	if (!term(p, out))
+prog: 		return false;
+prog: 	while (p->t->kind == T_OP && (p->t->op == '+' || p->t->op == '-')) {
+prog: 		const tok *op = p->t++;
+prog: 		int64_t rhs;
+prog: 		if (!term(p, &rhs))
+prog: 			return false;
+prog: 		bool ok = op->op == '+' ? add(*out, rhs, out) : sub(*out, rhs, out);
+prog: 		if (!ok)
+prog: 			return fail(p->e, op->col, "overflow");
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: /* evaluate a whole line of tokens */
+prog: static bool evaluate(const tok *toks, int64_t *out, err *e)
+prog: {
+prog: 	parser p = {toks, e, 0};
+prog: 	if (!expr(&p, out))
+prog: 		return false;
+prog: 	if (p.t->kind != T_END)
+prog: 		return fail(e, p.t->col, "unexpected input");
+prog: 	return true;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (toks == NULL) {
+prog: 			fprintf(stderr, "calcexp: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		err e;
+prog: 		int64_t value;
+prog: 		if (!tokenize(line, toks, &e)) {
+prog: 			printf("error: col %d: %s\n", e.col, e.msg);
+prog: 			status = 1;
+prog: 		} else if (toks[0].kind != T_END) {
+prog: 			if (evaluate(toks, &value, &e)) {
+prog: 				printf("%lld\n", (long long)value);
+prog: 			} else {
+prog: 				printf("error: col %d: %s\n", e.col, e.msg);
+prog: 				status = 1;
+prog: 			}
+prog: 		}
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (ferror(stdin)) {
+prog: 		fprintf(stderr, "calcexp: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <ctype.h>
+start: #include <stdbool.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: enum kind { T_NUM, T_OP, T_OPEN, T_CLOSE, T_END };
+start: 
+start: typedef struct {
+start: 	enum kind kind;
+start: 	int col;
+start: 	int64_t value;
+start: 	char op;
+start: } tok;
+start: 
+start: typedef struct {
+start: 	int col;
+start: 	char msg[64];
+start: } err;
+start: 
+start: static bool fail(err *e, int col, const char *msg)
+start: {
+start: 	e->col = col;
+start: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+start: 	return false;
+start: }
+start: 
+start: /* split s into toks, the last one T_END; toks needs strlen(s) + 1 entries */
+start: static bool tokenize(const char *s, tok *toks, err *e)
+start: {
+start: 	size_t n = 0;
+start: 	const char *p = s;
+start: 	while (*p != '\0') {
+start: 		int col = (int)(p - s) + 1;
+start: 		if (*p == ' ' || *p == '\t') {
+start: 			p++;
+start: 			continue;
+start: 		}
+start: 		tok *t = &toks[n++];
+start: 		*t = (tok){T_END, col, 0, '\0'};
+start: 		if (isdigit((unsigned char)*p)) {
+start: 			int64_t v = 0;
+start: 			while (isdigit((unsigned char)*p)) {
+start: 				int digit = *p++ - '0';
+start: 				if (v > (INT64_MAX - digit) / 10)
+start: 					return fail(e, col, "number too large");
+start: 				v = v * 10 + digit;
+start: 			}
+start: 			t->kind = T_NUM;
+start: 			t->value = v;
+start: 		} else if (strchr("+-*/%", *p) != NULL) {
+start: 			t->kind = T_OP;
+start: 			t->op = *p++;
+start: 		} else if (*p == '(' || *p == ')') {
+start: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+start: 			p++;
+start: 		} else {
+start: 			e->col = col;
+start: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+start: 			return false;
+start: 		}
+start: 	}
+start: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0'};
+start: 	return true;
+start: }
+start: 
+start: static void dump(const tok *t)
+start: {
+start: 	for (;; t++) {
+start: 		switch (t->kind) {
+start: 		case T_NUM:
+start: 			printf("%d num %lld\n", t->col, (long long)t->value);
+start: 			break;
+start: 		case T_OP:
+start: 			printf("%d op %c\n", t->col, t->op);
+start: 			break;
+start: 		case T_OPEN:
+start: 			printf("%d open\n", t->col);
+start: 			break;
+start: 		case T_CLOSE:
+start: 			printf("%d close\n", t->col);
+start: 			break;
+start: 		case T_END:
+start: 			printf("%d end\n", t->col);
+start: 			return;
+start: 		}
+start: 	}
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+start: 		if (toks == NULL) {
+start: 			fprintf(stderr, "calctok: out of memory\n");
+start: 			status = 1;
+start: 			break;
+start: 		}
+start: 		err e;
+start: 		if (tokenize(line, toks, &e)) {
+start: 			dump(toks);
+start: 		} else {
+start: 			printf("error: col %d: %s\n", e.col, e.msg);
+start: 			status = 1;
+start: 		}
+start: 		free(toks);
+start: 	}
+start: 	free(line);
+start: 	if (ferror(stdin)) {
+start: 		fprintf(stderr, "calctok: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
+case: printf '1 + 2 * 3\n(1 + 2) * 3\n10 - 3 - 2\n100 / 10 / 5\n2 * 3 %% 4\n' | calcexp
+case: printf -- '-7 / 2\n-7 %% 3\n- -3\n2 - -3\n-(2 + 3) * 2\n   \n7\n' | calcexp
+case: printf '1 +\n(1 + 2\n2 3\n()\n* 3\n1 )\n' | calcexp; echo $?
+case: printf '1 / 0\n7 %% (3 - 3)\n1/0 +\n3 $ 4\n9223372036854775808\n' | calcexp
+case: printf '9223372036854775807 + 1\n-9223372036854775807 - 2\n3037000500 * 3037000500\n-9223372036854775807 - 1\n(0 - 9223372036854775807 - 1) / -1\n(0 - 9223372036854775807 - 1) %% -1\n-(0 - 9223372036854775807 - 1)\n' | calcexp
+case: head -c 150 /dev/zero | tr '\0' '(' | calcexp
+case: printf '2 * (3 + 4)' | calcexp
+hint: three functions, one per precedence level, each calling the next tighter one: expr handles + and -, term handles * / %, unary handles minus, primary handles numbers and parentheses; check for overflow before you compute
+---
+q: calcvar.c -- variables
+spec: Grow `calcexp.c` so the calculator remembers values. Everything from
+spec: `calcexp` still holds, with the program name `calcvar` in the
+spec: messages. A line is now either an expression, as before, or an
+spec: assignment, `NAME = EXPRESSION`: the first token is a name and the
+spec: second is `=`. Anything else is an expression.
+spec:
+spec: A name is a letter or underscore followed by letters, digits and
+spec: underscores, at most 31 characters, case sensitive. Longer is
+spec: `error: col C: name too long` at its start, found with the other
+spec: lexical errors. `=` becomes a token of its own.
+spec:
+spec: An expression may use names. A line that is just an expression
+spec: prints its value as before. An assignment evaluates the right side
+spec: first, then stores the value under the name (making it if new), and
+spec: prints `NAME = VALUE`, for example `x = 12`. A failed line changes
+spec: nothing. The reference keeps room for 8 variables.
+spec:
+spec: New errors, in the same `error: col C: MESSAGE` form:
+spec: - `undefined name 'NAME'`, at the start of a name that has no value
+spec:   when it is used (in `y = y + 1` the right-hand `y` fails).
+spec: - `too many variables`, at the name on the left, when a ninth new
+spec:   name would be stored. It comes after the right side was
+spec:   evaluated, so a mistake on the right is reported first.
+spec: Leftover tokens still give `unexpected input`, so `x = y = 3` fails
+spec: at the second `=`.
+file: calcvar.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <ctype.h>
+prog: #include <stdbool.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: enum kind { T_NUM, T_NAME, T_ASSIGN, T_OP, T_OPEN, T_CLOSE, T_END };
+prog: 
+prog: #define MAXVARS 8
+prog: #define MAXNAME 31
+prog: 
+prog: typedef struct {
+prog: 	enum kind kind;
+prog: 	int col;
+prog: 	int64_t value;
+prog: 	char op;
+prog: 	const char *name;
+prog: 	size_t len;
+prog: } tok;
+prog: 
+prog: typedef struct {
+prog: 	int col;
+prog: 	char msg[64];
+prog: } err;
+prog: 
+prog: static bool fail(err *e, int col, const char *msg)
+prog: {
+prog: 	e->col = col;
+prog: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+prog: 	return false;
+prog: }
+prog: 
+prog: /* split s into toks, the last one T_END; toks needs strlen(s) + 1 entries */
+prog: static bool tokenize(const char *s, tok *toks, err *e)
+prog: {
+prog: 	size_t n = 0;
+prog: 	const char *p = s;
+prog: 	while (*p != '\0') {
+prog: 		int col = (int)(p - s) + 1;
+prog: 		if (*p == ' ' || *p == '\t') {
+prog: 			p++;
+prog: 			continue;
+prog: 		}
+prog: 		tok *t = &toks[n++];
+prog: 		*t = (tok){T_END, col, 0, '\0', NULL, 0};
+prog: 		if (isdigit((unsigned char)*p)) {
+prog: 			int64_t v = 0;
+prog: 			while (isdigit((unsigned char)*p)) {
+prog: 				int digit = *p++ - '0';
+prog: 				if (v > (INT64_MAX - digit) / 10)
+prog: 					return fail(e, col, "number too large");
+prog: 				v = v * 10 + digit;
+prog: 			}
+prog: 			t->kind = T_NUM;
+prog: 			t->value = v;
+prog: 		} else if (isalpha((unsigned char)*p) || *p == '_') {
+prog: 			t->kind = T_NAME;
+prog: 			t->name = p;
+prog: 			while (isalnum((unsigned char)*p) || *p == '_')
+prog: 				p++;
+prog: 			t->len = (size_t)(p - t->name);
+prog: 			if (t->len > MAXNAME)
+prog: 				return fail(e, col, "name too long");
+prog: 		} else if (*p == '=') {
+prog: 			t->kind = T_ASSIGN;
+prog: 			p++;
+prog: 		} else if (strchr("+-*/%", *p) != NULL) {
+prog: 			t->kind = T_OP;
+prog: 			t->op = *p++;
+prog: 		} else if (*p == '(' || *p == ')') {
+prog: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+prog: 			p++;
+prog: 		} else {
+prog: 			e->col = col;
+prog: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+prog: 			return false;
+prog: 		}
+prog: 	}
+prog: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0', NULL, 0};
+prog: 	return true;
+prog: }
+prog: 
+prog: #define MAXDEPTH 100
+prog: 
+prog: typedef struct {
+prog: 	char name[MAXNAME + 1];
+prog: 	int64_t value;
+prog: } var;
+prog: 
+prog: typedef struct {
+prog: 	var v[MAXVARS];
+prog: 	size_t n;
+prog: } vars;
+prog: 
+prog: static var *find(vars *vt, const char *name, size_t len)
+prog: {
+prog: 	for (size_t i = 0; i < vt->n; i++)
+prog: 		if (strlen(vt->v[i].name) == len && memcmp(vt->v[i].name, name, len) == 0)
+prog: 			return &vt->v[i];
+prog: 	return NULL;
+prog: }
+prog: 
+prog: /* set name to value, adding it if new; false (and err) if the table is full */
+prog: static bool store(vars *vt, const tok *name, int64_t value, err *e)
+prog: {
+prog: 	var *v = find(vt, name->name, name->len);
+prog: 	if (v == NULL) {
+prog: 		if (vt->n == MAXVARS)
+prog: 			return fail(e, name->col, "too many variables");
+prog: 		v = &vt->v[vt->n++];
+prog: 		memcpy(v->name, name->name, name->len);
+prog: 		v->name[name->len] = '\0';
+prog: 	}
+prog: 	v->value = value;
+prog: 	return true;
+prog: }
+prog: 
+prog: typedef struct {
+prog: 	const tok *t;
+prog: 	vars *vt;
+prog: 	err *e;
+prog: 	int depth;
+prog: } parser;
+prog: 
+prog: static bool add(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+prog: 		return false;
+prog: 	*r = a + b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool sub(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b))
+prog: 		return false;
+prog: 	*r = a - b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool mul(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if (a > 0) {
+prog: 		if (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a)
+prog: 			return false;
+prog: 	} else {
+prog: 		if (b > 0 ? a < INT64_MIN / b : (a != 0 && b < INT64_MAX / a))
+prog: 			return false;
+prog: 	}
+prog: 	*r = a * b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool expr(parser *p, int64_t *out);
+prog: 
+prog: static bool enter(parser *p)
+prog: {
+prog: 	if (++p->depth > MAXDEPTH)
+prog: 		return fail(p->e, p->t->col, "nested too deeply");
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool primary(parser *p, int64_t *out)
+prog: {
+prog: 	const tok *t = p->t;
+prog: 	if (t->kind == T_NUM) {
+prog: 		p->t++;
+prog: 		*out = t->value;
+prog: 		return true;
+prog: 	}
+prog: 	if (t->kind == T_NAME) {
+prog: 		var *v = find(p->vt, t->name, t->len);
+prog: 		if (v == NULL) {
+prog: 			p->e->col = t->col;
+prog: 			snprintf(p->e->msg, sizeof p->e->msg, "undefined name '%.*s'", (int)t->len, t->name);
+prog: 			return false;
+prog: 		}
+prog: 		p->t++;
+prog: 		*out = v->value;
+prog: 		return true;
+prog: 	}
+prog: 	if (t->kind != T_OPEN)
+prog: 		return fail(p->e, t->col, "expected a value");
+prog: 	if (!enter(p))
+prog: 		return false;
+prog: 	p->t++;
+prog: 	if (!expr(p, out))
+prog: 		return false;
+prog: 	if (p->t->kind != T_CLOSE)
+prog: 		return fail(p->e, p->t->col, "expected )");
+prog: 	p->t++;
+prog: 	p->depth--;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool unary(parser *p, int64_t *out)
+prog: {
+prog: 	const tok *t = p->t;
+prog: 	if (t->kind != T_OP || t->op != '-')
+prog: 		return primary(p, out);
+prog: 	if (!enter(p))
+prog: 		return false;
+prog: 	p->t++;
+prog: 	if (!unary(p, out))
+prog: 		return false;
+prog: 	if (*out == INT64_MIN)
+prog: 		return fail(p->e, t->col, "overflow");
+prog: 	*out = -*out;
+prog: 	p->depth--;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool term(parser *p, int64_t *out)
+prog: {
+prog: 	if (!unary(p, out))
+prog: 		return false;
+prog: 	while (p->t->kind == T_OP && strchr("*/%", p->t->op) != NULL) {
+prog: 		const tok *op = p->t++;
+prog: 		int64_t rhs;
+prog: 		if (!unary(p, &rhs))
+prog: 			return false;
+prog: 		if (op->op == '*') {
+prog: 			if (!mul(*out, rhs, out))
+prog: 				return fail(p->e, op->col, "overflow");
+prog: 		} else if (rhs == 0) {
+prog: 			return fail(p->e, op->col, "division by zero");
+prog: 		} else if (op->op == '/') {
+prog: 			if (*out == INT64_MIN && rhs == -1)
+prog: 				return fail(p->e, op->col, "overflow");
+prog: 			*out /= rhs;
+prog: 		} else {
+prog: 			*out = rhs == -1 ? 0 : *out % rhs;
+prog: 		}
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool expr(parser *p, int64_t *out)
+prog: {
+prog: 	if (!term(p, out))
+prog: 		return false;
+prog: 	while (p->t->kind == T_OP && (p->t->op == '+' || p->t->op == '-')) {
+prog: 		const tok *op = p->t++;
+prog: 		int64_t rhs;
+prog: 		if (!term(p, &rhs))
+prog: 			return false;
+prog: 		bool ok = op->op == '+' ? add(*out, rhs, out) : sub(*out, rhs, out);
+prog: 		if (!ok)
+prog: 			return fail(p->e, op->col, "overflow");
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: /* run one line: an assignment prints "name = value", an expression its value */
+prog: static bool statement(const tok *toks, vars *vt, err *e)
+prog: {
+prog: 	bool assign = toks[0].kind == T_NAME && toks[1].kind == T_ASSIGN;
+prog: 	parser p = {assign ? toks + 2 : toks, vt, e, 0};
+prog: 	int64_t value;
+prog: 	if (!expr(&p, &value))
+prog: 		return false;
+prog: 	if (p.t->kind != T_END)
+prog: 		return fail(e, p.t->col, "unexpected input");
+prog: 	if (!assign) {
+prog: 		printf("%lld\n", (long long)value);
+prog: 		return true;
+prog: 	}
+prog: 	if (!store(vt, &toks[0], value, e))
+prog: 		return false;
+prog: 	printf("%.*s = %lld\n", (int)toks[0].len, toks[0].name, (long long)value);
+prog: 	return true;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	vars vt = {.n = 0};
+prog: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (toks == NULL) {
+prog: 			fprintf(stderr, "calcvar: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		err e;
+prog: 		if (!tokenize(line, toks, &e) || (toks[0].kind != T_END && !statement(toks, &vt, &e))) {
+prog: 			printf("error: col %d: %s\n", e.col, e.msg);
+prog: 			status = 1;
+prog: 		}
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (ferror(stdin)) {
+prog: 		fprintf(stderr, "calcvar: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <ctype.h>
+start: #include <stdbool.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: enum kind { T_NUM, T_OP, T_OPEN, T_CLOSE, T_END };
+start: 
+start: typedef struct {
+start: 	enum kind kind;
+start: 	int col;
+start: 	int64_t value;
+start: 	char op;
+start: } tok;
+start: 
+start: typedef struct {
+start: 	int col;
+start: 	char msg[64];
+start: } err;
+start: 
+start: static bool fail(err *e, int col, const char *msg)
+start: {
+start: 	e->col = col;
+start: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+start: 	return false;
+start: }
+start: 
+start: /* split s into toks, the last one T_END; toks needs strlen(s) + 1 entries */
+start: static bool tokenize(const char *s, tok *toks, err *e)
+start: {
+start: 	size_t n = 0;
+start: 	const char *p = s;
+start: 	while (*p != '\0') {
+start: 		int col = (int)(p - s) + 1;
+start: 		if (*p == ' ' || *p == '\t') {
+start: 			p++;
+start: 			continue;
+start: 		}
+start: 		tok *t = &toks[n++];
+start: 		*t = (tok){T_END, col, 0, '\0'};
+start: 		if (isdigit((unsigned char)*p)) {
+start: 			int64_t v = 0;
+start: 			while (isdigit((unsigned char)*p)) {
+start: 				int digit = *p++ - '0';
+start: 				if (v > (INT64_MAX - digit) / 10)
+start: 					return fail(e, col, "number too large");
+start: 				v = v * 10 + digit;
+start: 			}
+start: 			t->kind = T_NUM;
+start: 			t->value = v;
+start: 		} else if (strchr("+-*/%", *p) != NULL) {
+start: 			t->kind = T_OP;
+start: 			t->op = *p++;
+start: 		} else if (*p == '(' || *p == ')') {
+start: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+start: 			p++;
+start: 		} else {
+start: 			e->col = col;
+start: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+start: 			return false;
+start: 		}
+start: 	}
+start: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0'};
+start: 	return true;
+start: }
+start: 
+start: #define MAXDEPTH 100
+start: 
+start: typedef struct {
+start: 	const tok *t;
+start: 	err *e;
+start: 	int depth;
+start: } parser;
+start: 
+start: static bool add(int64_t a, int64_t b, int64_t *r)
+start: {
+start: 	if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+start: 		return false;
+start: 	*r = a + b;
+start: 	return true;
+start: }
+start: 
+start: static bool sub(int64_t a, int64_t b, int64_t *r)
+start: {
+start: 	if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b))
+start: 		return false;
+start: 	*r = a - b;
+start: 	return true;
+start: }
+start: 
+start: static bool mul(int64_t a, int64_t b, int64_t *r)
+start: {
+start: 	if (a > 0) {
+start: 		if (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a)
+start: 			return false;
+start: 	} else {
+start: 		if (b > 0 ? a < INT64_MIN / b : (a != 0 && b < INT64_MAX / a))
+start: 			return false;
+start: 	}
+start: 	*r = a * b;
+start: 	return true;
+start: }
+start: 
+start: static bool expr(parser *p, int64_t *out);
+start: 
+start: static bool enter(parser *p)
+start: {
+start: 	if (++p->depth > MAXDEPTH)
+start: 		return fail(p->e, p->t->col, "nested too deeply");
+start: 	return true;
+start: }
+start: 
+start: static bool primary(parser *p, int64_t *out)
+start: {
+start: 	const tok *t = p->t;
+start: 	if (t->kind == T_NUM) {
+start: 		p->t++;
+start: 		*out = t->value;
+start: 		return true;
+start: 	}
+start: 	if (t->kind != T_OPEN)
+start: 		return fail(p->e, t->col, "expected a value");
+start: 	if (!enter(p))
+start: 		return false;
+start: 	p->t++;
+start: 	if (!expr(p, out))
+start: 		return false;
+start: 	if (p->t->kind != T_CLOSE)
+start: 		return fail(p->e, p->t->col, "expected )");
+start: 	p->t++;
+start: 	p->depth--;
+start: 	return true;
+start: }
+start: 
+start: static bool unary(parser *p, int64_t *out)
+start: {
+start: 	const tok *t = p->t;
+start: 	if (t->kind != T_OP || t->op != '-')
+start: 		return primary(p, out);
+start: 	if (!enter(p))
+start: 		return false;
+start: 	p->t++;
+start: 	if (!unary(p, out))
+start: 		return false;
+start: 	if (*out == INT64_MIN)
+start: 		return fail(p->e, t->col, "overflow");
+start: 	*out = -*out;
+start: 	p->depth--;
+start: 	return true;
+start: }
+start: 
+start: static bool term(parser *p, int64_t *out)
+start: {
+start: 	if (!unary(p, out))
+start: 		return false;
+start: 	while (p->t->kind == T_OP && strchr("*/%", p->t->op) != NULL) {
+start: 		const tok *op = p->t++;
+start: 		int64_t rhs;
+start: 		if (!unary(p, &rhs))
+start: 			return false;
+start: 		if (op->op == '*') {
+start: 			if (!mul(*out, rhs, out))
+start: 				return fail(p->e, op->col, "overflow");
+start: 		} else if (rhs == 0) {
+start: 			return fail(p->e, op->col, "division by zero");
+start: 		} else if (op->op == '/') {
+start: 			if (*out == INT64_MIN && rhs == -1)
+start: 				return fail(p->e, op->col, "overflow");
+start: 			*out /= rhs;
+start: 		} else {
+start: 			*out = rhs == -1 ? 0 : *out % rhs;
+start: 		}
+start: 	}
+start: 	return true;
+start: }
+start: 
+start: static bool expr(parser *p, int64_t *out)
+start: {
+start: 	if (!term(p, out))
+start: 		return false;
+start: 	while (p->t->kind == T_OP && (p->t->op == '+' || p->t->op == '-')) {
+start: 		const tok *op = p->t++;
+start: 		int64_t rhs;
+start: 		if (!term(p, &rhs))
+start: 			return false;
+start: 		bool ok = op->op == '+' ? add(*out, rhs, out) : sub(*out, rhs, out);
+start: 		if (!ok)
+start: 			return fail(p->e, op->col, "overflow");
+start: 	}
+start: 	return true;
+start: }
+start: 
+start: /* evaluate a whole line of tokens */
+start: static bool evaluate(const tok *toks, int64_t *out, err *e)
+start: {
+start: 	parser p = {toks, e, 0};
+start: 	if (!expr(&p, out))
+start: 		return false;
+start: 	if (p.t->kind != T_END)
+start: 		return fail(e, p.t->col, "unexpected input");
+start: 	return true;
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+start: 		if (toks == NULL) {
+start: 			fprintf(stderr, "calcexp: out of memory\n");
+start: 			status = 1;
+start: 			break;
+start: 		}
+start: 		err e;
+start: 		int64_t value;
+start: 		if (!tokenize(line, toks, &e)) {
+start: 			printf("error: col %d: %s\n", e.col, e.msg);
+start: 			status = 1;
+start: 		} else if (toks[0].kind != T_END) {
+start: 			if (evaluate(toks, &value, &e)) {
+start: 				printf("%lld\n", (long long)value);
+start: 			} else {
+start: 				printf("error: col %d: %s\n", e.col, e.msg);
+start: 				status = 1;
+start: 			}
+start: 		}
+start: 		free(toks);
+start: 	}
+start: 	free(line);
+start: 	if (ferror(stdin)) {
+start: 		fprintf(stderr, "calcexp: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
+case: printf 'x = 3 * 4\nx\nx + 1\nx = x + 1\nx\n' | calcvar
+case: printf 'a=2\nb=3\na*b\n_c9 = (a+b)*(a-b)\n_c9\nA\n' | calcvar; echo $?
+case: printf 'y = y + 1\ny\nz = 1 +\nz\ny = 2\nx = y = 3\n' | calcvar
+case: printf 'a=1\nb=2\nc=3\nd=4\ne=5\nf=6\ng=7\nh=8\ni=9\nh=80\nh\ni\n1 = 2\n' | calcvar
+case: printf 'abcdefghijklmnopqrstuvwxyz012345 = 1\nabcdefghijklmnopqrstuvwxyz01234 = 1\nabcdefghijklmnopqrstuvwxyz01234\n' | calcvar
+case: printf 'big = 9223372036854775807\nbig + 1\nbig\nn = -big - 1\nn / -1\nn\n' | calcvar
+hint: add T_NAME and T_ASSIGN tokens (a name points into the line); a small array of name and value pairs does for the table; look the name up in primary, and store only after the right side evaluated cleanly
+---
+q: calcrun.c -- run a program
+spec: The last step: the calculator becomes a language you run. Read the
+spec: whole of standard input as a program, one statement per line, and
+spec: run it. Everything from `calcvar` still holds (names, arithmetic,
+spec: the same messages), with the program name `calcrun` in the messages,
+spec: except where this says otherwise.
+spec:
+spec: A hash starts a comment: the line ends there (so a hash never
+spec: counts as an unexpected character). A line with nothing left on it
+spec: is skipped, but still counts in line numbers, which start at 1.
+spec:
+spec: A statement is one of:
+spec: - `NAME = EXPRESSION`: store the value, print nothing.
+spec: - `print EXPRESSION`: print the value on its own line.
+spec: A bare expression is no longer a statement. `print` is a keyword
+spec: and cannot be a variable name.
+spec:
+spec: The first error ends the run. It prints one line,
+spec: `error: line L, col C: MESSAGE`, and nothing after it runs. The
+spec: exit status is 1 then, otherwise 0. The messages are those of
+spec: `calcvar`, plus two new ones at column 1 of the statement:
+spec: - `not a statement`: the line starts with neither `print` nor a
+spec:   name followed by `=`.
+spec: - `print is reserved`: an attempt to assign to `print`.
+spec: A missing value at the end of a line, such as a lone `print`, is
+spec: reported at the column where the line ended, which is the hash if
+spec: there is a comment.
+file: calcrun.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <ctype.h>
+prog: #include <stdbool.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: enum kind { T_NUM, T_NAME, T_ASSIGN, T_OP, T_OPEN, T_CLOSE, T_END };
+prog: 
+prog: #define MAXVARS 8
+prog: #define MAXNAME 31
+prog: 
+prog: typedef struct {
+prog: 	enum kind kind;
+prog: 	int col;
+prog: 	int64_t value;
+prog: 	char op;
+prog: 	const char *name;
+prog: 	size_t len;
+prog: } tok;
+prog: 
+prog: typedef struct {
+prog: 	int col;
+prog: 	char msg[64];
+prog: } err;
+prog: 
+prog: static bool fail(err *e, int col, const char *msg)
+prog: {
+prog: 	e->col = col;
+prog: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+prog: 	return false;
+prog: }
+prog: 
+prog: /*
+prog:  * split s into toks, the last one T_END; toks needs strlen(s) + 1 entries.
+prog:  * A hash starts a comment: the line ends there.
+prog:  */
+prog: static bool tokenize(const char *s, tok *toks, err *e)
+prog: {
+prog: 	size_t n = 0;
+prog: 	const char *p = s;
+prog: 	while (*p != '\0' && *p != '#') {
+prog: 		int col = (int)(p - s) + 1;
+prog: 		if (*p == ' ' || *p == '\t') {
+prog: 			p++;
+prog: 			continue;
+prog: 		}
+prog: 		tok *t = &toks[n++];
+prog: 		*t = (tok){T_END, col, 0, '\0', NULL, 0};
+prog: 		if (isdigit((unsigned char)*p)) {
+prog: 			int64_t v = 0;
+prog: 			while (isdigit((unsigned char)*p)) {
+prog: 				int digit = *p++ - '0';
+prog: 				if (v > (INT64_MAX - digit) / 10)
+prog: 					return fail(e, col, "number too large");
+prog: 				v = v * 10 + digit;
+prog: 			}
+prog: 			t->kind = T_NUM;
+prog: 			t->value = v;
+prog: 		} else if (isalpha((unsigned char)*p) || *p == '_') {
+prog: 			t->kind = T_NAME;
+prog: 			t->name = p;
+prog: 			while (isalnum((unsigned char)*p) || *p == '_')
+prog: 				p++;
+prog: 			t->len = (size_t)(p - t->name);
+prog: 			if (t->len > MAXNAME)
+prog: 				return fail(e, col, "name too long");
+prog: 		} else if (*p == '=') {
+prog: 			t->kind = T_ASSIGN;
+prog: 			p++;
+prog: 		} else if (strchr("+-*/%", *p) != NULL) {
+prog: 			t->kind = T_OP;
+prog: 			t->op = *p++;
+prog: 		} else if (*p == '(' || *p == ')') {
+prog: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+prog: 			p++;
+prog: 		} else {
+prog: 			e->col = col;
+prog: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+prog: 			return false;
+prog: 		}
+prog: 	}
+prog: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0', NULL, 0};
+prog: 	return true;
+prog: }
+prog: 
+prog: #define MAXDEPTH 100
+prog: 
+prog: typedef struct {
+prog: 	char name[MAXNAME + 1];
+prog: 	int64_t value;
+prog: } var;
+prog: 
+prog: typedef struct {
+prog: 	var v[MAXVARS];
+prog: 	size_t n;
+prog: } vars;
+prog: 
+prog: static var *find(vars *vt, const char *name, size_t len)
+prog: {
+prog: 	for (size_t i = 0; i < vt->n; i++)
+prog: 		if (strlen(vt->v[i].name) == len && memcmp(vt->v[i].name, name, len) == 0)
+prog: 			return &vt->v[i];
+prog: 	return NULL;
+prog: }
+prog: 
+prog: /* set name to value, adding it if new; false (and err) if the table is full */
+prog: static bool store(vars *vt, const tok *name, int64_t value, err *e)
+prog: {
+prog: 	var *v = find(vt, name->name, name->len);
+prog: 	if (v == NULL) {
+prog: 		if (vt->n == MAXVARS)
+prog: 			return fail(e, name->col, "too many variables");
+prog: 		v = &vt->v[vt->n++];
+prog: 		memcpy(v->name, name->name, name->len);
+prog: 		v->name[name->len] = '\0';
+prog: 	}
+prog: 	v->value = value;
+prog: 	return true;
+prog: }
+prog: 
+prog: typedef struct {
+prog: 	const tok *t;
+prog: 	vars *vt;
+prog: 	err *e;
+prog: 	int depth;
+prog: } parser;
+prog: 
+prog: static bool add(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+prog: 		return false;
+prog: 	*r = a + b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool sub(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b))
+prog: 		return false;
+prog: 	*r = a - b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool mul(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if (a > 0) {
+prog: 		if (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a)
+prog: 			return false;
+prog: 	} else {
+prog: 		if (b > 0 ? a < INT64_MIN / b : (a != 0 && b < INT64_MAX / a))
+prog: 			return false;
+prog: 	}
+prog: 	*r = a * b;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool expr(parser *p, int64_t *out);
+prog: 
+prog: static bool enter(parser *p)
+prog: {
+prog: 	if (++p->depth > MAXDEPTH)
+prog: 		return fail(p->e, p->t->col, "nested too deeply");
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool primary(parser *p, int64_t *out)
+prog: {
+prog: 	const tok *t = p->t;
+prog: 	if (t->kind == T_NUM) {
+prog: 		p->t++;
+prog: 		*out = t->value;
+prog: 		return true;
+prog: 	}
+prog: 	if (t->kind == T_NAME) {
+prog: 		var *v = find(p->vt, t->name, t->len);
+prog: 		if (v == NULL) {
+prog: 			p->e->col = t->col;
+prog: 			snprintf(p->e->msg, sizeof p->e->msg, "undefined name '%.*s'", (int)t->len, t->name);
+prog: 			return false;
+prog: 		}
+prog: 		p->t++;
+prog: 		*out = v->value;
+prog: 		return true;
+prog: 	}
+prog: 	if (t->kind != T_OPEN)
+prog: 		return fail(p->e, t->col, "expected a value");
+prog: 	if (!enter(p))
+prog: 		return false;
+prog: 	p->t++;
+prog: 	if (!expr(p, out))
+prog: 		return false;
+prog: 	if (p->t->kind != T_CLOSE)
+prog: 		return fail(p->e, p->t->col, "expected )");
+prog: 	p->t++;
+prog: 	p->depth--;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool unary(parser *p, int64_t *out)
+prog: {
+prog: 	const tok *t = p->t;
+prog: 	if (t->kind != T_OP || t->op != '-')
+prog: 		return primary(p, out);
+prog: 	if (!enter(p))
+prog: 		return false;
+prog: 	p->t++;
+prog: 	if (!unary(p, out))
+prog: 		return false;
+prog: 	if (*out == INT64_MIN)
+prog: 		return fail(p->e, t->col, "overflow");
+prog: 	*out = -*out;
+prog: 	p->depth--;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool term(parser *p, int64_t *out)
+prog: {
+prog: 	if (!unary(p, out))
+prog: 		return false;
+prog: 	while (p->t->kind == T_OP && strchr("*/%", p->t->op) != NULL) {
+prog: 		const tok *op = p->t++;
+prog: 		int64_t rhs;
+prog: 		if (!unary(p, &rhs))
+prog: 			return false;
+prog: 		if (op->op == '*') {
+prog: 			if (!mul(*out, rhs, out))
+prog: 				return fail(p->e, op->col, "overflow");
+prog: 		} else if (rhs == 0) {
+prog: 			return fail(p->e, op->col, "division by zero");
+prog: 		} else if (op->op == '/') {
+prog: 			if (*out == INT64_MIN && rhs == -1)
+prog: 				return fail(p->e, op->col, "overflow");
+prog: 			*out /= rhs;
+prog: 		} else {
+prog: 			*out = rhs == -1 ? 0 : *out % rhs;
+prog: 		}
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool expr(parser *p, int64_t *out)
+prog: {
+prog: 	if (!term(p, out))
+prog: 		return false;
+prog: 	while (p->t->kind == T_OP && (p->t->op == '+' || p->t->op == '-')) {
+prog: 		const tok *op = p->t++;
+prog: 		int64_t rhs;
+prog: 		if (!term(p, &rhs))
+prog: 			return false;
+prog: 		bool ok = op->op == '+' ? add(*out, rhs, out) : sub(*out, rhs, out);
+prog: 		if (!ok)
+prog: 			return fail(p->e, op->col, "overflow");
+prog: 	}
+prog: 	return true;
+prog: }
+prog: 
+prog: /* run one line: an assignment stores a value, print shows one */
+prog: static bool statement(const tok *toks, vars *vt, err *e)
+prog: {
+prog: 	bool print = toks[0].kind == T_NAME && toks[0].len == 5 && memcmp(toks[0].name, "print", 5) == 0;
+prog: 	bool assign = toks[0].kind == T_NAME && toks[1].kind == T_ASSIGN;
+prog: 	if (print && assign)
+prog: 		return fail(e, toks[0].col, "print is reserved");
+prog: 	if (!print && !assign)
+prog: 		return fail(e, toks[0].col, "not a statement");
+prog: 	parser p = {toks + (print ? 1 : 2), vt, e, 0};
+prog: 	int64_t value;
+prog: 	if (!expr(&p, &value))
+prog: 		return false;
+prog: 	if (p.t->kind != T_END)
+prog: 		return fail(e, p.t->col, "unexpected input");
+prog: 	if (print) {
+prog: 		printf("%lld\n", (long long)value);
+prog: 		return true;
+prog: 	}
+prog: 	return store(vt, &toks[0], value, e);
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	char *line = NULL;
+prog: 	size_t cap = 0;
+prog: 	ssize_t len;
+prog: 	int status = 0;
+prog: 	int lineno = 0;
+prog: 	vars vt = {.n = 0};
+prog: 	while (status == 0 && (len = getline(&line, &cap, stdin)) != -1) {
+prog: 		lineno++;
+prog: 		if (len > 0 && line[len - 1] == '\n')
+prog: 			line[--len] = '\0';
+prog: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+prog: 		if (toks == NULL) {
+prog: 			fprintf(stderr, "calcrun: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		err e;
+prog: 		if (!tokenize(line, toks, &e) || (toks[0].kind != T_END && !statement(toks, &vt, &e))) {
+prog: 			printf("error: line %d, col %d: %s\n", lineno, e.col, e.msg);
+prog: 			status = 1;
+prog: 		}
+prog: 		free(toks);
+prog: 	}
+prog: 	free(line);
+prog: 	if (ferror(stdin)) {
+prog: 		fprintf(stderr, "calcrun: read error\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	return status;
+prog: }
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <ctype.h>
+start: #include <stdbool.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: enum kind { T_NUM, T_NAME, T_ASSIGN, T_OP, T_OPEN, T_CLOSE, T_END };
+start: 
+start: #define MAXVARS 8
+start: #define MAXNAME 31
+start: 
+start: typedef struct {
+start: 	enum kind kind;
+start: 	int col;
+start: 	int64_t value;
+start: 	char op;
+start: 	const char *name;
+start: 	size_t len;
+start: } tok;
+start: 
+start: typedef struct {
+start: 	int col;
+start: 	char msg[64];
+start: } err;
+start: 
+start: static bool fail(err *e, int col, const char *msg)
+start: {
+start: 	e->col = col;
+start: 	snprintf(e->msg, sizeof e->msg, "%s", msg);
+start: 	return false;
+start: }
+start: 
+start: /* split s into toks, the last one T_END; toks needs strlen(s) + 1 entries */
+start: static bool tokenize(const char *s, tok *toks, err *e)
+start: {
+start: 	size_t n = 0;
+start: 	const char *p = s;
+start: 	while (*p != '\0') {
+start: 		int col = (int)(p - s) + 1;
+start: 		if (*p == ' ' || *p == '\t') {
+start: 			p++;
+start: 			continue;
+start: 		}
+start: 		tok *t = &toks[n++];
+start: 		*t = (tok){T_END, col, 0, '\0', NULL, 0};
+start: 		if (isdigit((unsigned char)*p)) {
+start: 			int64_t v = 0;
+start: 			while (isdigit((unsigned char)*p)) {
+start: 				int digit = *p++ - '0';
+start: 				if (v > (INT64_MAX - digit) / 10)
+start: 					return fail(e, col, "number too large");
+start: 				v = v * 10 + digit;
+start: 			}
+start: 			t->kind = T_NUM;
+start: 			t->value = v;
+start: 		} else if (isalpha((unsigned char)*p) || *p == '_') {
+start: 			t->kind = T_NAME;
+start: 			t->name = p;
+start: 			while (isalnum((unsigned char)*p) || *p == '_')
+start: 				p++;
+start: 			t->len = (size_t)(p - t->name);
+start: 			if (t->len > MAXNAME)
+start: 				return fail(e, col, "name too long");
+start: 		} else if (*p == '=') {
+start: 			t->kind = T_ASSIGN;
+start: 			p++;
+start: 		} else if (strchr("+-*/%", *p) != NULL) {
+start: 			t->kind = T_OP;
+start: 			t->op = *p++;
+start: 		} else if (*p == '(' || *p == ')') {
+start: 			t->kind = *p == '(' ? T_OPEN : T_CLOSE;
+start: 			p++;
+start: 		} else {
+start: 			e->col = col;
+start: 			snprintf(e->msg, sizeof e->msg, "unexpected character '%c'", *p);
+start: 			return false;
+start: 		}
+start: 	}
+start: 	toks[n] = (tok){T_END, (int)(p - s) + 1, 0, '\0', NULL, 0};
+start: 	return true;
+start: }
+start: 
+start: #define MAXDEPTH 100
+start: 
+start: typedef struct {
+start: 	char name[MAXNAME + 1];
+start: 	int64_t value;
+start: } var;
+start: 
+start: typedef struct {
+start: 	var v[MAXVARS];
+start: 	size_t n;
+start: } vars;
+start: 
+start: static var *find(vars *vt, const char *name, size_t len)
+start: {
+start: 	for (size_t i = 0; i < vt->n; i++)
+start: 		if (strlen(vt->v[i].name) == len && memcmp(vt->v[i].name, name, len) == 0)
+start: 			return &vt->v[i];
+start: 	return NULL;
+start: }
+start: 
+start: /* set name to value, adding it if new; false (and err) if the table is full */
+start: static bool store(vars *vt, const tok *name, int64_t value, err *e)
+start: {
+start: 	var *v = find(vt, name->name, name->len);
+start: 	if (v == NULL) {
+start: 		if (vt->n == MAXVARS)
+start: 			return fail(e, name->col, "too many variables");
+start: 		v = &vt->v[vt->n++];
+start: 		memcpy(v->name, name->name, name->len);
+start: 		v->name[name->len] = '\0';
+start: 	}
+start: 	v->value = value;
+start: 	return true;
+start: }
+start: 
+start: typedef struct {
+start: 	const tok *t;
+start: 	vars *vt;
+start: 	err *e;
+start: 	int depth;
+start: } parser;
+start: 
+start: static bool add(int64_t a, int64_t b, int64_t *r)
+start: {
+start: 	if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+start: 		return false;
+start: 	*r = a + b;
+start: 	return true;
+start: }
+start: 
+start: static bool sub(int64_t a, int64_t b, int64_t *r)
+start: {
+start: 	if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b))
+start: 		return false;
+start: 	*r = a - b;
+start: 	return true;
+start: }
+start: 
+start: static bool mul(int64_t a, int64_t b, int64_t *r)
+start: {
+start: 	if (a > 0) {
+start: 		if (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a)
+start: 			return false;
+start: 	} else {
+start: 		if (b > 0 ? a < INT64_MIN / b : (a != 0 && b < INT64_MAX / a))
+start: 			return false;
+start: 	}
+start: 	*r = a * b;
+start: 	return true;
+start: }
+start: 
+start: static bool expr(parser *p, int64_t *out);
+start: 
+start: static bool enter(parser *p)
+start: {
+start: 	if (++p->depth > MAXDEPTH)
+start: 		return fail(p->e, p->t->col, "nested too deeply");
+start: 	return true;
+start: }
+start: 
+start: static bool primary(parser *p, int64_t *out)
+start: {
+start: 	const tok *t = p->t;
+start: 	if (t->kind == T_NUM) {
+start: 		p->t++;
+start: 		*out = t->value;
+start: 		return true;
+start: 	}
+start: 	if (t->kind == T_NAME) {
+start: 		var *v = find(p->vt, t->name, t->len);
+start: 		if (v == NULL) {
+start: 			p->e->col = t->col;
+start: 			snprintf(p->e->msg, sizeof p->e->msg, "undefined name '%.*s'", (int)t->len, t->name);
+start: 			return false;
+start: 		}
+start: 		p->t++;
+start: 		*out = v->value;
+start: 		return true;
+start: 	}
+start: 	if (t->kind != T_OPEN)
+start: 		return fail(p->e, t->col, "expected a value");
+start: 	if (!enter(p))
+start: 		return false;
+start: 	p->t++;
+start: 	if (!expr(p, out))
+start: 		return false;
+start: 	if (p->t->kind != T_CLOSE)
+start: 		return fail(p->e, p->t->col, "expected )");
+start: 	p->t++;
+start: 	p->depth--;
+start: 	return true;
+start: }
+start: 
+start: static bool unary(parser *p, int64_t *out)
+start: {
+start: 	const tok *t = p->t;
+start: 	if (t->kind != T_OP || t->op != '-')
+start: 		return primary(p, out);
+start: 	if (!enter(p))
+start: 		return false;
+start: 	p->t++;
+start: 	if (!unary(p, out))
+start: 		return false;
+start: 	if (*out == INT64_MIN)
+start: 		return fail(p->e, t->col, "overflow");
+start: 	*out = -*out;
+start: 	p->depth--;
+start: 	return true;
+start: }
+start: 
+start: static bool term(parser *p, int64_t *out)
+start: {
+start: 	if (!unary(p, out))
+start: 		return false;
+start: 	while (p->t->kind == T_OP && strchr("*/%", p->t->op) != NULL) {
+start: 		const tok *op = p->t++;
+start: 		int64_t rhs;
+start: 		if (!unary(p, &rhs))
+start: 			return false;
+start: 		if (op->op == '*') {
+start: 			if (!mul(*out, rhs, out))
+start: 				return fail(p->e, op->col, "overflow");
+start: 		} else if (rhs == 0) {
+start: 			return fail(p->e, op->col, "division by zero");
+start: 		} else if (op->op == '/') {
+start: 			if (*out == INT64_MIN && rhs == -1)
+start: 				return fail(p->e, op->col, "overflow");
+start: 			*out /= rhs;
+start: 		} else {
+start: 			*out = rhs == -1 ? 0 : *out % rhs;
+start: 		}
+start: 	}
+start: 	return true;
+start: }
+start: 
+start: static bool expr(parser *p, int64_t *out)
+start: {
+start: 	if (!term(p, out))
+start: 		return false;
+start: 	while (p->t->kind == T_OP && (p->t->op == '+' || p->t->op == '-')) {
+start: 		const tok *op = p->t++;
+start: 		int64_t rhs;
+start: 		if (!term(p, &rhs))
+start: 			return false;
+start: 		bool ok = op->op == '+' ? add(*out, rhs, out) : sub(*out, rhs, out);
+start: 		if (!ok)
+start: 			return fail(p->e, op->col, "overflow");
+start: 	}
+start: 	return true;
+start: }
+start: 
+start: /* run one line: an assignment prints "name = value", an expression its value */
+start: static bool statement(const tok *toks, vars *vt, err *e)
+start: {
+start: 	bool assign = toks[0].kind == T_NAME && toks[1].kind == T_ASSIGN;
+start: 	parser p = {assign ? toks + 2 : toks, vt, e, 0};
+start: 	int64_t value;
+start: 	if (!expr(&p, &value))
+start: 		return false;
+start: 	if (p.t->kind != T_END)
+start: 		return fail(e, p.t->col, "unexpected input");
+start: 	if (!assign) {
+start: 		printf("%lld\n", (long long)value);
+start: 		return true;
+start: 	}
+start: 	if (!store(vt, &toks[0], value, e))
+start: 		return false;
+start: 	printf("%.*s = %lld\n", (int)toks[0].len, toks[0].name, (long long)value);
+start: 	return true;
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	vars vt = {.n = 0};
+start: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		tok *toks = malloc(((size_t)len + 1) * sizeof *toks);
+start: 		if (toks == NULL) {
+start: 			fprintf(stderr, "calcvar: out of memory\n");
+start: 			status = 1;
+start: 			break;
+start: 		}
+start: 		err e;
+start: 		if (!tokenize(line, toks, &e) || (toks[0].kind != T_END && !statement(toks, &vt, &e))) {
+start: 			printf("error: col %d: %s\n", e.col, e.msg);
+start: 			status = 1;
+start: 		}
+start: 		free(toks);
+start: 	}
+start: 	free(line);
+start: 	if (ferror(stdin)) {
+start: 		fprintf(stderr, "calcvar: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
+case: printf '# demo\nx = 6\ny = x * 7   # the answer\n\nprint y\nprint y - x / 2\n' | calcrun
+case: printf 'a = 1\nprint a\nprint b\nprint 99\n' | calcrun; echo $?
+case: printf 'print = 1\n' | calcrun; printf 'x + 1\n' | calcrun; printf '\n\n# c\n  print 1 +\n' | calcrun; printf 'print # none\n' | calcrun
+case: printf 'print 1\nprint 1/0\nprint 2\n' | calcrun; printf 'x = 1\ny = 2 $\n' | calcrun; echo $?
+case: { echo n = 1; i=1; while [ $i -le 20 ]; do echo "n = n * $i"; i=$((i+1)); done; echo print n; } | calcrun
+case: { echo n = 1; i=1; while [ $i -le 21 ]; do echo "n = n * $i"; i=$((i+1)); done; echo print n; } | calcrun; echo $?
+case: printf '' | calcrun; echo $?
+hint: take calcvar and change statement: look at the first token for print, then for a name and =; stop the loop at the first error and put the line number in the message; the tokenizer just stops at a hash

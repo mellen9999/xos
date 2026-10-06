@@ -1,0 +1,270 @@
+name: binary data
+intro: A file is bytes. Text is the case where each byte happens to be a
+intro: letter; everything else -- images, archives, network packets -- is
+intro: bytes that mean numbers. So read and write them as bytes: `fopen`
+intro: with "rb", `fread` and `fwrite`, no `fgets`, no `strlen` (a zero
+intro: byte is data, not an end).
+intro:
+intro: A number wider than one byte has to be laid out in some order. The
+intro: number 0x01020304 as four bytes is either
+intro:
+intro:     04 03 02 01    little-endian: least significant first (x86, ARM)
+intro:     01 02 03 04    big-endian: most significant first (network order)
+intro:
+intro: A file format picks one and says so. Your CPU's order must not leak
+intro: in. So never do this:
+intro:
+intro:     uint32_t v = *(uint32_t *)buf;     /* wrong */
+intro:
+intro: It reads in the machine's order, and `buf` may not be aligned for a
+intro: 4-byte load; an unaligned or wrongly-typed access is undefined
+intro: behaviour (the type rules are called strict aliasing). Build the
+intro: number from bytes, which is the same on every machine:
+intro:
+intro:     uint32_t le = (uint32_t)b[3] << 24 | (uint32_t)b[2] << 16
+intro:                 | (uint32_t)b[1] << 8  | b[0];
+intro:
+intro: Cast to the wide type before shifting: `b[3] << 24` shifts an int,
+intro: and a byte of 0x80 or more ends up in the sign bit, which is
+intro: undefined. Use `unsigned char`, not `char`, which may be signed.
+intro:
+intro: A real format has a header: a few fixed "magic" bytes that say what
+intro: the file is (`\x7fELF`, `\x89PNG`), a version, a count, then records
+intro: of a fixed size, and often a checksum so damage is noticed. Read the
+intro: header first, check every field, and never trust a count until you
+intro: know the file is long enough to hold it.
+intro:
+intro: In the cases, `printf '\001\002'` feeds raw bytes: a backslash and
+intro: three octal digits is one byte.
+---
+q: u32dump.c -- read 32-bit numbers from bytes
+spec: Read standard input as a sequence of 4-byte unsigned numbers and print
+spec: each in decimal on its own line. The order is little-endian by default;
+spec: with the argument `be` it is big-endian, with `le` little-endian.
+spec:
+spec: If the input ends with 1 to 3 bytes that do not make a whole number,
+spec: print `u32dump: N stray bytes at the end` to standard error after the
+spec: numbers and exit 1. Any other argument, or more than one, prints
+spec: `usage: u32dump [be]` and exits 2. Empty input prints nothing.
+file: u32dump.c
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	int big = 0;
+prog: 	if (argc > 2 || (argc == 2 && strcmp(argv[1], "be") != 0 && strcmp(argv[1], "le") != 0)) {
+prog: 		fprintf(stderr, "usage: u32dump [be]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (argc == 2)
+prog: 		big = argv[1][0] == 'b';
+prog: 
+prog: 	unsigned char b[4];
+prog: 	size_t n;
+prog: 	while ((n = fread(b, 1, sizeof b, stdin)) == sizeof b) {
+prog: 		uint32_t v;
+prog: 		if (big)
+prog: 			v = (uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 | b[3];
+prog: 		else
+prog: 			v = (uint32_t)b[3] << 24 | (uint32_t)b[2] << 16 | (uint32_t)b[1] << 8 | b[0];
+prog: 		printf("%lu\n", (unsigned long)v);
+prog: 	}
+prog: 	if (n != 0) {
+prog: 		fprintf(stderr, "u32dump: %zu stray bytes at the end\n", n);
+prog: 		return 1;
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf '\001\000\000\000\377\377\377\377' | u32dump
+case: printf '\001\000\000\000\377\377\377\377' | u32dump be
+case: printf '\000\000\001\000\200\000\000\000' | u32dump
+case: printf '\001\002\003' | u32dump 2>&1; echo $?
+case: printf '' | u32dump; u32dump x 2>&1; echo $?
+hint: fread four bytes at a time into an unsigned char array and assemble with shifts; widen to uint32_t before shifting
+---
+q: sniff.c -- tell what a file is from its first bytes
+spec: Read up to the first 512 bytes of standard input and print one word
+spec: for what it is, then exit 0. In this order, the first that matches:
+spec:
+spec:   `empty`  no bytes at all
+spec:   `png`    starts with the bytes 89 50 4e 47 0d 0a 1a 0a
+spec:   `gzip`   starts with 1f 8b
+spec:   `elf`    starts with 7f 45 4c 46
+spec:   `zip`    starts with 50 4b 03 04
+spec:   `pdf`    starts with the text %PDF-
+spec:   `text`   every byte is printable ASCII (0x20 to 0x7e), tab,
+spec:            newline or carriage return
+spec:   `data`   anything else
+spec:
+spec: A file shorter than a signature cannot match it.
+file: sniff.c
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: struct magic {
+prog: 	const char *name;
+prog: 	size_t len;
+prog: 	unsigned char bytes[8];
+prog: };
+prog: 
+prog: static const struct magic table[] = {
+prog: 	{ "png", 8, { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a } },
+prog: 	{ "gzip", 2, { 0x1f, 0x8b } },
+prog: 	{ "elf", 4, { 0x7f, 'E', 'L', 'F' } },
+prog: 	{ "zip", 4, { 'P', 'K', 3, 4 } },
+prog: 	{ "pdf", 5, { '%', 'P', 'D', 'F', '-' } },
+prog: };
+prog: 
+prog: int main(void)
+prog: {
+prog: 	unsigned char buf[512];
+prog: 	size_t n = fread(buf, 1, sizeof buf, stdin);
+prog: 	if (n == 0) {
+prog: 		puts("empty");
+prog: 		return 0;
+prog: 	}
+prog: 	for (size_t i = 0; i < sizeof table / sizeof *table; i++) {
+prog: 		if (n >= table[i].len && memcmp(buf, table[i].bytes, table[i].len) == 0) {
+prog: 			puts(table[i].name);
+prog: 			return 0;
+prog: 		}
+prog: 	}
+prog: 	for (size_t i = 0; i < n; i++) {
+prog: 		unsigned char c = buf[i];
+prog: 		int text = (c >= 0x20 && c <= 0x7e) || c == '\n' || c == '\t' || c == '\r';
+prog: 		if (!text) {
+prog: 			puts("data");
+prog: 			return 0;
+prog: 		}
+prog: 	}
+prog: 	puts("text");
+prog: 	return 0;
+prog: }
+case: printf '\211PNG\r\n\032\n\000\000' | sniff
+case: printf '\037\213\010\000' | sniff; printf '\177ELF\002\001' | sniff; printf 'PK\003\004zz' | sniff
+case: printf '%%PDF-1.4\n' | sniff; printf 'hello\n\tworld\r\n' | sniff
+case: printf '\211PNG\r\n' | sniff; printf 'ab\000cd' | sniff; printf '\037' | sniff; printf '\177ELX\n' | sniff
+case: printf '' | sniff
+hint: a table of name, length and bytes, compared with memcmp only when you have read at least that many bytes
+---
+q: adlersum.c -- the Adler-32 checksum
+spec: Read every byte of standard input and print its Adler-32 checksum as 8
+spec: lowercase hex digits, then exit 0.
+spec:
+spec: Adler-32 keeps two 16-bit sums, a starting at 1 and b at 0. For each
+spec: byte: a = (a + byte) mod 65521, then b = (b + a) mod 65521. The result
+spec: is b in the high 16 bits and a in the low 16: b shifted left 16 bits, ORed with a. Empty
+spec: input is `00000001`. For `abc` it is `024d0127`.
+file: adlersum.c
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: 
+prog: int main(void)
+prog: {
+prog: 	uint32_t a = 1, b = 0;
+prog: 	int c;
+prog: 	while ((c = getchar()) != EOF) {
+prog: 		a = (a + (uint32_t)c) % 65521;
+prog: 		b = (b + a) % 65521;
+prog: 	}
+prog: 	printf("%08" PRIx32 "\n", b << 16 | a);
+prog: 	return 0;
+prog: }
+case: printf 'abc' | adlersum
+case: printf '' | adlersum
+case: printf '\377\376\375' | adlersum
+case: yes | head -n 10000 | adlersum
+hint: read bytes with getchar into an int; take the remainder after each addition, not once at the end
+---
+q: recread.c -- read a checked binary record file
+spec: Standard input holds a file in this format, all in bytes:
+spec:
+spec:   4 bytes   the text XREC
+spec:   1 byte    version, must be 1
+spec:   2 bytes   count of records, big-endian (at most 100)
+spec:   count x 6 each record: 4 bytes id (little-endian), then 2 bytes
+spec:             score (little-endian)
+spec:   4 bytes   CRC-32 of every byte before it, big-endian
+spec:
+spec: For a good file print one line per record, `record I: id=ID score=S`
+spec: (I counts from 0, both numbers in decimal), then `ok COUNT`, and exit
+spec: 0. Otherwise print `recread: WHY` to standard error, nothing to
+spec: standard output, and exit 1. Check in this order: `bad magic` (fewer
+spec: than 4 bytes, or not XREC), `truncated` (fewer than 7 bytes), then
+spec: `unsupported version`, `too many records`, `truncated` (shorter than
+spec: the header and count say), `trailing bytes` (longer), `bad checksum`.
+spec:
+spec: The CRC-32 is the one zip and png use. Start with 0xffffffff; for each
+spec: byte xor it into the low bits, then 8 times: if the lowest bit is 1,
+spec: shift right one and xor 0xedb88320, else just shift right. The final
+spec: value is the complement (~) of what is left.
+file: recread.c
+prog: #include <inttypes.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: 
+prog: #define MAXREC 100
+prog: #define RECSIZE 6
+prog: 
+prog: static uint32_t crc32_bits(const unsigned char *p, size_t n)
+prog: {
+prog: 	uint32_t crc = 0xffffffffu;
+prog: 	for (size_t i = 0; i < n; i++) {
+prog: 		crc ^= p[i];
+prog: 		for (int k = 0; k < 8; k++)
+prog: 			crc = crc & 1 ? crc >> 1 ^ 0xedb88320u : crc >> 1;
+prog: 	}
+prog: 	return ~crc;
+prog: }
+prog: 
+prog: static int fail(const char *why)
+prog: {
+prog: 	fprintf(stderr, "recread: %s\n", why);
+prog: 	return 1;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	unsigned char buf[7 + MAXREC * RECSIZE + 4 + 1]; /* one spare byte to see trailing junk */
+prog: 	size_t n = fread(buf, 1, sizeof buf, stdin);
+prog: 
+prog: 	if (n < 4 || memcmp(buf, "XREC", 4) != 0)
+prog: 		return fail("bad magic");
+prog: 	if (n < 7)
+prog: 		return fail("truncated");
+prog: 	if (buf[4] != 1)
+prog: 		return fail("unsupported version");
+prog: 	unsigned count = (unsigned)buf[5] << 8 | buf[6];
+prog: 	if (count > MAXREC)
+prog: 		return fail("too many records");
+prog: 	size_t body = 7 + (size_t)count * RECSIZE;
+prog: 	if (n < body + 4)
+prog: 		return fail("truncated");
+prog: 	if (n > body + 4)
+prog: 		return fail("trailing bytes");
+prog: 
+prog: 	uint32_t want = (uint32_t)buf[body] << 24 | (uint32_t)buf[body + 1] << 16
+prog: 	    | (uint32_t)buf[body + 2] << 8 | buf[body + 3];
+prog: 	if (crc32_bits(buf, body) != want)
+prog: 		return fail("bad checksum");
+prog: 
+prog: 	for (unsigned i = 0; i < count; i++) {
+prog: 		const unsigned char *r = buf + 7 + (size_t)i * RECSIZE;
+prog: 		uint32_t id = (uint32_t)r[3] << 24 | (uint32_t)r[2] << 16 | (uint32_t)r[1] << 8 | r[0];
+prog: 		unsigned score = (unsigned)r[5] << 8 | r[4];
+prog: 		printf("record %u: id=%lu score=%u\n", i, (unsigned long)id, score);
+prog: 	}
+prog: 	printf("ok %u\n", count);
+prog: 	return 0;
+prog: }
+case: printf '\130\122\105\103\001\000\002\001\000\000\000\012\000\054\001\000\000\377\377\222\255\117\105' | recread
+case: printf '\130\122\105\103\001\000\000\324\140\233\217' | recread
+case: printf 'JPEG\001\000\000' | recread 2>&1; echo $?
+case: printf '\130\122\105\103\001\000\001\007\001\000\000\010\000\072\377\312\104' | recread 2>&1; echo $?
+case: printf '\130\122\105\103\001\000\001\001\000\000\000\012\000\336\220\113' | recread 2>&1; echo $?
+case: printf '\130\122\105\103\001\000\001\001\000\000\000\012\000\336\220\113\333\000' | recread 2>&1; echo $?
+hint: fread the whole thing into one buffer with a spare byte, check the length against the count, then CRC the body and decode the rest with shifts

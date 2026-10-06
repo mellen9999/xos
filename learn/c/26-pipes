@@ -1,0 +1,369 @@
+name: pipes
+intro: A pipe is a one-way tube inside the kernel. `pipe(fd)` fills in two
+intro: descriptors: `fd[0]` reads, `fd[1]` writes. Bytes put in at one end
+intro: come out of the other, in order.
+intro:
+intro:     int fd[2];
+intro:     if (pipe(fd) != 0) { ...fail... }
+intro:
+intro: On its own that is useless; the trick is `fork`, which hands the
+intro: child a copy of both descriptors. Now two processes can talk. The
+intro: deal is that each keeps the end it uses and closes the other:
+intro:
+intro:     child:   close(fd[0]);  write(fd[1], ...);  close(fd[1]);
+intro:     parent:  close(fd[1]);  read(fd[0], ...);   close(fd[0]);
+intro:
+intro: This is the rule that bites everyone. `read` on a pipe returns 0 --
+intro: end of file -- only when every copy of the write end is closed, in
+intro: every process. A parent that forgets `close(fd[1])` holds a write
+intro: end itself, so its own `read` waits forever for bytes it will never
+intro: send. Close what you do not use, in every process, always.
+intro:
+intro: Both calls move fewer bytes than you ask for when they like: a pipe
+intro: holds about 64 KB, and `read` gives what is there now. Loop until
+intro: you have it all, and keep a growing buffer if you do not know the
+intro: size.
+intro:
+intro: To make a program's stdin or stdout the pipe, use `dup2(old, new)`:
+intro: afterwards descriptor `new` is another name for what `old` points
+intro: at. 0 is stdin and 1 is stdout (`STDIN_FILENO`, `STDOUT_FILENO`).
+intro:
+intro:     dup2(fd[1], STDOUT_FILENO);  /* printf now goes into the pipe */
+intro:     close(fd[0]);                /* the originals are not needed */
+intro:     close(fd[1]);
+intro:     execlp("ls", "ls", (char *)NULL);
+intro:
+intro: An exec'd program keeps descriptors 0, 1 and 2, and never knows they
+intro: are a pipe. That is all `a | b` is: two forks, one pipe, one `dup2`
+intro: on each side, and every spare end closed. Last warning: writing to a
+intro: pipe nobody reads kills you with SIGPIPE. The next unit is about
+intro: that.
+---
+q: pipemsg.c -- send bytes through a pipe
+spec: Take at most one argument, TEXT (none means empty text). Make a
+spec: pipe and fork. The child writes the bytes of TEXT, nothing added,
+spec: into the pipe and exits 0. The parent reads from the pipe until end
+spec: of file, counts the bytes, waits for the child, and prints
+spec: `read N bytes`, then exits 0. TEXT may be much bigger than one
+spec: `read` returns, even bigger than the pipe holds.
+spec:
+spec: Close the ends of the pipe that each process does not use -- if you
+spec: forget, the parent never sees end of file and the program hangs.
+spec:
+spec: More than one argument prints `usage: pipemsg [TEXT]` to standard
+spec: error and exits 2. If `pipe` or `fork` fails print
+spec: `pipemsg: pipe failed` or `pipemsg: fork failed` to standard error
+spec: and exit 1. A child that did not exit 0 prints `pipemsg: child failed`
+spec: to standard error and the parent exits 1.
+file: pipemsg.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <string.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc > 2) {
+prog: 		fprintf(stderr, "usage: pipemsg [TEXT]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	const char *text = argc == 2 ? argv[1] : "";
+prog: 	int fd[2];
+prog: 	if (pipe(fd) != 0) {
+prog: 		fprintf(stderr, "pipemsg: pipe failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "pipemsg: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		close(fd[0]);
+prog: 		const char *p = text;
+prog: 		size_t left = strlen(text);
+prog: 		while (left > 0) {
+prog: 			ssize_t w = write(fd[1], p, left);
+prog: 			if (w < 0) {
+prog: 				if (errno == EINTR)
+prog: 					continue;
+prog: 				_exit(1);
+prog: 			}
+prog: 			p += w;
+prog: 			left -= (size_t)w;
+prog: 		}
+prog: 		close(fd[1]);
+prog: 		_exit(0);
+prog: 	}
+prog: 	close(fd[1]);
+prog: 	char buf[4096];
+prog: 	size_t total = 0;
+prog: 	for (;;) {
+prog: 		ssize_t r = read(fd[0], buf, sizeof buf);
+prog: 		if (r < 0 && errno == EINTR)
+prog: 			continue;
+prog: 		if (r <= 0)
+prog: 			break;
+prog: 		total += (size_t)r;
+prog: 	}
+prog: 	close(fd[0]);
+prog: 	int status;
+prog: 	if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+prog: 		fprintf(stderr, "pipemsg: child failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("read %zu bytes\n", total);
+prog: 	return 0;
+prog: }
+case: pipemsg hello
+case: pipemsg
+case: pipemsg "$(head -c 70000 /dev/zero | tr '\0' x)"
+case: pipemsg a b; echo $?
+hint: child closes fd[0] then loops on write; parent closes fd[1] then loops on read until it returns 0, adding up the counts
+---
+q: feedtr.c -- feed a child through its stdin
+spec: Start the program `tr a-z A-Z` (found through PATH, so use
+spec: `execlp` or `execvp`) as a child whose standard input is a pipe from
+spec: you. Write each command-line argument to that pipe followed by a
+spec: newline, in order, then close the write end so `tr` sees end of
+spec: file. Wait for `tr`, then print `tr exited N` with its exit status.
+spec: Exit 0. `tr` writes its own output (the arguments in capitals, one
+spec: per line) straight to your standard output, so it appears before
+spec: the last line. With no arguments `tr` gets an empty input.
+spec:
+spec: Use `dup2` in the child to make the pipe its standard input, and
+spec: close every spare end of the pipe in both processes.
+spec:
+spec: If `pipe`, `fork` or `fdopen` fails print `feedtr: pipe failed`,
+spec: `feedtr: fork failed` or `feedtr: fdopen failed` to standard error
+spec: and exit 1. If `tr` did not exit normally print
+spec: `feedtr: tr did not exit` to standard error and exit 1.
+file: feedtr.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <stdio.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	int fd[2];
+prog: 	if (pipe(fd) != 0) {
+prog: 		fprintf(stderr, "feedtr: pipe failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "feedtr: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		dup2(fd[0], STDIN_FILENO);
+prog: 		close(fd[0]);
+prog: 		close(fd[1]);
+prog: 		execlp("tr", "tr", "a-z", "A-Z", (char *)NULL);
+prog: 		_exit(127);
+prog: 	}
+prog: 	close(fd[0]);
+prog: 	FILE *to = fdopen(fd[1], "w");
+prog: 	if (to == NULL) {
+prog: 		fprintf(stderr, "feedtr: fdopen failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	for (int i = 1; i < argc; i++)
+prog: 		fprintf(to, "%s\n", argv[i]);
+prog: 	fclose(to);
+prog: 	int status;
+prog: 	if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status)) {
+prog: 		fprintf(stderr, "feedtr: tr did not exit\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("tr exited %d\n", WEXITSTATUS(status));
+prog: 	return 0;
+prog: }
+case: feedtr abc Def
+case: feedtr
+case: feedtr "hello world" "" 'MiXeD 123'
+case: feedtr x; echo $?
+hint: child: dup2(fd[0], STDIN_FILENO), close both fd, execlp("tr", "tr", "a-z", "A-Z", NULL); parent: close fd[0], write the lines, close fd[1] so tr can finish
+---
+q: twostage.c -- build a pipe by hand
+spec: Do by hand what a shell does for a two-command pipeline. Take
+spec: exactly two arguments, each a shell command line. Make one pipe and
+spec: start two children, each running its argument with `sh -c` (via
+spec: `execlp`): the left child's standard output is the pipe, the right
+spec: child's standard input is the pipe. Both run at the same time.
+spec:
+spec: Close all four spare ends in the parent and the unused ends in each
+spec: child -- otherwise the right side never sees end of file and hangs.
+spec:
+spec: Wait for both, then print `left A right B` where A and B are the
+spec: exit statuses (a child ended by signal S counts as 128 plus S).
+spec: Whatever the right side prints comes before that line. Exit 0.
+spec:
+spec: A wrong number of arguments prints `usage: twostage LEFT RIGHT` to
+spec: standard error and exits 2. If `pipe` fails print
+spec: `twostage: pipe failed` and exit 1; if a `fork` fails, still wait for
+spec: the child that did start, print `twostage: fork failed` and exit 1.
+file: twostage.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <stdio.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: /* the child's end of the pipe becomes descriptor 'target'; the rest close */
+prog: static void child(const char *cmd, const int fd[2], int use, int target)
+prog: {
+prog: 	dup2(fd[use], target);
+prog: 	close(fd[0]);
+prog: 	close(fd[1]);
+prog: 	execlp("sh", "sh", "-c", cmd, (char *)NULL);
+prog: 	_exit(127);
+prog: }
+prog: 
+prog: static int decode(int status)
+prog: {
+prog: 	return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc != 3) {
+prog: 		fprintf(stderr, "usage: twostage LEFT RIGHT\n");
+prog: 		return 2;
+prog: 	}
+prog: 	int fd[2];
+prog: 	if (pipe(fd) != 0) {
+prog: 		fprintf(stderr, "twostage: pipe failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	pid_t left = fork();
+prog: 	if (left == 0)
+prog: 		child(argv[1], fd, 1, STDOUT_FILENO);
+prog: 	pid_t right = left < 0 ? -1 : fork();
+prog: 	if (right == 0)
+prog: 		child(argv[2], fd, 0, STDIN_FILENO);
+prog: 	close(fd[0]);
+prog: 	close(fd[1]);
+prog: 	int ls = 0, rs = 0;
+prog: 	if (left > 0)
+prog: 		waitpid(left, &ls, 0);
+prog: 	if (right > 0)
+prog: 		waitpid(right, &rs, 0);
+prog: 	if (left < 0 || right < 0) {
+prog: 		fprintf(stderr, "twostage: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("left %d right %d\n", decode(ls), decode(rs));
+prog: 	return 0;
+prog: }
+case: twostage 'echo hello' 'tr a-z A-Z'
+case: twostage 'printf "b\na\nc\n"' sort
+case: twostage 'echo x; exit 3' 'cat; exit 4'
+case: twostage true 'wc -c'
+case: twostage x; echo $?
+hint: pipe once, fork twice; in the left child dup2(fd[1], 1), in the right dup2(fd[0], 0), each closes both fd afterwards; the parent closes both fd before it waits
+---
+q: capture.c -- catch a command's output
+spec: Run the command given as the arguments (`capture echo hi`) in a
+spec: child whose standard output is a pipe to you. Read everything it
+spec: writes into one growing buffer (it can be any size), wait for it,
+spec: then print the captured text with `> ` in front of every line. If
+spec: the last line has no newline, add one. No output at all prints no
+spec: lines. Then print `exit N`, or `signal S` if a signal ended it.
+spec: Exit 0. The command's standard error is not captured -- it goes
+spec: straight through, so it shows up before anything you print.
+spec:
+spec: If the command cannot be run the child prints
+spec: `capture: cannot run NAME` to standard error and exits 127.
+spec: No arguments prints `usage: capture CMD [ARG...]` to standard error
+spec: and exits 2. Failures of `pipe`, `fork`, `realloc` or `waitpid`
+spec: print `capture: pipe failed`, `capture: fork failed`,
+spec: `capture: out of memory` or `capture: wait failed` and exit 1.
+file: capture.c
+prog: #define _POSIX_C_SOURCE 200809L
+prog: #include <errno.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <sys/wait.h>
+prog: #include <unistd.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	if (argc < 2) {
+prog: 		fprintf(stderr, "usage: capture CMD [ARG...]\n");
+prog: 		return 2;
+prog: 	}
+prog: 	int fd[2];
+prog: 	if (pipe(fd) != 0) {
+prog: 		fprintf(stderr, "capture: pipe failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	pid_t pid = fork();
+prog: 	if (pid < 0) {
+prog: 		fprintf(stderr, "capture: fork failed\n");
+prog: 		return 1;
+prog: 	}
+prog: 	if (pid == 0) {
+prog: 		dup2(fd[1], STDOUT_FILENO);
+prog: 		close(fd[0]);
+prog: 		close(fd[1]);
+prog: 		execvp(argv[1], argv + 1);
+prog: 		fprintf(stderr, "capture: cannot run %s\n", argv[1]);
+prog: 		_exit(127);
+prog: 	}
+prog: 	close(fd[1]);
+prog: 	char *buf = NULL;
+prog: 	size_t len = 0, cap = 0;
+prog: 	for (;;) {
+prog: 		if (len == cap) {
+prog: 			size_t ncap = cap ? cap * 2 : 4096;
+prog: 			char *bigger = realloc(buf, ncap);
+prog: 			if (bigger == NULL) {
+prog: 				fprintf(stderr, "capture: out of memory\n");
+prog: 				free(buf);
+prog: 				return 1;
+prog: 			}
+prog: 			buf = bigger;
+prog: 			cap = ncap;
+prog: 		}
+prog: 		ssize_t r = read(fd[0], buf + len, cap - len);
+prog: 		if (r < 0 && errno == EINTR)
+prog: 			continue;
+prog: 		if (r <= 0)
+prog: 			break;
+prog: 		len += (size_t)r;
+prog: 	}
+prog: 	close(fd[0]);
+prog: 	int status;
+prog: 	if (waitpid(pid, &status, 0) < 0) {
+prog: 		fprintf(stderr, "capture: wait failed\n");
+prog: 		free(buf);
+prog: 		return 1;
+prog: 	}
+prog: 	bool bol = true;
+prog: 	for (size_t i = 0; i < len; i++) {
+prog: 		if (bol)
+prog: 			fputs("> ", stdout);
+prog: 		putchar(buf[i]);
+prog: 		bol = buf[i] == '\n';
+prog: 	}
+prog: 	if (!bol)
+prog: 		putchar('\n');
+prog: 	free(buf);
+prog: 	if (WIFEXITED(status))
+prog: 		printf("exit %d\n", WEXITSTATUS(status));
+prog: 	else if (WIFSIGNALED(status))
+prog: 		printf("signal %d\n", WTERMSIG(status));
+prog: 	return 0;
+prog: }
+case: capture echo hi
+case: capture sh -c 'printf "a\nb"'
+case: capture true
+case: capture sh -c 'echo out; echo err >&2; exit 3'
+case: capture sh -c 'i=0; while [ $i -lt 2000 ]; do echo line$i; i=$((i+1)); done' | wc -l
+case: capture nosuchprogram
+case: capture; echo $?
+hint: realloc the buffer to double when it is full, read into the free part; print by walking the bytes and writing "> " whenever you are at the start of a line

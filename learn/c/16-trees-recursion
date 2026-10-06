@@ -1,0 +1,536 @@
+name: trees and recursion
+intro: A tree node holds a value and links to children. In a binary search
+intro: tree everything in the left subtree is smaller than the node and
+intro: everything in the right is larger, so a lookup throws away a whole
+intro: side at each step:
+intro:
+intro:     struct tnode {
+intro:         long val;
+intro:         struct tnode *left, *right;
+intro:     };
+intro:
+intro: Insert with the link trick from lists, in one short recursion:
+intro:
+intro:     static int insert(struct tnode **link, long val)
+intro:     {
+intro:         if (*link == NULL) { /* make a node, *link = it */ }
+intro:         if (val < (*link)->val) return insert(&(*link)->left, val);
+intro:         if (val > (*link)->val) return insert(&(*link)->right, val);
+intro:         return 0;      /* equal: already there */
+intro:     }
+intro:
+intro: A recursive function needs a base case that stops and a step that
+intro: makes the problem smaller. A tree is a node plus two smaller trees,
+intro: so walks fit: left, node, right visits in ASCENDING order
+intro: (in-order); node first is pre-order; node last is post-order, and
+intro: post-order is how you free a tree: children before the node, since
+intro: after `free(t)` its links are gone. Height is the number of nodes on
+intro: the longest path down: 0 when empty, else 1 + the taller child.
+intro:
+intro: Each call uses stack, and the stack is a few megabytes. Recursion
+intro: as deep as the tree is fine for a thousand nodes and a crash for a
+intro: million. Worse, YOU do not control the depth: insert 1, 2, 3, 4 in
+intro: order and each goes right of the last, a linked list with extra
+intro: steps. Balanced, n items cost about log2(n) per lookup; lined up,
+intro: n. Sorted input is exactly what real data tends to look like.
+intro:
+intro: Any recursion can be an explicit stack: an array of node pointers
+intro: you push and pop yourself, grown with `realloc`, bounded by memory
+intro: and not by the call stack. To walk in-order: push nodes while going
+intro: left; pop one and visit it; then go right and repeat. Pre-order:
+intro: pop one, visit it, push its right child, then its left.
+---
+q: bstsort.c -- sort and dedupe with a tree
+spec: Reads whole numbers from standard input, one per line, inserts each
+spec: into a binary search tree (recursively, taking `struct tnode **`),
+spec: and prints every DISTINCT number once, ascending, one per line, by an
+spec: in-order walk. A number already in the tree is not inserted again.
+spec: Values span the full `long` range. Free the tree (children before
+spec: the node) before you exit.
+spec:
+spec: At most 5000 numbers: reading a 5001st prints `bstsort: too many
+spec: numbers` to standard error. A bad line (blank included) prints
+spec: `bstsort: line L: bad number`. Both print nothing to standard
+spec: output, free the tree, and exit 1. Empty input prints nothing.
+file: bstsort.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: #define MAXN 5000
+prog: 
+prog: struct tnode {
+prog: 	long val;
+prog: 	struct tnode *left, *right;
+prog: };
+prog: 
+prog: /* put val where it belongs; a value already present is left alone */
+prog: static int insert(struct tnode **link, long val)
+prog: {
+prog: 	if (*link == NULL) {
+prog: 		struct tnode *n = malloc(sizeof *n);
+prog: 		if (n == NULL)
+prog: 			return -1;
+prog: 		*n = (struct tnode){ .val = val };
+prog: 		*link = n;
+prog: 		return 0;
+prog: 	}
+prog: 	if (val < (*link)->val)
+prog: 		return insert(&(*link)->left, val);
+prog: 	if (val > (*link)->val)
+prog: 		return insert(&(*link)->right, val);
+prog: 	return 0;
+prog: }
+prog: 
+prog: static void walk(const struct tnode *t)
+prog: {
+prog: 	if (t == NULL)
+prog: 		return;
+prog: 	walk(t->left);
+prog: 	printf("%ld\n", t->val);
+prog: 	walk(t->right);
+prog: }
+prog: 
+prog: /* children before the node: after free(t) its links are gone */
+prog: static void free_tree(struct tnode *t)
+prog: {
+prog: 	if (t == NULL)
+prog: 		return;
+prog: 	free_tree(t->left);
+prog: 	free_tree(t->right);
+prog: 	free(t);
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct tnode *root = NULL;
+prog: 	int status = 0;
+prog: 	char line[64];
+prog: 	int lineno = 0;
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		lineno++;
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "bstsort: line %d: bad number\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (lineno > MAXN) {
+prog: 			fprintf(stderr, "bstsort: too many numbers\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (insert(&root, x) != 0) {
+prog: 			fprintf(stderr, "bstsort: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	if (status == 0)
+prog: 		walk(root);
+prog: 	free_tree(root);
+prog: 	return status;
+prog: }
+case: printf '5\n3\n8\n3\n1\n' | bstsort
+case: printf '0\n9223372036854775807\n-9223372036854775808\n0\n' | bstsort
+case: seq 5000 -1 1 | bstsort | tail -n 2
+case: seq 1 5001 | bstsort 2>&1; echo $?
+case: bstsort </dev/null; echo $?; printf '1\nx\n' | bstsort 2>&1; echo $?
+hint: insert goes left when smaller and right when larger and does nothing when equal; print left subtree, node, right subtree
+---
+q: bstshape.c -- draw the tree sideways
+spec: Reads whole numbers, one per line, into a binary search tree
+spec: (duplicates ignored). Prints the tree turned on its side: one node
+spec: per line, indented 4 spaces per level of depth (the root has none),
+spec: the RIGHT subtree above its node and the LEFT below. So the largest
+spec: number is the first line. Then one last line,
+spec: `nodes N height H`: how many nodes, and the height (nodes on the
+spec: longest root-to-leaf path: 1 for one node, 0 for none).
+spec:
+spec: For `5 3 8 1 4 9` it prints nine at 8 spaces, eight at 4, five
+spec: at 0, four at 8, three at 4, one at 8, then `nodes 6 height 3`.
+spec: With no input just the last line, `nodes 0 height 0`.
+spec:
+spec: At most 1000 numbers (`bstshape: too many numbers`); a bad line
+spec: prints `bstshape: line L: bad number`; both go to standard error,
+spec: print nothing to standard output and exit 1. Free the tree.
+file: bstshape.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: #define MAXN 1000
+prog: 
+prog: struct tnode {
+prog: 	long val;
+prog: 	struct tnode *left, *right;
+prog: };
+prog: 
+prog: static int insert(struct tnode **link, long val)
+prog: {
+prog: 	if (*link == NULL) {
+prog: 		struct tnode *n = malloc(sizeof *n);
+prog: 		if (n == NULL)
+prog: 			return -1;
+prog: 		*n = (struct tnode){ .val = val };
+prog: 		*link = n;
+prog: 		return 0;
+prog: 	}
+prog: 	if (val < (*link)->val)
+prog: 		return insert(&(*link)->left, val);
+prog: 	if (val > (*link)->val)
+prog: 		return insert(&(*link)->right, val);
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* sideways: right subtree above, left below, 4 columns per level */
+prog: static void show(const struct tnode *t, int depth)
+prog: {
+prog: 	if (t == NULL)
+prog: 		return;
+prog: 	show(t->right, depth + 1);
+prog: 	printf("%*s%ld\n", depth * 4, "", t->val);
+prog: 	show(t->left, depth + 1);
+prog: }
+prog: 
+prog: static size_t count(const struct tnode *t)
+prog: {
+prog: 	return t == NULL ? 0 : 1 + count(t->left) + count(t->right);
+prog: }
+prog: 
+prog: static size_t height(const struct tnode *t)
+prog: {
+prog: 	if (t == NULL)
+prog: 		return 0;
+prog: 	size_t l = height(t->left), r = height(t->right);
+prog: 	return 1 + (l > r ? l : r);
+prog: }
+prog: 
+prog: static void free_tree(struct tnode *t)
+prog: {
+prog: 	if (t == NULL)
+prog: 		return;
+prog: 	free_tree(t->left);
+prog: 	free_tree(t->right);
+prog: 	free(t);
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct tnode *root = NULL;
+prog: 	int status = 0;
+prog: 	char line[64];
+prog: 	int lineno = 0;
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		lineno++;
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "bstshape: line %d: bad number\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (lineno > MAXN) {
+prog: 			fprintf(stderr, "bstshape: too many numbers\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (insert(&root, x) != 0) {
+prog: 			fprintf(stderr, "bstshape: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	if (status == 0) {
+prog: 		show(root, 0);
+prog: 		printf("nodes %zu height %zu\n", count(root), height(root));
+prog: 	}
+prog: 	free_tree(root);
+prog: 	return status;
+prog: }
+case: printf '5\n3\n8\n1\n4\n9\n' | bstshape
+case: printf '1\n2\n3\n' | bstshape
+case: printf '2\n2\n2\n' | bstshape; bstshape </dev/null
+case: seq 1 1001 | bstshape 2>&1; echo $?; printf '3\n\n' | bstshape 2>&1; echo $?
+hint: print the right child first with depth plus one, then the node with depth times four spaces, then the left; height is 1 plus the taller side
+---
+q: bstwalk.c -- walk a tree without recursion
+spec: Reads whole numbers, one per line, into a binary search tree
+spec: (duplicates ignored). Prints two lines: `pre:` followed by every
+spec: value in pre-order (node, left, right), then `in:` followed by every
+spec: value in order. Each value is preceded by one space, so an empty tree
+spec: gives just `pre:` and `in:`. For `5 3 8 1 4 9`:
+spec:
+spec: `pre: 5 3 1 4 8 9` and `in: 1 3 4 5 8 9`.
+spec:
+spec: Do NOT recurse: insert with a loop, walk with an explicit stack of
+spec: node pointers that grows by doubling through `realloc` (a fixed
+spec: size breaks on a tree 8000 deep), and free the tree without
+spec: recursion too. Free the stack as well.
+spec:
+spec: At most 10000 numbers (`bstwalk: too many numbers`); a bad line
+spec: prints `bstwalk: line L: bad number`; both go to standard error,
+spec: print nothing to standard output and exit 1. Running out of memory
+spec: prints `bstwalk: out of memory` and exits 1.
+file: bstwalk.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: #define MAXN 10000
+prog: 
+prog: struct tnode {
+prog: 	long val;
+prog: 	struct tnode *left, *right;
+prog: };
+prog: 
+prog: /* a stack of node pointers that grows by doubling */
+prog: struct stack {
+prog: 	const struct tnode **v;
+prog: 	size_t n, cap;
+prog: };
+prog: 
+prog: static int push(struct stack *s, const struct tnode *t)
+prog: {
+prog: 	if (s->n == s->cap) {
+prog: 		size_t cap = s->cap == 0 ? 16 : s->cap * 2;
+prog: 		const struct tnode **v = realloc(s->v, cap * sizeof *v);
+prog: 		if (v == NULL)
+prog: 			return -1;
+prog: 		s->v = v;
+prog: 		s->cap = cap;
+prog: 	}
+prog: 	s->v[s->n++] = t;
+prog: 	return 0;
+prog: }
+prog: 
+prog: static const struct tnode *pop(struct stack *s)
+prog: {
+prog: 	return s->v[--s->n];
+prog: }
+prog: 
+prog: /* a loop, not recursion: walk down until a NULL link */
+prog: static int insert(struct tnode **root, long val)
+prog: {
+prog: 	struct tnode **pp = root;
+prog: 	while (*pp != NULL) {
+prog: 		if (val < (*pp)->val)
+prog: 			pp = &(*pp)->left;
+prog: 		else if (val > (*pp)->val)
+prog: 			pp = &(*pp)->right;
+prog: 		else
+prog: 			return 0;
+prog: 	}
+prog: 	struct tnode *n = malloc(sizeof *n);
+prog: 	if (n == NULL)
+prog: 		return -1;
+prog: 	*n = (struct tnode){ .val = val };
+prog: 	*pp = n;
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* node, left, right -- pop one, push its right then its left */
+prog: static int preorder(const struct tnode *root, struct stack *s)
+prog: {
+prog: 	printf("pre:");
+prog: 	if (root != NULL && push(s, root) != 0)
+prog: 		return -1;
+prog: 	while (s->n > 0) {
+prog: 		const struct tnode *t = pop(s);
+prog: 		printf(" %ld", t->val);
+prog: 		if ((t->right != NULL && push(s, t->right) != 0) ||
+prog: 			(t->left != NULL && push(s, t->left) != 0))
+prog: 			return -1;
+prog: 	}
+prog: 	putchar('\n');
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* left, node, right -- go left as far as possible, remembering the way */
+prog: static int inorder(const struct tnode *root, struct stack *s)
+prog: {
+prog: 	printf("in:");
+prog: 	const struct tnode *cur = root;
+prog: 	while (cur != NULL || s->n > 0) {
+prog: 		while (cur != NULL) {
+prog: 			if (push(s, cur) != 0)
+prog: 				return -1;
+prog: 			cur = cur->left;
+prog: 		}
+prog: 		cur = pop(s);
+prog: 		printf(" %ld", cur->val);
+prog: 		cur = cur->right;
+prog: 	}
+prog: 	putchar('\n');
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* free without recursion or a stack: rotate each left child above its
+prog:    parent until nothing is on the left, then free the node */
+prog: static void free_tree(struct tnode *t)
+prog: {
+prog: 	while (t != NULL) {
+prog: 		if (t->left != NULL) {
+prog: 			struct tnode *l = t->left;
+prog: 			t->left = l->right;
+prog: 			l->right = t;
+prog: 			t = l;
+prog: 		} else {
+prog: 			struct tnode *r = t->right;
+prog: 			free(t);
+prog: 			t = r;
+prog: 		}
+prog: 	}
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct tnode *root = NULL;
+prog: 	struct stack st = { NULL, 0, 0 };
+prog: 	int status = 0;
+prog: 	char line[64];
+prog: 	int lineno = 0;
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		lineno++;
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "bstwalk: line %d: bad number\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (lineno > MAXN) {
+prog: 			fprintf(stderr, "bstwalk: too many numbers\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (insert(&root, x) != 0) {
+prog: 			fprintf(stderr, "bstwalk: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 	}
+prog: 	if (status == 0 && (preorder(root, &st) != 0 || inorder(root, &st) != 0)) {
+prog: 		fprintf(stderr, "bstwalk: out of memory\n");
+prog: 		status = 1;
+prog: 	}
+prog: 	free(st.v);
+prog: 	free_tree(root);
+prog: 	return status;
+prog: }
+case: printf '5\n3\n8\n1\n4\n9\n' | bstwalk
+case: bstwalk </dev/null
+case: seq 8000 -1 1 | bstwalk | wc -c
+case: seq 1 8000 | bstwalk | tail -c 12
+case: seq 1 10001 | bstwalk 2>&1; echo $?; printf '1\nx\n' | bstwalk 2>&1; echo $?
+hint: in-order: while cur is not NULL push it and step left; then pop, print, and step to its right; stop when both cur and the stack are empty
+---
+q: treecost.c -- what an unbalanced tree costs
+spec: Reads whole numbers, one per line, and inserts them into a binary
+spec: search tree with a LOOP (no recursion). A number already present is
+spec: not added. Prints one line:
+spec:
+spec: `nodes N height H ideal I compares C`
+spec:
+spec: N is the node count; H the height (nodes on the longest path, 0
+spec: for an empty tree); I the smallest height that could hold N nodes
+spec: (0 for none, 1 for one, 2 for two or three, 3 for four to seven, and
+spec: so on); C the total number of times an insert looked at an existing
+spec: node's value to decide where to go, over ALL inserts, duplicates
+spec: included (a duplicate counts every node it visits, up to and
+spec: including the equal one).
+spec:
+spec: So `4 2 6 1 3 5 7` gives `nodes 7 height 3 ideal 3 compares 10`,
+spec: while `1 2 3 4 5 6 7` gives height 7 and 21 compares. Free the tree.
+spec:
+spec: At most 3000 numbers (`treecost: too many numbers`); a bad line
+spec: prints `treecost: line L: bad number`; both go to standard error,
+spec: print nothing to standard output and exit 1.
+file: treecost.c
+prog: #include <errno.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: #define MAXN 3000
+prog: 
+prog: struct tnode {
+prog: 	long val;
+prog: 	struct tnode *left, *right;
+prog: };
+prog: 
+prog: static void free_tree(struct tnode *t)
+prog: {
+prog: 	if (t == NULL)
+prog: 		return;
+prog: 	free_tree(t->left);
+prog: 	free_tree(t->right);
+prog: 	free(t);
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct tnode *root = NULL;
+prog: 	size_t nodes = 0, height = 0, compares = 0;
+prog: 	int status = 0;
+prog: 	char line[64];
+prog: 	int lineno = 0;
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		lineno++;
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long x = strtol(line, &end, 10);
+prog: 		if (errno != 0 || end == line || (*end != '\n' && *end != '\0')) {
+prog: 			fprintf(stderr, "treecost: line %d: bad number\n", lineno);
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		if (lineno > MAXN) {
+prog: 			fprintf(stderr, "treecost: too many numbers\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 
+prog: 		struct tnode **pp = &root;
+prog: 		size_t level = 1;
+prog: 		while (*pp != NULL) {
+prog: 			compares++;
+prog: 			if (x == (*pp)->val)
+prog: 				break;
+prog: 			pp = x < (*pp)->val ? &(*pp)->left : &(*pp)->right;
+prog: 			level++;
+prog: 		}
+prog: 		if (*pp != NULL)
+prog: 			continue;
+prog: 		struct tnode *n = malloc(sizeof *n);
+prog: 		if (n == NULL) {
+prog: 			fprintf(stderr, "treecost: out of memory\n");
+prog: 			status = 1;
+prog: 			break;
+prog: 		}
+prog: 		*n = (struct tnode){ .val = x };
+prog: 		*pp = n;
+prog: 		nodes++;
+prog: 		if (level > height)
+prog: 			height = level;
+prog: 	}
+prog: 
+prog: 	if (status == 0) {
+prog: 		size_t ideal = 0;   /* fewest levels that could hold this many nodes */
+prog: 		for (size_t room = 0; room < nodes; room = room * 2 + 1)
+prog: 			ideal++;
+prog: 		printf("nodes %zu height %zu ideal %zu compares %zu\n", nodes, height,
+prog: 			   ideal, compares);
+prog: 	}
+prog: 	free_tree(root);
+prog: 	return status;
+prog: }
+case: printf '4\n2\n6\n1\n3\n5\n7\n' | treecost
+case: seq 1 1000 | treecost
+case: seq 1000 -1 1 | treecost
+case: i=1; while [ $i -le 1000 ]; do echo $((i*7919%1009)); i=$((i+1)); done | treecost
+case: printf '1\n1\n1\n' | treecost; treecost </dev/null; seq 1 3001 | treecost 2>&1; echo $?
+hint: walk down from the root counting each node you look at; if you reach NULL link the new node there, and its level is the number of nodes on the way down plus one

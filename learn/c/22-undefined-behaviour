@@ -1,0 +1,286 @@
+name: undefined behaviour
+intro: Undefined behaviour (UB) is where the C standard stops promising.
+intro: Not "unspecified result" -- no promise at all about the whole program.
+intro: The compiler is allowed to assume it never happens, and it optimises
+intro: on that assumption. So UB is worse than a crash: it can look fine in
+intro: testing and break in production, or break only at `-O2`.
+intro:
+intro: The catalogue you will meet:
+intro:
+intro:     signed overflow       INT_MAX + 1, and abs(INT_MIN), -INT_MIN
+intro:     shifting too far      x << 32 on a 32-bit int, or a negative count
+intro:     out of bounds         a[10] on a[10]; a pointer far past the end
+intro:     uninitialised read    int x; use(x);
+intro:     use after free        read or write after free(p); free(p) twice
+intro:     NULL dereference      *p where p is NULL
+intro:     strict aliasing       reading a float's bytes through an int *
+intro:     unsequenced writes    i = i++ + 1;  f(i++, i++)
+intro:
+intro: Why the optimiser makes it worse: `if (x + 1 < x)` is meant to catch
+intro: overflow, but since overflow cannot happen the compiler deletes the
+intro: test. A loop `for (i = 0; i <= n; i++)` over a `char` or a signed
+intro: index may be assumed to end. Code after a NULL dereference is assumed
+intro: reachable only if the pointer was not NULL, so an earlier NULL check
+intro: may vanish.
+intro:
+intro: The fix is to never get there. Check the operands first:
+intro:
+intro:     if (b > 0 && a > INT_MAX - b)  /* a + b would overflow */
+intro:
+intro: Unsigned arithmetic wraps by definition (mod 2^N), so it is safe but
+intro: silently wrong if you wanted a real sum. `__builtin_add_overflow` is a
+intro: GCC and clang extension; it is not standard C and this compiler lacks
+intro: it, so write the range check yourself.
+intro:
+intro: Habits that catch the rest: initialise everything, pass a length with
+intro: every buffer and check it, set pointers to NULL after free, and use
+intro: `assert(cond)` for things that must be true (it is compiled out with
+intro: NDEBUG, so never put a side effect inside it). Compile with
+intro: `-Wall -Wextra`; build tests with `-fsanitize=undefined,address`.
+---
+q: strint.c -- turn text into an int, every edge handled
+spec: For each command-line argument, in order, print one line saying what
+spec: it is as a decimal `int`:
+spec:
+spec:   `empty`      the argument is the empty string
+spec:   `bad`        it begins with whitespace, or is not a whole number
+spec:                (no digits, trailing characters, `0x10`, `1.5`, `-`)
+spec:   `range`      it is a number but does not fit in an int
+spec:   `ok N`       the value, printed in decimal
+spec:
+spec: An optional leading `+` or `-` is allowed. No arguments prints
+spec: nothing. Exit 0.
+file: strint.c
+prog: #include <ctype.h>
+prog: #include <errno.h>
+prog: #include <limits.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	for (int i = 1; i < argc; i++) {
+prog: 		const char *s = argv[i];
+prog: 		if (s[0] == '\0') {
+prog: 			puts("empty");
+prog: 			continue;
+prog: 		}
+prog: 		if (isspace((unsigned char)s[0])) {
+prog: 			puts("bad");
+prog: 			continue;
+prog: 		}
+prog: 		char *end;
+prog: 		errno = 0;
+prog: 		long v = strtol(s, &end, 10);
+prog: 		if (end == s || *end != '\0')
+prog: 			puts("bad");
+prog: 		else if (errno == ERANGE || v < INT_MIN || v > INT_MAX)
+prog: 			puts("range");
+prog: 		else
+prog: 			printf("ok %ld\n", v);
+prog: 	}
+prog: 	return 0;
+prog: }
+case: strint 42 -7 +5 0 -0
+case: strint '' ' 5' 5x - + 0x10 1.5 2>&1
+case: strint 2147483647 2147483648 -2147483648 -2147483649 99999999999999999999 -99999999999999999999
+case: strint
+hint: strtol with errno zeroed first; check endptr, the empty string, leading space (strtol skips it), then ERANGE or a value outside INT_MIN and INT_MAX
+---
+q: chk64.c -- add, subtract and multiply without overflow
+spec: `chk64 OP A B` where OP is `add`, `sub` or `mul` and A and B are whole
+spec: decimal numbers that fit in a signed 64-bit integer. Print the result
+spec: in decimal and exit 0. If the true result does not fit in 64 bits,
+spec: print `overflow` and exit 1. Decide before computing: never let a
+spec: signed operation overflow.
+spec:
+spec: A wrong argument count or an OP that is not one of the three prints
+spec: `usage: chk64 OP A B` to standard error and exits 2. A number that is
+spec: not whole, or does not fit in 64 bits, prints `chk64: bad number` to
+spec: standard error and exits 2.
+file: chk64.c
+prog: #include <errno.h>
+prog: #include <stdint.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: static int parse(const char *s, int64_t *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long long v = strtoll(s, &end, 10);
+prog: 	if (end == s || *end != '\0' || errno == ERANGE)
+prog: 		return -1;
+prog: 	*out = v;
+prog: 	return 0;
+prog: }
+prog: 
+prog: /* each returns 1 and fills *r when the result fits, 0 when it would overflow */
+prog: static int add_ok(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+prog: 		return 0;
+prog: 	*r = a + b;
+prog: 	return 1;
+prog: }
+prog: 
+prog: static int sub_ok(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if ((b > 0 && a < INT64_MIN + b) || (b < 0 && a > INT64_MAX + b))
+prog: 		return 0;
+prog: 	*r = a - b;
+prog: 	return 1;
+prog: }
+prog: 
+prog: static int mul_ok(int64_t a, int64_t b, int64_t *r)
+prog: {
+prog: 	if (a > 0) {
+prog: 		if (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a)
+prog: 			return 0;
+prog: 	} else {
+prog: 		if (b > 0 ? a < INT64_MIN / b : (a != 0 && b < INT64_MAX / a))
+prog: 			return 0;
+prog: 	}
+prog: 	*r = a * b;
+prog: 	return 1;
+prog: }
+prog: 
+prog: int main(int argc, char **argv)
+prog: {
+prog: 	int64_t a, b, r;
+prog: 	if (argc != 4 || (strcmp(argv[1], "add") != 0 && strcmp(argv[1], "sub") != 0
+prog: 	    && strcmp(argv[1], "mul") != 0)) {
+prog: 		fprintf(stderr, "usage: chk64 OP A B\n");
+prog: 		return 2;
+prog: 	}
+prog: 	if (parse(argv[2], &a) != 0 || parse(argv[3], &b) != 0) {
+prog: 		fprintf(stderr, "chk64: bad number\n");
+prog: 		return 2;
+prog: 	}
+prog: 	int ok;
+prog: 	switch (argv[1][0]) {
+prog: 	case 'a': ok = add_ok(a, b, &r); break;
+prog: 	case 's': ok = sub_ok(a, b, &r); break;
+prog: 	default:  ok = mul_ok(a, b, &r); break;
+prog: 	}
+prog: 	if (!ok) {
+prog: 		puts("overflow");
+prog: 		return 1;
+prog: 	}
+prog: 	printf("%lld\n", (long long)r);
+prog: 	return 0;
+prog: }
+case: chk64 add 9223372036854775807 1; echo $?; chk64 add 9223372036854775806 1; chk64 add -9223372036854775808 -1; echo $?
+case: chk64 sub -9223372036854775808 1; echo $?; chk64 sub 0 -9223372036854775808; echo $?; chk64 sub -1 -9223372036854775808
+case: chk64 mul 4294967296 2147483648; echo $?; chk64 mul 4294967296 2147483647; chk64 mul -3 4
+case: chk64 mul -9223372036854775808 -1; echo $?; chk64 mul -9223372036854775808 1; chk64 mul 0 -9223372036854775808
+case: chk64 add 1 x 2>&1; echo $?; chk64 add 99999999999999999999 1 2>&1; echo $?; chk64 div 1 2 2>&1; echo $?
+hint: for add, compare a against INT64_MAX - b when b is positive and INT64_MIN - b when negative; for mul split on the signs of a and b and divide the limit by one of them
+---
+q: bbuf.c -- a buffer that checks every index
+spec: Keep a buffer of 8 ints, empty at first, behind functions that
+spec: check every access. Read commands from standard input, one per line:
+spec:
+spec:   `push V`   append V; print `ok`, or `full` if 8 are already stored
+spec:   `get I`    print the int at index I; `range` if I is below 0 or not
+spec:              less than the count stored
+spec:   `set I V`  overwrite index I and print `ok`; `range` likewise
+spec:   `len`      print how many are stored
+spec:
+spec: I is a whole decimal number from -1000000 to 1000000; V is a whole
+spec: decimal number that fits in an int. Anything else -- a missing or bad
+spec: number, extra words, an unknown command -- prints `?`. Exit 0.
+file: bbuf.c
+prog: #include <errno.h>
+prog: #include <limits.h>
+prog: #include <stdbool.h>
+prog: #include <stdio.h>
+prog: #include <stdlib.h>
+prog: #include <string.h>
+prog: 
+prog: #define CAP 8
+prog: 
+prog: struct buf {
+prog: 	int data[CAP];
+prog: 	size_t len;
+prog: };
+prog: 
+prog: static bool buf_push(struct buf *b, int v)
+prog: {
+prog: 	if (b->len == CAP)
+prog: 		return false;
+prog: 	b->data[b->len++] = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool buf_get(const struct buf *b, long i, int *out)
+prog: {
+prog: 	if (i < 0 || (unsigned long)i >= b->len)
+prog: 		return false;
+prog: 	*out = b->data[i];
+prog: 	return true;
+prog: }
+prog: 
+prog: static bool buf_set(struct buf *b, long i, int v)
+prog: {
+prog: 	if (i < 0 || (unsigned long)i >= b->len)
+prog: 		return false;
+prog: 	b->data[i] = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: /* a whole decimal number inside lo..hi; sscanf cannot say "too big" safely */
+prog: static bool num(const char *s, long lo, long hi, long *out)
+prog: {
+prog: 	char *end;
+prog: 	errno = 0;
+prog: 	long v = strtol(s, &end, 10);
+prog: 	if (end == s || *end != '\0' || errno == ERANGE || v < lo || v > hi)
+prog: 		return false;
+prog: 	*out = v;
+prog: 	return true;
+prog: }
+prog: 
+prog: /* split a line into at most four words, in place; returns how many */
+prog: static int words(char *line, char **w)
+prog: {
+prog: 	int n = 0;
+prog: 	for (char *t = strtok(line, " \n"); t != NULL && n < 4; t = strtok(NULL, " \n"))
+prog: 		w[n++] = t;
+prog: 	return n;
+prog: }
+prog: 
+prog: int main(void)
+prog: {
+prog: 	struct buf b = { .len = 0 };
+prog: 	char line[64];
+prog: 
+prog: 	while (fgets(line, sizeof line, stdin) != NULL) {
+prog: 		char *w[4];
+prog: 		long i, v;
+prog: 		int n = words(line, w);
+prog: 		if (n == 2 && strcmp(w[0], "push") == 0 && num(w[1], INT_MIN, INT_MAX, &v)) {
+prog: 			puts(buf_push(&b, (int)v) ? "ok" : "full");
+prog: 		} else if (n == 2 && strcmp(w[0], "get") == 0 && num(w[1], -1000000, 1000000, &i)) {
+prog: 			int out;
+prog: 			if (buf_get(&b, i, &out))
+prog: 				printf("%d\n", out);
+prog: 			else
+prog: 				puts("range");
+prog: 		} else if (n == 3 && strcmp(w[0], "set") == 0 && num(w[1], -1000000, 1000000, &i)
+prog: 		    && num(w[2], INT_MIN, INT_MAX, &v)) {
+prog: 			puts(buf_set(&b, i, (int)v) ? "ok" : "range");
+prog: 		} else if (n == 1 && strcmp(w[0], "len") == 0) {
+prog: 			printf("%zu\n", b.len);
+prog: 		} else {
+prog: 			puts("?");
+prog: 		}
+prog: 	}
+prog: 	return 0;
+prog: }
+case: printf 'push 5\npush 7\nlen\nget 0\nget 1\nget 2\nget -1\n' | bbuf
+case: printf 'push 1\nset 0 9\nset 1 9\nget 0\nset -1 2\nset 0 -4\nget 0\n' | bbuf
+case: yes 'push 3' | head -n 10 | bbuf
+case: printf 'push\npush x\nget\nfoo 1\nlen extra\npush 2147483648\nget 5000000\n' | bbuf
+hint: a struct with the array and a length; one function per operation that tests the index against the length first and reports failure instead of touching memory
