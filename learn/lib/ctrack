@@ -208,7 +208,10 @@ c_prelude() {
 	if [ "${2:-}" = tty ]; then
 		printf '%s() { C_TTY=1 C_TO=300 %s "$@" 4>&2 2>/dev/null; }\n' "$fn" "$via"
 	else
-		printf '%s() { %s "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s"; head -c 65536 "%s.e" >&2; return $_r; }\n' \
+		# the replay's own complaint is dropped: under a parent that ignores
+		# SIGPIPE (git's pre-push) `flip | head -n 3` makes it print "Broken
+		# pipe" on stderr -- or not, by timing -- and the case flips with it.
+		printf '%s() { %s "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s" 2>/dev/null; head -c 65536 "%s.e" >&2; return $_r; }\n' \
 			"$fn" "$via" "$out" "$out" "$out" "$out"
 	fi
 }
