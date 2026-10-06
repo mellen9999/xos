@@ -33,6 +33,18 @@ intro:
 intro: The last program has to hold the whole input before it can print
 intro: the first line of its answer, so it grows a buffer with `realloc`.
 intro: Ask for double each time; check every call; free at the end.
+intro:
+intro: Two helpers the programs here lean on. `<ctype.h>` sorts one byte:
+intro: `isspace` (blank, tab, newline), `isdigit`, `isalpha` (a letter) and
+intro: `isalnum` (a letter or a digit), and `tolower` turns `A` into `a`. Give
+intro: each the `int` that `getc` returned, or cast a `char` first, as in
+intro: `isspace((unsigned char)s[i])`: a negative char is undefined there.
+intro:
+intro: `strcspn(s, "\n")` counts the bytes before the first newline, so
+intro:
+intro:     buf[strcspn(buf, "\n")] = '\0';
+intro:
+intro: cuts off the newline `fgets` kept, and does nothing when there is none.
 ---
 q: wcount.c -- count lines, words and bytes
 spec: With no argument read standard input; with one, read that file. Print

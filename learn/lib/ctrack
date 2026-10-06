@@ -840,6 +840,52 @@ c_gloss_check() {
 	return "$n"
 }
 
+# c_taught -- every library call a reference makes is named by a lesson, a
+# task, a hint or a starter at or before its unit: after a pass the reference
+# is one key away, and a call nothing taught is a magic line to copy. a name
+# the program defines itself (a column-0 definition, a #define) is its own;
+# `name(` with no space is a call, which leaves `if (` and `enum e (` out.
+# returns the misses.
+c_taught() {
+	local n
+	n=$(awk '
+		function words(t,   k, i, w) {
+			k = split(t, w, /[^A-Za-z0-9_]+/)
+			for (i = 1; i <= k; i++) if (w[i] != "") taught[w[i]] = 1
+		}
+		function flush(   s, m, pre, name, line, k, i, L) {
+			if (prog == "") return
+			delete def
+			k = split(prog, L, "\n")
+			for (i = 1; i <= k; i++) {
+				line = L[i]
+				if (line ~ /^#define[ \t]/) { m = line; sub(/^#define[ \t]+/, "", m); sub(/[^A-Za-z0-9_].*/, "", m); def[m] = 1 }
+				else if (line ~ /^[A-Za-z_]/ && match(line, /[A-Za-z_][A-Za-z0-9_]*\(/)) def[substr(line, RSTART, RLENGTH - 1)] = 1
+			}
+			s = prog
+			while (match(s, /[A-Za-z_][A-Za-z0-9_]*\(/)) {
+				name = substr(s, RSTART, RLENGTH - 1); pre = substr(s, 1, RSTART - 1)
+				s = substr(s, RSTART + RLENGTH)
+				if (pre ~ /(enum|struct|union)[ \t]*$/ || pre ~ /[A-Za-z0-9_]$/) continue
+				if (name ~ /^(main|sizeof|defined|_Static_assert|_Alignof)$/) continue
+				if ((name in def) || (name in taught) || ((unit SUBSEP name) in told)) continue
+				told[unit, name] = 1
+				print unit "#" idx " " name
+			}
+			prog = ""
+		}
+		FNR == 1 { flush(); unit = FILENAME; sub(/.*\//, "", unit); idx = 0 }
+		/^---/ { flush(); idx++; next }
+		/^(intro|spec|hint|q|start):/ { t = $0; sub(/^[a-z]+:/, "", t); words(t); next }
+		/^prog:/ { t = $0; sub(/^prog: ?/, "", t); prog = prog t "\n"; next }
+		END { flush() }
+	' "$CUNITS"/* | while read -r at name; do
+		echo "FAIL c/$at: the reference calls $name, which no lesson up to here names" >&2
+		echo x
+	done | grep -c x)
+	return "${n:-0}"
+}
+
 # c_check -- the compiled half: every reference builds under C_FLAGS, then
 # again under STRICT (the build passes gcc's -std=c11 -Wall -Wextra -pedantic
 # -Werror) so a reference that only tcc accepts is caught; it reproduces
@@ -850,6 +896,7 @@ c_check() {
 	c_tools || { echo "FAIL c: $CC_WHY" >&2; return 1; }
 	c_lint || bad=$((bad + $?))
 	c_gloss_check || bad=$((bad + $?))
+	c_taught || bad=$((bad + $?))
 	c_enter
 	for pid in $(project_ids); do
 		path=$(prj_path "$pid"); nq=$(prj_nq "$pid"); i=1

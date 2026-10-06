@@ -44,6 +44,10 @@ intro:
 intro: Start every owned thing as NULL so cleanup can free what exists.
 intro: In your own functions, return 0 for success and nonzero for failure,
 intro: the way programs do.
+intro:
+intro: `fputs(s, f)` writes a string to any stream exactly as it is. Unlike
+intro: `puts` it adds no newline, so `fputs("bad input\n", stderr)` sends a
+intro: fixed message to standard error.
 ---
 q: fdump.c -- copy a file to standard output
 spec: Take exactly one argument, a file name. Copy the file's bytes to

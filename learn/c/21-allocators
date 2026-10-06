@@ -38,6 +38,12 @@ intro: payload and a "next free" link -- so alloc and free are one step each.
 intro: Freeing a block twice corrupts that list, so check before you push.
 intro:
 intro: Always ask who owns each thing, and when it ends.
+intro:
+intro: Memory you hand out must suit any type that is put in it. A static array
+intro: of bytes promises only byte alignment; `_Alignas(16)` on its declaration
+intro: puts it on a 16-byte boundary, enough for every basic type here:
+intro:
+intro:     _Alignas(16) static unsigned char mem[4096];
 ---
 q: bumpoff.c -- hand out aligned bytes from a fixed arena
 spec: Keep an arena of 256 bytes, starting empty and 16-byte aligned. Read

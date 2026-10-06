@@ -47,6 +47,9 @@ intro:     }
 intro:
 intro: `main` returns int because that number is the exit status the caller
 intro: reads. A function that promises a value must return one on every path.
+intro:
+intro: `putchar(c)` prints one character: `putchar('\n')` ends a line. It is
+intro: printf for a single char, with nothing to format.
 ---
 q: fact.c -- factorials by recursion
 spec: Write a `static uint64_t factorial(unsigned n)` that calls itself, with

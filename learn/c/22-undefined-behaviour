@@ -39,6 +39,9 @@ intro: `assert(cond)` for things that must be true (it is compiled out with
 intro: NDEBUG, so never put a side effect inside it). Compile with
 intro: `-Wall -Wextra`; build tests with `-fsanitize=undefined,address`
 intro: (gcc/clang only).
+intro:
+intro: `strtoll` is `strtol` for a `long long`: the same `end` pointer to see
+intro: where the number stopped, the same `errno == ERANGE` when it is too big.
 ---
 q: strint.c -- turn text into an int, every edge handled
 spec: For each command-line argument, in order, print one line saying what

@@ -40,6 +40,10 @@ intro:
 intro: At EOF the loop ends, but the machine may be mid-token. Always ask
 intro: what each state means at end of input: a number just ends, a string
 intro: is an error. Ignoring this is how real parsers accept half a file.
+intro:
+intro: `strspn(s, " ")` is the twin of `strcspn`: the length of the run at the
+intro: start of `s` made only of those bytes. `s += strspn(s, " \t");` skips
+intro: blanks, and `strspn(s, " ") == len` means the line is all spaces.
 ---
 q: div3.c -- is this binary number a multiple of 3
 spec: Read characters from standard input. Each `0` or `1` is the next bit of

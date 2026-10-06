@@ -36,6 +36,9 @@ intro: hunt. Errors go to stderr. Call `fflush(stdout)` first as good
 intro: practice: stdout is buffered when it is a pipe or a file, and
 intro: stderr is not, so the two streams can otherwise interleave out of
 intro: order when you read them together.
+intro:
+intro: `memcmp(a, b, n)` compares n bytes and returns 0 when they all match:
+intro: `strcmp` for bytes that are not a string, so no `\0` is needed.
 ---
 q: wordsplit.c -- split lines into words
 spec: Reads standard input and prints every word on every line, one per
