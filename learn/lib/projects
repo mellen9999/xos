@@ -106,10 +106,11 @@ prj_run() {
 PRJ_CASE= PRJ_GOT= PRJ_WANT=
 prj_grade() {
 	local work=$1 name=${Q_FILE:-answer.sh} ref="$TMP/prj.ref" c got want gs ws
-	PRJ_CASE= PRJ_GOT= PRJ_WANT= PRJ_CERR=
+	PRJ_CASE= PRJ_GOT= PRJ_WANT= PRJ_CERR= PRJ_GS= PRJ_WS= PRJ_NO=0
 	[ -n "$Q_CASES" ] || return 1
 	printf '%s\n' "$Q_PROG" > "$ref" || return 1
-	printf '%s\n' "$Q_CASES" > "$TMP/prj.cases"
+	printf '%s\n' "$Q_CASES" | grep . > "$TMP/prj.cases"
+	PRJ_NC=$(grep -c '' "$TMP/prj.cases")
 	# a tree that cannot be built fails both sides identically, and identical
 	# reads as a pass: say so instead of grading against nothing.
 	SANDBOX_DIRTY=1
@@ -122,6 +123,7 @@ prj_grade() {
 	fi
 	while IFS= read -r c <&4; do
 		[ -n "$c" ] || continue
+		PRJ_NO=$((PRJ_NO + 1))
 		if [ "$PRJ_LANG" = c ]; then
 			got=$(c_run work "$c"); gs=$?
 			want=$(c_run ref "$c"); ws=$?
@@ -130,7 +132,7 @@ prj_grade() {
 			want=$(prj_run "$ref"  "$name" "$c"); ws=$?
 		fi
 		[ "$got" = "$want" ] && [ "$gs" = "$ws" ] && continue
-		PRJ_CASE=$c; PRJ_GOT=$got; PRJ_WANT=$want
+		PRJ_CASE=$c; PRJ_GOT=$got; PRJ_WANT=$want; PRJ_GS=$gs; PRJ_WS=$ws
 		return 1
 	done 4< "$TMP/prj.cases"
 	[ -z "$PRJ_CASE" ]
@@ -157,7 +159,7 @@ prj_cases_bite() {
 # handed. learn hands the terminal over the way playground does and takes it
 # back the same way.
 ask_program() {
-	local path=$1 idx=$2 pid=$3 name work k rc
+	local path=$1 idx=$2 pid=$3 name work k rc missed
 	q_load "$path" "$idx" || return 1
 	name=${Q_FILE:-answer.sh}
 	# keyed by file too: a bare index handed unit 02's first program the code
@@ -178,19 +180,46 @@ ask_program() {
 	printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
 	[ -n "$Q_SPEC" ] && { printf '%s\n' "$Q_SPEC" | say; echo; }
 	if [ "$PRJ_LANG" = c ]; then
-		note "you are writing $name. it compiles and runs when you leave vi."
-		note "in vi: i to type, esc to stop, :wq to save and leave."
+		note "$name compiles and runs when you leave vi."
+		note "vi: i types, esc stops, :wq saves and quits"
 	else
 		note "you are writing $name.  it is run for you when you leave the editor."
 	fi
 
+	missed=0
 	while :; do
 		rule
-		printf '  %se%s edit   %sr%s run it   %sa%s show the answer   %sq%s leave\n' \
-			"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+		if [ "$PRJ_LANG" = c ]; then
+			# one key a job; d only once there is a miss to look at
+			# two short rows: a phone's terminal is narrow
+			printf '  %se%s edit   %sr%s run    %sh%s hint   %ss%s spec\n' \
+				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+			printf '  %sl%s lesson  %sa%s answer ' "$C$B" "$N" "$C$B" "$N"
+			[ "$missed" = 1 ] && printf ' %sd%s diff  ' "$C$B" "$N"
+			printf ' %sq%s quit\n' "$C$B" "$N"
+		else
+			printf '  %se%s edit   %sr%s run it   %sa%s show the answer   %sq%s leave\n' \
+				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+		fi
 		printf '  %schoose%s ' "$D" "$N"
 		IFS= read -rsn1 k 2>/dev/null || return 2
 		echo
+		case "$PRJ_LANG$k" in
+			ch)  rule; printf 'hint: %s\n' "$Q_HINT" | say; continue ;;
+			cs)  rule; printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
+			     printf '%s\n' "$Q_SPEC" | say; continue ;;
+			cl)  cls; prj_field "$pid" intro | say | c_page
+			     [ $? = 3 ] || pause_card; cls; continue ;;
+			cd)  [ "$missed" = 1 ] && { cls; c_full; cls; c_miss; }; continue ;;
+			ca)  rule
+			     printf '  %sshow the reference? try a hint first. [y/N]%s ' "$Y" "$N"
+			     IFS= read -rsn1 k 2>/dev/null; echo
+			     case "$k" in y|Y) ;; *) continue ;; esac
+			     { echo "  the reference -- yours does not have to look like it."; echo
+			       printf '%s\n' "$Q_PROG" | sed 's/^/    /'; } | c_page
+			     [ $? = 3 ] || pause_card
+			     continue ;;
+		esac
 		case "$k" in
 			e|'')  prj_edit "$work" "$name" "$C_LINE" || continue ;;
 			r)     ;;
@@ -203,10 +232,19 @@ ask_program() {
 		esac
 		rule
 		note "$([ "$PRJ_LANG" = c ] && echo "compiling, then running" || echo running) $(printf '%s\n' "$Q_CASES" | grep -c .) case(s)..."
-		if prj_grade "$work"; then
+		prj_grade "$work"; rc=$?
+		if [ "$PRJ_LANG" = c ] && [ -z "$PRJ_CERR" ] && [ -n "${C_WARN:-}" ]; then
+			note "it compiles, with warnings -- not errors here, but fix them:"
+			printf '%s\n' "$C_WARN" | wrap $(( COLS - 6 )) | sed 's/^/    /'
+		fi
+		if [ "$rc" = 0 ]; then
 			ok "every case matches. $(prj_field "$pid" name) -- $name is done."
 			prj_mark "$pid" "$idx"
 			return 0
+		fi
+		if [ "$PRJ_CASE" = "(sandbox)" ]; then
+			no "$PRJ_GOT -- not your program; try again, or restart learn."
+			continue
 		fi
 		if [ "$PRJ_CASE" = "(the reference)" ]; then
 			no "the reference program does not build here -- a corpus bug, not yours:"
@@ -215,11 +253,16 @@ ask_program() {
 		fi
 		if [ -n "$PRJ_CERR" ]; then
 			no "it does not compile"
-			printf '%s\n' "$PRJ_CERR" | cut -c1-$(( COLS - 4 )) | sed 's/^/    /'
+			printf '%s\n' "$PRJ_CERR" | wrap $(( COLS - 6 )) | sed 's/^/    /'
 			[ -n "$C_LINE" ] && note "e opens vi on line $C_LINE."
 			continue
 		fi
 		C_LINE=""
+		if [ "$PRJ_LANG" = c ]; then
+			missed=1
+			c_miss
+			continue
+		fi
 		no "a case did not match"
 		_c_row case "$PRJ_CASE"
 		_c_row yours  "$(_c_line "$PRJ_GOT")"
@@ -255,7 +298,7 @@ prj_edit() {
 
 # a project file: every program in it, in the order it was written.
 run_project() {
-	local pid=$1 nq i rc done_=0
+	local pid=$1 nq i rc done_
 	nq=$(prj_nq "$pid")
 	[ "${nq:-0}" -gt 0 ] || { note "project '$pid' is empty"; return 0; }
 
@@ -269,20 +312,24 @@ run_project() {
 	esac
 
 	MODE=learn
+	# pick up at the first program not yet written: coming back to a unit
+	# used to start it over at its first program. all written -> from the top.
 	i=1
+	while [ "$i" -le "$nq" ] && prj_is_done "$pid" "$i"; do i=$((i + 1)); done
+	[ "$i" -le "$nq" ] || i=1
 	while [ "$i" -le "$nq" ]; do
 		cls
 		statusbar "$(prj_field "$pid" name)" "$([ "$PRJ_LANG" = c ] && echo c || echo project)" "$i" "$nq" ""
 		ask_program "$(prj_path "$pid")" "$i" "$pid"; rc=$?
 		[ "$rc" = 2 ] && return 2
-		[ "$rc" = 0 ] && done_=$((done_ + 1))
 		i=$((i + 1))
 		pause_card || return 2
 	done
 
 	cls
 	rule
-	if [ "$done_" -eq "$nq" ]; then ok "$(prj_field "$pid" name) -- written."
+	done_=$(prj_ndone "$pid")
+	if [ "$done_" -ge "$nq" ]; then ok "$(prj_field "$pid" name) -- written."
 	else no "$(prj_field "$pid" name) -- $done_ of $nq. come back to it."; fi
 	pause_card
 }

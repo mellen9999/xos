@@ -28,9 +28,13 @@ CUNITS="$ROOT/c"
 C_DONE="$STATE/c"
 C_WORK="$STATE/c-work"
 C_INDEX="$TMP/c.index"
-# c11, warnings are errors: the track teaches warning-clean c, and the reference
-# for every program is held to stricter than this at build time (c_check).
+# c11, -Wall is fatal: the track teaches warning-clean c, and the reference for
+# every program is held to stricter than this at build time (c_check). the bar
+# is the same on every compiler -- tcc knows little past -Wall, so a gcc or a
+# clang (a phone's) runs -Wextra -pedantic as a second, non-fatal pass whose
+# warnings are shown, never a wall the stick would not have put up.
 C_FLAGS="-std=c11 -Wall -Werror"
+C_LINT=""
 CC_CMD="" CC_RUN="" CC_WHY=""
 PRJ_LANG=sh
 C_LINE=""
@@ -49,11 +53,9 @@ c_tools() {
 		CC_WHY="no c compiler. on xos: stage the arsenal (sh arsenal/install.sh) so ~/tools/cc exists. on a pc: install gcc, or run learn/install.sh after building arsenal/cc."
 		return 1
 	fi
-	# a cc that is not tcc is the host's gcc or clang: hold the learner to the
-	# same bar the references are held to.
 	case "$($CC_CMD -v 2>&1 | head -1)" in
 		*tcc*) ;;
-		*) C_FLAGS="$C_FLAGS -Wextra -pedantic" ;;
+		*) C_LINT="-std=c11 -Wall -Wextra -pedantic -fsyntax-only" ;;
 	esac
 	return 0
 }
@@ -77,17 +79,24 @@ c_starter() {
 # first line it complained about.
 c_build() {
 	local src=$1 stage="$TMP/c.stage.$2" bd="$TMP/c.build"
-	C_ERR="" C_LINE=""
+	C_ERR="" C_LINE="" C_WARN=""
 	c_tools || { C_ERR=$CC_WHY; return 1; }
 	# the same bytes built once a session: the reference is rebuilt on every
 	# submit otherwise, and on the stick each build stages a 38MB compiler.
-	[ -s "$stage/prog" ] && [ -x "$stage/run" ] && cmp -s "$src" "$stage/src" && return 0
+	if [ -s "$stage/prog" ] && [ -x "$stage/run" ] && cmp -s "$src" "$stage/src"; then
+		C_WARN=$(cat "$stage/warn" 2>/dev/null); return 0
+	fi
 	rm -rf "$stage" "$bd"; mkdir -p "$stage" "$bd" || return 1
 	cp "$src" "$bd/$Q_FILE" || return 1
 	# shellcheck disable=SC2086
 	if ! ( cd "$bd" && $CC_CMD $C_FLAGS -o "$stage/prog" "$Q_FILE" ) > "$TMP/c.err" 2>&1 \
 	   || [ ! -s "$stage/prog" ]; then
-		C_ERR=$(grep . "$TMP/c.err" | head -8)
+		# the message lines only: gcc and clang draw the line and a caret
+		# under it, which a narrow screen wraps into noise -- and `e` puts
+		# you on that line anyway. a compiler that says nothing in that
+		# shape keeps its raw output.
+		C_ERR=$(grep -E ':[0-9]+(:[0-9]+)?: (fatal )?(error|warning|note):' "$TMP/c.err" | head -8)
+		[ -n "$C_ERR" ] || C_ERR=$(grep . "$TMP/c.err" | head -10)
 		[ -n "$C_ERR" ] || C_ERR="the compiler failed and said nothing"
 		C_LINE=$(sed -n "s/^[^:]*$Q_FILE:\([0-9][0-9]*\):.*/\1/p" "$TMP/c.err" | head -1)
 		return 1
@@ -108,15 +117,20 @@ c_build() {
 		# memory is capped on the heap (-d), not the address space (-v): an
 		# android libc reserves gigabytes it never touches, and under -v every
 		# program died before main.
-		echo 'ulimit -t 3 2>/dev/null; ulimit -d 262144 2>/dev/null; ulimit -f 128 2>/dev/null'
+		# output: 2MB, so a program meant to write a lot (a case piping it to
+		# `wc -c`) is graded on all of it, and a runaway still ends there.
+		echo 'ulimit -t 3 2>/dev/null; ulimit -d 262144 2>/dev/null; ulimit -f 4096 2>/dev/null'
 		echo '[ -n "${C_TMPDIR:-}" ] && TMPDIR=$C_TMPDIR && export TMPDIR'
 		# its own session (setsid), killed whole afterwards: a child it forked
 		# and left behind would otherwise outlive the case and spend the next
 		# run's process budget. as nobody, every process nobody still owns goes
 		# too -- that catches a child that started a session of its own. stdin
 		# is handed over by name: a background job's is /dev/null otherwise.
-		echo 'exec 3<&0'
-		echo "setsid timeout 4 $DROP \"\${0%/*}/prog\" \"\$@\" <&3 3<&- &"
+		# the program's stderr is handed over by name too, and this shell's
+		# own goes to /dev/null: it reports a job the limits killed with
+		# its pid, and a pid on stderr would make every such case differ.
+		echo 'exec 3<&0 4>&2 2>/dev/null'
+		echo "setsid timeout 4 $DROP \"\${0%/*}/prog\" \"\$@\" <&3 2>&4 3<&- 4>&- &"
 		echo 'p=$!; wait $p; r=$?'
 		echo 'kill -9 -- -$p 2>/dev/null'
 		[ -n "$DROP" ] && echo "$DROP kill -9 -1 2>/dev/null"
@@ -124,14 +138,22 @@ c_build() {
 	} > "$stage/run"
 	chmod 0755 "$stage/run" "$stage/prog" 2>/dev/null
 	cp "$src" "$stage/src" 2>/dev/null
+	if [ -n "$C_LINT" ]; then
+		# shellcheck disable=SC2086
+		( cd "$bd" && $CC_CMD $C_LINT "$Q_FILE" ) 2>&1 | grep 'warning:' | head -6 > "$stage/warn"
+		C_WARN=$(cat "$stage/warn")
+	fi
 	# under the drop nobody must be able to reach the binary on the host route
 	chmod 0755 "$stage" 2>/dev/null
 	return 0
 }
 
 # c_prelude TAG -- the shell function a case calls the program through. its
-# output goes via a file so `ulimit -f` caps it and a case's own pipes and
-# `echo $?` see the program's status, not a pipe's.
+# output goes via files so `ulimit -f` caps it and a case's own pipes and
+# `echo $?` see the program's status, not a pipe's. stdout and stderr go to
+# two files and come back out on their own streams, stdout first: which
+# stream a line went to is graded, and the order the two interleave in --
+# buffering, not the program -- can no longer decide a case.
 c_prelude() {
 	local stage="$TMP/c.stage.$1" out="$TMP/c.out.$1" fn
 	fn=$(c_fn "$Q_FILE")
@@ -140,13 +162,13 @@ c_prelude() {
 		# a .xexec.RANDOM dir in the cwd would be a different name for the
 		# learner's run and the reference's, and a program that lists its
 		# directory would never match.
-		printf '%s() { C_TMPDIR=$TMPDIR TMPDIR="%s" %s "%s" run "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
-			"$fn" "$TMP" "$CC_RUN" "$stage" "$out" "$out"
+		printf '%s() { C_TMPDIR=$TMPDIR TMPDIR="%s" %s "%s" run "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s"; head -c 65536 "%s.e" >&2; return $_r; }\n' \
+			"$fn" "$TMP" "$CC_RUN" "$stage" "$out" "$out" "$out" "$out"
 	else
 		# learn's own shell, not whatever sh is: a phone's is dash, which has
 		# no `ulimit -u`, and the run script is written for ash.
-		printf '%s() { "%s" "%s/run" "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
-			"$fn" "$SHELLBIN" "$stage" "$out" "$out"
+		printf '%s() { "%s" "%s/run" "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s"; head -c 65536 "%s.e" >&2; return $_r; }\n' \
+			"$fn" "$SHELLBIN" "$stage" "$out" "$out" "$out" "$out"
 	fi
 }
 
@@ -158,15 +180,26 @@ c_prelude() {
 # timeout kills only the shell, and a pipeline stage it forked -- `yes` under
 # a parent that ignores SIGPIPE, as git does for a pre-push hook -- would
 # spin on, orphaned, holding the output pipe this reads, forever.
+#
+# what the case printed comes back as its stdout, then -- only when there is
+# any -- a `--- stderr ---` line and its stderr: both streams are compared.
 c_run() {
+	local o="$TMP/c.case.o" e="$TMP/c.case.e" r
 	SANDBOX_DIRTY=1
 	sandbox_reset || return 1
 	( cd "$SANDBOX" 2>/dev/null || exit 1
 	  HOME="$SANDBOX" TMPDIR="$SANDBOX" setsid timeout 10 "$SHELLBIN" -c "$(c_prelude "$1")
-$2" </dev/null 2>&1 &
+$2" </dev/null > "$o" 2> "$e" &
 	  p=$!; wait "$p"; r=$?
 	  kill -9 -- "-$p" 2>/dev/null
-	  exit "$r" )
+	  exit "$r" ); r=$?
+	head -c 2097152 "$o"
+	if [ -s "$e" ]; then
+		[ -s "$o" ] && [ -n "$(tail -c 1 "$o")" ] && echo
+		echo '--- stderr ---'
+		head -c 65536 "$e"
+	fi
+	return "$r"
 }
 
 # c_page -- page stdin a screen at a time: space/j/enter on, k/b back, q done.
@@ -198,6 +231,56 @@ c_page() {
 	done
 }
 
+# c_miss -- the last miss, said the way it is found: which case, the first line
+# that differs (quoted, so a trailing space shows), and the exit status when it
+# differs -- a status-only miss used to print two identical-looking outputs.
+c_miss() {
+	local g="$TMP/c.got" w="$TMP/c.want" d n y x cut=$(( COLS - 14 ))
+	no "case $PRJ_NO of $PRJ_NC did not match"
+	_c_row case "$PRJ_CASE"
+	if [ "$PRJ_GOT" = "$PRJ_WANT" ]; then
+		note "the output matches -- only the exit status differs."
+	else
+		printf '%s\n' "$PRJ_GOT" > "$g"; printf '%s\n' "$PRJ_WANT" > "$w"
+		[ -n "$PRJ_GOT" ] || : > "$g"; [ -n "$PRJ_WANT" ] || : > "$w"
+		d=$(awk -v g="$g" -v w="$w" 'BEGIN {
+			while ((getline l < g) > 0) a[++na] = l
+			while ((getline l < w) > 0) b[++nb] = l
+			n = na > nb ? na : nb
+			for (i = 1; i <= n; i++) if (i > na || i > nb || a[i] != b[i]) {
+				print i; print (i > na ? "\001" : a[i]); print (i > nb ? "\001" : b[i]); exit }
+		}')
+		n=$(printf '%s\n' "$d" | sed -n 1p)
+		y=$(printf '%s\n' "$d" | sed -n 2p)
+		x=$(printf '%s\n' "$d" | sed -n 3p)
+		_c_row line "$n"
+		if [ "$y" = "$(printf '\001')" ]; then _c_row yours "(your output ends before this line)"
+		else _c_row yours "'$(printf '%s' "$y" | cut -c1-$cut)'"; fi
+		if [ "$x" = "$(printf '\001')" ]; then _c_row wanted "(nothing more -- yours goes on)"
+		else _c_row wanted "'$(printf '%s' "$x" | cut -c1-$cut)'"; fi
+	fi
+	[ "$PRJ_GS" = "$PRJ_WS" ] || _c_row exit "yours $PRJ_GS, wanted $PRJ_WS"
+	# the right words on the wrong stream reads as a strange diff; say it
+	if [ "$PRJ_GOT" != "$PRJ_WANT" ] && [ "$(printf '%s\n' "$PRJ_GOT" | grep -vxF -- '--- stderr ---' | sort)" = \
+	     "$(printf '%s\n' "$PRJ_WANT" | grep -vxF -- '--- stderr ---' | sort)" ]; then
+		note "the right lines, on the wrong stream: stdout vs stderr."
+	fi
+}
+
+# c_full -- both outputs of the last miss, whole, through the pager.
+c_full() {
+	{
+		echo "  case: $PRJ_CASE"
+		echo
+		echo "  yours (exit $PRJ_GS):"
+		printf '%s\n' "$PRJ_GOT" | sed 's/^/    /'
+		echo
+		echo "  wanted (exit $PRJ_WS):"
+		printf '%s\n' "$PRJ_WANT" | sed 's/^/    /'
+	} | c_page
+	[ $? = 3 ] || pause_card
+}
+
 c_enter() {
 	_C_P=$PROJECTS _C_D=$PRJ_DONE _C_I=$PRJ_INDEX
 	PROJECTS=$CUNITS PRJ_DONE=$C_DONE PRJ_INDEX=$C_INDEX PRJ_LANG=c
@@ -227,7 +310,7 @@ c_menu() {
 		prj_index
 		n=$(grep -c '' "$PRJ_INDEX")
 		rows=$(( ${TERM_LINES:-24} - 7 ))
-		two=0; [ "$n" -gt "$rows" ] && two=1
+		two=0; [ "$n" -gt "$rows" ] && [ "${TERM_COLS:-80}" -ge 76 ] && two=1
 		next=""; i=0
 		cls
 		hdr "learn c" "read it, write it in vi, it compiles and runs"
@@ -241,8 +324,8 @@ c_menu() {
 		[ $((i % 2)) = 1 ] && [ "$two" = 1 ] && echo
 		echo
 		if [ -n "$next" ]; then
-			printf '  %senter%s go on: %s   %snumber%s a unit   %sq%s back\n' \
-				"$C$B" "$N" "$(prj_field "$next" name)" "$C$B" "$N" "$C$B" "$N"
+			printf '  %senter%s go on: %s\n' "$C$B" "$N" "$(prj_field "$next" name)"
+			printf '  %snumber%s a unit   %sq%s back\n' "$C$B" "$N" "$C$B" "$N"
 		else
 			ok "every unit written. the track is yours."
 			printf '  %snumber%s a unit   %sq%s back\n' "$C$B" "$N" "$C$B" "$N"

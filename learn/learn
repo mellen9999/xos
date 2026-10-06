@@ -1446,7 +1446,7 @@ case "${1:-}" in
 	          	IFS= read -r _ok 2>/dev/null; case "$_ok" in y|Y|yes) _ok=1 ;; *) _ok=0 ;; esac
 	          else _ok=0; fi
 	          if [ "$_ok" = 1 ]; then
-	          	rm -f "$CARDS" "$CARDS.lock" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" "$EDIT_HIST" "$INPROG".* 2>/dev/null
+	          	rm -f "$CARDS" "$CARDS.lock" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" "$EDIT_HIST" "$INPROG".* "$C_DONE" 2>/dev/null
 	          	fum_forget
 	          	ok "progress cleared"
 	          else note "nothing erased (learn reset --yes skips the question)"; fi ;;
