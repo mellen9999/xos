@@ -101,7 +101,8 @@ q: kvstore.c -- a key-value store on a hash table
 spec: Reads commands from standard input, one per line, and keeps keys and
 spec: values in a chained hash table you write: FNV-1a on the key, bucket
 spec: = hash mod bucket count. Lines are at most 100 characters. Empty
-spec: lines are skipped (they still count in line numbers).
+spec: lines are skipped (they still count in line numbers). Spaces after a
+spec: command with no argument change nothing (`dump ` is `dump`).
 spec:
 spec: `set KEY VALUE` stores a value (everything after the key and its
 spec: spaces, spaces inside included); an existing key is updated, not

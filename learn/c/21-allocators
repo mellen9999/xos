@@ -132,8 +132,8 @@ spec:
 spec:   `alloc`    take the slot at the head of the free list and print
 spec:              `slot N`; print `full` if none is free
 spec:   `free N`   put slot N back at the head of the free list and print
-spec:              `freed`; print `bad free` if N is outside 0 to 3 or is not
-spec:              currently allocated (that catches a double free)
+spec:              `freed`; N is a whole number 0 to 1000000; `bad free` if it is
+spec:              not 0 to 3 or not allocated (that catches a double free)
 spec:
 spec: Anything else, including a missing or non-numeric N, prints `?`.
 spec: A freed slot is the next one handed out. Exit 0.

@@ -7,7 +7,8 @@ intro: The ones you will meet:
 intro:
 intro:     char      one byte: a character, or a small number
 intro:     int       the natural size; 32 bits here
-intro:     long      at least 32 bits; 64 on 64-bit Linux
+intro:     long      at least 32 bits; 64 on 64-bit Linux; print with %ld
+intro:               (unsigned long: %lu)
 intro:     size_t    sizes and counts; unsigned; print it with %zu
 intro:     bool      true or false; needs #include <stdbool.h>
 intro:
@@ -17,6 +18,8 @@ intro: with the macros in <inttypes.h>, which glue onto the format string:
 intro:
 intro:     int64_t big = INT64_C(3000000000) * 3;
 intro:     printf("%" PRId64 "\n", big);
+intro:
+intro: A literal `%` in a printf format is written `%%`.
 intro:
 intro: Signed and unsigned behave differently at the edge. Unsigned arithmetic
 intro: wraps, by definition: 0u - 1 is the largest value. Signed overflow is

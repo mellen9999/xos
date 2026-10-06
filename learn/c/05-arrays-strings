@@ -6,7 +6,9 @@ intro:     const char *days[] = {"mon", "tue", "wed"};
 intro:     size_t n = sizeof days / sizeof days[0];   /* 3 */
 intro:
 intro: Bytes in the whole array divided by bytes in one element. Write
-intro: that once and the count follows the data when you add a row.
+intro: that once and the count follows the data when you add a row. That
+intro: count is a `size_t` (unsigned). Loop with `size_t i`, and cast before
+intro: comparing it with a signed value: `k > (long)n`.
 intro:
 intro: C does not check indexes. `days[7]` compiles, runs, and reads
 intro: whatever sits past the array -- undefined behaviour. It may print
@@ -150,6 +152,10 @@ q: joinargs.c -- join words with a separator
 spec: The first argument is a separator, the rest are words. Print the
 spec: words joined by the separator, then a newline: `joinargs , a b c`
 spec: prints `a,b,c`. No words prints an empty line.
+spec:
+spec: Append with `snprintf(buf + len, sizeof buf - len, ...)`: `buf + len` is
+spec: the address len bytes in. Never pass buf as both the destination and a
+spec: `%s` source.
 spec:
 spec: Build the result in a 32-byte buffer with snprintf (31 characters
 spec: fit, the 32nd byte is the NUL). If the result does not fit, print

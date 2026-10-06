@@ -44,7 +44,8 @@ intro: a lot, not as plain storage.
 q: listcmd.c -- a list you drive by commands
 spec: Keeps a singly linked list of `long` values, one malloc per node,
 spec: and runs commands from standard input, one per line. Empty lines are
-spec: skipped (they still count in line numbers).
+spec: skipped (they still count in line numbers). Spaces after a command
+spec: with no argument change nothing (`pop ` is `pop`).
 spec:
 spec: `push N` puts N at the front. `add N` puts it at the end. `pop`
 spec: removes the front. `rev` reverses the list in place by relinking
@@ -169,6 +170,8 @@ prog: 	if (arg != NULL) {
 prog: 		*arg++ = '\0';
 prog: 		while (*arg == ' ')
 prog: 			arg++;
+prog: 		if (*arg == '\0')
+prog: 			arg = NULL;
 prog: 	}
 prog: 
 prog: 	if (is(line, "push") || is(line, "add")) {

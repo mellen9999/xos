@@ -43,8 +43,8 @@ intro: a pid takes the one you name, so you can report in the order you
 intro: started them.
 ---
 q: twoways.c -- fork, and tell the two apart
-spec: Print `before`, then `fork`. The child prints `child` and exits with
-spec: status 7. The parent waits for it, then prints
+spec: Print `before`, then `fork`. The child prints `child`, flushes it, and
+spec: exits with status 7. The parent waits for it, then prints
 spec: `parent: child exited with 7` (the 7 comes from the child's real
 spec: status) and exits 0. Each line appears exactly once, in that order.
 spec:
@@ -71,7 +71,8 @@ prog: 		return 1;
 prog: 	}
 prog: 	if (pid == 0) {
 prog: 		printf("child\n");
-prog: 		exit(7);
+prog: 		fflush(stdout);
+prog: 		_exit(7);
 prog: 	}
 prog: 	int status;
 prog: 	if (waitpid(pid, &status, 0) < 0) {
@@ -85,7 +86,7 @@ prog: }
 case: twoways
 case: twoways; echo $?
 case: twoways | cat
-hint: fflush(stdout) before fork; in the child branch (pid == 0) print and exit(7); in the parent waitpid, then WEXITSTATUS
+hint: fflush(stdout) before fork; in the child branch (pid == 0) print, fflush, _exit(7); in the parent waitpid, then WEXITSTATUS
 ---
 q: trycmd.c -- run a command, no arguments
 spec: Take exactly one argument, the name of a command. Print

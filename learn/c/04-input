@@ -6,7 +6,8 @@ intro:     int main(int argc, char **argv)
 intro:
 intro: `argc` counts the words on the command line, the program's own name
 intro: included. `argv[i]` is word i as text; argv[0] is the name, so your
-intro: arguments are argv[1] up to argv[argc - 1].
+intro: arguments are argv[1] up to argv[argc - 1]. A program that takes no
+intro: arguments keeps `int main(void)`.
 intro:
 intro: Turn text into a number with `strtol`, never `atoi`. atoi returns 0 for
 intro: "abc" and for "0", so you cannot tell them apart, and it has no way to
@@ -25,14 +26,22 @@ intro: digits ("12abc"). errno is set to ERANGE when the number does not fit
 intro: a long; zero it first, because nothing else clears it. Needs
 intro: <errno.h> and <stdlib.h>.
 intro:
+intro: `LONG_MAX`/`LONG_MIN` come from <limits.h>. Test before adding:
+intro:
+intro:     if ((n > 0 && sum > LONG_MAX - n) ||
+intro:         (n < 0 && sum < LONG_MIN - n))
+intro:         /* would overflow */
+intro:
 intro: Exit status is the program's whole answer to the shell: 0 means it
 intro: worked, 1 means it failed at its job, 2 means you called it wrong (a
 intro: usage error). Errors and usage go to stderr; only results go to stdout.
 intro:
 intro: Reading standard input byte by byte is `getchar`, which returns the
-intro: next byte or the constant EOF. EOF is -1, outside any byte's range, so
-intro: the variable must be an `int`. Store it in a char and a real 0xFF byte
-intro: looks exactly like end of file:
+intro: next byte or the constant EOF. EOF is a negative int (-1 on every libc
+intro: here), outside any byte's range, so the variable must be an `int`.
+intro: Store it in a `char` and it breaks: where char is signed (x86) a real
+intro: 0xFF byte looks like EOF; where char is unsigned (ARM, a phone) EOF
+intro: becomes 255 and the loop never ends:
 intro:
 intro:     int c;
 intro:     while ((c = getchar()) != EOF)
@@ -126,7 +135,7 @@ case: printf 'a\nbc\n' | tally
 case: tally </dev/null
 case: printf 'x\377y\n' | tally
 case: printf 'no newline' | tally
-hint: the variable that getchar fills must be an int, or a 0xFF byte looks like EOF
+hint: the variable getchar fills must be an int -- in a char, EOF is either confused with byte 0xFF or never seen at all
 ---
 q: figures.c -- numbers from stdin, one per line
 spec: Read integers from standard input, one per line (lines are under 60

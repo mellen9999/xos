@@ -31,18 +31,27 @@ intro:
 intro: Write `buf = realloc(buf, ...)` and a failure overwrites buf with
 intro: NULL: the old block leaks and you crash. Doubling keeps the total
 intro: copying small. `qsort(base, n, size, cmp)` sorts any array; cmp
-intro: gets two `const void *` and returns <0, 0 or >0.
+intro: gets two `const void *` and returns <0, 0 or >0. A `const void *` is
+intro: a pointer to anything; cast it to what it really points at:
+intro:
+intro:     static int cmp(const void *a, const void *b)
+intro:     {
+intro:         long x = *(const long *)a;
+intro:         long y = *(const long *)b;
+intro:         return (x > y) - (x < y);
+intro:     }
 ---
 q: rep.c -- repeat a string
 spec: Takes TEXT and a count N and prints TEXT repeated N times, then a
 spec: newline: `rep ab 3` prints `ababab`. Build it in memory from
 spec: malloc, print it, free it.
 spec:
-spec: The result may be at most 1048576 bytes. Larger, or a bad or
-spec: negative N, prints `rep: bad count` or `rep: too big` to standard
-spec: error and exits 1 (`bad count` for N that is not a whole number
-spec: or is negative). Check the size with a division, not a multiply
-spec: that could wrap. Empty TEXT prints an empty line for any valid N.
+spec: TEXT repeated N times (not counting the newline) may be at most
+spec: 1048576 bytes. Larger prints `rep: too big`; an N that is not a whole
+spec: number, is negative or does not fit a long prints `rep: bad count`;
+spec: both to standard error, exit 1. N is a long and the length a size_t:
+spec: cast N after you know it is not negative. Check the size with a
+spec: division, not a multiply that could wrap. Empty TEXT prints an empty line for any valid N.
 spec: Any other argument count prints nothing and exits 2.
 file: rep.c
 prog: #include <errno.h>

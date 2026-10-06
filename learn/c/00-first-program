@@ -27,7 +27,8 @@ intro: in the shell. 0 means it worked; anything else means it did not.
 intro:
 intro: You write the code in `vi`. Four keys get you through it: `i` starts
 intro: typing, Escape stops, `:wq` then Enter saves and leaves, `:q!` leaves
-intro: without saving. Arrow keys move. That is all you need today.
+intro: without saving. `h` `j` `k` `l` move (the arrow keys work too). That
+intro: is all you need today.
 ---
 q: hello.c -- the first program
 spec: Print `hello, world` followed by a newline, and exit with status 0.

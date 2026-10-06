@@ -11,7 +11,8 @@ intro:
 intro: `int` before the name is the return type; `(int x)` is the parameter.
 intro: `static` means the name is private to this file -- use it on every
 intro: function that nothing else calls. It stops name clashes and lets the
-intro: compiler warn you about code nobody uses.
+intro: compiler warn you about code nobody uses -- here warnings are errors,
+intro: so a static function you have not called yet will not compile.
 intro:
 intro: C reads top to bottom, so a function must be known before it is used.
 intro: Either define it above its caller, or put a prototype -- the first
@@ -74,7 +75,7 @@ prog: }
 case: fact
 case: fact | head -n 1
 case: fact | tail -n 1
-hint: the base case must cover 0 as well as 1, or factorial(0) never stops
+hint: the base case must catch 0 (n == 0, or n <= 1) -- with only n == 1, factorial(0) wraps to a huge n and recurses until the stack runs out
 ---
 q: primes.c -- a function that answers yes or no
 spec: Write `static bool is_prime(unsigned n)`: true only for 2, 3, 5, ... --

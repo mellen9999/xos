@@ -18,17 +18,19 @@ intro:     x ^= 1u << 3;      /* toggle bit 3 */
 intro:     if (x & (1u << 3)) /* test bit 3 */
 intro:
 intro: Do bit work on unsigned types, from <stdint.h>: `uint8_t`,
-intro: `uint32_t`. Shifting a negative signed number, shifting a signed
-intro: value into its sign bit, or shifting by the width of the type or
-intro: more (`x << 32` on a 32-bit value) are all undefined behaviour --
-intro: the compiler may do anything, and it changes between machines and
-intro: optimisation levels. Unsigned `>>` always fills with zeros; signed
-intro: `>>` of a negative is up to the compiler.
+intro: `uint32_t`. Left-shifting a negative signed number, shifting a
+intro: signed value into its sign bit, shifting by a negative count, or
+intro: shifting by the width of the type or more (`x << 32` on a 32-bit
+intro: value) are all undefined behaviour -- the compiler may do
+intro: anything, and it changes between machines and optimisation
+intro: levels. Unsigned `>>` always fills with zeros; signed `>>` of a
+intro: negative is implementation-defined (up to the compiler).
 intro:
 intro: Small types promote: `uint8_t b = 0x80; ~b` is an int with its high
 intro: bits set, not 0x7f. Cast back, or mask with `& 0xffu`.
 intro:
-intro: Print hex with `%x` (`%02x` pads to two digits). For `uint32_t`
+intro: Print hex with `%x` (`%02x` pads to two digits); `%o` prints octal
+intro: and `%03o` pads to three digits. For `uint32_t`
 intro: portably use `PRIx32` from <inttypes.h>:
 intro:
 intro:     printf("%08" PRIx32 "\n", v);

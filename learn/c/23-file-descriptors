@@ -31,6 +31,11 @@ intro:
 intro: `read` returning 0 is end of file. Reading "exactly N bytes" means
 intro: looping until you have N or see 0.
 intro:
+intro: To tell whether two paths or descriptors are one file, add
+intro: `#include <sys/stat.h>` and call `struct stat st; fstat(fd, &st)`
+intro: or `stat(path, &st)`. A file is identified by `st.st_dev` together
+intro: with `st.st_ino`.
+intro:
 intro: stdio sits on top and keeps its own buffer. `printf` to a pipe or file
 intro: does not write until the buffer fills or the program ends, but
 intro: `write(1, ...)` goes at once. Mix the two on one fd and the output

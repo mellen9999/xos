@@ -43,8 +43,7 @@ spec: each in decimal on its own line. The order is little-endian by default;
 spec: with the argument `be` it is big-endian, with `le` little-endian.
 spec:
 spec: If the input ends with 1 to 3 bytes that do not make a whole number,
-spec: print `u32dump: N stray bytes at the end` to standard error after the
-spec: numbers and exit 1. Any other argument, or more than one, prints
+spec: print `u32dump: N stray bytes at the end` to standard error and exit 1. Any other argument, or more than one, prints
 spec: `usage: u32dump [be]` and exits 2. Empty input prints nothing.
 file: u32dump.c
 prog: #include <stdint.h>

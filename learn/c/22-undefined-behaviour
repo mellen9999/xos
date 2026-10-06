@@ -9,7 +9,8 @@ intro: The catalogue you will meet:
 intro:
 intro:     signed overflow       INT_MAX + 1, and abs(INT_MIN), -INT_MIN
 intro:     shifting too far      x << 32 on a 32-bit int, or a negative count
-intro:     out of bounds         a[10] on a[10]; a pointer far past the end
+intro:     out of bounds         a[10] on a[10]; a pointer more than
+intro:                           one past the end
 intro:     uninitialised read    int x; use(x);
 intro:     use after free        read or write after free(p); free(p) twice
 intro:     NULL dereference      *p where p is NULL
@@ -18,10 +19,10 @@ intro:     unsequenced writes    i = i++ + 1;  f(i++, i++)
 intro:
 intro: Why the optimiser makes it worse: `if (x + 1 < x)` is meant to catch
 intro: overflow, but since overflow cannot happen the compiler deletes the
-intro: test. A loop `for (i = 0; i <= n; i++)` over a `char` or a signed
-intro: index may be assumed to end. Code after a NULL dereference is assumed
-intro: reachable only if the pointer was not NULL, so an earlier NULL check
-intro: may vanish.
+intro: test. A loop `for (int i = 0; i <= n; i++)` may be assumed to end, even
+intro: when n is INT_MAX: signed overflow is UB, so the compiler assumes
+intro: `i` never wraps. Code after `*p` is assumed to run only with p not
+intro: NULL, so a NULL check placed after the dereference may vanish.
 intro:
 intro: The fix is to never get there. Check the operands first:
 intro:
@@ -29,14 +30,15 @@ intro:     if (b > 0 && a > INT_MAX - b)  /* a + b would overflow */
 intro:
 intro: Unsigned arithmetic wraps by definition (mod 2^N), so it is safe but
 intro: silently wrong if you wanted a real sum. `__builtin_add_overflow` is a
-intro: GCC and clang extension; it is not standard C and this compiler lacks
-intro: it, so write the range check yourself.
+intro: GCC and clang extension; it is not standard C and tcc lacks it, so
+intro: for portable code write the range check yourself.
 intro:
 intro: Habits that catch the rest: initialise everything, pass a length with
 intro: every buffer and check it, set pointers to NULL after free, and use
 intro: `assert(cond)` for things that must be true (it is compiled out with
 intro: NDEBUG, so never put a side effect inside it). Compile with
-intro: `-Wall -Wextra`; build tests with `-fsanitize=undefined,address`.
+intro: `-Wall -Wextra`; build tests with `-fsanitize=undefined,address`
+intro: (gcc/clang only).
 ---
 q: strint.c -- turn text into an int, every edge handled
 spec: For each command-line argument, in order, print one line saying what

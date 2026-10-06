@@ -22,7 +22,9 @@ intro: first element (it "decays"), so `f(arr)` hands over an address
 intro: and the length is gone -- pass `n` alongside. Adding to a pointer
 intro: steps by whole elements: `p + 1` is the next int, not the next
 intro: byte. Walk an array with `for (const int *p = v; p < v + n; p++)`.
-intro: Pointing one past the end is allowed; reading it is not.
+intro: Pointing one past the end is allowed; reading it is not. Subtracting
+intro: two pointers into the same array or string gives how many elements
+intro: apart they are (a `ptrdiff_t`): `end - start`.
 intro:
 intro: `const char *s` means "I only read through this". Mark every
 intro: read-only pointer const; the compiler then catches the write you
@@ -103,7 +105,9 @@ spec: An argument with no `=` prints `kvsplit: no =` to standard error and
 spec: exits 1. Any other argument count prints nothing and exits 2.
 spec:
 spec: Use strchr, check what it returns, and print the key without
-spec: copying it: `printf("%.*s", n, s)` prints at most n bytes of s.
+spec: copying it: `printf("%.*s", (int)(eq - arg), arg)` -- subtracting two
+spec: pointers into the same string gives the distance between them, a
+spec: `ptrdiff_t`; `.*` wants an int.
 file: kvsplit.c
 prog: #include <stdio.h>
 prog: #include <string.h>

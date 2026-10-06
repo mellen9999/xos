@@ -33,6 +33,8 @@ intro:     close(fd[0]);                /* the originals are not needed */
 intro:     close(fd[1]);
 intro:     execlp("ls", "ls", (char *)NULL);
 intro:
+intro: `fdopen(fd, "w")` wraps a descriptor in a `FILE *`.
+intro:
 intro: An exec'd program keeps descriptors 0, 1 and 2, and never knows they
 intro: are a pipe. That is all `a | b` is: two forks, one pipe, one `dup2`
 intro: on each side, and every spare end closed. Last warning: writing to a

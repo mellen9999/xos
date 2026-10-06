@@ -4,10 +4,10 @@ intro: pastes a file in, `#define` replaces names with text, `#if` keeps
 intro: or drops whole blocks. It works on tokens, not meaning -- it knows
 intro: nothing of types or precedence. That is its power and its trap.
 intro:
-intro: Prefer a real feature when one exists. A constant is
-intro: `static const int max = 8;`, a set of related integers is an `enum`:
-intro: typed, scoped, visible in a debugger. `#define MAX 8` is for what
-intro: only the preprocessor can do.
+intro: Prefer a real feature when one exists. An integer constant is an
+intro: `enum { MAX = 8 };`; `static const` is for typed values that need
+intro: no constant expression. An `enum` is scoped and visible in a
+intro: debugger. `#define MAX 8` is for what only the preprocessor can do.
 intro:
 intro: A function-like macro is substitution, so parenthesise every
 intro: argument and the whole body:
@@ -16,9 +16,10 @@ intro:     #define SQUARE(x) ((x) * (x))
 intro:
 intro: Without them SQUARE(1 + 2) is 1 + 2 * 1 + 2, which is 5. An
 intro: argument with a side effect runs once per appearance: SQUARE(i++)
-intro: is undefined behaviour and MAX(f(), 0) calls f twice. A
+intro: is undefined behaviour and MAX(f(), 0) calls f twice when f() is the larger. A
 intro: `static inline` function has none of these problems; use one.
 intro:
+intro: A macro is one line; end a line with `\` to continue it.
 intro: A macro of several statements goes in `do { ... } while (0)`: ONE
 intro: statement, so it survives an unbraced `if`/`else`.
 intro: `#x` turns an argument into a string literal; `a##b` glues two
@@ -206,7 +207,7 @@ prog: #include <stdio.h>
 prog: 
 prog: typedef unsigned char byte;
 prog: 
-prog: /* one body, stamped out per type: T##_ glues the type onto the name */
+prog: /* one body, stamped out per type: min_##T glues the type onto the name */
 prog: #define DEFINE_STATS(T)                         \
 prog: 	static T min_##T(const T *v, size_t n)      \
 prog: 	{                                           \
@@ -455,4 +456,4 @@ prog: }
 case: chkmac 2>&1; echo $?
 case: chkmac 2>/dev/null
 case: chkmac 2>&1 >/dev/null
-hint: do, then count, then if not cond count a failure and fprintf with __FILE__, the line minus base_line, and the stringified cond, then while zero
+hint: one statement via do/while(0); `#cond` stringizes; subtract base_line from `__LINE__`

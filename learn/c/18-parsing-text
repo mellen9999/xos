@@ -32,9 +32,10 @@ intro: longer than the input.
 intro:
 intro: Say WHERE input is wrong. A column is `p - line + 1`, 1-based,
 intro: counted in bytes: `line 3 col 7: expected )` can be fixed without a
-intro: hunt. Errors go to stderr, and `fflush(stdout)` comes first: stdout
-intro: is buffered and stderr is not, so on one terminal an error can
-intro: otherwise print BEFORE output the program made earlier.
+intro: hunt. Errors go to stderr. Call `fflush(stdout)` first as good
+intro: practice: stdout is buffered when it is a pipe or a file, and
+intro: stderr is not, so the two streams can otherwise interleave out of
+intro: order when you read them together.
 ---
 q: wordsplit.c -- split lines into words
 spec: Reads standard input and prints every word on every line, one per
@@ -302,7 +303,10 @@ prog: 	}
 prog: 
 prog: 	char line[512];
 prog: 	for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
-prog: 		line[strcspn(line, "\r\n")] = '\0';
+prog: 		size_t len = strcspn(line, "\n");
+prog: 		line[len] = '\0';
+prog: 		if (len > 0 && line[len - 1] == '\r')
+prog: 			line[len - 1] = '\0';
 prog: 
 prog: 		char *rest = line, *f, *wanted = NULL;
 prog: 		for (long i = 1; rest != NULL; i++) {
@@ -343,7 +347,7 @@ spec: are at most 200 characters.
 spec:
 spec: Every number and every intermediate result must lie between
 spec: -1000000000 and 1000000000, so nothing can overflow (use `long
-spec: long`). Parse with recursive descent: one function per precedence
+spec: long` and print it with `%lld`). Parse with recursive descent: one function per precedence
 spec: level, walking a pointer along the line; no `strtok`, no `sscanf`.
 spec:
 spec: The first bad line stops the run: print `exprcalc: line L col C:

@@ -304,10 +304,11 @@ spec: Stack values must stay between -1000000000 and 1000000000, so no
 spec: arithmetic can overflow. The first failing command stops the run:
 spec: print `cmdtab: line L: MESSAGE` to standard error and exit 1. The
 spec: messages are `unknown command`, `stack empty` (too few items),
-spec: `stack full`, `bad number` (push argument not a whole number),
-spec: `out of range`, `bad argument` (push without one, or any other
+spec: `stack full`, `bad number` (push argument not a whole number, or
+spec: too big for a long), `out of range`, `bad argument` (push without one, or any other
 spec: command with one) and `divide by zero`. Check an argument first, then
-spec: the stack depth, then the arithmetic. End of input exits 0.
+spec: the stack depth, then the arithmetic. Spaces after a command with no
+spec: argument change nothing (`pop ` is `pop`). End of input exits 0.
 file: cmdtab.c
 prog: #include <errno.h>
 prog: #include <stdio.h>
@@ -339,10 +340,10 @@ prog: typedef enum err (*handler)(struct stack *s, const char *arg);
 prog: 
 prog: static enum err put(struct stack *s, long x)
 prog: {
-prog: 	if (s->n == DEPTH)
-prog: 		return E_FULL;
 prog: 	if (x > LIMIT || x < -LIMIT)
 prog: 		return E_RANGE;
+prog: 	if (s->n == DEPTH)
+prog: 		return E_FULL;
 prog: 	s->v[s->n++] = x;
 prog: 	return OK;
 prog: }
@@ -490,8 +491,8 @@ hint: each handler gets the stack and the argument and returns an error code; ma
 ---
 q: ctxcount.c -- which lines mention each word
 spec: Takes one or more WORD arguments. Reads standard input and, for each
-spec: word, counts the LINES that contain it as a substring (a line with
-spec: the word twice counts once). Prints one line per word in argument
+spec: word, counts the LINES that contain it as a substring (`strstr` finds
+spec: one; a line with the word twice counts once). Prints one line per word in argument
 spec: order, `WORD: COUNT`, then `lines: TOTAL` for the number of input
 spec: lines read. A last line with no newline still counts. Lines are at
 spec: most 200 characters. No arguments prints `usage: ctxcount WORD...`

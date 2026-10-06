@@ -20,13 +20,16 @@ intro:     q->score         /* field through a pointer, same as (*q).score */
 intro:
 intro: An enum names a set of constants. Switch over one WITHOUT a
 intro: `default:` and the compiler warns when you forget a case -- that
-intro: warning is worth more than the default:
+intro: warning is worth more than the default (gcc and clang warn about a
+intro: missing case; tcc does not.) Put a return after the switch, since
+intro: tcc here makes "might return no value" an error:
 intro:
 intro:     enum op { OP_ADD, OP_SUB };
 intro:     switch (op) {
 intro:     case OP_ADD: return a + b;
 intro:     case OP_SUB: return a - b;
 intro:     }
+intro:     return 0;
 intro:
 intro: Each case ends in `return` or `break`; without one, execution
 intro: falls into the next case. An array of structs makes a table: a

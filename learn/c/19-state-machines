@@ -281,7 +281,7 @@ prog: 				s = STR;
 prog: 			} else if (c == '=' || c == '!' || c == '<' || c == '>') {
 prog: 				op = c;
 prog: 				s = OP;
-prog: 			} else if (strchr("+-*/(),;", c) != NULL) {
+prog: 			} else if (c != '\0' && strchr("+-*/(),;", c) != NULL) {
 prog: 				printf("OP %c\n", c);
 prog: 			} else {
 prog: 				fprintf(stderr, "lexdump: line %ld: bad character\n", line);
@@ -375,7 +375,8 @@ spec:                 the batch total; only valid inside a batch
 spec:   `END`         print `name: total T from N` (T the sum, N how many
 spec:                 ADDs) and go idle; only valid inside a batch
 spec:
-spec: Blank lines are ignored. Each batch starts at total 0.
+spec: Blank lines (empty or only spaces) are ignored. Each batch starts at
+spec: total 0.
 spec:
 spec: The first problem stops everything: print `batchp: line L: WHY` to
 spec: standard error and exit 1, L counting lines from 1. WHY is one of
@@ -414,7 +415,7 @@ prog: 		if (n > 0 && buf[n - 1] == '\n')
 prog: 			buf[--n] = '\0';
 prog: 		else if (n == sizeof buf - 1)
 prog: 			return fail(line, "line too long");
-prog: 		if (n == 0)
+prog: 		if (strspn(buf, " ") == n)
 prog: 			continue;
 prog: 
 prog: 		char *arg = strchr(buf, ' ');
@@ -424,7 +425,8 @@ prog:
 prog: 		if (strcmp(buf, "BEGIN") == 0) {
 prog: 			if (s == IN_BATCH)
 prog: 				return fail(line, "BEGIN inside a batch");
-prog: 			if (arg == NULL || arg[0] == '\0' || strlen(arg) >= sizeof name)
+prog: 			if (arg == NULL || arg[0] == '\0' || strlen(arg) >= sizeof name
+prog: 			    || strchr(arg, ' ') != NULL)
 prog: 				return fail(line, "bad name");
 prog: 			strcpy(name, arg);
 prog: 			total = 0;

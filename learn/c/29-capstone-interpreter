@@ -36,14 +36,14 @@ intro: directories, processes, pipes, signals. Where next? Build a text
 intro: editor: put the terminal in raw mode and redraw the screen yourself
 intro: -- you already have `read`, `write` and a buffer. Build a
 intro: compressor: Huffman or LZ77 is bit-twiddling plus a table. Or read:
-intro: the tools on this machine are busybox, real C written to be small.
+intro: on xos the tools are busybox, real C written to be small.
 intro: Start with `true`, `echo`, `cat`, `wc`, then its `sh` -- a bigger
 intro: sibling of the one you just wrote.
 intro:
-intro: One limit to know: this compiler speaks C11, not C23. Newer keywords
-intro: (`nullptr`, `constexpr`, `typeof`) and `#embed` are beyond it; on
-intro: another machine with a newer gcc you can add `-std=c23` and learn
-intro: them.
+intro: One limit to know: the track compiles with `-std=c11`, not C23. Newer keywords
+intro: (`nullptr`, `constexpr`, `typeof`) and `#embed` are beyond it, even
+intro: where the compiler knows newer C (clang on a phone does); with a
+intro: newer gcc or clang you can add `-std=c23` yourself and learn them.
 ---
 q: calctok.c -- tokens with columns
 spec: The first step of a calculator language: read standard input a line
@@ -206,7 +206,8 @@ spec: Grow `calctok.c` into a calculator. Read standard input a line at a
 spec: time, split it into tokens exactly as before (including the two
 spec: lexical errors, found before anything is evaluated), then evaluate
 spec: the expression and print its value as a decimal number on its own
-spec: line. A blank line prints nothing. Everything goes to standard
+spec: line. A line with no tokens (empty, or only spaces and tabs) prints
+spec: nothing. Everything goes to standard
 spec: output, results and errors alike, so a line's answer stays in order.
 spec:
 spec: The language, from loosest binding to tightest:
@@ -1218,8 +1219,7 @@ spec: - `not a statement`: the line starts with neither `print` nor a
 spec:   name followed by `=`.
 spec: - `print is reserved`: an attempt to assign to `print`.
 spec: A missing value at the end of a line, such as a lone `print`, is
-spec: reported at the column where the line ended, which is the hash if
-spec: there is a comment.
+spec: reported at the column of the statement's first token.
 file: calcrun.c
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>

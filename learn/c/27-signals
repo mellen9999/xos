@@ -33,7 +33,13 @@ intro: first, then `sigsuspend(&old)`, which unblocks and sleeps in one
 intro: step.
 intro:
 intro: A handler that interrupts a slow call such as `read` makes it fail
-intro: with `EINTR`: check your flag, or retry.
+intro: with `EINTR` (with `sa_flags` 0, as above; `SA_RESTART` makes it
+intro: retry instead): check your flag, or retry.
+intro:
+intro: `kill(pid, SIGTERM)` sends a signal to another process. Build a set
+intro: with `sigemptyset(&s); sigaddset(&s, SIGUSR1);` and block it with
+intro: `sigprocmask(SIG_BLOCK, &s, &old)`. `sigpending(&p)` plus
+intro: `sigismember(&p, SIGUSR1)` ask what is waiting.
 intro:
 intro: SIGPIPE kills a writer silently. A tool that wants to report the
 intro: error itself sets it to SIG_IGN, and `write` then fails with

@@ -1004,7 +1004,7 @@ case: printf 'echo hello | tr a-z A-Z\n' | shpipe
 case: printf 'sh -c "echo b; echo a; echo c" | sort | tr a-z A-Z\necho $?\n' | shpipe
 case: printf 'false | true\necho $?\ntrue | false\necho $?\n' | shpipe
 case: printf 'echo x | cat | cat | cat | tr x y | wc -c\n' | shpipe
-case: printf 'echo hi | nosuchcmd\necho $?\n' | shpipe
+case: printf 'true | nosuchcmd\necho $?\n' | shpipe
 case: printf '| cat\necho $?\necho a |\necho $?\necho a > f\necho $?\n' | shpipe
 case: printf 'echo "a | b" | cat\necho cd | cat\nexit 4\n' | shpipe; echo $?
 hint: parse the tokens into one command per vertical bar; pipe once between each neighbouring pair, dup2 in the child, close the spare ends in both, then waitpid for every child and keep the last one's status

@@ -22,8 +22,10 @@ intro:     /* ... read from `in`, then: */
 intro:     if (in != stdin) fclose(in);
 intro:
 intro: Never fclose stdin. Read bytes with `getc` until it returns EOF --
-intro: keep its result in an `int`, not a `char`, or a real 0xff byte gets
-intro: mistaken for the end. Read in blocks with `fread`. Past that, the
+intro: keep it in an `int`, not a `char`, or it breaks: where char is
+intro: signed (x86) a real 0xff byte looks like EOF; where it is unsigned
+intro: (ARM) EOF never arrives and the loop runs forever. Read in blocks
+intro: with `fread`. Past that, the
 intro: format in each spec is a contract: the same bytes in must give the
 intro: same bytes out, exactly, every time. When the spec names a message,
 intro: print that message, not the strerror one.
