@@ -63,13 +63,27 @@ c_tools() {
 # c_fn FILE -- the shell name a case calls the program by: hello.c -> hello.
 c_fn() { echo "${1%.c}"; }
 
+# c_reflow -- a lesson's lines joined back into paragraphs, for say or wrap
+# to break at the screen's width: they are written at 70 columns, and cut
+# again at a phone's 52 every other line came out a stub. a line joins the
+# one before it only when that one ran long (the author wrapped it); a short
+# line is a break they meant -- a list of cases, an example. a blank line,
+# code (indented), a `- ` item and a line that is one `literal` stand alone.
+c_reflow() {
+	awk '
+		/^$/ || /^[ \t]/ || /^- / || /^`[^`]*`[.,;]?$/ { if (p != "") print p; p = ""; print; n = 0; next }
+		{ if (p != "" && n >= 45) p = p " " $0; else { if (p != "") print p; p = $0 }; n = length($0) }
+		END { if (p != "") print p }
+	'
+}
+
 # c_starter -- what vi opens on the first visit: the task as a comment, so it
 # is still on screen once the lesson has scrolled away, then the given start
 # (or the smallest program that compiles).
 c_starter() {
 	printf '/* %s\n *\n' "$Q_PROMPT"
 	# wrapped to the screen: busybox vi does not wrap a long line, it cuts it
-	printf '%s\n' "$Q_SPEC" | tr -d '`' | wrap $(( COLS < 76 ? COLS - 6 : 70 )) \
+	printf '%s\n' "$Q_SPEC" | c_reflow | tr -d '`' | wrap $(( COLS < 76 ? COLS - 6 : 70 )) \
 		| sed -e 's/^/ * /' -e 's/ *$//'
 	printf ' */\n\n'
 	if [ -n "$Q_START" ]; then printf '%s\n' "$Q_START"
@@ -80,12 +94,14 @@ c_starter() {
 # its `run`. on failure C_ERR holds the compiler's first lines and C_LINE the
 # first line it complained about.
 c_build() {
-	local src=$1 stage="$TMP/c.stage.$2" bd="$TMP/c.build"
+	local src=$1 stage="$TMP/c.stage.$2" bd="$TMP/c.build" fn
 	C_ERR="" C_LINE="" C_WARN=""
+	fn=$(c_fn "$Q_FILE")
 	c_tools || { C_ERR=$CC_WHY; return 1; }
 	# the same bytes built once a session: the reference is rebuilt on every
 	# submit otherwise, and on the stick each build stages a 38MB compiler.
-	if [ -s "$stage/prog" ] && [ -x "$stage/run" ] && cmp -s "$src" "$stage/src"; then
+	if [ -s "$stage/prog" ] && [ -x "$stage/run" ] && cmp -s "$src" "$stage/src" \
+	   && [ "$(cat "$stage/name" 2>/dev/null)" = "$Q_FILE" ]; then
 		C_WARN=$(cat "$stage/warn" 2>/dev/null); return 0
 	fi
 	rm -rf "$stage" "$bd"; mkdir -p "$stage" "$bd" || return 1
@@ -123,6 +139,21 @@ c_build() {
 		# `wc -c`) is graded on all of it, and a runaway still ends there.
 		echo 'ulimit -t 3 2>/dev/null; ulimit -d 262144 2>/dev/null; ulimit -f 4096 2>/dev/null'
 		echo '[ -n "${C_TMPDIR:-}" ] && TMPDIR=$C_TMPDIR && export TMPDIR'
+		# try (C_TTY): a run by hand, in the foreground, on the terminal.
+		# learn and every shell under it IGNORE ctrl-c meanwhile (c_try says
+		# why), so the program starts through `intdfl`, which puts SIGINT
+		# back to default for it alone: ctrl-c stops the program and nothing
+		# else. after it, the sweep: as nobody, everything nobody owns;
+		# otherwise every process still carrying the mark the program was
+		# started with -- a child it forked and left running. its stderr is
+		# on fd 4, from the caller.
+		echo 'if [ -n "${C_TTY:-}" ]; then'
+		echo '	m=try.$$.x; i=${0%/*}/intdfl; [ -x "$i" ] || i='
+		echo "	C_MARK=\$m PATH=\"\${0%/*}:\$PATH\" timeout \${C_TO:-4} $DROP \$i $fn \"\$@\" 2>&4 4>&-; r=\$?"
+		if [ -n "$DROP" ]; then echo "	$DROP kill -9 -1 2>/dev/null"
+		else echo '	for e in $(grep -l "C_MARK=$m" /proc/[0-9]*/environ 2>/dev/null); do e=${e#/proc/}; kill -9 "${e%/environ}" 2>/dev/null; done'; fi
+		echo '	exit $r'
+		echo 'fi'
 		# its own session (setsid), killed whole afterwards: a child it forked
 		# and left behind would otherwise outlive the case and spend the next
 		# run's process budget. as nobody, every process nobody still owns goes
@@ -132,14 +163,19 @@ c_build() {
 		# own goes to /dev/null: it reports a job the limits killed with
 		# its pid, and a pid on stderr would make every such case differ.
 		echo 'exec 3<&0 4>&2 2>/dev/null'
-		echo "setsid timeout 4 $DROP \"\${0%/*}/prog\" \"\$@\" <&3 2>&4 3<&- 4>&- &"
+		echo "PATH=\"\${0%/*}:\$PATH\" setsid timeout 4 $DROP $fn \"\$@\" <&3 2>&4 3<&- 4>&- &"
 		echo 'p=$!; wait $p; r=$?'
 		echo 'kill -9 -- -$p 2>/dev/null'
 		[ -n "$DROP" ] && echo "$DROP kill -9 -1 2>/dev/null"
 		echo 'exit $r'
 	} > "$stage/run"
 	chmod 0755 "$stage/run" "$stage/prog" 2>/dev/null
+	# the program runs by its own name, found first on PATH, so argv[0] is
+	# `sum` and not a path into learn's $TMP -- the lessons teach that
+	# argv[0] is the name, and `usage: %s` is how every c program says it.
+	ln -sf prog "$stage/$fn" 2>/dev/null
 	cp "$src" "$stage/src" 2>/dev/null
+	printf '%s\n' "$Q_FILE" > "$stage/name"
 	if [ -n "$C_LINT" ]; then
 		# shellcheck disable=SC2086
 		( cd "$bd" && $CC_CMD $C_LINT "$Q_FILE" ) 2>&1 | grep 'warning:' | head -6 > "$stage/warn"
@@ -150,27 +186,30 @@ c_build() {
 	return 0
 }
 
-# c_prelude TAG -- the shell function a case calls the program through. its
+# c_prelude TAG [tty] -- the shell function a case calls the program through. its
 # output goes via files so `ulimit -f` caps it and a case's own pipes and
 # `echo $?` see the program's status, not a pipe's. stdout and stderr go to
 # two files and come back out on their own streams, stdout first: which
 # stream a line went to is graded, and the order the two interleave in --
 # buffering, not the program -- can no longer decide a case.
+# with tty it is a run by hand instead: straight to the terminal, longer
+# clock, and the runner's own noise (xexec's) kept off the screen.
 c_prelude() {
-	local stage="$TMP/c.stage.$1" out="$TMP/c.out.$1" fn
+	local stage="$TMP/c.stage.$1" out="$TMP/c.out.$1" fn via
 	fn=$(c_fn "$Q_FILE")
-	if [ -n "$CC_RUN" ]; then
-		# the exec surface is mounted under learn's own $TMP, not the tree's:
-		# a .xexec.RANDOM dir in the cwd would be a different name for the
-		# learner's run and the reference's, and a program that lists its
-		# directory would never match.
-		printf '%s() { C_TMPDIR=$TMPDIR TMPDIR="%s" %s "%s" run "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s"; head -c 65536 "%s.e" >&2; return $_r; }\n' \
-			"$fn" "$TMP" "$CC_RUN" "$stage" "$out" "$out" "$out" "$out"
+	# the exec surface is mounted under learn's own $TMP, not the tree's:
+	# a .xexec.RANDOM dir in the cwd would be a different name for the
+	# learner's run and the reference's, and a program that lists its
+	# directory would never match. without xexec it is learn's own shell,
+	# not whatever sh is: a phone's is dash, which has no `ulimit -u`, and
+	# the run script is written for ash.
+	if [ -n "$CC_RUN" ]; then via="C_TMPDIR=\$TMPDIR TMPDIR=\"$TMP\" $CC_RUN \"$stage\" run"
+	else via="\"$SHELLBIN\" \"$stage/run\""; fi
+	if [ "${2:-}" = tty ]; then
+		printf '%s() { C_TTY=1 C_TO=300 %s "$@" 4>&2 2>/dev/null; }\n' "$fn" "$via"
 	else
-		# learn's own shell, not whatever sh is: a phone's is dash, which has
-		# no `ulimit -u`, and the run script is written for ash.
-		printf '%s() { "%s" "%s/run" "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s"; head -c 65536 "%s.e" >&2; return $_r; }\n' \
-			"$fn" "$SHELLBIN" "$stage" "$out" "$out" "$out" "$out"
+		printf '%s() { %s "$@" > "%s" 2> "%s.e"; _r=$?; head -c 2097152 "%s"; head -c 65536 "%s.e" >&2; return $_r; }\n' \
+			"$fn" "$via" "$out" "$out" "$out" "$out"
 	fi
 }
 
@@ -237,7 +276,7 @@ c_page() {
 # that differs (quoted, so a trailing space shows), and the exit status when it
 # differs -- a status-only miss used to print two identical-looking outputs.
 c_miss() {
-	local g="$TMP/c.got" w="$TMP/c.want" d n y x cut=$(( COLS - 14 ))
+	local g="$TMP/c.got" w="$TMP/c.want" d n y x cut=$(( COLS > 34 ? COLS - 14 : 20 ))
 	no "case $PRJ_NO of $PRJ_NC did not match"
 	_c_row case "$PRJ_CASE"
 	if [ "$PRJ_GOT" = "$PRJ_WANT" ]; then
@@ -261,11 +300,14 @@ c_miss() {
 		if [ "$x" = "$(printf '\001')" ]; then _c_row wanted "(nothing more -- yours goes on)"
 		else _c_row wanted "'$(printf '%s' "$x" | cut -c1-$cut)'"; fi
 	fi
-	[ "$PRJ_GS" = "$PRJ_WS" ] || _c_row exit "yours $PRJ_GS, wanted $PRJ_WS"
+	if [ "$PRJ_GS" != "$PRJ_WS" ]; then
+		_c_row exit "yours $(c_status "$PRJ_GS")"
+		_c_row ''     "wanted $(c_status "$PRJ_WS")"
+	fi
 	# the right words on the wrong stream reads as a strange diff; say it
 	if [ "$PRJ_GOT" != "$PRJ_WANT" ] && [ "$(printf '%s\n' "$PRJ_GOT" | grep -vxF -- '--- stderr ---' | sort)" = \
 	     "$(printf '%s\n' "$PRJ_WANT" | grep -vxF -- '--- stderr ---' | sort)" ]; then
-		note "the right lines, on the wrong stream: stdout vs stderr."
+		note "right lines, wrong stream: stdout vs stderr."
 	fi
 }
 
@@ -274,13 +316,87 @@ c_full() {
 	{
 		echo "  case: $PRJ_CASE"
 		echo
-		echo "  yours (exit $PRJ_GS):"
+		echo "  yours (exit $(c_status "$PRJ_GS")):"
 		printf '%s\n' "$PRJ_GOT" | sed 's/^/    /'
 		echo
-		echo "  wanted (exit $PRJ_WS):"
+		echo "  wanted (exit $(c_status "$PRJ_WS")):"
 		printf '%s\n' "$PRJ_WANT" | sed 's/^/    /'
 	} | c_page
 	[ $? = 3 ] || pause_card
+}
+
+# c_status N -- an exit status, and what a beginner needs told about it: past
+# 128 the program did not exit, a signal ended it, and 139 is a number nobody
+# reads as "your pointer was bad".
+c_status() {
+	case "$1" in
+		130) echo "$1 -- stopped with ctrl-c" ;;
+		134) echo "$1 -- aborted: an assert failed, or abort()" ;;
+		136) echo "$1 -- crashed: divide by zero?" ;;
+		137|143|152) echo "$1 -- killed: it ran too long (an endless loop?)" ;;
+		139) echo "$1 -- crashed: a bad pointer (segfault)" ;;
+		*) echo "$1" ;;
+	esac
+}
+
+# c_cerr ERR -- a compile error, wrapped (never cut), and the way to it.
+c_cerr() {
+	no "it does not compile"
+	printf '%s\n' "$1" | wrap $(( COLS - 6 )) | sed 's/^/    /'
+	[ -n "$C_LINE" ] && note "e opens vi on line $C_LINE."
+	return 0
+}
+
+# c_intdfl -- build, once a session, the few lines that let ctrl-c reach a
+# program run by hand: SIGINT back to default, then exec the program. 0 when
+# it is there; without it a try still runs, ctrl-c just does not stop it.
+c_intdfl() {
+	[ -x "$TMP/c.intdfl" ] && return 0
+	printf '%s\n' '#define _POSIX_C_SOURCE 200809L' '#include <signal.h>' '#include <unistd.h>' '' \
+		'int main(int argc, char **argv)' '{' '	if (argc < 2)' '		return 127;' \
+		'	signal(SIGINT, SIG_DFL);' '	execvp(argv[1], argv + 1);' '	return 127;' '}' > "$TMP/c.intdfl.c"
+	# shellcheck disable=SC2086
+	( cd "$TMP" && $CC_CMD -std=c11 -o "$TMP/c.intdfl" c.intdfl.c ) > /dev/null 2>&1
+	chmod 0755 "$TMP/c.intdfl" 2>/dev/null
+	[ -x "$TMP/c.intdfl" ]
+}
+
+# c_try SRC TAG -- run a program by hand: a line typed the way a case is
+# written (`hello a b`, `echo 3 | sum`), from the tree's directory, with the
+# keyboard as its input and the screen as its output. nothing is graded --
+# this is for watching what it does. ctrl-c stops the program, not learn.
+c_try() {
+	local src=$1 tag=$2 fn line tty_ r
+	fn=$(c_fn "$Q_FILE")
+	c_build "$src" "$tag" || { c_cerr "$C_ERR"; return 1; }
+	C_LINE=""
+	note "enter: run $fn.  or a line, as in a case:"
+	note "  $fn a b     echo 3 | $fn"
+	printf '  %s$%s ' "$W" "$N"
+	IFS= read -r line 2>/dev/null || return 0
+	[ -n "$line" ] || line=$fn
+	SANDBOX_DIRTY=1
+	sandbox_reset || { no "cannot build the sandbox"; return 1; }
+	note "ctrl-d ends its input, ctrl-c stops it."
+	rule
+	tty_=$(stty -g 2>/dev/null) || tty_=
+	[ -n "$tty_" ] && stty sane 2>/dev/null
+	# ctrl-c is IGNORED here, not caught: busybox ash (1.38) never clears
+	# the flag a caught signal sets, and every `read` after one spins on it
+	# -- the menus would hang. an ignored signal stays ignored down the
+	# whole tree, so intdfl hands the program its default back.
+	c_intdfl && cp "$TMP/c.intdfl" "$TMP/c.stage.$tag/intdfl" 2>/dev/null
+	trap '' INT
+	HOME="$SANDBOX" TMPDIR="$SANDBOX" "$SHELLBIN" -c "cd \"\$1\" || exit 1
+$(c_prelude "$tag" tty)
+$line" _ "$SANDBOX"; r=$?
+	trap on_int INT
+	[ -n "$tty_" ] && stty "$tty_" 2>/dev/null
+	SANDBOX_DIRTY=1
+	[ "$r" = 130 ] && echo   # the ^C the terminal echoed has no newline
+	rule
+	note "exit $(c_status "$r")"
+	return 0
 }
 
 c_enter() {
@@ -299,15 +415,13 @@ c_row() {
 		"$D" "$mark" "$3" "$4" "$N"
 }
 
-# the menu entry and `learn c`: every unit is open from the start -- the
-# first one teaches the four vi keys it needs, so nothing gates it. numbers
-# are the units' own (0 is the first), the same ones `learn c N` takes, and
-# enter goes on with the first unit not yet finished, so the whole ladder is
-# one key at a time. thirty units do not fit a 24-row terminal in one column.
-c_menu() {
+# c_units -- every unit, any order: all are open from the start -- the first
+# one teaches the four vi keys it needs, so nothing gates it. numbers are the
+# units' own (0 is the first), the same ones `learn c N` takes, and enter goes
+# on with the first unit not yet finished. thirty units do not fit a 24-row
+# terminal in one column. runs inside c_enter.
+c_units() {
 	local pid a nq name n d next rows two pick i
-	c_tools || { no "$CC_WHY"; pause_card; return 0; }
-	c_enter
 	while :; do
 		prj_index
 		n=$(awk 'END { print NR }' "$PRJ_INDEX")
@@ -315,7 +429,7 @@ c_menu() {
 		two=0; [ "$n" -gt "$rows" ] && [ "${TERM_COLS:-80}" -ge 76 ] && two=1
 		next=""; i=0
 		cls
-		hdr "learn c" "read it, write it in vi, it compiles and runs"
+		hdr "units" "any one, in any order"
 		while IFS='	' read -r pid a nq name; do
 			d=$(prj_ndone "$pid")
 			[ -z "$next" ] && [ "$d" -lt "$nq" ] && next=$pid
@@ -342,7 +456,167 @@ c_menu() {
 			   if [ -n "$pid" ]; then run_project "$pid"; else no "no unit $pick"; pause_card; fi ;;
 		esac
 	done
+}
+
+# c_tally -- "done total units_done units next": programs written of all, units
+# finished of all, and the first unit with a program left ("-" when none).
+# one awk over the index and the ledger; runs inside c_enter.
+c_tally() {
+	local led=$C_DONE
+	[ -f "$led" ] || led=/dev/null
+	prj_index
+	awk -v ix="$PRJ_INDEX" '
+		FILENAME == ix { split($0, f, "\t"); o[++u] = f[1]; nq[f[1]] = f[3] + 0; t += f[3]; next }
+		{ n = split($0, g, "/"); i = g[2] + 0
+		  if (n == 2 && (g[1] in nq) && i >= 1 && i <= nq[g[1]] && !seen[$0]++) { d++; dd[g[1]]++ } }
+		END { nx = "-"
+		      for (k = 1; k <= u; k++) if (dd[o[k]] >= nq[o[k]]) ud++; else if (nx == "-") nx = o[k]
+		      print d + 0, t + 0, ud + 0, u + 0, nx }
+	' "$PRJ_INDEX" "$led" 2>/dev/null
+}
+
+# c_continue -- the ladder: the first unit with a program left, then the next,
+# until you quit or none is left. a unit that comes back unfinished without a
+# quit (a program it could not grade) is not walked into again.
+c_continue() {
+	local d t ud u nx last="" rc
+	while :; do
+		read -r d t ud u nx <<-EOF
+		$(c_tally)
+		EOF
+		[ "${nx:--}" = - ] && { cls; ok "every unit written. the track is yours."; pause_card; return 0; }
+		[ "$nx" = "$last" ] && return 0
+		last=$nx
+		C_CHAIN=1; run_project "$nx"; rc=$?; C_CHAIN=
+		[ "$rc" = 2 ] && return 0
+	done
+}
+
+# c_home -- `learn c` and the C key: the track's own home, in the shape of
+# learn's menu. one key a mode, and every mode comes back here.
+c_home() {
+	local k d t ud u nx
+	c_tools || { no "$CC_WHY"; pause_card; return 0; }
+	c_enter
+	while :; do
+		read -r d t ud u nx <<-EOF
+		$(c_tally)
+		EOF
+		cls
+		hdr "learn c" "modern c, written in vi"
+		printf '  '; bar "${d:-0}" "${t:-1}" 20
+		printf ' %s%s/%s programs  %s/%s units%s\n\n' "$D" "$d" "$t" "$ud" "$u" "$N"
+		if [ "${nx:--}" = - ]; then _mi_off c continue "every unit written"
+		elif [ "${d:-0}" = 0 ]; then _mi c start "unit 0, your first program"
+		else _mi c continue "$(printf 'unit %s %s' "$(level_no "$nx")" "$(prj_field "$nx" name)" \
+			| cut -c1-$(( COLS - 22 )))"; fi
+		_mi u units    "any unit, any order"
+		_mi p scratch  "a .c to try anything in"
+		_mi f find     "which lesson says a word"
+		_mi h help     "the keys, and vi"
+		_mi q back     ""
+		rule
+		printf '  %schoose%s ' "$D" "$N"
+		IFS= read -rsn1 k 2>/dev/null || break
+		echo
+		case "$k" in
+			c|'') [ "${nx:--}" = - ] || c_continue ;;
+			u) c_units ;;
+			p) c_scratch ;;
+			f) cls; printf '  %sfind which word?%s ' "$W" "$N"
+			   IFS= read -r k 2>/dev/null || continue
+			   [ -n "$k" ] && { cls; c_find "$k"; } ;;
+			h|'?') cls; c_help ;;
+			q|Q|"$E_EOT") break ;;
+		esac
+	done
 	c_leave
+}
+
+# c_scratch -- a file of your own, never graded: write anything, leave vi, and
+# it compiles and runs by hand -- the playground's job, for c. it is kept, so
+# an experiment survives a reboot.
+c_scratch() {
+	local work="$C_WORK/scratch.c" k Q_FILE=scratch.c
+	mkdir -p "$C_WORK" 2>/dev/null
+	[ -f "$work" ] || printf '#include <stdio.h>\n\nint main(void)\n{\n\tprintf("hello\\n");\n\treturn 0;\n}\n' > "$work"
+	C_LINE=""
+	cls
+	hdr "scratch" "scratch.c -- not graded, kept"
+	note "try anything. leave vi and it compiles and runs."
+	while :; do
+		rule
+		printf '  %se%s edit   %st%s try it   %sq%s back\n' "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+		printf '  %schoose%s ' "$D" "$N"
+		IFS= read -rsn1 k 2>/dev/null || break
+		echo
+		case "$k" in
+			e|'') prj_edit "$work" scratch.c "$C_LINE" && c_try "$work" scratch ;;
+			t) c_try "$work" scratch ;;
+			q|Q|"$E_EOT") break ;;
+		esac
+	done
+}
+
+# c_find WORD -- the units whose lesson or tasks say WORD, each with its first
+# two lines that do, so "where was malloc" has an answer on one screen.
+# `learn c -k WORD` from the shell.
+c_find() {
+	local hits
+	hits=$(awk -v w="$1" -v cut=$(( COLS - 6 )) -v b="$B" -v n0="$N" -v d="$D" '
+		function flush() { if (c) { printf "  %s%s%s  %s(%d line%s)%s\n%s", b, head, n0, d, c, c == 1 ? "" : "s", n0, body } }
+		FNR == 1 { flush(); id = FILENAME; sub(/.*\//, "", id); n = id; sub(/-.*/, "", n); sub(/^0/, "", n)
+		           head = "unit " n; c = 0; body = "" }
+		/^name: / && FNR < 3 { head = head "  " substr($0, 7) }
+		/^(intro|spec|q): / && index(tolower($0), tolower(w)) {
+			t = $0; sub(/^[a-z]+: */, "", t); gsub(/`/, "", t)
+			if (++c <= 2) body = body "    " substr(t, 1, cut) "\n"
+		}
+		END { flush() }
+	' "$CUNITS"/*)
+	if [ -z "$hits" ]; then
+		no "no lesson says '$1'"; pause_card; return 0
+	fi
+	{ note "lessons that say '$1' -- learn c N opens one"; echo
+	  printf '%s\n' "$hits"; } | c_page
+	[ $? = 3 ] || pause_card
+}
+
+# c_help -- the keys, and the vi a beginner needs: busybox vi is the editor
+# here, and being stuck in it is the first wall anyone hits.
+c_help() {
+	c_page <<-EOF
+	  how it goes
+	    each unit is a lesson, then programs to write.
+	    a program opens in vi with its task as a comment
+	    at the top. write it, save and quit (:wq) and it
+	    compiles and runs against hidden cases at once.
+	    your code is saved: leave any time, come back.
+
+	  on a program
+	    e  edit it again        r  run the cases again
+	    t  try it by hand: a line, then its input
+	    h  a hint               s  the task again
+	    l  the lesson again     d  both outputs, in full
+	    a  the answer -- try a hint first
+	    n  start it over (yours kept as NAME.c.prev)
+	    q  back -- the code stays
+
+	  vi
+	    i      start typing     esc  stop typing
+	    a      type after       o    new line below
+	    h j k l   left, down, up, right
+	    w b    word on, back    0 \$  line start, end
+	    gg G   top, bottom      :12  go to line 12
+	    /word  find it          n    find again
+	    x      delete a char    dd   delete the line
+	    u      undo             p    paste
+	    :w     save             :wq  save and quit
+	    :q!    quit, dropping changes
+
+	  learn c N opens unit N. learn c -k WORD finds one.
+	EOF
+	[ $? = 3 ] || pause_card
 }
 
 c_unit() {
@@ -384,6 +658,7 @@ c_lint() {
 			esac
 			case "$fn" in
 				*[!a-z0-9_]*) echo "FAIL $lbl: '$fn' is not a shell function name" >&2; bad=$((bad + 1)) ;;
+				prog|run|src|warn|name|intdfl|scratch) echo "FAIL $lbl: '$fn' is a name the runner's own directory uses" >&2; bad=$((bad + 1)) ;;
 			esac
 			command -v "$fn" >/dev/null 2>&1 \
 				&& { echo "FAIL $lbl: '$fn' shadows a command on PATH" >&2; bad=$((bad + 1)); }

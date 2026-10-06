@@ -76,6 +76,10 @@ prj_announce() {
 	return 0
 }
 
+# prj_flow -- c text is written in paragraphs, so it is reflowed to the
+# screen (c_reflow); a script project's text keeps its lines.
+prj_flow() { if [ "$PRJ_LANG" = c ]; then c_reflow; else cat; fi; }
+
 # ---- running a program ----------------------------------------------------
 
 # prj_run WORKFILE NAME CASE -- one case, against a freshly built tree.
@@ -178,7 +182,7 @@ ask_program() {
 	else printf '%s\n' "${Q_START:-#!/bin/sh}" > "$work"; fi
 
 	printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
-	[ -n "$Q_SPEC" ] && { printf '%s\n' "$Q_SPEC" | say; echo; }
+	[ -n "$Q_SPEC" ] && { printf '%s\n' "$Q_SPEC" | prj_flow | say; echo; }
 	if [ "$PRJ_LANG" = c ]; then
 		note "$name compiles and runs when you leave vi."
 		note "vi: i types, esc stops, :wq saves and quits"
@@ -192,10 +196,10 @@ ask_program() {
 		if [ "$PRJ_LANG" = c ]; then
 			# one key a job; d only once there is a miss to look at
 			# two short rows: a phone's terminal is narrow
-			printf '  %se%s edit   %sr%s run    %sh%s hint   %ss%s spec\n' \
-				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
-			printf '  %sl%s lesson  %sa%s answer ' "$C$B" "$N" "$C$B" "$N"
-			[ "$missed" = 1 ] && printf ' %sd%s diff  ' "$C$B" "$N"
+			printf '  %se%s edit   %sr%s run    %st%s try    %sh%s hint   %ss%s spec\n' \
+				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+			printf '  %sl%s lesson %sa%s answer %sn%s new  ' "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+			[ "$missed" = 1 ] && printf ' %sd%s diff ' "$C$B" "$N"
 			printf ' %sq%s quit\n' "$C$B" "$N"
 		else
 			printf '  %se%s edit   %sr%s run it   %sa%s show the answer   %sq%s leave\n' \
@@ -205,12 +209,21 @@ ask_program() {
 		IFS= read -rsn1 k 2>/dev/null || return 2
 		echo
 		case "$PRJ_LANG$k" in
-			ch)  rule; printf 'hint: %s\n' "$Q_HINT" | say; continue ;;
+			ch)  rule; printf 'hint: %s\n' "$Q_HINT" | c_reflow | say; continue ;;
 			cs)  rule; printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
-			     printf '%s\n' "$Q_SPEC" | say; continue ;;
-			cl)  cls; prj_field "$pid" intro | say | c_page
+			     printf '%s\n' "$Q_SPEC" | c_reflow | say; continue ;;
+			cl)  cls; prj_field "$pid" intro | c_reflow | say | c_page
 			     [ $? = 3 ] || pause_card; cls; continue ;;
 			cd)  [ "$missed" = 1 ] && { cls; c_full; cls; c_miss; }; continue ;;
+			ct)  rule; c_try "$work" work; continue ;;
+			cn)  rule
+			     printf '  %sstart %s over? yours is kept as %s.prev [y/N]%s ' "$Y" "$name" "$name" "$N"
+			     IFS= read -rsn1 k 2>/dev/null; echo
+			     case "$k" in y|Y) ;; *) continue ;; esac
+			     cp "$work" "$work.prev" 2>/dev/null && c_starter > "$work" \
+				     && { C_LINE=""; missed=0; ok "a fresh $name -- e to write it."; } \
+				     || no "cannot write $work"
+			     continue ;;
 			ca)  rule
 			     printf '  %sshow the reference? try a hint first. [y/N]%s ' "$Y" "$N"
 			     IFS= read -rsn1 k 2>/dev/null; echo
@@ -238,7 +251,7 @@ ask_program() {
 			printf '%s\n' "$C_WARN" | wrap $(( COLS - 6 )) | sed 's/^/    /'
 		fi
 		if [ "$rc" = 0 ]; then
-			ok "every case matches. $(prj_field "$pid" name) -- $name is done."
+			ok "every case matches -- $name is done."
 			prj_mark "$pid" "$idx"
 			return 0
 		fi
@@ -252,9 +265,7 @@ ask_program() {
 			return 1
 		fi
 		if [ -n "$PRJ_CERR" ]; then
-			no "it does not compile"
-			printf '%s\n' "$PRJ_CERR" | wrap $(( COLS - 6 )) | sed 's/^/    /'
-			[ -n "$C_LINE" ] && note "e opens vi on line $C_LINE."
+			c_cerr "$PRJ_CERR"
 			continue
 		fi
 		C_LINE=""
@@ -279,6 +290,10 @@ prj_edit() {
 	SANDBOX_DIRTY=1
 	sandbox_reset || { no "cannot build the sandbox"; return 1; }
 	cp "$work" "$SANDBOX/$name" 2>/dev/null || return 1
+	# the copy is made by learn (root, on the stick) and edited by vi under
+	# the drop: without this nobody could not write it back, and vi opened
+	# every program [Readonly]. the tree is private, so 0666 costs nothing.
+	chmod 0666 "$SANDBOX/$name" 2>/dev/null
 	tty_=$(stty -g 2>/dev/null) || tty_=
 	[ -n "$tty_" ] && stty sane 2>/dev/null
 	# shellcheck disable=SC2086
@@ -298,13 +313,13 @@ prj_edit() {
 
 # a project file: every program in it, in the order it was written.
 run_project() {
-	local pid=$1 nq i rc done_
+	local pid=$1 nq i rc done_ all
 	nq=$(prj_nq "$pid")
 	[ "${nq:-0}" -gt 0 ] || { note "project '$pid' is empty"; return 0; }
 
 	cls
 	hdr "$(prj_field "$pid" name)" "$([ "$PRJ_LANG" = c ] && echo lesson || echo project)  ${nq} program(s)"
-	prj_field "$pid" intro | say | c_page
+	prj_field "$pid" intro | prj_flow | say | c_page
 	case $? in
 		2) return 2 ;;
 		3) ;;
@@ -312,17 +327,20 @@ run_project() {
 	esac
 
 	MODE=learn
-	# pick up at the first program not yet written: coming back to a unit
-	# used to start it over at its first program. all written -> from the top.
-	i=1
+	# pick up at the first program not yet written, and step over the written
+	# ones after it too: coming back to a unit used to start it over, then
+	# walked into programs already done. all written at the start -> the whole
+	# unit again, as practice.
+	i=1; all=0
 	while [ "$i" -le "$nq" ] && prj_is_done "$pid" "$i"; do i=$((i + 1)); done
-	[ "$i" -le "$nq" ] || i=1
+	[ "$i" -le "$nq" ] || { i=1; all=1; }
 	while [ "$i" -le "$nq" ]; do
 		cls
 		statusbar "$(prj_field "$pid" name)" "$([ "$PRJ_LANG" = c ] && echo c || echo project)" "$i" "$nq" ""
 		ask_program "$(prj_path "$pid")" "$i" "$pid"; rc=$?
 		[ "$rc" = 2 ] && return 2
 		i=$((i + 1))
+		[ "$all" = 1 ] || while [ "$i" -le "$nq" ] && prj_is_done "$pid" "$i"; do i=$((i + 1)); done
 		pause_card || return 2
 	done
 
@@ -331,6 +349,8 @@ run_project() {
 	done_=$(prj_ndone "$pid")
 	if [ "$done_" -ge "$nq" ]; then ok "$(prj_field "$pid" name) -- written."
 	else no "$(prj_field "$pid" name) -- $done_ of $nq. come back to it."; fi
+	# on the ladder (c_continue) the next unit opens after this key
+	[ -n "${C_CHAIN:-}" ] && note "enter: the next unit.  q: stop here."
 	pause_card
 }
 

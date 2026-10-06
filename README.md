@@ -546,7 +546,9 @@ and discipline (lists, hash tables, trees, the preprocessor, parsers, binary
 formats, arenas, undefined behaviour), then the unix system (descriptors,
 directories, fork/exec, pipes, signals), ending in a shell and an interpreter. each lesson is read in a pager, then vi opens on the program with the task
 in a comment at the top; leaving vi compiles it and runs hidden cases against a
-reference, and a compile error reopens vi on the line. the image ships no
+reference, and a compile error reopens vi on the line. `t` runs your program by
+hand on the keyboard, `p` at the track's menu is a scratch file that is never
+graded, and `learn c -k WORD` finds the lesson that taught a word. the image ships no
 compiler on purpose -- the track uses the arsenal's tcc through `xexec`, or a pc's
 own cc, and the program runs as `nobody` under cpu, memory, time and output caps.
 

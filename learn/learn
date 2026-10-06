@@ -44,7 +44,10 @@ cleanup() {
 	rm -rf "$TMP" "${SANDBOX:-}" 2>/dev/null
 }
 trap cleanup EXIT
-trap '[ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130' INT
+# a function, so c_try can hand ctrl-c to a program for a moment and put
+# this back after.
+on_int() { [ -t 0 ] && stty sane 2>/dev/null; cleanup; trap - EXIT; exit 130; }
+trap on_int INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
 for _l in ui ctx grade fixtures cards coach chal edit scenarios projects ctrack autopsy fumble panel explain lint corpus selftest; do
@@ -1132,6 +1135,7 @@ usage() {
 	learn scenario [NAME] missions -- narrative pipelines, or the list of unlocked ones
 	learn project [NAME]  write a program against a spec, or the list of them
 	learn c [N]           learn c: read a lesson, write it in vi, it compiles and runs
+	learn c -k WORD       which c lesson says a word  (learn c help: keys, vi)
 	learn shell [SEED]    a shell in the tree the cards run against
 	learn autopsy [FILE]  your own shell history, held up to the curriculum
 	learn explain LINE    every command's summary plus the shell syntax in it
@@ -1364,7 +1368,7 @@ menu() {
 			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
 			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
 			w) if projects_any_unlocked; then projects_menu; else no "no projects unlocked yet."; pause_card; fi ;;
-			C) c_menu ;;
+			C) c_home ;;
 			t) playground "" ;;
 			s) cls; stats; pause_card ;;
 			a) cls; autopsy; pause_card ;;
@@ -1430,7 +1434,9 @@ case "${1:-}" in
 	          case "${1:-}" in
 	          	check) c_check && echo "learn: $(c_ids | grep -c .) c unit(s) check out" ;;
 	          	lint)  c_lint && echo "learn: $(c_ids | grep -c .) c unit(s) lint clean" ;;
-	          	'')    c_menu ;;
+	          	'')    c_home ;;
+	          	-k)    [ -n "${2:-}" ] || die "usage: learn c -k WORD"; c_find "$2" ;;
+	          	help)  c_help ;;
 	          	*)     c_unit "$1" ;;
 	          esac ;;
 	shell)    shift; playground "${1:-}" ;;
