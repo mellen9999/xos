@@ -68,7 +68,9 @@ c_fn() { echo "${1%.c}"; }
 # (or the smallest program that compiles).
 c_starter() {
 	printf '/* %s\n *\n' "$Q_PROMPT"
-	printf '%s\n' "$Q_SPEC" | tr -d '`' | sed -e 's/^/ * /' -e 's/ *$//'
+	# wrapped to the screen: busybox vi does not wrap a long line, it cuts it
+	printf '%s\n' "$Q_SPEC" | tr -d '`' | wrap $(( COLS < 76 ? COLS - 6 : 70 )) \
+		| sed -e 's/^/ * /' -e 's/ *$//'
 	printf ' */\n\n'
 	if [ -n "$Q_START" ]; then printf '%s\n' "$Q_START"
 	else printf '#include <stdio.h>\n\nint main(void)\n{\n\treturn 0;\n}\n'; fi
@@ -95,7 +97,7 @@ c_build() {
 		# under it, which a narrow screen wraps into noise -- and `e` puts
 		# you on that line anyway. a compiler that says nothing in that
 		# shape keeps its raw output.
-		C_ERR=$(grep -E ':[0-9]+(:[0-9]+)?: (fatal )?(error|warning|note):' "$TMP/c.err" | head -8)
+		C_ERR=$(grep -E ':[0-9]+(:[0-9]+)?: (fatal )?(error|warning):' "$TMP/c.err" | head -6)
 		[ -n "$C_ERR" ] || C_ERR=$(grep . "$TMP/c.err" | head -10)
 		[ -n "$C_ERR" ] || C_ERR="the compiler failed and said nothing"
 		C_LINE=$(sed -n "s/^[^:]*$Q_FILE:\([0-9][0-9]*\):.*/\1/p" "$TMP/c.err" | head -1)
