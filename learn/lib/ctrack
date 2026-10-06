@@ -603,37 +603,40 @@ c_find() {
 # c_help -- the keys, and the vi a beginner needs: busybox vi is the editor
 # here, and being stuck in it is the first wall anyone hits.
 c_help() {
-	c_page <<-EOF
-	  how it goes
-	    each unit is a lesson, then programs to write.
-	    a program opens in vi with its task as a comment
-	    at the top. write it, save and quit (:wq) and it
-	    compiles and runs against hidden cases at once.
-	    your code is saved: leave any time, come back.
-
-	  on a program
-	    e  edit it again        r  run the cases again
-	    t  try it by hand: a line, then its input
-	    h  a hint               s  the task again
-	    l  the lesson again     d  both outputs, in full
-	    a  the answer -- try a hint first
-	    n  start it over (yours kept as NAME.c.prev)
-	    q  back -- the code stays
-
-	  vi
-	    i      start typing     esc  stop typing
-	    a      type after       o    new line below
-	    h j k l   left, down, up, right
-	    w b    word on, back    0 \$  line start, end
-	    gg G   top, bottom      :12  go to line 12
-	    /word  find it          n    find again
-	    x      delete a char    dd   delete the line
-	    u      undo             p    paste
-	    :w     save             :wq  save and quit
-	    :q!    quit, dropping changes
-
-	  learn c N opens unit N. learn c -k WORD finds one.
-	EOF
+	# headers yellow, keys cyan, words plain: the same marks the menus use
+	_ch() { printf '\n  %s%s%s\n' "$Y$B" "$1" "$N"; }
+	_ck() {
+		printf '    %s%-7s%s %-16s' "$C$B" "$1" "$N" "$2"
+		[ -n "${3:-}" ] && printf ' %s%-4s%s %s' "$C$B" "$3" "$N" "$4"
+		echo
+	}
+	{
+		_ch "how it goes"
+		printf '    %s\n' "each unit is a lesson, then programs to write." \
+			"a program opens in vi with its task as a comment" \
+			"at the top. write it, save and quit (:wq) and it" \
+			"compiles and runs against hidden cases at once." \
+			"your code is saved: leave any time, come back."
+		_ch "on a program"
+		_ck e "edit it again"  r "run the cases"
+		_ck t "try it by hand" h "a hint"
+		_ck s "the task again" l "the lesson again"
+		_ck d "full diff"      a "the answer"
+		_ck n "start it over"  q "back, code kept"
+		_ch "vi"
+		_ck i "start typing"   esc "stop typing"
+		_ck a "type after"     o "new line below"
+		_ck "h j k l" "left down up right"
+		_ck "w b" "word on, back"  '0 $' "line start, end"
+		_ck "gg G" "top, bottom"   :12 "go to line 12"
+		_ck /word "find it"        n "find again"
+		_ck x "delete a char"      dd "delete the line"
+		_ck u "undo"               p "paste"
+		_ck :w "save"              :wq "save and quit"
+		_ck :q! "quit, dropping changes"
+		echo
+		printf '  %slearn c N opens unit N. learn c -k WORD finds one.%s\n' "$D" "$N"
+	} | c_page
 	[ $? = 3 ] || pause_card
 }
 
