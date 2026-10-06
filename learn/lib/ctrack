@@ -148,12 +148,20 @@ c_prelude() {
 # c_run TAG CASE -- one case, against a freshly built tree, like prj_run. the
 # shell is NOT dropped here: on xos it has to mount the exec surface, and what
 # it runs is the corpus's case line -- the program inside drops itself.
+#
+# the case shell gets a session of its own and the whole session dies after:
+# timeout kills only the shell, and a pipeline stage it forked -- `yes` under
+# a parent that ignores SIGPIPE, as git does for a pre-push hook -- would
+# spin on, orphaned, holding the output pipe this reads, forever.
 c_run() {
 	SANDBOX_DIRTY=1
 	sandbox_reset || return 1
 	( cd "$SANDBOX" 2>/dev/null || exit 1
-	  HOME="$SANDBOX" TMPDIR="$SANDBOX" timeout 10 "$SHELLBIN" -c "$(c_prelude "$1")
-$2" </dev/null 2>&1 )
+	  HOME="$SANDBOX" TMPDIR="$SANDBOX" setsid timeout 10 "$SHELLBIN" -c "$(c_prelude "$1")
+$2" </dev/null 2>&1 &
+	  p=$!; wait "$p"; r=$?
+	  kill -9 -- "-$p" 2>/dev/null
+	  exit "$r" )
 }
 
 # c_page -- page stdin a screen at a time: space/j/enter on, k/b back, q done.

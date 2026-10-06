@@ -91,8 +91,13 @@ prj_run() {
 	cp "$1" "$SANDBOX/$2" 2>/dev/null || return 1
 	chmod 0644 "$SANDBOX/$2" 2>/dev/null
 	# shellcheck disable=SC2086
+	# its own session, killed whole after (c_run says why): a stage the
+	# program left running would hold this output pipe open forever.
 	( cd "$SANDBOX" 2>/dev/null || exit 1
-	  HOME="$SANDBOX" TMPDIR="$SANDBOX" timeout 5 $DROP "$SHELLBIN" -c "$3" </dev/null 2>&1 )
+	  HOME="$SANDBOX" TMPDIR="$SANDBOX" setsid timeout 5 $DROP "$SHELLBIN" -c "$3" </dev/null 2>&1 &
+	  p=$!; wait "$p"; r=$?
+	  kill -9 -- "-$p" 2>/dev/null
+	  exit "$r" )
 }
 
 # prj_grade WORKFILE -- 0 when every case matches the reference.

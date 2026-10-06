@@ -174,7 +174,7 @@ prog: }
 case: printf 'one\ntwo\n' | rawcat
 case: printf 'a\n' > rc1; printf 'b' > rc2; rawcat rc1 rc2 rc1
 case: printf x > rc1; rawcat nothere rc1 2>&1; echo $?
-case: yes | head -n 5000 > rcbig; rawcat rcbig | wc -c; rawcat rcbig rcbig | wc -c
+case: awk 'BEGIN { for (i = 0; i < 5000; i++) print "y" }' > rcbig; rawcat rcbig | wc -c; rawcat rcbig rcbig | wc -c
 hint: a copy loop of read into a buffer, then write the n bytes read -- not the buffer size -- inside a loop that handles a short write
 ---
 q: mixout.c -- stdio and raw writes in order
@@ -301,6 +301,6 @@ case: printf 'hello\n' > fc1; fdcopy fc1 fc2; cat fc2
 case: printf 'a long old line\n' > fc2; printf 'new\n' > fc1; fdcopy fc1 fc2; cat fc2
 case: printf x > fc1; fdcopy fc1 fc1 2>&1; echo $?; cat fc1
 case: printf x > fc1; umask 0; rm -f fc3; fdcopy fc1 fc3; stat -c %a fc3
-case: yes | head -n 5000 > fc1; fdcopy fc1 fc2; cmp fc1 fc2 && echo same
+case: awk 'BEGIN { for (i = 0; i < 5000; i++) print "y" }' > fc1; fdcopy fc1 fc2; cmp fc1 fc2 && echo same
 case: fdcopy a 2>&1; echo $?; rm -f fc9; fdcopy nothere fc9 2>&1; echo $?; test -e fc9 || echo none
 hint: open both, loop read then write-all until read returns 0, then close; compare st_dev and st_ino before the O_TRUNC open

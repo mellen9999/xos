@@ -341,6 +341,6 @@ prog: }
 case: printf 'ann 5\nbob 9\ncy 9\ndee -3\n' | arenarec
 case: printf '' | arenarec
 case: printf 'ann 1\nbob\n' | arenarec 2>&1; echo $?; printf 'ann 1x\n' | arenarec 2>&1; echo $?
-case: yes 'nm 7' | head -n 1000 | arenarec | tail -n 2
-case: yes 'nm 7' | head -n 5000 | arenarec 2>&1; echo $?
+case: awk 'BEGIN { for (i = 0; i < 1000; i++) print "nm 7" }' | arenarec | tail -n 2
+case: awk 'BEGIN { for (i = 0; i < 5000; i++) print "nm 7" }' | arenarec 2>&1; echo $?
 hint: an arena_alloc(arena, size, align) that returns NULL when full; allocate the struct and the name from it, and let the one free at the end cover both

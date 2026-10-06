@@ -83,7 +83,7 @@ case: printf '110' | div3
 case: printf '1001\n' | div3
 case: printf '111' | div3
 case: printf '' | div3
-case: yes 1 | head -n 70 | tr -d '\n' | div3; yes 1 | head -n 71 | tr -d '\n' | div3
+case: awk 'BEGIN { for (i = 0; i < 70; i++) print "1" }' | tr -d '\n' | div3; awk 'BEGIN { for (i = 0; i < 71; i++) print "1" }' | tr -d '\n' | div3
 case: printf '10x1' | div3 2>&1; echo $?
 hint: the state is 0, 1 or 2; from remainder r, reading bit b gives (2*r + b) % 3 -- a table of three rows and two columns will do
 ---

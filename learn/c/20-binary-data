@@ -176,7 +176,7 @@ prog: }
 case: printf 'abc' | adlersum
 case: printf '' | adlersum
 case: printf '\377\376\375' | adlersum
-case: yes | head -n 10000 | adlersum
+case: awk 'BEGIN { for (i = 0; i < 10000; i++) print "y" }' | adlersum
 hint: read bytes with getchar into an int; take the remainder after each addition, not once at the end
 ---
 q: recread.c -- read a checked binary record file
