@@ -110,7 +110,7 @@ prj_grade() {
 	[ -n "$Q_CASES" ] || return 1
 	printf '%s\n' "$Q_PROG" > "$ref" || return 1
 	printf '%s\n' "$Q_CASES" | grep . > "$TMP/prj.cases"
-	PRJ_NC=$(grep -c '' "$TMP/prj.cases")
+	PRJ_NC=$(awk 'END { print NR }' "$TMP/prj.cases")
 	# a tree that cannot be built fails both sides identically, and identical
 	# reads as a pass: say so instead of grading against nothing.
 	SANDBOX_DIRTY=1

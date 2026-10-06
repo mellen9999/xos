@@ -317,7 +317,7 @@ read_line() {   # [DEADLINE] -- sets REPLY_LINE. 0 line, 1 EOF/quit, 2 time up
 	fi
 
 	local hn hi
-	hn=$([ -f "$EDIT_HIST" ] && grep -c '' "$EDIT_HIST" 2>/dev/null || echo 0)
+	hn=$([ -f "$EDIT_HIST" ] && awk 'END { print NR }' "$EDIT_HIST" 2>/dev/null || echo 0)
 	# the history is unbounded otherwise, and every arrow-up costs a sed over
 	# it: keep the last thousand, trimmed once it runs two hundred over
 	if [ "$hn" -gt 1200 ]; then

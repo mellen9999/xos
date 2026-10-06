@@ -210,7 +210,7 @@ $2" </dev/null > "$o" 2> "$e" &
 c_page() {
 	local f="$TMP/c.page" n rows top k
 	cat > "$f"
-	n=$(grep -c '' "$f")
+	n=$(awk 'END { print NR }' "$f")
 	rows=$(( ${TERM_LINES:-24} - 3 ))
 	if [ ! -t 1 ] || ! : < /dev/tty 2>/dev/null || [ "$n" -le "$rows" ]; then
 		cat "$f"; return 0
@@ -308,7 +308,7 @@ c_menu() {
 	c_enter
 	while :; do
 		prj_index
-		n=$(grep -c '' "$PRJ_INDEX")
+		n=$(awk 'END { print NR }' "$PRJ_INDEX")
 		rows=$(( ${TERM_LINES:-24} - 7 ))
 		two=0; [ "$n" -gt "$rows" ] && [ "${TERM_COLS:-80}" -ge 76 ] && two=1
 		next=""; i=0
