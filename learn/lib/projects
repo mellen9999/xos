@@ -231,10 +231,7 @@ ask_program() {
 			     printf '  %sshow the reference? try a hint first. [y/N]%s ' "$Y" "$N"
 			     IFS= read -rsn1 k 2>/dev/null; echo
 			     case "$k" in y|Y) ;; *) continue ;; esac
-			     { echo "  the reference -- yours does not have to look like it."; echo
-			       printf '%s\n' "$Q_PROG" | sed 's/^/    /'; } | c_page
-			     [ $? = 3 ] || pause_card
-			     continue ;;
+			     c_ref; continue ;;
 		esac
 		case "$k" in
 			e|'')  prj_edit "$work" "$name" "$C_LINE" || continue ;;
@@ -252,6 +249,7 @@ ask_program() {
 		if [ "$PRJ_LANG" = c ] && [ -z "$PRJ_CERR" ] && [ -n "${C_WARN:-}" ]; then
 			note "it compiles, with warnings -- not errors here, but fix them:"
 			printf '%s\n' "$C_WARN" | wrap $(( COLS - 6 )) | sed 's/^/    /'
+			c_gloss "$C_WARN"
 		fi
 		if [ "$rc" = 0 ]; then
 			ok "every case matches -- $name is done."
@@ -343,7 +341,8 @@ run_project() {
 		[ "$rc" = 2 ] && return 2
 		i=$((i + 1))
 		[ "$all" = 1 ] || while [ "$i" -le "$nq" ] && prj_is_done "$pid" "$i"; do i=$((i + 1)); done
-		pause_card || return 2
+		if [ "$PRJ_LANG" = c ] && [ "$rc" = 0 ]; then c_passed || return 2
+		else pause_card || return 2; fi
 	done
 
 	cls

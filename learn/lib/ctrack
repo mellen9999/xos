@@ -90,6 +90,17 @@ c_starter() {
 	else printf '#include <stdio.h>\n\nint main(void)\n{\n\treturn 0;\n}\n'; fi
 }
 
+# c_errs FILE -- C_ERR from a compiler's output: the message lines only. gcc
+# and clang draw the line and a caret under it, which a narrow screen wraps
+# into noise -- and `e` puts you on that line anyway. a compiler (or a linker)
+# that says nothing in that shape keeps its raw output, less the linker's
+# "in function" line that names a temp file.
+c_errs() {
+	C_ERR=$(grep -E ':[0-9]+(:[0-9]+)?: (fatal )?(error|warning):' "$1" | head -6)
+	[ -n "$C_ERR" ] || C_ERR=$(grep . "$1" | grep -v ': in function ' | head -10)
+	[ -n "$C_ERR" ] || C_ERR="the compiler failed and said nothing"
+}
+
 # c_build SRC TAG -- compile SRC as $Q_FILE into $TMP/c.stage.TAG/prog beside
 # its `run`. on failure C_ERR holds the compiler's first lines and C_LINE the
 # first line it complained about.
@@ -109,13 +120,7 @@ c_build() {
 	# shellcheck disable=SC2086
 	if ! ( cd "$bd" && $CC_CMD $C_FLAGS -o "$stage/prog" "$Q_FILE" ) > "$TMP/c.err" 2>&1 \
 	   || [ ! -s "$stage/prog" ]; then
-		# the message lines only: gcc and clang draw the line and a caret
-		# under it, which a narrow screen wraps into noise -- and `e` puts
-		# you on that line anyway. a compiler that says nothing in that
-		# shape keeps its raw output.
-		C_ERR=$(grep -E ':[0-9]+(:[0-9]+)?: (fatal )?(error|warning):' "$TMP/c.err" | head -6)
-		[ -n "$C_ERR" ] || C_ERR=$(grep . "$TMP/c.err" | head -10)
-		[ -n "$C_ERR" ] || C_ERR="the compiler failed and said nothing"
+		c_errs "$TMP/c.err"
 		C_LINE=$(sed -n "s/^[^:]*$Q_FILE:\([0-9][0-9]*\):.*/\1/p" "$TMP/c.err" | head -1)
 		return 1
 	fi
@@ -365,8 +370,74 @@ c_status() {
 c_cerr() {
 	no "it does not compile"
 	printf '%s\n' "$1" | wrap $(( COLS - 6 )) | sed 's/^/    /'
+	c_gloss "$1"
 	[ -n "$C_LINE" ] && note "e opens vi on line $C_LINE."
 	return 0
+}
+
+# _c_gloss ERR -- "tag<tab>meaning" for the first line of ERR that says a
+# mistake a beginner makes, in any of the three compilers' words (tcc on the
+# stick, clang on a phone, gcc on a pc -- c_check holds a broken program for
+# every tag and fails when a compiler stops matching). NAME is the first
+# 'quoted' identifier on that line. nothing when no line is known.
+_c_gloss() {
+	printf '%s\n' "$1" | awk '
+		{ l = tolower($0); t = ""
+		  if (l ~ /implicit declaration|undeclared function/) { t = "impl"; m = "NAME is not declared: a missing #include, or a typo in its name." }
+		  else if (l ~ /undeclared/) { t = "undecl"; m = "NAME is not declared: misspelled, or used above the line that declares it." }
+		  else if (l ~ /missing terminating/) { t = "quote"; m = "a \" or a '"'"' is never closed." }
+		  else if (l ~ /unused variable/) { t = "unused"; m = "NAME is never used. warnings are errors here: use it or delete it." }
+		  else if (l ~ /control reaches end|not return a value|return no value/) { t = "noret"; m = "a path through the function ends without a return." }
+		  else if (l ~ /format .*(expects|specifies)/) { t = "fmt"; m = "a % does not match its value: %d an int, %s a string, %f a double." }
+		  else if (l ~ /too (few|many) arguments/) { t = "args"; m = "the call passes the wrong number of arguments." }
+		  else if (l ~ /int-conversion|incompatible pointer|pointer without a cast|from incompatible/) { t = "ptr"; m = "a pointer where a number goes, or the other way round: check & and *." }
+		  else if (l ~ /undefined (reference|symbol)/) { t = "undef"; m = "NAME is called but never written: check its spelling." }
+		  else if (l ~ /assignment (used as truth value|as a condition)/) { t = "assign"; m = "= stores a value, == compares two." }
+		  else if (l ~ /uninitiali[sz]ed/) { t = "uninit"; m = "NAME is read before it is given a value." }
+		  # after the rest: "too few arguments ...; expected 1" (gcc) holds a ;
+		  else if (l ~ /expected[^a-z]*;|expected [^a-z]*or [^a-z]*;|;[^a-z]* expected/) { t = "semi"; m = "a ; is missing -- often at the end of the line above." }
+		  else if (l ~ /expected .}|end of input|<eof>|end of file/) { t = "brace"; m = "a { or ( is never closed: count them." }
+		  if (t == "") next
+		  n = "it"
+		  if (match($0, /(\047|`|\342\200\230)[A-Za-z_][A-Za-z0-9_]*(\047|\342\200\231)/)) {
+			n = substr($0, RSTART, RLENGTH); gsub(/^(\047|`|\342\200\230)|(\047|\342\200\231)$/, "", n)
+		  } else if (match($0, /symbol: [A-Za-z_][A-Za-z0-9_]*/)) n = substr($0, RSTART + 8, RLENGTH - 8)
+		  gsub(/NAME/, n, m); print t "\t" m; exit }
+	'
+}
+
+# c_gloss ERR -- what the compiler means, in a line: under its own words, in
+# yellow, for whoever does not yet read "implicit declaration".
+c_gloss() {
+	local g
+	g=$(_c_gloss "$1" | cut -f2)
+	[ -n "$g" ] || return 0
+	printf 'means: %s\n' "$g" | wrap $(( COLS - 6 )) | sed -e 's/ *$//' -e '1s/^/  /' -e '1!s/^/    /' \
+		-e "1s/^  means:/  ${Y}means:$N/"
+}
+
+# c_ref -- the reference program, paged: on `a`, and after a pass to compare.
+c_ref() {
+	{ echo "  the reference -- yours need not match it."; echo
+	  printf '%s\n' "$Q_PROG" | sed 's/^/    /'; } | c_page
+	[ $? = 3 ] || pause_card
+}
+
+# c_passed -- the pause after a pass, with the reference one key away: reading
+# a clean version of what you just wrote is half of learning it. 2 on quit.
+c_passed() {
+	local k
+	[ -t 0 ] || return 0
+	while :; do
+		printf '\n  %s[enter] next%s   %sa%s %show the reference wrote it%s ' "$D" "$N" "$C$B" "$N" "$D" "$N"
+		IFS= read -rsn1 k 2>/dev/null || return 2
+		echo
+		case "$k" in
+			a|A) cls; c_ref; cls; ok "every case matches -- $Q_FILE is done." ;;
+			q|Q|"$EOT") return 2 ;;
+			*) return 0 ;;
+		esac
+	done
 }
 
 # c_intdfl -- build, once a session, the few lines that let ctrl-c reach a
@@ -729,6 +800,46 @@ c_strict() {
 	return "$n"
 }
 
+# c_gloss_check -- a broken program for every gloss. each compiler that refuses
+# one has to be glossed with the tag it was written for: a compiler that
+# rewords its message goes red here, not quiet on a learner's screen. one that
+# accepts it (tcc keeps fewer warnings) has nothing to gloss. returns misses.
+c_gloss_check() {
+	local t src cmd g n=0
+	while IFS='|' read -r t src; do
+		printf '%b\n' "$src" > "$TMP/c.gloss.c"
+		while IFS= read -r cmd; do
+			[ -n "$cmd" ] || continue
+			# shellcheck disable=SC2086
+			( cd "$TMP" && $cmd -o "$TMP/c.gloss" c.gloss.c ) > "$TMP/c.err" 2>&1 < /dev/null && continue
+			c_errs "$TMP/c.err"
+			g=$(_c_gloss "$C_ERR" | cut -f1)
+			[ "$g" = "$t" ] && continue
+			echo "FAIL c gloss $t: '${cmd%% *}' is glossed '${g:-nothing}':" >&2
+			printf '%s\n' "$C_ERR" | sed 's/^/    /' >&2
+			n=$((n + 1))
+		done <<-EOF
+		$CC_CMD $C_FLAGS
+		$(printf '%s\n' "${C_STRICT:-}" | tr ';' '\n')
+		EOF
+	done <<-'EOF'
+	impl|int main(void) { prinft("hi"); return 0; }
+	undecl|int main(void) { return cnt; }
+	quote|#include <stdio.h>\nint main(void) { puts("hi); return 0; }
+	unused|int main(void) { int x; return 0; }
+	noret|int f(int a) { if (a) return 1; }\nint main(void) { return f(0); }
+	fmt|#include <stdio.h>\nint main(void) { printf("%d", "hi"); return 0; }
+	args|#include <string.h>\nint main(void) { return (int)strlen(); }
+	ptr|int main(void) { int x = "hi"; return x; }
+	undef|int helper(void);\nint main(void) { return helper(); }
+	assign|int main(int c, char **v) { (void)v; if (c = 2) return 1; return 0; }
+	uninit|int main(void) { int x; return x; }
+	semi|int main(void) { int x = 1\n\treturn x; }
+	brace|int main(void) { if (1) { return 0; }
+	EOF
+	return "$n"
+}
+
 # c_check -- the compiled half: every reference builds under C_FLAGS, then
 # again under STRICT (the build passes gcc's -std=c11 -Wall -Wextra -pedantic
 # -Werror) so a reference that only tcc accepts is caught; it reproduces
@@ -738,6 +849,7 @@ c_check() {
 	local pid path nq i bad=0 lbl
 	c_tools || { echo "FAIL c: $CC_WHY" >&2; return 1; }
 	c_lint || bad=$((bad + $?))
+	c_gloss_check || bad=$((bad + $?))
 	c_enter
 	for pid in $(project_ids); do
 		path=$(prj_path "$pid"); nq=$(prj_nq "$pid"); i=1
