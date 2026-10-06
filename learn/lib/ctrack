@@ -105,7 +105,10 @@ c_build() {
 		echo '#!/bin/sh'
 		if [ -n "$DROP" ]; then echo 'ulimit -u 64 2>/dev/null'
 		else echo 'ulimit -u $(( $(ls -ldn /proc/[0-9]*/task/[0-9]* 2>/dev/null | awk -v u="$(id -u)" '"'"'$3 == u'"'"' | wc -l) + 512 )) 2>/dev/null'; fi
-		echo 'ulimit -t 3 2>/dev/null; ulimit -v 262144 2>/dev/null; ulimit -f 128 2>/dev/null'
+		# memory is capped on the heap (-d), not the address space (-v): an
+		# android libc reserves gigabytes it never touches, and under -v every
+		# program died before main.
+		echo 'ulimit -t 3 2>/dev/null; ulimit -d 262144 2>/dev/null; ulimit -f 128 2>/dev/null'
 		echo '[ -n "${C_TMPDIR:-}" ] && TMPDIR=$C_TMPDIR && export TMPDIR'
 		# its own session (setsid), killed whole afterwards: a child it forked
 		# and left behind would otherwise outlive the case and spend the next
@@ -140,8 +143,10 @@ c_prelude() {
 		printf '%s() { C_TMPDIR=$TMPDIR TMPDIR="%s" %s "%s" run "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
 			"$fn" "$TMP" "$CC_RUN" "$stage" "$out" "$out"
 	else
-		printf '%s() { sh "%s/run" "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
-			"$fn" "$stage" "$out" "$out"
+		# learn's own shell, not whatever sh is: a phone's is dash, which has
+		# no `ulimit -u`, and the run script is written for ash.
+		printf '%s() { "%s" "%s/run" "$@" > "%s" 2>&1; _r=$?; head -c 65536 "%s"; return $_r; }\n' \
+			"$fn" "$SHELLBIN" "$stage" "$out" "$out"
 	fi
 }
 
