@@ -288,6 +288,9 @@ ask_program() {
 # every run rebuilds the tree underneath it.
 prj_edit() {
 	local work=$1 name=$2 line=${3:-} tty_ rc
+	# the first tree of a session is built, not copied: seconds on a phone,
+	# and a blank screen that long reads as a hang
+	[ "$PRJ_LANG" = c ] && ! c_tree_ready && note "setting up the files your program runs in..."
 	prj_tree || { no "cannot build the sandbox"; return 1; }
 	cp "$work" "$SANDBOX/$name" 2>/dev/null || return 1
 	# the copy is made by learn (root, on the stick) and edited by vi under
