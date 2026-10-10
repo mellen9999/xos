@@ -42,7 +42,7 @@ unset _e _m
 #
 # the history read is a builtin loop and not `tail`, so a failed command costs
 # no process at all. it reads the whole file to keep the last line -- a
-# thousand lines of a tmpfs file, once, only when something failed.
+# file of at most 200 lines (ash keeps no more), once, only when something failed.
 _fumble() {
 	local q="${XDG_STATE_HOME:-$HOME/.local/state}/learn/fumbles" s="${1:-0}" l= p=
 	[ "$s" = 0 ] && return 0

@@ -175,14 +175,44 @@ EOF
     sh arsenal/xexec -t "$2/tree" ../../bin/sh 2>&1 | grep -q "plain path inside" && echo ESCAPE-REFUSED || echo ESCAPE-ALLOWED
     : > "$2/sib"   # one level up and REAL, so only the path rule can refuse it
     sh arsenal/xexec -t "$2/tree" ../sib 2>&1 | grep -q "plain path inside" && echo ESCAPE1-REFUSED || echo ESCAPE1-ALLOWED
-    sh arsenal/xexec -t "$2/tree" bin/busybox echo TREE-OK 2>&1' _ "$PWD" "$t" 2>&1)
+    sh arsenal/xexec -t "$2/tree" bin/busybox echo TREE-OK 2>&1
+    # the carried ncurses tools find the terminfo shipped beside xexec
+    mkdir -p "$2/tools/terminfo"; cp arsenal/xexec "$2/tools/xexec"
+    sh "$2/tools/xexec" ./busybox sh -c "[ \"\$TERMINFO_DIRS\" = \"$2/tools/terminfo\" ] && echo TERMINFO-OK" 2>&1' _ "$PWD" "$t" 2>&1)
   rm -rf "$t"
-  for want in RUN-OK SEAL-OK "MOUNTS-LEFT 0" ESCAPE-REFUSED ESCAPE1-REFUSED TREE-OK; do
+  for want in RUN-OK SEAL-OK "MOUNTS-LEFT 0" ESCAPE-REFUSED ESCAPE1-REFUSED TREE-OK TERMINFO-OK; do
     printf '%s\n' "$out" | grep -qxF -- "$want" || { bad=1; printf '    xexec: expected "%s", did not see it\n' "$want" >&2; }
   done
   printf '%s\n' "$out" | grep -qE 'SEAL-WRITABLE|SEAL-NOSURFACE|ESCAPE1?-ALLOWED|WARNING' && bad=1
-  if [ "$bad" = 0 ]; then printf '  xexec runs, seals, tears down and refuses an escaping entry\n'; return 0; fi
+  if [ "$bad" = 0 ]; then printf '  xexec runs, seals, tears down, refuses an escaping entry and hands out terminfo\n'; return 0; fi
   printf '  \033[1;31mxexec misbehaved:\033[0m\n%s\n' "$(printf '%s\n' "$out" | sed 's/^/    /')" >&2
+  return 1
+}
+
+# loginproof -- an ssh login gets the console's shell. dropbear clears the
+# environment and starts a login `-sh`, so /etc/profile is the only road to
+# ENV=/etc/shrc: without it the far end of the tunnel was a bare ash -- emacs
+# keys, no prompt mark, no history, none of the shrc verbs -- while every
+# console check stayed green. the shipped busybox runs the real overlay files
+# as / in a throwaway chroot, from an empty environment, the way dropbear
+# leaves it.
+loginproof() {
+  say "an ssh login gets the console's shell"
+  local t out bad=0 want
+  t=$(mktemp -d) || return 1
+  mkdir -p "$t/bin" "$t/etc" "$t/tmp/home"
+  cp ./busybox "$t/bin/busybox" && ln -s busybox "$t/bin/sh" \
+    && cp overlay/etc/profile overlay/etc/shrc "$t/etc/" || { rm -rf "$t"; return 1; }
+  # shellcheck disable=SC2016
+  out=$(printf '%s\n' 'set +o' 'echo "ENV=$ENV"' 'echo "HISTFILE=$HISTFILE"' 'echo "UMASK=$(umask)"' 'command -v scrub' exit \
+        | unshare -rm chroot "$t" /bin/busybox env -i TERM=dumb PATH=/bin /bin/sh -l -i 2>&1) || true
+  rm -rf "$t"
+  for want in 'set -o vi' 'ENV=/etc/shrc' 'HISTFILE=/tmp/home/.ash_history' 'UMASK=0077' scrub; do
+    printf '%s\n' "$out" | sed 's/^[^a-zA-Z]*//' | grep -qxF -- "$want" \
+      || { bad=1; printf '    login shell: expected "%s", did not see it\n' "$want" >&2; }
+  done
+  [ "$bad" = 0 ] && { printf '  a login shell from an empty environment is in vi mode with /etc/shrc\n'; return 0; }
+  printf '  \033[1;31man ssh login would get a bare shell\033[0m\n' >&2
   return 1
 }
 
@@ -421,7 +451,7 @@ ci() {
   # (cis, with the reason, in yellow); the summary reconciles both against this
   # list. a rostered name that did neither is a FAIL -- the check vanished.
   local CI_ROSTER="provenance shellcheck parse pyparse dockerfile trust
-    learn-ledger learn-corpus learn-c arsenal-selftest arsenal-ledger arsenal-order xexec
+    learn-ledger learn-corpus learn-c arsenal-selftest arsenal-ledger arsenal-order xexec login-shell
     one-q tool-cards lock-roster ref-pages libparity schoolship learnship
     pin-source readme-counts keyseal"
   CI_ROSTER=$(echo $CI_ROSTER)   # one line, single spaces: the matches below are word-bounded by spaces
@@ -633,6 +663,9 @@ ci() {
   if ! [ -x ./busybox ]; then cis xexec "no built busybox to stage (./build.sh busybox first)"
   elif ! unshare -rm true 2>/dev/null; then cis xexec "no user namespaces on this host -- behaviour unverified"
   else cic xexec; xexecproof || rc=1; fi
+  if ! [ -x ./busybox ]; then cis login-shell "no built busybox to run the profile with"
+  elif ! unshare -rm true 2>/dev/null; then cis login-shell "no user namespaces on this host -- the login shell is unverified"
+  else cic login-shell; loginproof || rc=1; fi
   # one q: per card, across every corpus that becomes SRS cards. the card key
   # is the q: template, stored one tab-separated row per card; a second q: line
   # gives held_keys (which reads only the first) a different key than blk_load

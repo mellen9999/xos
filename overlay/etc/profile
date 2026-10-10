@@ -1,0 +1,20 @@
+# /etc/profile -- the shell's environment, one copy for every way in. init
+# sources it for the consoles. an ssh login reads it itself: dropbear clears
+# the environment and starts a login `-sh`, and before this file existed that
+# shell never learned ENV -- no vi mode, no prompt, no history, none of the
+# /etc/shrc verbs, a bare ash on the far end of the tunnel.
+#
+# umask again, not only in init: an ssh shell does not inherit init's.
+umask 077
+export HOME=/tmp/home
+export XDG_DATA_HOME=/tmp/home/.local/share
+export XDG_CONFIG_HOME=/tmp/home/.config
+export XDG_STATE_HOME=/tmp/home/.local/state
+# ENV points every interactive ash at an rc file. that is how vi editing
+# becomes the DEFAULT -- you never type `set -o vi`; the shell is already in it.
+export ENV=/etc/shrc
+# ash keeps history only when HISTFILE is set. point it at $HOME so a session
+# builds one for `learn autopsy` to read. without p3 that is tmpfs -- wiped at
+# the next boot; with p3 unlocked it lands on the encrypted state instead,
+# which is the same at-rest story as everything else that survives there.
+export HISTFILE=/tmp/home/.ash_history

@@ -126,7 +126,8 @@ worked example, both sides, is step 8 of `docs/first-stick.md`:
 next unlock, init brings up `wg0`, generates the ssh host key on p3 if absent, and
 starts dropbear bound to the tunnel. auth events land in `/tmp/ssh.log` (tmpfs,
 gone at reboot). pubkey only -- password auth is compiled out, xos is single-user
-root.
+root. an ssh login gets the console's shell -- vi mode, the prompt, history, the
+verbs -- through `/etc/profile`.
 
 wireguard roams, so a changed ip resumes rather than resets, and abduco keeps the
 session alive: ssh back in, `abduco -a work`, into what was running.

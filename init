@@ -187,10 +187,8 @@ else
 fi
 
 mkdir -p /tmp/home
-export HOME=/tmp/home
-export XDG_DATA_HOME=/tmp/home/.local/share
-export XDG_CONFIG_HOME=/tmp/home/.config
-export XDG_STATE_HOME=/tmp/home/.local/state
+# HOME, the xdg dirs, ENV and HISTFILE: one copy, shared with ssh logins
+. /etc/profile
 export TERM=linux
 # a serial terminal (a vt320 over a usb-serial dongle or a com port) is not a
 # linux console: it wants TERM=vt320 and a line rate it can keep up with. these
@@ -199,16 +197,7 @@ export TERM=linux
 # xos.term=vt220, xos.baud=9600 -- and default to a real vt320's own limits.
 SERIAL_TERM=$(cmdline_get xos.term); SERIAL_TERM=${SERIAL_TERM:-vt320}
 SERIAL_BAUD=$(cmdline_get xos.baud); SERIAL_BAUD=${SERIAL_BAUD:-19200}
-# ENV points every interactive ash at an rc file. that is how vi editing
-# becomes the DEFAULT -- you never type `set -o vi`; the shell is already in it.
-export ENV=/etc/shrc
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
-
-# ash keeps history only when HISTFILE is set. point it at $HOME so a session
-# builds one for `learn autopsy` to read. without p3 that is tmpfs -- wiped at
-# the next boot; with p3 unlocked it lands on the encrypted state instead,
-# which is the same at-rest story as everything else that survives there.
-export HISTFILE="$HOME/.ash_history"
 
 ip link set lo up 2>/dev/null || echo "loopback FAILED to come up"
 # per-boot mac: a stick that never leaves a stable hardware address on the

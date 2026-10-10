@@ -129,6 +129,7 @@ rootfs() {
   # inside the shrc text (the rootfs() range read ended 250 lines early, and
   # G64's /^clone() {/ matched the on-stick clone before the host one).
   [ -f root/etc/shrc ] || { echo "FAIL: overlay/etc/shrc did not land in root/etc" >&2; return 1; }
+  [ -f root/etc/profile ] || { echo "FAIL: overlay/etc/profile did not land in root/etc -- an ssh login would get a bare shell" >&2; return 1; }
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
