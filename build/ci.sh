@@ -540,9 +540,27 @@ ci() {
   # the stick grades with) when it is built, else the host cc, then again under
   # gcc's strictest c11 so a reference only tcc accepts cannot ship; it passes
   # its own cases, an empty main fails one, and the starter vi opens on compiles.
-  local lcc="" lstrict=""
-  if [ -x arsenal/cc/tcc-bin ]; then lcc="$PWD/arsenal/cc/cc"
-  elif command -v cc >/dev/null 2>&1; then lcc=cc; fi
+  local lcc="" lstrict="" ltree lpin lmain lnote=""
+  # a worktree has no arsenal build of its own, so it borrows the main
+  # checkout's -- only when that tcc was built from the commit arsenal.pins
+  # names. without this every push from a worktree graded with gcc and the
+  # stick's own compiler went unchecked (a tcc-only gloss miss shipped).
+  lpin=$(awk '$1 == "tcc" { print substr($4, 1, 7) }' arsenal/arsenal.pins 2>/dev/null)
+  lmain=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && lmain=${lmain%/.git}
+  [ "$lmain" = "$PWD" ] && lmain=
+  for ltree in "$PWD/arsenal/cc" ${lmain:+"$lmain/arsenal/cc"}; do
+    [ -n "$lpin" ] && [ -x "$ltree/tcc-bin" ] || continue
+    case "$("$ltree/tcc-bin" -v 2>&1)" in
+      *"@$lpin"*) lcc="$ltree/cc"; break ;;
+      *) lnote="$lnote$(printf '  \033[1;33mstale tcc\033[0m at %s -- not the pinned %s, skipped' "$ltree" "$lpin")
+" ;;
+    esac
+  done
+  if [ -z "$lcc" ] && command -v cc >/dev/null 2>&1; then
+    lcc=cc
+    lnote="$lnote$(printf '  \033[1;33mno pinned arsenal tcc\033[0m -- graded with the host cc, not the stick'"'"'s')
+"
+  fi
   # gcc for the build; clang too where it exists -- it is the cc a phone's termux
   # grades with, and it warns on things gcc lets through.
   command -v gcc >/dev/null 2>&1 && lstrict="gcc -std=c11 -Wall -Wextra -pedantic -Werror"
@@ -550,6 +568,7 @@ ci() {
   if [ -d learn/c ] && [ -n "$bb" ] && [ -n "$lcc" ]; then
     say "learn c track compiles and grades"
     cic learn-c
+    printf '%s' "$lnote"
     [ -n "$lstrict" ] || printf '  \033[1;33mno gcc or clang\033[0m -- the strict c11 pass did not run\n'
     local lc_t lc_out lc_rc=0
     lc_t=$(mktemp -d); "$bb" --install -s "$lc_t" 2>/dev/null
