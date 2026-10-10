@@ -47,3 +47,27 @@ ci_selfcheck() {
 	ci_shout "installed $CI_SELF differs from ci/$CI_SELF at $(git rev-parse --short HEAD) -- reinstall it, see ci/README.md"
 	return 1
 }
+
+# ci_workdir PREFIX -- make and print a throwaway build dir on a DISK-backed
+# filesystem, not tmpfs. a full build tree is ~15G; both tiers used to clone and
+# build under /tmp, which is tmpfs on this box, so a compile ran the RAM disk
+# out of space and died as a baffling "cryptsetup did not build" with no hint of
+# the real cause. default to the on-disk cache both tiers already use (same dir
+# xos-repro keeps its last-verified head in), and refuse UP FRONT when the
+# chosen filesystem cannot hold a build -- a named precondition beats a mid-build
+# ENOSPC. override the location with XOS_CI_WORK and the floor with XOS_CI_MIN_GIB.
+# diagnostics go to stderr so `d=$(ci_workdir ...)` captures only the path.
+ci_workdir() {
+	local base min_gib avail_kb need_kb
+	base=${XOS_CI_WORK:-$HOME/.cache/xos-ci}
+	min_gib=${XOS_CI_MIN_GIB:-20}
+	mkdir -p "$base" || { ci_shout "cannot create CI work dir $base" >&2; return 1; }
+	avail_kb=$(df -Pk "$base" 2>/dev/null | awk 'NR==2{print $4}')
+	case "$avail_kb" in ''|*[!0-9]*) ci_shout "cannot read free space at $base" >&2; return 1 ;; esac
+	need_kb=$(( min_gib * 1024 * 1024 ))
+	if [ "$avail_kb" -lt "$need_kb" ]; then
+		ci_shout "only $(( avail_kb / 1048576 ))G free at $base, a full build needs ${min_gib}G -- free space, or point XOS_CI_WORK at a bigger disk (XOS_CI_MIN_GIB to lower the floor)" >&2
+		return 1
+	fi
+	mktemp -d "$base/$1.XXXXXX"
+}

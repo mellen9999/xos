@@ -18,7 +18,7 @@ set -uo pipefail
 ci_log_open
 REPO=${XOS_CI_REPO:-git@github.com:mellen9999/xos.git}
 BRANCH=${XOS_CI_BRANCH:-main}
-d=$(mktemp -d /tmp/xos-cif.XXXXXX)
+d=$(ci_workdir xos-cif) || exit 1
 trap 'rm -rf "$d" 2>/dev/null || true' EXIT
 # no --depth: G52 walks the signature chain back to the epoch, and a shallow
 # clone makes it SKIP forever -- green summary, provenance never checked.

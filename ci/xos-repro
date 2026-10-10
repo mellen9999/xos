@@ -37,7 +37,7 @@ if [ "$remote" = "$(cat "$STATE" 2>/dev/null || true)" ]; then
   exit 0
 fi
 
-d=$(mktemp -d /tmp/xos-repro.XXXXXX)
+d=$(ci_workdir xos-repro) || exit 1
 trap 'rm -rf "$d" 2>/dev/null || true' EXIT
 echo "xos-repro: cloning $REPO ($BRANCH) at ${remote:0:12}"
 # no --depth: vouch walks every commit back to the epoch, and a shallow clone
