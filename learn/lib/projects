@@ -301,6 +301,10 @@ prj_edit() {
 	[ -n "$tty_" ] && stty sane 2>/dev/null
 	# shellcheck disable=SC2086
 	( cd "$SANDBOX" 2>/dev/null || exit 1
+	  # c: a tab shows 4 wide (the file keeps real tabs, as the starters and
+	  # references are written), enter keeps the indent, } flashes its {.
+	  # the shell track's vi stays stock -- it teaches vi as shipped.
+	  [ "$PRJ_LANG" = c ] && { EXINIT='set ts=4 ai showmatch'; export EXINIT; }
 	  if [ -n "$line" ]; then
 		HOME="$SANDBOX" TMPDIR="$SANDBOX" $DROP "$SHELLBIN" -c 'vi -c "$2" "$1"' _ "$name" "$line"
 	  else

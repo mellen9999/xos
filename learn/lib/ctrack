@@ -422,8 +422,9 @@ c_gloss() {
 
 # c_ref -- the reference program, paged: on `a`, and after a pass to compare.
 c_ref() {
+	# tabs 4 wide, as vi shows them here. `command`: ui has an expand() of its own
 	{ echo "  the reference -- yours need not match it."; echo
-	  printf '%s\n' "$Q_PROG" | sed 's/^/    /'; } | c_page
+	  printf '%s\n' "$Q_PROG" | command expand -t 4 | sed 's/^/    /'; } | c_page
 	[ $? = 3 ] || pause_card
 }
 
@@ -711,6 +712,7 @@ c_help() {
 		_ck u "undo"               p "paste"
 		_ck :w "save"              :wq "save and quit"
 		_ck :q! "quit, dropping changes"
+		printf '    %s\n' "pasting? :set noai first, or each line indents more."
 		echo
 		printf '  %slearn c N opens unit N. learn c -k WORD finds one.%s\n' "$D" "$N"
 	} | c_page
