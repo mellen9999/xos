@@ -1,8 +1,75 @@
 # provision-lib.sh -- populate H with the arsenal layout. sourced by
 # provision.sh, where H is the mounted p3. nothing in selftest.sh reaches
 # arsenal/ at all: the whole tree is provisioning, not the signed image.
+
+# which build script produces a given lock row -- named in the refusal so the
+# fix is the command to run, not a hunt.
+_lk_script() {
+  case "$1" in
+    ffuf|httpx|nuclei|subfinder|dnsx|gobuster|chisel|pspy|ligolo-proxy|ligolo-agent|age)
+      echo build-arsenal.sh ;;
+    python|sqlmap|impacket) echo build-python.sh ;;
+    kiwix-serve|kiwix-search) echo build-kiwix.sh ;;
+    terminfo) echo build-terminfo.sh ;;
+    *) echo build-arsenal-c.sh ;;   # the musl-static C set, cc and john
+  esac
+}
+
+# lock_check DIR -- refuse to ship a staging that does not match its own
+# arsenal.lock. a build runs in a cw worktree and rewrites the lock there, but
+# the binaries it makes die with the worktree; the main checkout then keeps old
+# binaries beside a newer lock. provisioning that silently copies the mismatch
+# puts tools on the stick that no attestation describes. so prove every row
+# before the first byte is written: flat binaries by sha256, the terminfo tree
+# by its combined hash, and the trees whose lock hash is a source digest (cc,
+# john, python, sqlmap, impacket) by presence -- their output sha is not
+# reproducible from the staged files, only their inputs were pinned.
+lock_check() {
+  _lk_dir="$1"; _lk_lock="$_lk_dir/arsenal.lock"
+  [ -f "$_lk_lock" ] || { echo "  FAIL: no arsenal.lock in $_lk_dir -- cannot verify the staging" >&2; return 1; }
+  _lk_miss=""; _lk_drift=""; _lk_scripts=""
+  while read -r _n _src _bytes _sha; do
+    case "$_n" in ''|'#'*) continue ;; esac
+    case "$_n" in
+      cc)       [ -d "$_lk_dir/cc" ]         || _lk_miss="$_lk_miss $_n"; continue ;;
+      john)     [ -f "$_lk_dir/john/john" ]  || _lk_miss="$_lk_miss $_n"; continue ;;
+      python|impacket) [ -d "$_lk_dir/python" ] || _lk_miss="$_lk_miss $_n"; continue ;;
+      sqlmap)   [ -d "$_lk_dir/sqlmap" ]     || _lk_miss="$_lk_miss $_n"; continue ;;
+      terminfo)
+        if [ ! -d "$_lk_dir/terminfo" ]; then _lk_miss="$_lk_miss $_n"
+        else
+          _h=$(cd "$_lk_dir" && find terminfo -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          [ "$_h" = "$_sha" ] || _lk_drift="$_lk_drift $_n"
+        fi
+        continue ;;
+    esac
+    # a flat binary (file.mgc included): must exist and hash to its row.
+    if [ ! -f "$_lk_dir/$_n" ]; then _lk_miss="$_lk_miss $_n"
+    else
+      _h=$(sha256sum < "$_lk_dir/$_n" | cut -d' ' -f1)
+      [ "$_h" = "$_sha" ] || _lk_drift="$_lk_drift $_n"
+    fi
+  done < "$_lk_lock"
+  [ -z "$_lk_miss$_lk_drift" ] && return 0
+  echo "  FAIL: the arsenal staging in $_lk_dir does not match its arsenal.lock." >&2
+  [ -n "$_lk_miss" ]  && echo "    attested but not staged:$_lk_miss" >&2
+  [ -n "$_lk_drift" ] && echo "    staged but the bytes differ from the lock:$_lk_drift" >&2
+  for _n in $_lk_miss $_lk_drift; do _lk_scripts="$_lk_scripts $(_lk_script "$_n")"; done
+  # deliberate split: one script name per line so sort -u can dedupe them.
+  # shellcheck disable=SC2086
+  _lk_scripts=$(printf '%s\n' $_lk_scripts | sort -u | tr '\n' ' ')
+  echo "    rebuild then copy the output into $_lk_dir -- run in arsenal/:$_lk_scripts" >&2
+  echo "    (a build in a worktree must be copied back to the main checkout, or the two drift)" >&2
+  return 1
+}
+
 populate() {
   H="$1"
+  # verify the tool staging against its own lock BEFORE writing anything, so a
+  # mismatch refuses with an empty p3 rather than a half-populated one.
+  if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
+    lock_check "$ARSENAL" || return 1
+  fi
   mkdir -p "$H/tools" "$H/wordlists" "$H/docs" "$H/loot"
   install -m 0755 "${SELF:-$(dirname "$0")}/xexec" "$H/tools/xexec"
   # the discoverability surface: a generic lister + its descriptions. both ride

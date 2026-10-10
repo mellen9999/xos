@@ -248,6 +248,30 @@ learnship() {
 # plus the corpus it opens, then each installer is run into a scratch home and
 # every item must land non-empty. buildless: install.sh gets a stand-in
 # busybox, populate() no tool dir, so neither needs a build or the network.
+# lockguard -- provision refuses a tool staging that does not match its own
+# arsenal.lock. the drift this session found (worktree builds never copied back,
+# so the main checkout kept old binaries beside a newer lock) would otherwise
+# ship unattested tools to a stick with no word said. prove the guard both ways:
+# a staging that matches passes, a single tampered byte is refused.
+lockguard() {
+  say "provision refuses a staging that does not match arsenal.lock"
+  local t bad=0 nh
+  t=$(mktemp -d) || return 1
+  mkdir -p "$t/s"
+  printf 'the-nmap-binary\n' > "$t/s/nmap"
+  nh=$(sha256sum < "$t/s/nmap" | cut -d' ' -f1)
+  printf '# test lock\nnmap  nmap@7.95(musl-static)  16  %s\n' "$nh" > "$t/s/arsenal.lock"
+  if ARSENAL="$t/s" bash -c '. arsenal/provision-lib.sh; lock_check "$ARSENAL"' >/dev/null 2>&1; then :
+  else echo "  FAIL: lock_check rejected a staging that matches its lock" >&2; bad=1; fi
+  printf 'tampered\n' >> "$t/s/nmap"
+  if ARSENAL="$t/s" bash -c '. arsenal/provision-lib.sh; lock_check "$ARSENAL"' >/dev/null 2>&1; then
+    echo "  FAIL: lock_check passed a staging whose bytes drifted from the lock" >&2; bad=1
+  fi
+  rm -rf "$t"
+  [ "$bad" = 0 ] && printf '  \033[1;32mmatch passes, a drifted byte is refused\033[0m\n'
+  return $bad
+}
+
 schoolship() {
   say "arsenal installers ship the whole school (stick + standalone)"
   local t libs items it bad=0
@@ -452,7 +476,7 @@ ci() {
   # list. a rostered name that did neither is a FAIL -- the check vanished.
   local CI_ROSTER="provenance shellcheck parse pyparse dockerfile trust
     learn-ledger learn-corpus learn-c arsenal-selftest arsenal-ledger arsenal-order xexec login-shell
-    one-q tool-cards lock-roster ref-pages libparity schoolship learnship
+    one-q tool-cards lock-roster lock-guard ref-pages libparity schoolship learnship
     pin-source readme-counts keyseal"
   CI_ROSTER=$(echo $CI_ROSTER)   # one line, single spaces: the matches below are word-bounded by spaces
   local CI_RAN="" CI_SKIPPED=""
@@ -765,6 +789,8 @@ ci() {
   else cis libparity "no arsenal/lib or learn/lib"; fi
   if [ -x arsenal/learn ]; then cic schoolship; schoolship || rc=1
   else cis schoolship "no arsenal/learn"; fi
+  if [ -f arsenal/provision-lib.sh ]; then cic lock-guard; lockguard || rc=1
+  else cis lock-guard "no arsenal/provision-lib.sh"; fi
   # the README states counts the reader trusts -- the command surface, the level
   # and question totals. nothing checked them, so they drifted release after
   # release (202 vs 203 ref pages, 894 vs 963 questions). re-derive the three

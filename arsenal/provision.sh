@@ -49,6 +49,6 @@ cleanup() { umount "$MNT" 2>/dev/null || true; cryptsetup close "$MAP" 2>/dev/nu
 trap cleanup EXIT INT TERM
 mkdir -p "$MNT"; mount "/dev/mapper/$MAP" "$MNT"
 
-populate "$MNT"   # defined below; the testable half
+populate "$MNT" || { echo "provision: refusing -- the arsenal staging failed its lock check (above); nothing written" >&2; exit 1; }   # defined below; the testable half
 cleanup; trap - EXIT INT TERM
 echo "done."

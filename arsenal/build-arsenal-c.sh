@@ -629,6 +629,11 @@ patch_src() {
 
 
 echo "[c-build] built: $(ls /out | grep -E '^(masscan|tcpdump|socat|nmap|links|mutool|frotz|whois|hydra|john|jq|rg|zstd|ddrescue|strace|testdisk|photorec|smartctl|file|mandoc|minisign|dvtm|rsync|binwalk|qrencode|radare2|cc)$' | tr '\n' ' ')"
+# the container runs as root, so everything in the bind-mounted /out lands
+# root-owned -- which then blocks the caller from managing or replacing the
+# staging without sudo, the friction that lets a stale tree linger. hand the
+# outputs back to whoever owns the staging dir, exactly as build-terminfo.sh does.
+chown -R "$(stat -c %u:%g /out)" /out
 INNER
 echo "arsenal now: $(ls "$OUT" | tr '\n' ' ')"
 # fail LOUD, not open: a build that produced none of its four binaries used to
@@ -641,4 +646,30 @@ for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg zstd dd
 [ -f "$OUT/john/john" ] && built=$((built+1))
 [ -d "$OUT/cc" ] && built=$((built+1))
 [ "$built" -ge 1 ] || { echo "FAIL: build-arsenal-c produced no binaries" >&2; exit 1; }
-echo "note: refresh arsenal/arsenal.lock after (sha256 + sizes)."
+
+# refresh arsenal.lock in place. this build embeds a BuildID, so every flat
+# binary's sha drifts per build; leaving the refresh to a human is exactly how
+# the lock and the staged binaries drift apart (old binaries beside a newer
+# lock, or the reverse). update each C-set row's bytes+sha from what was just
+# staged, preserving the hand-written source column. trees (cc, john) carry a
+# checkout sentinel, not a sha, so they are left alone -- as are the go, python,
+# kiwix and terminfo rows, which their own builders own. a row is rewritten only
+# when its bytes or sha actually changed, so a reproducible tool leaves no diff.
+LOCK="$SELF/arsenal.lock"
+if [ -f "$LOCK" ]; then
+  _lref=$(mktemp)
+  for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg \
+           zstd ddrescue strace testdisk photorec smartctl file file.mgc \
+           mandoc minisign dvtm rsync binwalk qrencode radare2; do
+    [ -f "$OUT/$b" ] || continue
+    printf '%s %s %s\n' "$b" "$(stat -c%s "$OUT/$b")" "$(sha256sum < "$OUT/$b" | cut -d' ' -f1)"
+  done > "$_lref"
+  awk 'NR==FNR { bz[$1]=$2; sh[$1]=$3; next }
+       { if (($1 in sh) && $4 ~ /^[0-9a-f]{64}$/ && ($3 != bz[$1] || $4 != sh[$1]))
+           printf "%-11s %s  %s  %s\n", $1, $2, bz[$1], sh[$1];
+         else print }' "$_lref" "$LOCK" > "$LOCK.new" && mv "$LOCK.new" "$LOCK"
+  rm -f "$_lref"
+  echo "[c-build] arsenal.lock refreshed (C-set bytes + sha)"
+else
+  echo "note: no arsenal.lock beside $SELF to refresh (sha256 + sizes)."
+fi
