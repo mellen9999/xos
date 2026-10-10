@@ -391,12 +391,16 @@ _c_gloss() {
 		  else if (l ~ /format .*(expects|specifies)/) { t = "fmt"; m = "a % does not match its value: %d an int, %s a string, %f a double." }
 		  else if (l ~ /too (few|many) arguments/) { t = "args"; m = "the call passes the wrong number of arguments." }
 		  else if (l ~ /int-conversion|incompatible pointer|pointer without a cast|from incompatible/) { t = "ptr"; m = "a pointer where a number goes, or the other way round: check & and *." }
-		  else if (l ~ /undefined (reference|symbol)/) { t = "undef"; m = "NAME is called but never written: check its spelling." }
+		  else if (l ~ /undefined (reference|symbol)|unresolved reference/) { t = "undef"; m = "NAME is called but never written: check its spelling." }
 		  else if (l ~ /assignment (used as truth value|as a condition)/) { t = "assign"; m = "= stores a value, == compares two." }
 		  else if (l ~ /uninitiali[sz]ed/) { t = "uninit"; m = "NAME is read before it is given a value." }
 		  # after the rest: "too few arguments ...; expected 1" (gcc) holds a ;
-		  else if (l ~ /expected[^a-z]*;|expected [^a-z]*or [^a-z]*;|;[^a-z]* expected/) { t = "semi"; m = "a ; is missing -- often at the end of the line above." }
+		  else if (l ~ /expected[^a-z]*;|expected [^a-z]*or [^a-z]*;|;[^a-z]* expected/) { t = "semi"; m = "a ; is missing -- at the end of this line or the one above." }
 		  else if (l ~ /expected .}|end of input|<eof>|end of file/) { t = "brace"; m = "a { or ( is never closed: count them." }
+		  # last: "expected identifier" is the vaguest, and a line outside any
+		  # function is what it most often means -- a statement above main, or
+		  # below a } that closed main early.
+		  else if (l ~ /expected identifier|identifier expected|declaration expected|expected declaration specifiers|expected parameter declarator|data definition has no type|type specifier missing|type defaults to/) { t = "outside"; m = "often a line outside any function: code goes inside main'"'"'s { }, and a stray } ends main early." }
 		  if (t == "") next
 		  n = "it"
 		  if (match($0, /(\047|`|\342\200\230)[A-Za-z_][A-Za-z0-9_]*(\047|\342\200\231)/)) {
@@ -428,16 +432,15 @@ c_ref() {
 c_passed() {
 	local k
 	[ -t 0 ] || return 0
-	while :; do
-		printf '\n  %s[enter] next%s   %sa%s %show the reference wrote it%s ' "$D" "$N" "$C$B" "$N" "$D" "$N"
-		IFS= read -rsn1 k 2>/dev/null || return 2
-		echo
-		case "$k" in
-			a|A) cls; c_ref; cls; ok "every case matches -- $Q_FILE is done." ;;
-			q|Q|"$EOT") return 2 ;;
-			*) return 0 ;;
-		esac
-	done
+	printf '\n  %s[enter] next%s   %sa%s %show the reference wrote it%s ' "$D" "$N" "$C$B" "$N" "$D" "$N"
+	IFS= read -rsn1 k 2>/dev/null || return 2
+	echo
+	case "$k" in
+		# the reference page's own [enter] next goes on, as it says; q quits
+		a|A) cls; c_ref || return 2 ;;
+		q|Q|"$EOT") return 2 ;;
+	esac
+	return 0
 }
 
 # c_intdfl -- build, once a session, the few lines that let ctrl-c reach a
@@ -836,6 +839,7 @@ c_gloss_check() {
 	uninit|int main(void) { int x; return x; }
 	semi|int main(void) { int x = 1\n\treturn x; }
 	brace|int main(void) { if (1) { return 0; }
+	outside|#include <stdio.h>\nputs("hi");\nint main(void) { return 0; }
 	EOF
 	return "$n"
 }
