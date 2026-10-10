@@ -683,13 +683,14 @@ ci() {
   # every lock row is catalogued. the four presentation WRAPPERS
   # (atlas/chart/qr/view) ship as arsenal/ scripts, not compiled binaries, so
   # they carry no lock row; qrencode IS the real binary the `qr` wrapper drives,
-  # so it does. file.mgc is file's magic db, attested beside it, not a tool.
+  # so it does. file.mgc (file's magic db) and terminfo (the ncurses tools'
+  # terminal entries) are data, attested beside the tools, not tools.
   if [ -f arsenal/arsenal-catalog ] && [ -f arsenal/arsenal.lock ]; then
     say "arsenal.lock attests every carried tool"
     cic lock-roster
     local _lk_cat _lk_lock _lk_a _lk_b
     _lk_cat=$(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | grep -vxE 'atlas|chart|qr|view' | sort -u)
-    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vx 'file.mgc' | sort -u)
+    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vxE 'file.mgc|terminfo' | sort -u)
     _lk_a=$(comm -23 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
     _lk_b=$(comm -13 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
     if [ -n "$_lk_a" ]; then

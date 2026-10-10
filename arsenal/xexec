@@ -22,6 +22,12 @@ set -u
 
 die() { printf 'xexec: %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "must be root (mounting the exec surface needs it)"
+# the stick has no terminfo db: the carried ncurses tools (testdisk, photorec,
+# dvtm) read the entries shipped beside this script. a caller's own wins.
+case "$0" in */*) _ti=${0%/*}/terminfo ;; *) _ti=./terminfo ;; esac
+if [ -z "${TERMINFO:-}${TERMINFO_DIRS:-}" ] && [ -d "$_ti" ]; then
+	TERMINFO_DIRS=$(cd "$_ti" && pwd) && export TERMINFO_DIRS
+fi
 
 tree=0
 if [ "${1:-}" = "-t" ]; then

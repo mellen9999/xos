@@ -689,7 +689,8 @@ luks p3. the arsenal is built into `$XOS_ARSENAL` (default `~/.local/share/xos-a
 before it can be laid down -- nothing in the signed image builds it. the tools:
 `arsenal/build-arsenal.sh` (the Go tools -- ffuf, httpx, nuclei, subfinder, dnsx,
 gobuster, chisel, ligolo), `arsenal/build-arsenal-c.sh` (the static-musl C tools --
-masscan, tcpdump, socat, nmap, hydra, john, and the rest), `arsenal/build-python.sh`
+masscan, tcpdump, socat, nmap, hydra, john, and the rest -- plus `arsenal/build-terminfo.sh`,
+the terminal entries testdisk, photorec and dvtm cannot start without), `arsenal/build-python.sh`
 (carried python + sqlmap + impacket). the knowledge: `arsenal/build-wordlists.sh`,
 `arsenal/build-docs.sh`, `arsenal/build-kiwix.sh`, and `arsenal/build-games.sh` +
 `arsenal/build-books.sh` + `arsenal/build-maps.sh` for the if library, the
