@@ -318,6 +318,12 @@ grep -qE 'net-iface-up: [a-z0-9]+' <<< "$out" && ! grep -q 'net-iface-up: none' 
 grep -q 'net-has-address: yes' <<< "$out" && ok "dhcp lease obtained" || bad "no ipv4 address"
 grep -q 'net-default-route: yes' <<< "$out" && ok "a default route was installed" || bad "no default route"
 grep -q 'dhcp-client: running' <<< "$out" && ok "the dhcp client stayed up to renew the lease" || bad "no dhcp client running after boot -- the lease will never renew"
+# the OS substrate the carried tools assume a normal unix has: localhost, and
+# the IANA service+protocol registries so getservbyname/getprotobyname resolve
+# for tcpdump, socat, whois, nmap and python. the image ships them from overlay.
+grep -q 'etc-hosts-localhost: yes' <<< "$out" && ok "localhost resolves (/etc/hosts shipped)" || bad "no localhost in /etc/hosts -- tools cannot resolve localhost"
+grep -q 'etc-services: yes' <<< "$out" && ok "/etc/services shipped (getservbyname resolves)" || bad "/etc/services missing -- port-name lookups fail for the carried tools"
+grep -q 'etc-protocols: yes' <<< "$out" && ok "/etc/protocols shipped (getprotobyname resolves)" || bad "/etc/protocols missing -- protocol-name lookups fail for the carried tools"
 # what the stick SAID on the wire, from the capture, not from init's own
 # account. positive control first: a dhcp exchange must be in there at all
 # (the magic cookie 63 82 53 63), or "no vendor string" is vacuous.

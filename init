@@ -619,6 +619,13 @@ if cmdline_has xos.test; then
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; _c=$(grep -c nameserver /tmp/resolv.conf 2>/dev/null); echo "${_c:-0}"
+	# the OS substrate the carried tools assume: localhost resolves, and the IANA
+	# service + protocol registries shipped so getservbyname/getprotobyname work
+	# for tcpdump, socat, whois, nmap and python. prove by reading a known entry
+	# back out, not by stat'ing the file (an empty file would stat fine).
+	printf 'etc-hosts-localhost: '; grep -q '[[:space:]]localhost$' /etc/hosts 2>/dev/null && echo yes || echo "no (BAD)"
+	printf 'etc-services: '; grep -q '^https[[:space:]]' /etc/services 2>/dev/null && echo yes || echo "no (BAD)"
+	printf 'etc-protocols: '; grep -q '^icmp[[:space:]]' /etc/protocols 2>/dev/null && echo yes || echo "no (BAD)"
 	# the renewing client must outlive the boot loop (and must not exist at all
 	# under xos.nonet)
 	printf 'dhcp-client: '; pidof udhcpc >/dev/null 2>&1 && echo running || echo none

@@ -130,6 +130,15 @@ rootfs() {
   # G64's /^clone() {/ matched the on-stick clone before the host one).
   [ -f root/etc/shrc ] || { echo "FAIL: overlay/etc/shrc did not land in root/etc" >&2; return 1; }
   [ -f root/etc/profile ] || { echo "FAIL: overlay/etc/profile did not land in root/etc -- an ssh login would get a bare shell" >&2; return 1; }
+  # the OS substrate the carried tools assume a normal unix has: /etc/hosts
+  # (localhost -- there was none), and the IANA service+protocol registries
+  # (iana-etc) so getservbyname/getprotobyname resolve for tcpdump, socat,
+  # whois, nmap and python. ship from overlay (in-tree, so the source
+  # attestation covers them); refuse a build that dropped them.
+  local _ef
+  for _ef in hosts services protocols; do
+    [ -f "root/etc/$_ef" ] || { echo "FAIL: overlay/etc/$_ef did not land in root/etc -- name lookups the tools need would fail" >&2; return 1; }
+  done
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
