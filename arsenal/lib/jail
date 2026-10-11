@@ -79,6 +79,10 @@ tree_spec() {
 # skipped by selftest, run recognition-only in a real session).
 jail_init() {
 	JAIL_BASE=$(mktemp -d "${TMPDIR:-/tmp}/arsjail.XXXXXX") || return 1
+	# a jail built in a subshell ($(run_level ...), a pipeline) dies with that
+	# shell's JAIL_BASE, so jail_teardown never sees it. the ledger outlives the
+	# subshell; jail_reap clears every jail it names at exit.
+	[ -n "${JAIL_LEDGER:-}" ] && printf '%s\n' "$JAIL_BASE" >> "$JAIL_LEDGER"
 	chmod 755 "$JAIL_BASE"
 	JAIL_EXEC="$JAIL_BASE/bin"; JAIL_SCRATCH="$JAIL_BASE/work"
 	mkdir -p "$JAIL_EXEC" "$JAIL_SCRATCH"
@@ -172,4 +176,16 @@ jail_teardown() {
 	[ "$JAIL_MOUNTED" = 1 ] && umount -l "$JAIL_EXEC" 2>/dev/null
 	[ -n "$JAIL_BASE" ] && rm -rf "$JAIL_BASE" 2>/dev/null
 	JAIL_BASE=""; JAIL_MOUNTED=0
+}
+
+# jail_reap -- tear down every jail in $JAIL_LEDGER, this shell's or a dead
+# subshell's: unmount its exec surface if one is still mounted, then remove it.
+jail_reap() {
+	[ -n "${JAIL_LEDGER:-}" ] && [ -f "$JAIL_LEDGER" ] || return 0
+	while IFS= read -r _jb; do
+		case "$_jb" in */arsjail.*) ;; *) continue ;; esac
+		grep -qF " $_jb/bin " /proc/mounts 2>/dev/null && umount -l "$_jb/bin" 2>/dev/null
+		rm -rf "$_jb" 2>/dev/null
+	done < "$JAIL_LEDGER"
+	: > "$JAIL_LEDGER"
 }

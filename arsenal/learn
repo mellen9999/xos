@@ -44,8 +44,10 @@ mkdir -p "$STATE" 2>/dev/null || die "cannot create $STATE"
 mkdir -p "$LEVELS" 2>/dev/null || die "cannot create $LEVELS"
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/arslearn.XXXXXX") || die "cannot create tmp"
+JAIL_LEDGER="$TMP/jails"
 cleanup() {
 	jail_teardown 2>/dev/null
+	jail_reap 2>/dev/null
 	lab_down 2>/dev/null
 	rm -rf "$TMP" 2>/dev/null
 }
