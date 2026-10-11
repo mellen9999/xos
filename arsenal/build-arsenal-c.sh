@@ -291,7 +291,12 @@ patch_src() {
   make -j"$(nproc)" >>/s/nmap.log 2>&1
   file nmap | grep -q "statically linked" || { echo "not static"; tail -30 /s/nmap.log; exit 1; }
   strip nmap
-  cp nmap /out/nmap ) || log "nmap FAILED"
+  cp nmap /out/nmap
+  # carry nmap's own data tables: without nmap-services a default scan loses its
+  # curated top-1000 (it falls back to every /etc/services entry) and warns each
+  # run; nmap-protocols is the -sO table. xexec points $NMAPDIR at ~/tools. these
+  # are static data from this pinned source, so their sha is reproducible.
+  cp nmap-services nmap-protocols /out/ ) || log "nmap FAILED"
 
 # ---- recovery / forensics / triage: the flank the offense set left open -----
 
@@ -658,7 +663,8 @@ for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg zstd dd
 LOCK="$SELF/arsenal.lock"
 if [ -f "$LOCK" ]; then
   _lref=$(mktemp)
-  for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg \
+  for b in masscan tcpdump socat nmap nmap-services nmap-protocols links mutool \
+           frotz whois hydra jq rg \
            zstd ddrescue strace testdisk photorec smartctl file file.mgc \
            mandoc minisign dvtm rsync binwalk qrencode radare2; do
     [ -f "$OUT/$b" ] || continue

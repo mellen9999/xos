@@ -747,7 +747,7 @@ ci() {
     cic lock-roster
     local _lk_cat _lk_lock _lk_a _lk_b
     _lk_cat=$(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | grep -vxE 'atlas|chart|qr|view' | sort -u)
-    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vxE 'file.mgc|terminfo' | sort -u)
+    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vxE 'file.mgc|terminfo|cacert.pem|nmap-services|nmap-protocols' | sort -u)
     _lk_a=$(comm -23 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
     _lk_b=$(comm -13 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
     if [ -n "$_lk_a" ]; then

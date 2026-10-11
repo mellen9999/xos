@@ -9,6 +9,7 @@ _lk_script() {
     ffuf|httpx|nuclei|subfinder|dnsx|gobuster|chisel|pspy|ligolo-proxy|ligolo-agent|age)
       echo build-arsenal.sh ;;
     python|sqlmap|impacket) echo build-python.sh ;;
+    cacert.pem) echo build-ca.sh ;;
     kiwix-serve|kiwix-search) echo build-kiwix.sh ;;
     terminfo) echo build-terminfo.sh ;;
     *) echo build-arsenal-c.sh ;;   # the musl-static C set, cc and john
@@ -116,6 +117,11 @@ populate() {
         install -m 0644 "$f" "$H/.magic.mgc"             # libmagic auto-discovers $HOME/.magic.mgc
         continue
       fi
+      case "$b" in
+        cacert.pem|nmap-services|nmap-protocols)
+          install -m 0644 "$f" "$H/tools/$b"             # data tables xexec points env at, not binaries
+          continue ;;
+      esac
       if [ "$b" = links ]; then
         # the association that opens a picture in the served zim/html as
         # characters instead of a dead link -- checked against links 2.30's
