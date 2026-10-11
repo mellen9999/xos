@@ -324,6 +324,7 @@ grep -q 'dhcp-client: running' <<< "$out" && ok "the dhcp client stayed up to re
 grep -q 'etc-hosts-localhost: yes' <<< "$out" && ok "localhost resolves (/etc/hosts shipped)" || bad "no localhost in /etc/hosts -- tools cannot resolve localhost"
 grep -q 'etc-services: yes' <<< "$out" && ok "/etc/services shipped (getservbyname resolves)" || bad "/etc/services missing -- port-name lookups fail for the carried tools"
 grep -q 'etc-protocols: yes' <<< "$out" && ok "/etc/protocols shipped (getprotobyname resolves)" || bad "/etc/protocols missing -- protocol-name lookups fail for the carried tools"
+grep -q 'dev-std-streams: yes' <<< "$out" && ok "/dev/{fd,stdin,stdout,stderr} present (literal-path writes work)" || bad "/dev std-stream nodes missing -- /dev/stdout writes and /dev/stdin reads fail ENOENT"
 # what the stick SAID on the wire, from the capture, not from init's own
 # account. positive control first: a dhcp exchange must be in there at all
 # (the magic cookie 63 82 53 63), or "no vendor string" is vacuous.

@@ -7,6 +7,12 @@
 # umask again, not only in init: an ssh shell does not inherit init's.
 umask 077
 export HOME=/tmp/home
+# identity env a normal login sets. vim `:sh`, less `!cmd`, socat EXEC and
+# python's pty.spawn(os.environ['SHELL']) read SHELL; whoami-style checks and
+# some tools read USER/LOGNAME. the only account on the stick is root.
+export SHELL=/bin/sh
+export USER=root
+export LOGNAME=root
 export XDG_DATA_HOME=/tmp/home/.local/share
 export XDG_CONFIG_HOME=/tmp/home/.config
 export XDG_STATE_HOME=/tmp/home/.local/state

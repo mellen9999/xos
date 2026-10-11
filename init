@@ -23,6 +23,15 @@ mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
 mkdir -p /dev/pts
 mount -t devpts -o nosuid,noexec,gid=5,mode=620,ptmxmode=666 none /dev/pts 2>/dev/null
 
+# /dev/fd and the std-stream nodes. devtmpfs does not create these; a normal
+# distro's /dev setup does. without them `openssl -out /dev/stdout`, a tool
+# writing a literal /dev/stdout path, `cmd </dev/stdin` and bash process
+# substitution <(...) all fail ENOENT. /proc is mounted above, so point there.
+ln -s /proc/self/fd   /dev/fd     2>/dev/null
+ln -s /proc/self/fd/0 /dev/stdin  2>/dev/null
+ln -s /proc/self/fd/1 /dev/stdout 2>/dev/null
+ln -s /proc/self/fd/2 /dev/stderr 2>/dev/null
+
 # the root is read-only by design, so anything that needs to write gets a
 # RAM-backed home. nothing here survives a reboot, which is the point.
 mount -t tmpfs -o nosuid,nodev,noexec none /tmp
@@ -626,6 +635,12 @@ if cmdline_has xos.test; then
 	printf 'etc-hosts-localhost: '; grep -q '[[:space:]]localhost$' /etc/hosts 2>/dev/null && echo yes || echo "no (BAD)"
 	printf 'etc-services: '; grep -q '^https[[:space:]]' /etc/services 2>/dev/null && echo yes || echo "no (BAD)"
 	printf 'etc-protocols: '; grep -q '^icmp[[:space:]]' /etc/protocols 2>/dev/null && echo yes || echo "no (BAD)"
+	# the std-stream nodes a normal /dev carries -- tools write literal
+	# /dev/stdout paths and read /dev/stdin; devtmpfs alone makes none of them.
+	# -L, not -e: -e on /dev/stdin resolves to /proc/self/fd/0 of THIS shell,
+	# and init's own stdin is closed, so -e would false-fail a correct link.
+	# the gap is whether init created the nodes; -L proves exactly that.
+	printf 'dev-std-streams: '; [ -L /dev/fd ] && [ -L /dev/stdin ] && [ -L /dev/stdout ] && [ -L /dev/stderr ] && echo yes || echo "no (BAD)"
 	# the renewing client must outlive the boot loop (and must not exist at all
 	# under xos.nonet)
 	printf 'dhcp-client: '; pidof udhcpc >/dev/null 2>&1 && echo running || echo none

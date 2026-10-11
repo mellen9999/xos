@@ -135,8 +135,11 @@ rootfs() {
   # (iana-etc) so getservbyname/getprotobyname resolve for tcpdump, socat,
   # whois, nmap and python. ship from overlay (in-tree, so the source
   # attestation covers them); refuse a build that dropped them.
+  # os-release names the OS for the few tools (and a learn example) that read
+  # it; the rest are the name registries getservbyname/getprotobyname and
+  # localhost need. all inert in-tree text, so the source attestation covers them.
   local _ef
-  for _ef in hosts services protocols; do
+  for _ef in hosts services protocols os-release; do
     [ -f "root/etc/$_ef" ] || { echo "FAIL: overlay/etc/$_ef did not land in root/etc -- name lookups the tools need would fail" >&2; return 1; }
   done
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
@@ -144,6 +147,10 @@ rootfs() {
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
   # to touch a device without them. /run points into the tmpfs init creates.
   ln -sf /tmp/run root/run
+  # the legacy name for the same place. tools that hardcode /var/run/<x>.pid
+  # (and a learn example) expect it; every modern distro ships it as this symlink.
+  mkdir -p root/var
+  ln -sf /run root/var/run
   # squashfs-tools >= 4.6 reads SOURCE_DATE_EPOCH itself and clamps every
   # timestamp to it -- and hard-errors if you also pass -mkfs-time, which is
   # how this was caught. -processors 1 keeps block ordering deterministic.
