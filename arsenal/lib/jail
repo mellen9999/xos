@@ -42,6 +42,16 @@ for _d in "${ARSENAL_BB:-}" "${ARSENAL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share
 	[ -n "$_d" ] && [ -x "$_d/sh" ] && { JAIL_PATH="$_d"; break; }
 done
 
+# the carried CA bundle, for a python card that does TLS: xexec exports these but
+# the jail never did, so a graded TLS answer would fail verification. point the
+# trust-store env at the staged cacert.pem when one is present (a dev host's own
+# /etc/ssl still covers it when absent).
+JAIL_CA=""
+for _c in "${ARSENAL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/xos-arsenal}/cacert.pem" \
+          "${ARSENAL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/xos-arsenal}/tools/cacert.pem"; do
+	[ -f "$_c" ] && { JAIL_CA="$_c"; break; }
+done
+
 # tree_spec NAME -- for a tool that ships as a directory tree (an interpreter +
 # its stdlib + .so's, not one static binary), print "ENTRY|SHIM...": the path to
 # run RELATIVE to the staged tree, and the command name(s) to expose on the jail
@@ -107,6 +117,17 @@ jail_init() {
 				printf '#!/bin/sh\nexec "%s" "$@"\n' "$JAIL_EXEC/.$_b/$_entry" > "$JAIL_EXEC/$_s" \
 					&& chmod 755 "$JAIL_EXEC/$_s" || echo "jail: failed to shim $_s" >&2
 			done
+			# the tree may carry the musl loader (python is dynamic against
+			# /lib/ld-musl-x86_64.so.1). the fort has no /lib and the kernel ships
+			# CONFIG_NAMESPACES=n, so provide it GLOBALLY at /lib on an exec surface,
+			# once, left ro -- exactly as xexec does. only when root (mounting needs
+			# it); a dev host already has its own /lib so python runs there regardless.
+			if [ -n "$JAIL_DROP" ] && [ -f "$JAIL_EXEC/.$_b/lib/ld-musl-x86_64.so.1" ] && [ ! -e /lib/ld-musl-x86_64.so.1 ]; then
+				mount -t tmpfs -o nosuid,nodev,size=4m tmpfs /lib 2>/dev/null \
+					&& cp "$JAIL_EXEC/.$_b/lib/ld-musl-x86_64.so.1" /lib/ld-musl-x86_64.so.1 \
+					&& mount -t tmpfs -o remount,ro,nosuid,nodev,size=4m tmpfs /lib 2>/dev/null \
+					|| echo "jail: failed to provide musl loader at /lib" >&2
+			fi
 		fi
 	done
 	# write-once -> W^X: the exec surface is read-only for the rest of the session.
@@ -137,8 +158,10 @@ jail_run() {
 	( cd "$JAIL_SCRATCH" 2>/dev/null || exit 1
 	  # env, so timeout and the privilege drop are also looked up on the
 	  # answer's PATH (the applet ones), not the host's.
+	  _cae=""
+	  [ -n "$JAIL_CA" ] && _cae="SSL_CERT_FILE=$JAIL_CA CURL_CA_BUNDLE=$JAIL_CA REQUESTS_CA_BUNDLE=$JAIL_CA"
 	  # shellcheck disable=SC2086
-	  env PATH="$JAIL_EXEC:${JAIL_PATH:-$PATH}" HOME="$JAIL_SCRATCH" TMPDIR="$JAIL_SCRATCH" \
+	  env PATH="$JAIL_EXEC:${JAIL_PATH:-$PATH}" HOME="$JAIL_SCRATCH" TMPDIR="$JAIL_SCRATCH" $_cae \
 	    timeout 10 $JAIL_DROP "$_sh" -c "$_ans" </dev/null 2>&1 )
 }
 

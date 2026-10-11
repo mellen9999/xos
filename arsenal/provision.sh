@@ -17,6 +17,11 @@ set -eu
 DEV="${1:-}"
 SELF="$(cd "$(dirname "$0")" && pwd)"
 ARSENAL="${XOS_ARSENAL:-$HOME/.local/share/xos-arsenal}"
+# pin it into the environment BEFORE the sudo -E re-exec below: otherwise this
+# line runs again as root with $HOME flipped to /root, and the default staging
+# path silently becomes /root/.local/... (absent) -- a toolless stick. with it
+# exported, the second pass reads the value we resolved as the invoking user.
+export XOS_ARSENAL="$ARSENAL"
 # per-run names: two provisions at once (two sticks, two terminals) must not
 # share a device-mapper name or a mountpoint.
 MAP=xosprov.$$
@@ -49,6 +54,14 @@ cleanup() { umount "$MNT" 2>/dev/null || true; cryptsetup close "$MAP" 2>/dev/nu
 trap cleanup EXIT INT TERM
 mkdir -p "$MNT"; mount "/dev/mapper/$MAP" "$MNT"
 
+# a STICK must carry tools: refuse an absent/empty staging here (populate itself
+# stays lenient so the schoolship gate can exercise it school-only). this closes
+# the silent-toolless-stick path -- it used to skip lock_check and exit 0 "done".
+if ! { [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; }; then
+  echo "provision: refusing -- no arsenal staging at $ARSENAL; a stick with no tools is not provisioning." >&2
+  echo "           build it (arsenal/build-arsenal.sh) or set XOS_ARSENAL to the full staging dir; nothing written." >&2
+  exit 1
+fi
 populate "$MNT" || { echo "provision: refusing -- the arsenal staging failed its lock check (above); nothing written" >&2; exit 1; }   # defined below; the testable half
 cleanup; trap - EXIT INT TERM
 echo "done."

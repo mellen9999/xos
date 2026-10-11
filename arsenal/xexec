@@ -32,18 +32,29 @@ fi
 # looks for /etc/ssl/cert.pem which the signed root does not have -- so HTTPS
 # and LDAPS verify fails and --insecure becomes the only way through. point the
 # standard trust-store env at the bundle carried beside this script so TLS
-# verifies. a caller's own value wins. (the Go tools carry their own roots.)
-if [ -z "${SSL_CERT_FILE:-}" ] && [ -f "$_here/cacert.pem" ]; then
-	SSL_CERT_FILE=$(cd "$_here" && pwd)/cacert.pem
-	CURL_CA_BUNDLE=$SSL_CERT_FILE; REQUESTS_CA_BUNDLE=$SSL_CERT_FILE
-	export SSL_CERT_FILE CURL_CA_BUNDLE REQUESTS_CA_BUNDLE
+# verifies. each var guarded on its OWN: a caller who set only CURL_CA_BUNDLE (an
+# intercept proxy CA, say) must keep it, not have it clobbered. (Go tools carry
+# their own roots.)
+if [ -f "$_here/cacert.pem" ]; then
+	_ca=$(cd "$_here" && pwd)/cacert.pem
+	if [ -z "${SSL_CERT_FILE:-}" ];     then SSL_CERT_FILE=$_ca;     export SSL_CERT_FILE;     fi
+	if [ -z "${CURL_CA_BUNDLE:-}" ];    then CURL_CA_BUNDLE=$_ca;    export CURL_CA_BUNDLE;    fi
+	if [ -z "${REQUESTS_CA_BUNDLE:-}" ]; then REQUESTS_CA_BUNDLE=$_ca; export REQUESTS_CA_BUNDLE; fi
 fi
-# nmap reads its service/port-frequency + protocol tables from $NMAPDIR; the
-# stick carries them beside this script so a default scan picks nmap's curated
-# top-1000 ports (not every entry in /etc/services) and stops warning they are
-# missing. caller wins.
-if [ -z "${NMAPDIR:-}" ] && [ -f "$_here/nmap-services" ]; then
-	NMAPDIR=$(cd "$_here" && pwd) && export NMAPDIR
+# nmap reads its whole data set from $NMAPDIR: the service/port-frequency table
+# (default top-1000 selection), nmap-service-probes (-sV), nmap-os-db +
+# nmap-mac-prefixes (-O), and scripts/ + nselib/ + nse_main.lua (NSE --script).
+# the stick carries them as a tree beside this script; without it those scans
+# degrade or error (they found the data only on a dev host's /usr/share/nmap).
+# caller wins.
+if [ -z "${NMAPDIR:-}" ] && [ -d "$_here/nmapdata" ]; then
+	NMAPDIR=$(cd "$_here/nmapdata" && pwd) && export NMAPDIR
+fi
+# libmagic auto-probes $HOME/.magic.mgc, but xexec may run with HOME=/root while
+# provision dropped the db in the stick's own home -- so `file` would silently
+# fall back to an empty magic set. point MAGIC at the carried db explicitly.
+if [ -z "${MAGIC:-}" ] && [ -f "${HOME:-}/.magic.mgc" ]; then
+	MAGIC="$HOME/.magic.mgc"; export MAGIC
 fi
 
 tree=0
@@ -97,6 +108,23 @@ fi
 # `-o remount,ro MP` fails under busybox.
 mount -t tmpfs -o remount,ro,nosuid,nodev tmpfs "$mp" \
 	|| die "cannot seal the exec surface read-only"
+
+# a carried tree may ship the musl dynamic loader -- the python does: it is
+# DYNAMIC against /lib/ld-musl-x86_64.so.1 and python-build-standalone does not
+# bundle it. the fort deliberately has no /lib (and the kernel ships
+# CONFIG_NAMESPACES=n, so there is no mount namespace to hide it in), so provide
+# the loader GLOBALLY at /lib on an exec surface -- once, idempotent, left ro for
+# the session so concurrent and repeat runs share it. the SIGNED image still
+# carries no loader (only an empty /lib mountpoint), so its "no ld-musl"
+# invariant holds; this surface is RAM-only and appears solely while the arsenal
+# is in use. without it python (and sqlmap/impacket, which re-exec it) cannot
+# execve at all on real hardware.
+if [ "$tree" = 1 ] && [ -f "$mp/lib/ld-musl-x86_64.so.1" ] && [ ! -e /lib/ld-musl-x86_64.so.1 ]; then
+	mount -t tmpfs -o nosuid,nodev,size=4m tmpfs /lib 2>/dev/null \
+		&& cp "$mp/lib/ld-musl-x86_64.so.1" /lib/ld-musl-x86_64.so.1 \
+		&& mount -t tmpfs -o remount,ro,nosuid,nodev,size=4m tmpfs /lib 2>/dev/null \
+		|| die "cannot provide the musl loader at /lib"
+fi
 
 "$run" "$@"
 rc=$?

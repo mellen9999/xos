@@ -292,11 +292,17 @@ patch_src() {
   file nmap | grep -q "statically linked" || { echo "not static"; tail -30 /s/nmap.log; exit 1; }
   strip nmap
   cp nmap /out/nmap
-  # carry nmap's own data tables: without nmap-services a default scan loses its
-  # curated top-1000 (it falls back to every /etc/services entry) and warns each
-  # run; nmap-protocols is the -sO table. xexec points $NMAPDIR at ~/tools. these
-  # are static data from this pinned source, so their sha is reproducible.
-  cp nmap-services nmap-protocols /out/ ) || log "nmap FAILED"
+  # carry nmap's WHOLE data set as a tree ($NMAPDIR -> nmapdata): nmap-services
+  # (default top-1000 port selection -- without it a scan falls back to every
+  # /etc/services entry and warns), nmap-protocols (-sO), nmap-service-probes
+  # (-sV version detection), nmap-os-db + nmap-mac-prefixes (-O os detection),
+  # and nse_main.lua + scripts/ + nselib/ (NSE --script). these rode only the dev
+  # host's /usr/share/nmap before, so -sV/-O/--script silently degraded on the
+  # stick. all static data from this pinned 7.95 source.
+  mkdir -p /out/nmapdata
+  cp nmap-services nmap-protocols nmap-service-probes nmap-os-db nmap-mac-prefixes nse_main.lua /out/nmapdata/ 2>/dev/null
+  cp -r scripts nselib /out/nmapdata/ 2>/dev/null
+  rm -f /out/nmap-services /out/nmap-protocols ) || log "nmap FAILED"   # retire the old flat tables (now inside nmapdata)
 
 # ---- recovery / forensics / triage: the flank the offense set left open -----
 
@@ -663,7 +669,7 @@ for b in masscan tcpdump socat nmap links mutool frotz whois hydra jq rg zstd dd
 LOCK="$SELF/arsenal.lock"
 if [ -f "$LOCK" ]; then
   _lref=$(mktemp)
-  for b in masscan tcpdump socat nmap nmap-services nmap-protocols links mutool \
+  for b in masscan tcpdump socat nmap links mutool \
            frotz whois hydra jq rg \
            zstd ddrescue strace testdisk photorec smartctl file file.mgc \
            mandoc minisign dvtm rsync binwalk qrencode radare2; do

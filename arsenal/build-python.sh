@@ -45,6 +45,18 @@ echo "sha256 verified against pin"
 tar xzf py.tgz                      # -> python/
 rm -rf "$OUT/python"; mv python "$OUT/python"
 cd "$OUT"
+# carry the musl loader. python-build-standalone's install_only build is
+# DYNAMIC against musl's /lib/ld-musl-x86_64.so.1 and does NOT bundle it -- so
+# on the fort (which has no /lib and forbids a loader) python cannot execve at
+# ALL; it only ever ran on a dev host that happened to have musl installed, and
+# that masked the gap. ship the same host-provided musl every xos binary links
+# (SOURCES: host musl); python already carries RPATH=$ORIGIN/../lib for its own
+# libs, so this loader is the ONLY missing piece. xexec/jail mount it at /lib at
+# run time (the fort ships only an empty /lib mountpoint, no loader file -- so
+# the image's "no ld-musl" invariant holds).
+_ld=$(readlink -f /lib/ld-musl-x86_64.so.1 2>/dev/null)
+[ -f "$_ld" ] || { echo "FAIL: host musl loader /lib/ld-musl-x86_64.so.1 missing -- install musl; the carried python links against it" >&2; exit 1; }
+install -m 0755 "$_ld" "$OUT/python/lib/ld-musl-x86_64.so.1"
 # pinned checkout: clone then land on the exact rev, so the tool is reproducible
 # (a bare --depth 1 would drift to whatever HEAD happens to be).
 if [ ! -d sqlmap ]; then
@@ -85,6 +97,15 @@ if [ -f "$REQ" ]; then
 else
   echo "note: no impacket.requirements beside $0 -- skipping impacket" >&2
 fi
+
+# guard the loader carry: the interpreter the python needs must be exactly the
+# one xexec/jail provide at /lib, and it must be carried. a regression here ships
+# a python that is dead on hardware, so fail the build loud, not the stick.
+_interp=$(readelf -l "$OUT/python/bin/python3.12" 2>/dev/null | awk '/interpreter/{gsub(/[][]/,"");print $NF}')
+[ "$_interp" = "/lib/ld-musl-x86_64.so.1" ] \
+  || { echo "FAIL: carried python interp is '$_interp', not /lib/ld-musl-x86_64.so.1 -- xexec's /lib provisioning would not match" >&2; exit 1; }
+[ -f "$OUT/python/lib/ld-musl-x86_64.so.1" ] \
+  || { echo "FAIL: musl loader not carried in python/lib -- python cannot execve on the loader-less fort" >&2; exit 1; }
 
 echo "staged: python $("$OUT/python/bin/python3" --version 2>&1)  +  sqlmap @$(git -C sqlmap rev-parse --short HEAD)"
 echo "size: python $(du -sh python|cut -f1), sqlmap $(du -sh sqlmap|cut -f1)$([ -d "$OUT/impacket" ] && echo ", impacket $(du -sh "$OUT/impacket"|cut -f1)")"

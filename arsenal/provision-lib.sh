@@ -36,6 +36,7 @@ lock_check() {
       john)     [ -f "$_lk_dir/john/john" ]  || _lk_miss="$_lk_miss $_n"; continue ;;
       python|impacket) [ -d "$_lk_dir/python" ] || _lk_miss="$_lk_miss $_n"; continue ;;
       sqlmap)   [ -d "$_lk_dir/sqlmap" ]     || _lk_miss="$_lk_miss $_n"; continue ;;
+      nmapdata) [ -d "$_lk_dir/nmapdata" ]   || _lk_miss="$_lk_miss $_n"; continue ;;
       terminfo)
         if [ ! -d "$_lk_dir/terminfo" ]; then _lk_miss="$_lk_miss $_n"
         else
@@ -71,6 +72,9 @@ populate() {
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
     lock_check "$ARSENAL" || return 1
   fi
+  # NOTE: populate stays lenient about an absent $ARSENAL on purpose -- the
+  # schoolship gate exercises it with no arsenal to prove the school files ship.
+  # the "refuse a toolless STICK" guard lives in provision.sh, the stick entry.
   mkdir -p "$H/tools" "$H/wordlists" "$H/docs" "$H/loot"
   install -m 0755 "${SELF:-$(dirname "$0")}/xexec" "$H/tools/xexec"
   # the discoverability surface: a generic lister + its descriptions. both ride
@@ -118,10 +122,12 @@ populate() {
         continue
       fi
       case "$b" in
-        cacert.pem|nmap-services|nmap-protocols)
-          install -m 0644 "$f" "$H/tools/$b"             # data tables xexec points env at, not binaries
+        cacert.pem)
+          install -m 0644 "$f" "$H/tools/$b"             # the CA bundle xexec points SSL_CERT_FILE at, not a binary
           continue ;;
       esac
+      # nmapdata/ is a data TREE ($NMAPDIR) -- it falls through to the directory
+      # branch below (cp -a), same as python/ and sqlmap/.
       if [ "$b" = links ]; then
         # the association that opens a picture in the served zim/html as
         # characters instead of a dead link -- checked against links 2.30's
@@ -134,8 +140,10 @@ populate() {
         mkdir -p "$H/.links"
         install -m 0644 "${SELF:-$(dirname "$0")}/links.cfg" "$H/.links/links.cfg"
       fi
-      if [ -d "$f" ]; then
-        rm -rf "$H/tools/$b"; cp -a "$f" "$H/tools/$b"   # a tree: python/, sqlmap/
+      if [ -L "$f" ]; then
+        cp -P "$f" "$H/tools/$b"                          # a symlink (r2/rabin2/rax2 -> radare2): keep it a link, not a 3rd 22MB copy
+      elif [ -d "$f" ]; then
+        rm -rf "$H/tools/$b"; cp -a "$f" "$H/tools/$b"    # a tree: python/, sqlmap/, nmapdata/
       else
         install -m 0755 "$f" "$H/tools/$b"               # a flat static binary
       fi
