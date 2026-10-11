@@ -216,6 +216,14 @@ in_toolchain() {
 # a snapshot, copies just the pin back out. review and commit the image.sha256.
 cpin() {
   say "taking the pin inside the pinned toolchain"
+  # cpin pins COMMITTED HEAD (snap clones it); unlike pin/blobpin/toolpin, which
+  # hard-refuse a dirty tree, it would silently pin the old committed bytes and
+  # leave your uncommitted image-affecting edits out of the pin with no sign. warn.
+  if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1 \
+     && [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "  WARNING: working tree has uncommitted changes -- cpin pins COMMITTED HEAD only," >&2
+    echo "           so those edits are NOT in this pin. commit them first if they affect the image." >&2
+  fi
   local s; s=$(snap) || { echo "FAIL: could not snapshot committed HEAD" >&2; return 1; }
   if in_toolchain "$s/tree" sh -euc './build.sh build_repro && ./build.sh pin'; then
     cp -f "$s/tree/image.sha256" image.sha256

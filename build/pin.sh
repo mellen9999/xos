@@ -15,6 +15,12 @@ toolchain_versions() {
   mksquashfs -version 2>&1 | head -1
   veritysetup --version
   sha256sum musl-static-pie.specs | awk '{print $1}'
+  # musl is HOST-PROVIDED (the specs hardcode /usr/lib/musl/) and links into every
+  # binary in the squashfs, so a musl bump changes the PINNED bytes -- yet it used
+  # to be absent here, which made G13 cry "NOT REPRODUCIBLE" over an innocent musl
+  # upgrade. cmake builds json-c/cryptsetup. both belong in the fingerprint.
+  ( /lib/ld-musl-x86_64.so.1 2>&1 || true ) | sed -n 's/.*Version /musl /p' | head -1
+  cmake --version 2>/dev/null | head -1
   umask
 }
 # the EFI stub used to be hashed into the line above, on the reasoning that two

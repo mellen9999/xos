@@ -491,10 +491,16 @@ CTAG=xos-toolchain
 
 
 build_all() {
+  # keys() writes PLAINTEXT PK/KEK/db; seal() encrypts them. a kill or crash in
+  # the window between leaves cleartext signing keys on disk (gitignored, so they
+  # cannot be committed, but they are there). warn loudly on ANY exit while they
+  # are still unsealed -- on a clean run seal removes them, so the trap is silent.
+  trap '[ -f keys/db.key ] && printf "\033[1;31mWARNING: plaintext signing keys left on disk (keys/*.key) -- run \"./build.sh seal\" or delete keys/\033[0m\n" >&2' EXIT
   deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; wg_; dropbear_; rootfs; verity; keys
   # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
   # and G11 stays green. a sealed tree short-circuits keys() and skips this.
   if [ -f keys/db.key ]; then seal; fi
+  trap - EXIT
   uki; stick; gates
   # lint is host-optional here: 2 is "shellcheck absent", a skip for a host
   # build. any other non-zero is a real shellcheck error and still fails.

@@ -83,7 +83,10 @@ EOF
     shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
   done
   chmod 600 keys/*.enc
-  echo "  sealed and read back. plaintext keys removed from disk."
+  # "removed" is best-effort: shred overwrites a logical block, but on SSD/NVMe
+  # wear-levelling, or btrfs/ZFS CoW, or a journaling fs, the old contents can
+  # survive in a remapped/rewritten block. don't overstate the guarantee.
+  echo "  sealed and read back. plaintext keys overwritten + unlinked (shred is best-effort on SSD/CoW/journaled fs)."
 }
 
 reseal() {
