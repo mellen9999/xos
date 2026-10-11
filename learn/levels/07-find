@@ -64,7 +64,7 @@ hint: -maxdepth caps how far down find will go
 setup: you want what's nested inside, not the top-level structure itself
 q: {skip anything shallower than 2 levels down|list only entries at least 2 levels deep under here|you only want entries 2 levels down or deeper}, with `find`
 a: find . -mindepth 2
-eg: find /var/log -mindepth 1
+eg: find /etc -mindepth 1
 cmp: ref
 ref: find
 teach: find -mindepth
@@ -72,7 +72,7 @@ hint: -mindepth is the floor, -maxdepth is the ceiling
 ---
 q: {which regular files here top 1 kilobyte|list regular files under here over 1 kilobyte|you need regular files under here past 1 kilobyte}, with `find`
 a: find . -type f -size +1k
-eg: find /var/log -type f -size +10k
+eg: find /etc -type f -size +10k
 cmp: ref
 ref: find
 teach: find -size
@@ -80,7 +80,7 @@ hint: + means "more than", - means "less than", plain means "exactly"
 ---
 q: {which files or directories under here are empty|list every empty file or directory under here|you want anything empty, file or directory, under here}, with `find`
 a: find . -empty
-eg: find /var/spool -empty
+eg: find /tmp -empty
 cmp: ref
 ref: find
 teach: find -empty
@@ -134,7 +134,7 @@ hint: matches the file's owner, not who's running find
 ---
 q: {which files under here belong to the group ``nobody``|list files here owned by the group ``nobody``|you want files under here in the group ``nobody``}, with `find`
 a: find . -group nobody
-eg: find /var/www -group www-data
+eg: find /etc -group root
 cmp: ref
 ref: find
 teach: find -group
@@ -203,7 +203,7 @@ hint: stops find from crossing into a mounted filesystem
 ---
 q: {which files does each symlink under here actually point to|list files under here, resolving symlinks instead of naming them|you want symlinks under here followed, not just listed}, with `find`
 a: find -L . -type f
-eg: find -L /etc/alternatives -type f
+eg: find -L /etc -type f
 cmp: ref
 ref: find
 teach: find -L
@@ -212,7 +212,7 @@ hint: makes find follow symlinks and describe what they point to
 setup: whatever you do to a directory must happen after its contents
 q: {list everything here bottom-up, contents before their directory|walk this tree so each directory prints after its contents|you want a bottom-up listing here, contents before the directory}, with `find`
 a: find . -depth
-eg: find /var/spool -depth
+eg: find /tmp -depth
 cmp: ref
 ref: find
 teach: find -depth

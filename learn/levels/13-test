@@ -28,7 +28,7 @@ hint: -f is true only for a regular file, not a directory or link
 ---
 q: {make sure @dir@ is really a directory before you cd into it|check that @dir@ is actually a directory, not a file|confirm @dir@ names a directory you can work in}
 a: [ -d @dir@ ]
-eg: [ -d /etc/ssh ]
+eg: [ -d /etc/dropbear ]
 status: 0
 ref: [
 teach: [ -d
@@ -60,7 +60,7 @@ hint: -w checks the write permission bit
 ---
 q: {make sure @script@ is actually runnable before you try ./@script@|check that @script@ has the execute bit set|confirm @script@ can be run, not just read}
 a: [ -x @script@ ]
-eg: [ -x /usr/bin/env ]
+eg: [ -x /bin/env ]
 status: 0
 ref: [
 teach: [ -x
@@ -68,7 +68,7 @@ hint: -x checks the execute permission bit
 ---
 q: {check whether ``link.txt`` is a symlink before you overwrite what it points to|confirm ``link.txt`` is a symlink rather than the real file|make sure ``link.txt`` is a link, not the file itself}
 a: [ -L link.txt ]
-eg: [ -L /etc/localtime ]
+eg: [ -L /etc/resolv.conf ]
 status: 0
 ref: [
 teach: [ -L
@@ -108,7 +108,7 @@ hint: || only runs echo when the test in front of it fails
 setup: you're reading a portable script written without square brackets
 q: {use `test`, not [ ], to check @dir@ is a directory, printing ``ok``|check @dir@ is a directory with the `test` command, printing ``ok``|run `test` `-d` on @dir@, printing ``ok``, no square brackets}
 a: test -d @dir@ && echo ok
-eg: test -d /etc/ssh && echo present
+eg: test -d /etc/dropbear && echo present
 cmp: ref
 ref: test
 teach: test -d

@@ -18,7 +18,7 @@ hint: l for lines, same flag whether you pipe it in or pass a filename
 ---
 q: {%count% the words in @txt@|how many words are in @txt@?|word count of @txt@}, with `wc`
 a: wc -w < @txt@
-eg: wc -w < /etc/motd
+eg: wc -w < /etc/services
 cmp: ref
 ref: wc
 teach: wc -w

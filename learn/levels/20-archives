@@ -84,7 +84,7 @@ hint: O sends the extracted file's bytes to stdout instead of writing it to disk
 ---
 q: %make% ``bundle.tar`` from @dir@, skipping .log files, with `tar`
 a: tar -cf bundle.tar --exclude '*.log' @dir@
-eg: tar -cf snapshot.tar --exclude '*.tmp' /var/www
+eg: tar -cf snapshot.tar --exclude '*.tmp' /etc
 state: exists:bundle.tar
 ref: tar
 teach: tar --exclude
@@ -109,7 +109,7 @@ hint: -T reads the list of names to archive from a file instead of the command l
 setup: you need the directory entry itself preserved -- its permissions -- without archiving what's inside it yet
 q: {bundle @dir@ into ``bundle.tar`` with `tar`, not descending into it|use `tar` `--no-recursion` so @dir@ lands flat inside ``bundle.tar``|archive @dir@ into ``bundle.tar`` flat, with `tar`, skipping inside it}
 a: tar -cf bundle.tar --no-recursion @dir@
-eg: tar -cf snapshot.tar --no-recursion /var/www
+eg: tar -cf snapshot.tar --no-recursion /etc
 state: exists:bundle.tar
 ref: tar
 teach: tar --no-recursion
@@ -133,7 +133,7 @@ hint: gzip replaces the original file with a .gz version by default
 ---
 q: {compress @txt@ with `gzip` -- you still need the original after|`gzip` @txt@ without losing @txt@ itself|compress @txt@ with `gzip`, but keep @txt@ around too}
 a: gzip -k @txt@
-eg: gzip -k /var/log/app.log
+eg: gzip -k /tmp/app.log
 state: exists:@txt@
 ref: gzip
 teach: gzip -k
@@ -149,7 +149,7 @@ hint: -c writes the compressed bytes to stdout, leaving the file untouched
 ---
 q: {a leftover @txt@.gz exists -- compress @txt@ anyway, with `gzip`|@txt@.gz already exists -- redo the compression, with `gzip`|compress @txt@ again though its .gz is already there, with `gzip`}
 a: gzip -c @txt@ > @txt@.gz && gzip -f @txt@
-eg: gzip -f /var/log/app.log
+eg: gzip -f /tmp/app.log
 state: gone:@txt@
 ref: gzip
 teach: gzip -f
@@ -187,7 +187,7 @@ hint: bzip2 works like gzip but usually compresses tighter, at more cpu cost
 ---
 q: {@txt@ needs to be as small as possible -- max `bzip2` strength|squeeze @txt@ down as far as `bzip2` can, cpu cost be damned|compress @txt@ with `bzip2`'s strongest, slowest setting}
 a: bzip2 -9 @txt@
-eg: bzip2 -1 /var/log/app.log
+eg: bzip2 -1 /tmp/app.log
 state: exists:@txt@.bz2
 ref: bzip2
 teach: bzip2 -1..9
@@ -278,7 +278,7 @@ hint: -J routes the archive through xz, the way -z does for gzip and -j for bzip
 ---
 q: {decompress @word@.xz, keeping the .xz file as well|unpack @word@.xz but leave the .xz in place|decompress @word@.xz without removing the .xz}, with `xz`
 a: xz -dk @word@.xz
-eg: xz -k /var/log/app.log
+eg: xz -k /tmp/app.log
 pre: printf %s /Td6WFoAAATm1rRGBMANCSEBHAAAAAAAAAAAAJbfEfMBAAh1bnBhY2tlZAoAAAAA84jKXwco6WUAASkJZJIcHR+2830BAAAAAARZWg== | base64 -d > @word@.xz
 state: differs:@word@:@word@.xz
 ref: xz

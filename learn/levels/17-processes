@@ -265,7 +265,7 @@ hint: -m targets a whole mounted filesystem instead of one file
 ---
 q: %find% and kill whatever has @log@ open, with `fuser`
 a: fuser -k @log@
-eg: fuser -k /var/log/dmesg
+eg: fuser -k /tmp/app.log
 why: live-hw
 ref: fuser
 teach: fuser -k

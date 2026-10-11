@@ -10,13 +10,13 @@ what that first sighting was anchored to. They are not equal:
 
 | source | anchor | strength |
 |---|---|---|
-| linux 6.18.49 | maintainer PGP signature (Greg Kroah-Hartman, `.tar.sign` over the uncompressed tar), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| linux 6.18.55 | maintainer PGP signature (Greg Kroah-Hartman, `.tar.sign` over the uncompressed tar), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | busybox 1.38.0 | maintainer PGP signature (Denys Vlasenko, `.sig` over the `.tar.bz2`), matched against a committed key on every fetch | **best -- signed by the maintainer** (oldest key in the tier: 2006 dsa-1024, sha-1 digest) |
 | bearssl | none available (bearssl.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | ii | none available (suckless publishes no .sig/.asc/.sha256) | **weakest -- trust-on-first-use over TLS only** |
 | abduco | none available (brain-dump.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
-| cryptsetup 2.8.7 | maintainer PGP signature (Milan Broz, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
-| util-linux 2.42.2 | maintainer PGP signature (Karel Zak, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| cryptsetup 2.8.8 | maintainer PGP signature (Milan Broz, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| util-linux 2.42.4 | maintainer PGP signature (Karel Zak, `.tar.sign`), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | lvm2 2.03.42 | maintainer PGP signature (Marian Csontos), matched against a committed key on every fetch, **plus** fedora rawhide's published sha512 for the identical tarball, pinned as `LVM_SHA512` and checked on every fetch | **two anchors, one of them dead** -- the key expired 2022-06-09 and has not been extended on keys.openpgp.org or keyserver.ubuntu.com (checked 2026-09-17). the waiver is dated and lapses 2027-03-31. debian cannot re-anchor it: sid is eleven releases behind and repacks the orig tarball, so its signed `.dsc` does not cover these bytes |
 | popt | none available; fetched from fedora's source cache over TLS at a url naming its sha512 (upstream ftp.rpm.org is plain http) | **weakest -- trust-on-first-use over TLS only** |
 | json-c 0.19-20260627 | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |

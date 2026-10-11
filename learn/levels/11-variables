@@ -66,7 +66,7 @@ hint: :- substitutes default only when the variable is unset or empty
 ---
 q: %show% @log@'s line count as "``lines:`` N", with `echo`
 a: echo "lines: $(wc -l < @log@)"
-out: ^lines: [0-9]+$
+cmp: ref
 ref: echo
 teach: echo
 hint: $( ) expands fine inside double quotes, right beside literal text

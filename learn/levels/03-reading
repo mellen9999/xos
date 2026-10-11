@@ -25,7 +25,7 @@ hint: n numbers every line, including blanks
 ---
 q: %show% @cfg@ with `cat`, to spot trailing whitespace on each line
 a: cat -e @cfg@
-eg: cat -e /etc/fstab
+eg: cat -e /etc/passwd
 cmp: ref
 ref: cat
 teach: cat -e
@@ -41,7 +41,7 @@ hint: ten is what head does with no arguments
 q: %show% the first @n@ lines of @log@ with `head`
 a: head -n @n@ @log@
 a: head -@n@ @log@
-eg: head -n 5 /var/log/messages
+eg: head -n 5 /etc/services
 out: service started
 cmp: ref
 ref: head
@@ -130,7 +130,7 @@ hint: q leaves, /pattern searches, g and G jump to the ends
 ---
 q: {page @log@ in `less` with line numbers, so you can point one out|open @log@ in `less` with line numbers, to reference one|view @log@ in `less` with line numbers, to call one out}
 a: less -N @log@
-eg: less -N /etc/fstab
+eg: less -N /etc/services
 why: interactive
 ref: less
 teach: less -N
@@ -154,7 +154,7 @@ hint: capital I makes searches ignore case
 ---
 q: %show% @log@'s last ``20`` bytes with `tail` -- just how it ended
 a: tail -c 20 @log@
-eg: tail -c 200 /var/log/dmesg
+eg: tail -c 200 /etc/services
 cmp: ref
 ref: tail
 teach: tail -c
@@ -162,7 +162,7 @@ hint: c for characters/bytes, same idea as head -c
 ---
 q: {follow @log@ by name with `tail`, so it survives rotation|follow @log@ by name not handle, with `tail` -- survives rotation|watch @log@ with `tail`, in a way that survives rotation}
 a: tail -F @log@
-eg: tail -F /var/log/syslog
+eg: tail -F /tmp/app.log
 why: interactive
 ref: tail
 teach: tail -F

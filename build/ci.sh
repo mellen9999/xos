@@ -476,8 +476,8 @@ ci() {
   # list. a rostered name that did neither is a FAIL -- the check vanished.
   local CI_ROSTER="provenance shellcheck parse pyparse dockerfile trust
     learn-ledger learn-corpus learn-c arsenal-selftest arsenal-ledger arsenal-order xexec login-shell
-    one-q tool-cards lock-roster lock-guard ref-pages libparity schoolship learnship
-    pin-source readme-counts keyseal"
+    one-q eg-paths tool-cards lock-roster lock-guard ref-pages libparity schoolship learnship
+    pin-source readme-counts sources-versions keyseal"
   CI_ROSTER=$(echo $CI_ROSTER)   # one line, single spaces: the matches below are word-bounded by spaces
   local CI_RAN="" CI_SKIPPED=""
   cic() { CI_RAN="$CI_RAN $1"; }
@@ -705,8 +705,50 @@ ci() {
   ' learn/levels/* learn/scenarios/* learn/chains arsenal/levels/* 2>/dev/null)
   if [ -n "$q2" ]; then
     printf '  \033[1;31mmultiple q: lines in one block\033[0m\n%s\n' "$q2" >&2; rc=1
+  elif ! ls learn/levels/* >/dev/null 2>&1; then
+    # a renamed/emptied levels/ made the awk glob match nothing and this printed
+    # "every card has exactly one q:" over ZERO cards -- a vacuous pass. require
+    # that there were cards to check at all.
+    printf '  \033[1;31mone-q found no card files (learn/levels empty?) -- not a pass\033[0m\n' >&2; rc=1
   else
     printf '  every card has exactly one q:\n'
+  fi
+  # eg: worked examples are shown verbatim in the flag panel, so a path that does
+  # not exist on the fort prints "No such file or directory" to a learner. the
+  # build has no root/ to stat against, so deny the system dirs the signed image
+  # is KNOWN not to carry (it ships /etc/{hosts,services,protocols,passwd,group,
+  # hostname,os-release,profile,shrc,resolv.conf,dropbear}, /bin applets, and the
+  # runtime dirs /tmp /run /home /proc /sys; it has no usr/bin, no var/log, etc).
+  say "eg: examples use only fort-present paths"
+  cic eg-paths
+  local _egbad
+  _egbad=$(grep -hE '^eg:' learn/levels/* learn/scenarios/* learn/chains arsenal/levels/* 2>/dev/null \
+    | grep -oE '/(var/(log|www|spool|cache|lib|mail)|usr/(bin|sbin|local|lib)|etc/(fstab|mtab|ssh|shadow|gshadow|localtime|alternatives|wireguard|udhcpc|sysconfig|systemd|apt|yum|pacman|network))([/ ]|$)' \
+    | sort -u) || true   # grep -o exits 1 when there are no offenders (the good case); do not let set -e abort
+  if [ -n "$_egbad" ]; then
+    printf '  \033[1;31meg: references a path the fort does not carry:\033[0m\n%s\n' "$_egbad" >&2; rc=1
+  else
+    printf '  every eg: path exists on the fort\n'
+  fi
+  # SOURCES.md is the provenance document ("read what you run"); its version
+  # strings are not pinned by anything else, so they drifted 6 releases behind
+  # (linux 6.18.49 vs the built 6.18.55) in silence. tie the rows that map to a
+  # build.sh version var to that var, so a bump that forgets SOURCES.md fails here.
+  say "SOURCES.md versions match build.sh"
+  cic sources-versions
+  local _sv_bad="" _v
+  _sv_chk() {  # $1=SOURCES.md label  $2=build.sh var name
+    _v=$(sed -n "s/^$2=\"\${$2:-\\([^}]*\\)}\".*/\\1/p" build.sh | head -1)
+    [ -n "$_v" ] || { _sv_bad="$_sv_bad $1(no-$2)"; return; }
+    grep -qE "^\| $1 $_v " SOURCES.md || _sv_bad="$_sv_bad $1(want-$_v)"
+  }
+  _sv_chk linux KVER
+  _sv_chk cryptsetup CSVER
+  _sv_chk util-linux UTLVER
+  if [ -n "$_sv_bad" ]; then
+    printf '  \033[1;31mSOURCES.md version(s) out of sync with build.sh:\033[0m%s\n' "$_sv_bad" >&2; rc=1
+  else
+    printf '  SOURCES.md linux/cryptsetup/util-linux match build.sh\n'
   fi
   # every carried FIELD tool is drilled by at least one card -- the curriculum's
   # promise ("learn the whole toolkit") made a build gate, the same completeness
@@ -747,7 +789,7 @@ ci() {
     cic lock-roster
     local _lk_cat _lk_lock _lk_a _lk_b
     _lk_cat=$(grep -E '^[a-z]' arsenal/arsenal-catalog | cut -f1 | grep -vxE 'atlas|chart|qr|view' | sort -u)
-    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vxE 'file.mgc|terminfo|cacert.pem|nmap-services|nmap-protocols' | sort -u)
+    _lk_lock=$(grep -vE '^#|^[[:space:]]*$' arsenal/arsenal.lock | awk '{print $1}' | grep -vxE 'file.mgc|terminfo|cacert.pem|nmapdata' | sort -u)
     _lk_a=$(comm -23 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
     _lk_b=$(comm -13 <(printf '%s\n' "$_lk_cat") <(printf '%s\n' "$_lk_lock") || true)
     if [ -n "$_lk_a" ]; then

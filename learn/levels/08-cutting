@@ -74,7 +74,7 @@ hint: same trailing-dash trick as field ranges, but for characters
 setup: -s is the guard for a line with no comma -- it drops rather than pass one through whole as if it were a name
 q: %show% @csv@'s name column with `cut`, skipping lines with no comma
 a: cut -d, -f1 -s @csv@
-eg: cut -d: -f1 -s /etc/fstab
+eg: cut -d: -f1 -s /etc/passwd
 out: ^gateway$
 cmp: ref
 ref: cut

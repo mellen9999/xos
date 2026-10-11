@@ -256,7 +256,7 @@ hint: -n exits immediately if no lease shows up, rather than retrying forever
 setup: udhcpc only negotiates the lease -- something else has to apply the address and routes it hands back
 q: {run ``/usr/share/udhcpc/default.script`` on @iface@ once the lease arrives|name ``/usr/share/udhcpc/default.script`` to run when @iface@ gets a lease|have @iface@'s lease run ``/usr/share/udhcpc/default.script``}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
-eg: udhcpc -i vlan10 -s /etc/udhcpc/custom.script
+eg: udhcpc -i vlan10 -s /tmp/udhcpc.script
 why: live-net
 ref: udhcpc
 teach: udhcpc -s

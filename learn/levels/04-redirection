@@ -71,7 +71,7 @@ hint: tee writes to the file and passes the same data through to stdout
 ---
 q: %show% @log@ on screen and APPEND a copy to ``copy.txt``, with `tee`
 a: cat @log@ | tee -a copy.txt
-eg: dmesg | tee -a /var/log/boot.log
+eg: dmesg | tee -a /tmp/boot.log
 out: service started
 ref: tee
 teach: tee -a
@@ -108,7 +108,7 @@ hint: \t in the format string is a literal tab
 ---
 q: %show% @n@ as a zero-padded, five-digit id, with `printf`
 a: printf '%05d\n' @n@
-out: ^0*[0-9]+$
+cmp: ref
 ref: printf
 teach: printf
 hint: the 0 before the 5 means zero-pad instead of space-pad

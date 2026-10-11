@@ -113,7 +113,7 @@ hint: r for recursive -- required before rm will touch a directory's contents
 ---
 q: {delete @txt@ without complaining if it is already gone|remove @txt@ silently even if it doesn't exist|delete @txt@, staying quiet if it's already missing}, with `rm`
 a: rm -f @txt@
-eg: rm -f /var/run/app.pid
+eg: rm -f /run/app.pid
 pre: rm -f @txt@
 state: gone:@txt@
 status: 0
@@ -169,7 +169,7 @@ hint: with no flags, touch just sets the timestamp to now
 setup: a cron job refreshes a lock file's time -- if the lock is gone, creating a new one would lie about who holds it
 q: {`touch` ``missing.txt`` but do NOT create it if it is absent|`touch` ``missing.txt``, but skip creating it if it does not exist|refresh ``missing.txt``'s timestamp with `touch`, only if it is already there}
 a: touch -c missing.txt
-eg: touch -c /var/log/app.log
+eg: touch -c /tmp/app.log
 state: gone:missing.txt
 ref: touch
 teach: touch -c

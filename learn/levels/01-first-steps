@@ -47,7 +47,7 @@ hint: the long format flag, then the path
 ---
 q: %list% this directory with `ls`, long format, sizes in K and M
 a: ls -lh
-eg: ls -lh /var/log
+eg: ls -lh /etc
 out: ^total [0-9.]+[KMGT]
 ref: ls
 teach: ls -h
@@ -56,7 +56,7 @@ hint: two flags -- long format, and the one ls calls "Human readable"
 q: %list% this directory with `ls`, {newest first|by modification time}
 a: ls -lt
 a: ls -t
-eg: ls -lt /var/log
+eg: ls -lt /etc
 why: fixture-cost
 ref: ls
 teach: ls -t
@@ -130,7 +130,7 @@ hint: like -a, but leaves out . and ..
 ---
 q: {confirm @dir@ exists, without dumping what's inside it|check @dir@ is there but don't list its contents|does @dir@ exist? don't print what's in it}, with `ls`
 a: ls -d @dir@
-eg: ls -d /var/log
+eg: ls -d /etc
 out: ^@dir@$
 ref: ls
 teach: ls -d
@@ -147,7 +147,7 @@ hint: appends a symbol showing each entry's type
 setup: you are hunting for two names that are secretly one file
 q: %list% this directory with `ls`, showing inode numbers for hard links
 a: ls -i
-eg: ls -i /var/log/messages
+eg: ls -i /etc/hosts
 out: ^ *[0-9]+ [^ ]
 ref: ls
 teach: ls -i

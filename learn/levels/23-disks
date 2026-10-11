@@ -69,7 +69,7 @@ hint: -s collapses the whole tree into one summary line
 ---
 q: {how much space does @dir@ use, human readable, with `du`|with `du`, what does @dir@ use, scaled to something readable|report the size of @dir@ in human readable units, with `du`}
 a: du -sh @dir@
-eg: du -sh /var/log
+eg: du -sh /etc
 cmp: ref
 ref: du
 teach: du -h
@@ -84,7 +84,7 @@ hint: -a walks down to individual files, not just directories
 ---
 q: the ``prune`` directory is nested -- %show% it one level deep, with `du`
 a: du -d 1 prune
-eg: du -d 2 /var/log
+eg: du -d 2 /etc
 cmp: ref
 ref: du
 teach: du -d
@@ -92,7 +92,7 @@ hint: -d takes a depth -- 1 stops descending after the first level
 ---
 q: %show% @dir@'s sizes with a grand total at the end, with `du`
 a: du -c @dir@
-eg: du -c /var/log /etc
+eg: du -c /tmp /etc
 out: total
 ref: du
 teach: du -c
@@ -101,7 +101,7 @@ hint: -c appends one extra 'total' line summing everything above it
 setup: you are sizing what this directory itself holds, not what is mounted into it
 q: {measure @dir@ without crossing onto another filesystem, with `du`|measure @dir@ but stay on its own filesystem, with `du`|report the size of @dir@ without other mounts, with `du`}
 a: du -x @dir@
-eg: du -x /var/log
+eg: du -x /etc
 why: fixture-cost
 ref: du
 teach: du -x
@@ -264,7 +264,7 @@ hint: sync with no arguments flushes every dirty buffer on the system
 ---
 q: {you just wrote @txt@ -- flush just its data, with `sync`|flush just @txt@'s buffered data, with `sync`, rest alone|write out only @txt@'s pending data, with `sync`, not all}
 a: sync -d @txt@
-eg: sync -d /var/log/app.log
+eg: sync -d /tmp/app.log
 why: primitive-cost
 ref: sync
 teach: sync -d

@@ -89,7 +89,7 @@ hint: a second argument to basename is a suffix to strip as well
 ---
 q: {strip ``.txt`` off @txt@ with `basename`, the suffix named as a flag|`basename` @txt@, naming the ``.txt`` suffix explicitly|drop ``.txt`` from @txt@ with `basename`, the way that scales to more files}
 a: basename -s .txt @txt@
-eg: basename -s .conf /etc/wireguard/wg0.conf
+eg: basename -s .conf /etc/resolv.conf
 cmp: ref
 ref: basename
 teach: basename -s
@@ -119,7 +119,7 @@ hint: realpath resolves any relative pieces and symlinks along the way
 ---
 q: {follow @txt@ through symlinks to whatever it finally points at|use `readlink` `-f` to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
 a: readlink -f @txt@
-eg: readlink -f /usr/bin/awk
+eg: readlink -f /bin/awk
 cmp: ref
 ref: readlink
 teach: readlink -f
@@ -127,7 +127,7 @@ hint: -f follows every link in the chain, not just the first one
 ---
 q: {piping ``link.txt``'s link target onward, no stray newline, with `readlink`|``link.txt``'s `readlink` target with no trailing newline|feed ``link.txt``'s `readlink` target on without an extra newline}
 a: readlink -n link.txt
-eg: readlink -n /usr/bin/vi
+eg: readlink -n /bin/vi
 why: primitive-cost
 ref: readlink
 teach: readlink -n

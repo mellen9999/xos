@@ -82,7 +82,7 @@ hint: timeout runs the command and sends TERM if it's still going after the limi
 ---
 q: {cap `sleep` ``10`` at 2 seconds with `timeout`, force-killing it, no TERM first|run `sleep` ``10`` under a 2 second `timeout` that skips straight to ``KILL``|give `sleep` ``10`` two seconds under `timeout`, then make sure it dies via ``KILL``}
 a: timeout -s KILL 2 sleep 10
-eg: timeout -s KILL 30 tar -czf backup.tar.gz /var/log
+eg: timeout -s KILL 30 tar -czf backup.tar.gz /etc
 why: interactive
 ref: timeout
 teach: timeout -s
