@@ -428,6 +428,9 @@ bump() {
   local newhash; newhash=$(sha256sum "$XOS_CACHE/$tb" | cut -d' ' -f1)
   _bump_apply "$const" "$old" "$new" "$pre" "$newhash" "$tb" \
     || { echo "bump: pin surgery failed -- nothing committed" >&2; return 1; }
+  # SOURCES.md names the version for the rows ci's sources-versions check ties
+  # to build.sh; move that row with the pin, or the next push is refused.
+  sed -i "s/^| $pre $old /| $pre $new /" SOURCES.md
   if [ "$signed" = xz ]; then
     rm -f "sigs/${pre}-$old.tar.sign"; mv "sigs/${tb%.xz}.sign.NEW" "sigs/${tb%.xz}.sign"
   elif [ "$signed" = raw ]; then
