@@ -686,19 +686,22 @@ a passive usb<->sata/nvme adapter (reach a host's internal disk), a usb-a<->usb-
 adapter, and a second cloned FlashBlu30 stored apart.
 
 provisioning: `build.sh usb /dev/sdX`, then `build.sh addstate /dev/sdX` for the
-luks p3. the arsenal is built into `$XOS_ARSENAL` (default `~/.local/share/xos-arsenal`)
-before it can be laid down -- nothing in the signed image builds it. the tools:
+luks p3. the arsenal is built into `arsenal/` (run the builders from the repo root;
+`$XOS_ARSENAL` points provisioning elsewhere) before it can be laid down -- nothing
+in the signed image builds it. the tools, all required (`arsenal.lock` attests each one):
 `arsenal/build-arsenal.sh` (the Go tools -- ffuf, httpx, nuclei, subfinder, dnsx,
 gobuster, chisel, ligolo), `arsenal/build-arsenal-c.sh` (the static-musl C tools --
 masscan, tcpdump, socat, nmap, hydra, john, and the rest -- plus `arsenal/build-terminfo.sh`,
 the terminal entries testdisk, photorec and dvtm cannot start without), `arsenal/build-python.sh`
-(carried python + sqlmap + impacket). the knowledge: `arsenal/build-wordlists.sh`,
-`arsenal/build-docs.sh`, `arsenal/build-kiwix.sh`, and `arsenal/build-games.sh` +
+(carried python + sqlmap + impacket), `arsenal/build-ca.sh` and `arsenal/build-kiwix.sh`.
+the knowledge, optional: `arsenal/build-wordlists.sh`,
+`arsenal/build-docs.sh`, and `arsenal/build-games.sh` +
 `arsenal/build-books.sh` + `arsenal/build-maps.sh` for the if library, the
-reference shelf and the vector atlas onto the XOS-KNOW stick. each is optional
-and pinned; run whichever you carry. then
-`arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the arsenal
-(it prints `no arsenal ... run build-arsenal.sh first` if you skipped the builds) --
+reference shelf and the vector atlas onto the XOS-KNOW stick. each is pinned;
+run whichever you carry. then
+`arsenal/provision.sh /dev/sdX3` opens p3 and lays down `tools/` + the arsenal --
+only what `arsenal.lock` attests ships, and a missing or drifted tool refuses the
+whole run, naming the builder to re-run --
 write-protect off (work mode) first, since p3 has to be writable. idempotent --
 re-run to update.
 

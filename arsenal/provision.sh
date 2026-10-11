@@ -7,7 +7,8 @@
 #
 # needs root (cryptsetup + mount). points:
 #   $1              the p3 partition, e.g. /dev/sdb3
-#   XOS_ARSENAL     built tools dir      (default ~/.local/share/xos-arsenal)
+#   XOS_ARSENAL     built tools dir      (default: this arsenal/ dir, where the
+#                   build-*.sh scripts stage; only what arsenal.lock attests ships)
 #   XOS_WORDLISTS   optional staging dir -> ~/wordlists (populate via
 #                   arsenal/build-wordlists.sh)
 #   XOS_DOCS        optional staging dir -> ~/docs (populate via
@@ -16,11 +17,10 @@ set -eu
 . "$(cd "$(dirname "$0")" && pwd)/provision-lib.sh"
 DEV="${1:-}"
 SELF="$(cd "$(dirname "$0")" && pwd)"
-ARSENAL="${XOS_ARSENAL:-$HOME/.local/share/xos-arsenal}"
-# pin it into the environment BEFORE the sudo -E re-exec below: otherwise this
-# line runs again as root with $HOME flipped to /root, and the default staging
-# path silently becomes /root/.local/... (absent) -- a toolless stick. with it
-# exported, the second pass reads the value we resolved as the invoking user.
+ARSENAL="${XOS_ARSENAL:-$SELF}"
+# pin it into the environment BEFORE the sudo -E re-exec below, so the root pass
+# reads the staging the invoking user resolved. (the old $HOME-based default
+# flipped to /root there -- a toolless stick.)
 export XOS_ARSENAL="$ARSENAL"
 # per-run names: two provisions at once (two sticks, two terminals) must not
 # share a device-mapper name or a mountpoint.

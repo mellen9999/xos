@@ -59,8 +59,11 @@ lock_check() {
   for _n in $_lk_miss $_lk_drift; do _lk_scripts="$_lk_scripts $(_lk_script "$_n")"; done
   # deliberate split: one script name per line so sort -u can dedupe them.
   # shellcheck disable=SC2086
-  _lk_scripts=$(printf '%s\n' $_lk_scripts | sort -u | tr '\n' ' ')
-  echo "    rebuild then copy the output into $_lk_dir -- run in arsenal/:$_lk_scripts" >&2
+  _lk_scripts=$(printf '%s\n' $_lk_scripts | sort -u)
+  # from the repo root: each builder stages into ./arsenal, so run from inside
+  # arsenal/ it would collide with the arsenal lister there.
+  echo "    rebuild from the repo root, then copy the output into $_lk_dir:" >&2
+  for _s in $_lk_scripts; do echo "      arsenal/$_s" >&2; done
   echo "    (a build in a worktree must be copied back to the main checkout, or the two drift)" >&2
   return 1
 }
@@ -111,8 +114,18 @@ populate() {
   for f in "$S"/levels/*; do install -m 0644 "$f" "$H/tools/levels/$(basename "$f")"; done
   for f in "$S"/ref/*;    do install -m 0644 "$f" "$H/tools/ref/$(basename "$f")"; done
   if [ -d "$ARSENAL" ] && ls "$ARSENAL"/* >/dev/null 2>&1; then
+    # the lock is the manifest: a name ships only if arsenal.lock attests it,
+    # or it is a link to one that does (r2 -> radare2). the default staging is
+    # arsenal/ itself, where the build scripts, provision.sh and any stray
+    # build leftovers sit beside the tools -- none of that may reach a stick.
+    _att=" $(awk '!/^#/ && NF {printf "%s ", $1}' "$ARSENAL/arsenal.lock" 2>/dev/null)"
+    _skip=""
     for f in "$ARSENAL"/*; do
       b=$(basename "$f")
+      case "$b" in arsenal.lock) ;; *)
+        _t=$b; [ -L "$f" ] && _t=$(readlink "$f")
+        case "$_att" in *" $_t "*) ;; *) _skip="$_skip $b"; continue ;; esac ;;
+      esac
       if [ "$b" = arsenal.lock ]; then
         install -m 0644 "$f" "$H/tools/arsenal.lock"     # the attestation travels
         continue
@@ -148,6 +161,10 @@ populate() {
         install -m 0755 "$f" "$H/tools/$b"               # a flat static binary
       fi
     done
+    # arsenal/ is source + staging by design, so its skips are expected; in a
+    # staging dir of the caller's own, an unattested name is worth a line.
+    [ -z "$_skip" ] || [ "$ARSENAL" -ef "${SELF:-}" ] \
+      || echo "  not shipped (arsenal.lock does not attest them):$_skip"
   else
     echo "  note: no arsenal at $ARSENAL -- run arsenal/build-arsenal.sh first"
   fi

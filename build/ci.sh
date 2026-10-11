@@ -267,8 +267,19 @@ lockguard() {
   if ARSENAL="$t/s" bash -c '. arsenal/provision-lib.sh; lock_check "$ARSENAL"' >/dev/null 2>&1; then
     echo "  FAIL: lock_check passed a staging whose bytes drifted from the lock" >&2; bad=1
   fi
+  # the lock is the manifest: populate ships the attested tool and a link to
+  # it, never a stray beside them (arsenal/ holds scripts and build leftovers).
+  printf 'the-nmap-binary\n' > "$t/s/nmap"
+  printf 'stray\n' > "$t/s/provision.sh"; mkdir "$t/s/a"; ln -s nmap "$t/s/nm"
+  mkdir -p "$t/p3"
+  SELF="$PWD/arsenal" ARSENAL="$t/s" bash -c 'set -eu; . arsenal/provision-lib.sh; populate "$1"' _ "$t/p3" >/dev/null 2>&1 \
+    || { echo "  FAIL: populate errored on a matching staging" >&2; bad=1; }
+  [ -f "$t/p3/tools/nmap" ] && [ -f "$t/p3/tools/arsenal.lock" ] && [ -L "$t/p3/tools/nm" ] \
+    || { echo "  FAIL: populate dropped an attested tool, the lock or a link to a tool" >&2; bad=1; }
+  [ ! -e "$t/p3/tools/provision.sh" ] && [ ! -e "$t/p3/tools/a" ] \
+    || { echo "  FAIL: populate shipped a name arsenal.lock does not attest" >&2; bad=1; }
   rm -rf "$t"
-  [ "$bad" = 0 ] && printf '  \033[1;32mmatch passes, a drifted byte is refused\033[0m\n'
+  [ "$bad" = 0 ] && printf '  \033[1;32mmatch passes, a drifted byte is refused, only attested names ship\033[0m\n'
   return $bad
 }
 
