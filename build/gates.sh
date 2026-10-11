@@ -486,9 +486,11 @@ G44EOF
   # come back empty (`[ ^]` was a bracket set, not an anchor), and xos.epoch --
   # the clock floor -- is read through it.
   local cg33 cl33
+  # the call goes on its own line: a trailing comment on the definition would
+  # otherwise swallow it and every case would read back empty.
   cg33=$(grep '^cmdline_get()' init)
   for cl33 in 'xos.epoch=7 a=1|7' 'a=1 xos.epoch=7|7' 'a=1 xos.epoch=7 b=2|7' 'a=1 xos.epochs=9|'; do
-    got33=$(CMDLINE="${cl33%|*}" "$bb33" ash -c "$cg33"'; cmdline_get xos.epoch' 2>/dev/null)
+    got33=$(CMDLINE="${cl33%|*}" "$bb33" ash -c "$cg33"$'\n''cmdline_get xos.epoch' 2>/dev/null)
     [ "$got33" = "${cl33#*|}" ] || { g33=FAIL; printf '    cmdline_get on "%s" -> "%s" (want "%s")\n' "${cl33%|*}" "$got33" "${cl33#*|}" >&2; }
   done
   rm -rf "$t33"
@@ -1085,9 +1087,9 @@ G69
     if [ -L "$x" ]; then
       # a link is judged by its target: the applet links point at busybox
       # or dropbearmulti; /etc/resolv.conf and /run point into the tmpfs
-      # (nothing executable lives there). anything else is an executable
-      # under a name nobody declared.
-      case "$(readlink "$x")" in busybox|dropbearmulti|/tmp/*) continue ;; esac
+      # (nothing executable lives there), and /var/run is the legacy alias
+      # of /run. anything else is an executable under a name nobody declared.
+      case "$(readlink "$x")" in busybox|dropbearmulti|/tmp/*|/run) continue ;; esac
     fi
     undecl=$((undecl+1)); printf '    undeclared executable in image: %s\n' "$x" >&2
   done <<< "$(find root \( -type f -o -type l \) -perm -0100 2>/dev/null)"
