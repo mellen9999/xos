@@ -2,16 +2,18 @@
 # G13 compares against this. a mismatch on the SAME toolchain means the
 # image no longer corresponds to the source; on a different toolchain it
 # only means you cannot independently verify this build.
-image     ae037a56efc4ed4cc9d32adfcb3fe7a9f1fb9b7f9ac600681479a7e0ed016b2a
-squashfs  be5b2f75c6d75315a41b74b2ad5b8943a1c97e0635cf10ed2c9849d37f60b8af
-roothash  dff3a18171ee891a50fda0e825b598fd85d9bf831f7c7041ddd3f4a8d8a6bb7b
+image     45ea2e8213acb6a00abd836222403d13dc2c844124b6431276d021694c969e58
+squashfs  6025c570c5168062cb22fcaed196e16766b4fd92de5f4e65f69a182e7e0e6146
+roothash  9122f57e6375dfc366ff6c7531ada1c17f4101d25c603553b79eb255ece6191f
 kernel    38b84cddb8ef8a799afd733c5c3407301ef9a9f4c4af0b639d47e4f30b5f7e33
-source    044128b2f0fef4b36f88b65fc5ac05505afb153a47353a9e842ce02b522b60a3
-toolchain 9c0f2f276be250580023cc2d8bfb7acf9c4f8d484e61634fc29ce43fa11133a7
+source    72bbc662ba54d72ae3ecf0d990e499e253bb7628dd67025bea06fb2be2a54966
+toolchain 9f2ab830ee529033db86879a2be899544498243d09325c94ee4f96336d3b315b
 # toolchain this pin was taken with -- install these to reproduce:
 #   gcc (GCC) 16.2.1 20260810
 #   GNU ld (GNU Binutils) 2.47
 #   mksquashfs version 4.7.5 (2026/03/01)
 #   veritysetup 2.8.8 flags: UDEV BLKID KEYRING KERNEL_CAPI HW_OPAL 
 #   dd498f8ef9c4c3b59eba409ab9d0e2b7790ef34fa9f0993cb6f6449129ff4f90
+#   musl 1.2.6
+#   cmake version 4.4.3
 #   0022
