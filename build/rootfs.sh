@@ -9,7 +9,7 @@
 rootfs() {
   say "building read-only root"
   rm -rf root
-  mkdir -p root/bin root/proc root/sys root/dev root/etc root/tmp
+  mkdir -p root/bin root/proc root/sys root/dev root/etc root/tmp root/lib
   cp busybox root/bin/
   # one binary, many names: busybox reads argv[0] to decide what to be.
   # names come from busybox itself, not our config list -- the two drift
@@ -151,6 +151,14 @@ rootfs() {
   # (and a learn example) expect it; every modern distro ships it as this symlink.
   mkdir -p root/var
   ln -sf /run root/var/run
+  # /lib is an EMPTY mountpoint, nothing more. the one dynamic thing xos carries
+  # is the arsenal python, linked against /lib/ld-musl-x86_64.so.1; xexec/jail
+  # mount that loader here at run time from the arsenal (the kernel ships
+  # CONFIG_NAMESPACES=n, so it is a global mount, not a private one). the signed
+  # image must carry NO loader -- that is the "no ld-musl" invariant init:dynamic-
+  # loader-present and selftest assert -- so refuse a build that put a file here.
+  if [ -n "$(ls -A root/lib 2>/dev/null)" ]; then
+    echo "FAIL: root/lib is not empty -- the signed image must ship /lib as a bare mountpoint, never a loader (W^X / no-ld-musl invariant)" >&2; return 1; fi
   # squashfs-tools >= 4.6 reads SOURCE_DATE_EPOCH itself and clamps every
   # timestamp to it -- and hard-errors if you also pass -mkfs-time, which is
   # how this was caught. -processors 1 keeps block ordering deterministic.

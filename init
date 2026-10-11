@@ -13,7 +13,8 @@ mount -o remount,nosuid,noexec /dev 2>/dev/null \
 	|| echo "/dev remount FAILED: devtmpfs still allows suid+exec"
 # securityfs exposes /sys/kernel/security/lockdown so the lockdown state is
 # provable at runtime (the test block reads it; A8 asserts it).
-mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
+mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null \
+	|| echo "securityfs mount FAILED -- the lockdown state cannot be read back or proven"
 
 # ptys. devtmpfs does not create /dev/pts, and without it openpty() fails --
 # which means no multiplexer and no ssh session can allocate a terminal. nothing
@@ -21,7 +22,8 @@ mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
 # noticed. ptmxmode=666 so an unprivileged process could open it the day
 # anything here stops running as root.
 mkdir -p /dev/pts
-mount -t devpts -o nosuid,noexec,gid=5,mode=620,ptmxmode=666 none /dev/pts 2>/dev/null
+mount -t devpts -o nosuid,noexec,gid=5,mode=620,ptmxmode=666 none /dev/pts 2>/dev/null \
+	|| echo "devpts mount FAILED -- openpty() will fail: no multiplexer, and ssh sessions cannot allocate a terminal"
 
 # /dev/fd and the std-stream nodes. devtmpfs does not create these; a normal
 # distro's /dev setup does. without them `openssl -out /dev/stdout`, a tool
@@ -34,7 +36,14 @@ ln -s /proc/self/fd/2 /dev/stderr 2>/dev/null
 
 # the root is read-only by design, so anything that needs to write gets a
 # RAM-backed home. nothing here survives a reboot, which is the point.
-mount -t tmpfs -o nosuid,nodev,noexec none /tmp
+mount -t tmpfs -o nosuid,nodev,noexec none /tmp \
+	|| echo "/tmp mount FAILED -- the RAM home, cryptsetup locks (/tmp/run) and the vault all depend on it; the boot will misbehave from here"
+# POSIX shared memory + semaphores. cpython multiprocessing SemLock and
+# shared_memory (sqlmap uses them) open files under /dev/shm; devtmpfs does not
+# create it, so the carried python would raise FileNotFoundError on sem_open.
+# noexec like /tmp -- shm holds data, never code.
+mkdir -p /dev/shm && mount -t tmpfs -o nosuid,nodev,noexec,size=64m none /dev/shm \
+	|| echo "/dev/shm mount FAILED -- python multiprocessing/shared-memory will error"
 # tighten default permissions before anything is created, not after: $HOME,
 # the xdg dirs and the test block's keys were all made at 0755/0644 because
 # this line used to sit below them.
@@ -44,7 +53,7 @@ umask 077
 # `grep -q xos.test /proc/cmdline` also matched xos.teststate and xos.testwg.
 CMDLINE=$(cat /proc/cmdline 2>/dev/null)
 cmdline_has() { case " $CMDLINE " in *" $1 "*) return 0 ;; esac; return 1; }
-cmdline_get() { printf ' %s\n' "$CMDLINE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
+cmdline_get() { local _k; _k=$(printf '%s' "$1" | sed 's/[][\\.*^$/]/\\&/g'); printf ' %s\n' "$CMDLINE" | sed -n "s/.* $_k=\([^ ]*\).*/\1/p"; }  # escape the key: a literal . in xos.epoch must not match an adjacent key
 
 # runtime sysctl hardening. write /proc/sys directly (no sysctl-applet dep).
 # a key whose feature is compiled out is simply absent -- that is already the
@@ -61,7 +70,12 @@ cmdline_get() { printf ' %s\n' "$CMDLINE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 # strong model a LAN peer could still reach it via the plugged-in NIC's weak-host
 # ARP reply whenever the wg Address overlaps the LAN subnet. with it, the LAN NIC
 # never answers for the tunnel address, whatever wg0.conf says.
-HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/conf/all/arp_ignore=2 net/ipv4/conf/all/arp_announce=2 net/ipv4/conf/default/arp_ignore=2 net/ipv4/conf/default/arp_announce=2 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/tcp_timestamps=0"
+# icmp_echo_ignore_all=1: the stick does not answer pings either. the strong-host
+# model keeps it from opening a port on the visited LAN, but a bare `nmap -sn`
+# sweep would still see an echo reply and pin its leased address -- ignoring all
+# echo requests keeps it dark on a network it is only passing through (there is
+# no netfilter in the kernel, so this sysctl is the only layer that drops them).
+HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/default/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/conf/all/arp_ignore=2 net/ipv4/conf/all/arp_announce=2 net/ipv4/conf/default/arp_ignore=2 net/ipv4/conf/default/arp_announce=2 net/ipv4/icmp_echo_ignore_broadcasts=1 net/ipv4/icmp_echo_ignore_all=1 net/ipv4/tcp_timestamps=0"
 # no tcp_syncookies here: the kernel has no CONFIG_SYN_COOKIES (nothing listens
 # on the LAN -- dropbear binds the tunnel address only), and the key sat in this
 # list for months being skipped in silence. a key with no /proc/sys entry is now
@@ -97,6 +111,14 @@ if [ -n "$epoch" ]; then
 		# is now merely NOT-WRONG-BACKWARD. tls-time below tries to make it right.
 		if date -u -s "@$epoch" >/dev/null 2>&1; then clockfloored=1
 		else clockfloored=failed; echo "clock floor FAILED: could not set clock to epoch $epoch"; fi
+	elif [ "$now" -gt "$((epoch + 63072000))" ]; then
+		# a dead/garbage CMOS can read far into the FUTURE (e.g. year 2099). that
+		# passes the floor, yet makes every TLS cert validate as long-EXPIRED for
+		# the whole session -- and it used to be mislabeled "rtc sane". pull it
+		# back to the floor and let tls-time raise it to the real time, exactly as
+		# for a backward clock. the ceiling is the same +2y the tls cap uses below.
+		if date -u -s "@$epoch" >/dev/null 2>&1; then clockfloored=1
+		else clockfloored=failed; echo "clock ceiling FAILED: could not set clock to epoch $epoch"; fi
 	fi
 fi
 
@@ -207,6 +229,12 @@ export TERM=linux
 SERIAL_TERM=$(cmdline_get xos.term); SERIAL_TERM=${SERIAL_TERM:-vt320}
 SERIAL_BAUD=$(cmdline_get xos.baud); SERIAL_BAUD=${SERIAL_BAUD:-19200}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+
+# the kernel boots with hostname "(none)"; /etc/hostname is just a file until
+# something applies it. without this, gethostname()/uname -n -- read by nmap's
+# XML, impacket's SMB/Kerberos client machine-name, and python socket.gethostname
+# -- all report "(none)" instead of xos.
+hostname "$(cat /etc/hostname 2>/dev/null)" 2>/dev/null || echo "hostname NOT set -- tools will see (none)"
 
 ip link set lo up 2>/dev/null || echo "loopback FAILED to come up"
 # per-boot mac: a stick that never leaves a stable hardware address on the
@@ -641,6 +669,10 @@ if cmdline_has xos.test; then
 	# and init's own stdin is closed, so -e would false-fail a correct link.
 	# the gap is whether init created the nodes; -L proves exactly that.
 	printf 'dev-std-streams: '; [ -L /dev/fd ] && [ -L /dev/stdin ] && [ -L /dev/stdout ] && [ -L /dev/stderr ] && echo yes || echo "no (BAD)"
+	# POSIX shm for the carried python's multiprocessing/shared_memory
+	printf 'dev-shm: '; grep -q ' /dev/shm tmpfs' /proc/mounts 2>/dev/null && echo yes || echo "no (BAD)"
+	# the kernel hostname is applied from /etc/hostname, not left at "(none)"
+	printf 'hostname-set: '; [ -n "$(hostname 2>/dev/null)" ] && [ "$(hostname 2>/dev/null)" = "$(cat /etc/hostname 2>/dev/null)" ] && echo yes || echo "no (BAD)"
 	# the renewing client must outlive the boot loop (and must not exist at all
 	# under xos.nonet)
 	printf 'dhcp-client: '; pidof udhcpc >/dev/null 2>&1 && echo running || echo none
@@ -1064,6 +1096,16 @@ if state_open; then
 		   && ip addr add "$wgcidr" dev wg0 2>/dev/null \
 		   && ip link set wg0 up 2>/dev/null; then
 			printf '  wireguard up on wg0 (%s)\n' "$wgcidr" > /dev/console
+			# xos brings the interface up and binds ssh to it, but installs NO
+			# route from AllowedIPs -- it is an INBOUND-ssh tunnel, not a
+			# full-tunnel VPN. an operator who wrote AllowedIPs=0.0.0.0/0 expecting
+			# their traffic to be tunneled would otherwise see "up" and leak
+			# cleartext on the LAN in silence. say so rather than half-configure it.
+			if grep -qE '^[[:space:]]*AllowedIPs[[:space:]]*=.*(0\.0\.0\.0/0|::/0)' /tmp/wgset.conf; then
+				printf '  WARNING: wg0.conf AllowedIPs is a full tunnel (0.0.0.0/0), but xos wireguard is\n' > /dev/console
+				printf '           INBOUND-SSH-ONLY: no default route is installed, so normal outbound traffic\n' > /dev/console
+				printf '           still egresses CLEARTEXT on the local network. this is not a full-tunnel VPN.\n' > /dev/console
+			fi
 			# host key on p3, made once -- under a temp name, checked, then moved:
 			# a pull mid-write left a truncated key that `[ -f ]` then trusted on
 			# every boot after, and ssh died in its back-off loop for good.

@@ -45,6 +45,12 @@ ROOT_OFF=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
 ./build.sh unlock || { echo "cannot unlock signing keys"; rm -rf "$XT"; exit 1; }
 # uki rebuilds ovmf-vars.fd from the pristine OVMF template, so restore() also
 # discards the throwaway dbx entry A11 enrolls into firmware.
+# rebuild the squashfs from THIS source first: `build.sh verity` only copies the
+# existing rootfs.squashfs, so an edit to init/overlay not preceded by a manual
+# `./build.sh rootfs` would be invisible here -- every assertion would test the
+# OLD image and a real regression would pass green (this bit a real session). the
+# rebuild IS the freshness guarantee; it costs one mksquashfs of a small root.
+./build.sh rootfs >/dev/null || { echo "cannot build rootfs -- selftest would boot a stale image"; rm -rf "$XT"; exit 1; }
 XOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null \
 	|| { echo "cannot build test uki/stick"; rm -rf "$XT"; exit 1; }
 # restore is the EXIT trap: if it fails partway, the tree can be left holding
@@ -325,6 +331,8 @@ grep -q 'etc-hosts-localhost: yes' <<< "$out" && ok "localhost resolves (/etc/ho
 grep -q 'etc-services: yes' <<< "$out" && ok "/etc/services shipped (getservbyname resolves)" || bad "/etc/services missing -- port-name lookups fail for the carried tools"
 grep -q 'etc-protocols: yes' <<< "$out" && ok "/etc/protocols shipped (getprotobyname resolves)" || bad "/etc/protocols missing -- protocol-name lookups fail for the carried tools"
 grep -q 'dev-std-streams: yes' <<< "$out" && ok "/dev/{fd,stdin,stdout,stderr} present (literal-path writes work)" || bad "/dev std-stream nodes missing -- /dev/stdout writes and /dev/stdin reads fail ENOENT"
+grep -q 'dev-shm: yes' <<< "$out" && ok "/dev/shm mounted (python multiprocessing/shared-memory works)" || bad "/dev/shm missing -- cpython SemLock/shared_memory raise FileNotFoundError"
+grep -q 'hostname-set: yes' <<< "$out" && ok "hostname applied from /etc/hostname (not '(none)')" || bad "hostname not set -- gethostname()/nmap-xml/impacket see (none)"
 # what the stick SAID on the wire, from the capture, not from init's own
 # account. positive control first: a dhcp exchange must be in there at all
 # (the magic cookie 63 82 53 63), or "no vendor string" is vacuous.
