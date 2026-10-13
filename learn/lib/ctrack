@@ -636,8 +636,8 @@ c_confirm() {
 	fi
 	printf '  %sunit %s  %s%s %s-- %s of %s programs written%s\n' "$W" "$(level_no "$nx")" \
 		"$(prj_field "$nx" name)" "$N" "$D" "$d" "$t" "$N"
-	if [ "${d:-0}" = 0 ]; then printf '  %sstart? (Y/n)%s ' "$W" "$N"
-	else printf '  %scontinue? (Y/n)%s ' "$W" "$N"; fi
+	if [ "${d:-0}" = 0 ]; then printf '  %senter starts   any other key back%s ' "$W" "$N"
+	else printf '  %senter continues   n starts over   any other key back%s ' "$W" "$N"; fi
 	IFS= read -rsn1 k 2>/dev/null || return 0
 	echo
 	case "$k" in

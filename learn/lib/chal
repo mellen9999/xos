@@ -147,6 +147,7 @@ challenge() {
 	else
 		note "best: $best of $nq"
 	fi
+	pause_card
 }
 
 # chal_check -- the G29 gate. every rule above, mechanically.

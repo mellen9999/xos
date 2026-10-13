@@ -477,7 +477,11 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	# limit -- a wrong line is wiped and you type another, for as long as it
 	# takes, because the card is only learned once you have written it.
 	# leaving is the typed word `quit` or Ctrl-C / Ctrl-D -- in help, not here.
-	[ "$MODE" = learn ] && { note "? hint${SEP}tab ref"; Q_ROWS=$(( Q_ROWS + 1 )); }
+	if [ "$MODE" = learn ]; then
+		note "type the command, enter checks it"
+		note "? enter: hint${SEP}tab: ref${SEP}quit: leave"
+		Q_ROWS=$(( Q_ROWS + 2 ))
+	fi
 
 	case "$MODE" in
 		boss) ED_DEADLINE=$(( $(date +%s) + BOSS_LIMIT )) ;;
@@ -522,7 +526,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			'')       _meta_clear; continue ;;
 			'?'|hint)
 				if [ "$MODE" != learn ]; then
-					note "no hints under the clock."
+					note "$([ "$MODE" = daily ] && echo 'no hints in placement.' || echo 'no hints under the clock.')"
 				elif [ -t 0 ]; then
 					# toggle the hint panel under the answer line, in place
 					if [ "$ED_OPEN" = hint ]; then ED_OPEN=; else ED_OPEN=hint; fi
@@ -535,7 +539,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 				continue ;;
 			man|tab)
 				if [ "$MODE" != learn ]; then
-					note "no hints under the clock."
+					note "$([ "$MODE" = daily ] && echo 'no hints in placement.' || echo 'no hints under the clock.')"
 				elif [ -t 0 ]; then
 					if [ "$ED_OPEN" = ref ]; then ED_OPEN=; else ED_OPEN=ref; fi
 					_meta_clear
@@ -584,6 +588,12 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		# interrupted. banked once per wrong line, at the line it describes.
 		Q_WHY=$(coach_miss "$input" 2>/dev/null)
 		_meta_clear
+		# the wiped line says nothing, so say once that it was a miss. one
+		# row, once: the prompt moves down by it and the panel budget with it.
+		if [ "$tries" = 1 ] && [ -t 0 ]; then
+			note "not it -- try again, or ? for why"
+			Q_ROWS=$(( Q_ROWS + 1 ))
+		fi
 	done
 }
 
@@ -629,7 +639,7 @@ boss_round() {
 	for n in $(shuffle_n "$nq" 5); do
 		k=$((k + 1))
 		cls
-		statusbar "BOSS: $bname" "no hints" "$k" "5" "$right"
+		statusbar "BOSS: $bname" "no hints$([ $((COLS - ${#bname})) -ge 78 ] && echo '  quit: leave')" "$k" "5" "$right"
 		ask "$id" "$n"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" = 0 ] && right=$((right + 1))
@@ -678,6 +688,8 @@ run_level() {
 		cls
 		hdr "$lname" "level $(level_no "$id")  ${nq} questions"
 		level_field "$id" brief | say
+		echo
+		note "next: $nq cards, then a boss -- 4 of 5 under a $(boss_limit "$id")s clock"
 		level_briefed "$id"
 		pause_card || return 2
 	fi
@@ -724,7 +736,8 @@ run_level() {
 	cls
 	statusbar "$lname" "$lsub" "$total" "$total" "$right"
 	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
-	echo
+	note "next: the boss -- 4 of 5, no hints"
+	pause_card || return 2
 	while :; do
 		boss_round "$id"; rc=$?
 		# a fall that was already a fall announces nothing -- asked before the
@@ -741,8 +754,9 @@ run_level() {
 		# straight back in, or back to practice. EOF (the build's probes,
 		# a closed pipe) declines, so nothing automated can hang here.
 		printf '  %sretry the boss? [y/N]%s ' "$D" "$N"
-		IFS= read -r _again 2>/dev/null || _again=""
-		case "$_again" in y|Y|yes) echo; continue ;; esac
+		IFS= read -rsn1 _again 2>/dev/null || _again=""
+		echo
+		case "$_again" in y|Y) continue ;; esac
 		return "$rc"
 	done
 }
@@ -797,7 +811,7 @@ victory() {
 # aimed at where you are actually worst.
 review() {
 	local n=${1:-20} line key lvl rest idx tpl rc path sub=due
-	[ -s "$CARDS" ] || { note "no cards yet -- answer some questions first"; return 0; }
+	[ -s "$CARDS" ] || { note "no cards yet -- answer some questions first"; pause_card; return 0; }
 	cards_due | head -n "$n" > "$TMP/rev"
 	local nc k=0; nc=$(grep -c . "$TMP/rev")
 	if [ "$nc" -eq 0 ]; then
@@ -805,6 +819,7 @@ review() {
 		note "nothing due -- the weakest cards instead."
 		cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
 		nc=$(grep -c . "$TMP/rev")
+		pause_card || return 0
 	fi
 	# the list is read on fd 3 because ask() owns stdin
 	while IFS= read -r line <&3; do
@@ -849,6 +864,7 @@ place() {
 	cls
 	hdr "placement" "one question per rung  no hints"
 	note "two misses in a row stops the climb."
+	note "levels below where you stop are skipped. type the command, enter checks it."
 	pause_card || return 0
 	MODE=daily   # the editor, no hints -- placement measures, it does not teach
 	rung_i=0
@@ -881,6 +897,7 @@ place() {
 	else
 		note "starting from the top. that is where everyone starts."
 	fi
+	pause_card
 }
 
 # ---- daily ----------------------------------------------------------------
@@ -907,7 +924,11 @@ daily() {
 	rnd "$nq"; idx=$((REPLY + 1))
 	BOSS_LIMIT=$(boss_limit "$lvl")   # the clock that level's own boss runs
 	cls
-	statusbar "daily" "$day  no hints" 1 1 ""
+	hdr "daily" "$day"
+	note "one card from levels $(level_num "$(level_ids | sed -n "$((lo + 1))p")")-$(level_num "$(level_ids | sed -n "${nl}p")"). $(boss_limit "$lvl")s on the clock. no hints."
+	pause_card || return 0
+	cls
+	statusbar "daily" "$day  no hints  quit: leave" 1 1 ""
 	MODE=boss
 	ask "$lvl" "$idx"; rc=$?
 	MODE=learn
@@ -944,6 +965,7 @@ daily() {
 
 stats() {
 	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
+	printf '  %s%-28s %s%s\n' "$D" level "held / cards" "$N"
 	local id n m sn sm pn pm lk ln lkey lid lrest ltpl lname
 	# one pass, and the same one held_ids uses: counting by key prefix here
 	# and by rebuilt key there would be two answers to "have you still got
@@ -1015,6 +1037,7 @@ stats() {
 			printf '  %s%2sx%s %s%3s%s %s\n' "$R" "$ln" "$N" "$D" "$lname" "$N" \
 				"$(printf '%s' "$ltpl" | sed 's/{\([^{}|]*\)|[^{}]*}/\1/g' | cut -c1-62)"
 		done
+		note "r reviews due cards, weakest first when none are due"
 	fi
 	# what you got wrong at the real prompt. everything above this line is
 	# the quiz grading itself; this is the machine grading you, on work you
@@ -1121,6 +1144,9 @@ ctx_init
 
 usage() {
 	cat <<-EOF
+	at the menu: press the letter beside a line.
+	at a question: type the command, enter checks it.
+
 	learn                 the main menu (or resumes, when piped)
 	learn N               practice level N
 	learn brief N         reprint level N's teaching brief
@@ -1176,6 +1202,7 @@ playground() {
 	note "the tree the cards run against. nothing in it survives the exit."
 	[ -n "$DROP" ] && note "you are nobody here -- the rest of the machine is not yours to touch."
 	note "exit, or ctrl-d, to come back."
+	note "try: ls, then cat any file it lists"
 	rule
 	# the tty is put back the way learn found it either way: a shell left in
 	# vi-insert with echo off would hand a wrecked terminal back to the menu.
@@ -1284,15 +1311,15 @@ resume_confirm() {
 			"$W" "$n" "$lname" "$N" "$D" "$nq" "$N"
 	fi
 	if [ "$fresh" = 1 ]; then
-		printf '  %snew game? (Y/n)%s ' "$W" "$N"
+		printf '  %senter starts   any other key back%s ' "$W" "$N"
 	else
-		printf '  %scontinue? (Y/n)%s ' "$W" "$N"
+		printf '  %senter continues   n starts over (wipes)   any other key back%s ' "$W" "$N"
 	fi
 	IFS= read -rsn1 k 2>/dev/null || return 0
 	echo
 	case "$k" in
 		''|y|Y) resume ;;
-		n|N)    [ "$fresh" = 1 ] || { new_game && resume; } ;;
+		n|N) [ "$fresh" = 1 ] || { new_game && resume; } ;;
 	esac
 	return 0
 }
@@ -1327,7 +1354,14 @@ menu() {
 		cls
 		hdr "learn" "the shell, one card at a time"
 		printf '  '; bar "$h" "$t" 20
-		printf ' %s%s/%s held%s  %s(%s beaten)%s\n\n' "$D" "$h" "$t" "$N" "$D" "$p" "$N"
+		printf ' %s%s/%s held%s  %s(%s beaten)%s\n' "$D" "$h" "$t" "$N" "$D" "$p" "$N"
+		# what to press first, so the menu is never twelve equal letters
+		if progress_any; then
+			_nx=$(resume_target) && note "next: c continues level $(level_no "$_nx") $(level_field "$_nx" name)" || :
+		else
+			printf '  %sstart here:%s c\n' "$Y$B" "$N"
+		fi
+		echo
 
 		if progress_any; then _mi c continue "where you left off"
 		else _mi c "new game" "start at level 0"; fi
@@ -1343,7 +1377,7 @@ menu() {
 		else _mi_off m missions "locked until a level unlocks one"; fi
 		if projects_any_unlocked; then _mi w projects "write a program against a spec"
 		else _mi_off w projects "locked until a level unlocks one"; fi
-		_mi C c         "learn c: read a lesson, write it in vi"
+		_mi C "c track" "shift-c: lessons, written in vi"
 		_mi t shell     "a shell in the tree the cards use"
 		_mi s stats     "what you've mastered"
 		_mi a autopsy   "your shell history vs the curriculum"
@@ -1355,7 +1389,7 @@ menu() {
 		echo
 		case "$k" in
 			c) resume_confirm ;;
-			p) cls; printf '  %spractice which level? (0-%s)%s ' "$W" "$((t - 1))" "$N"
+			p) cls; printf '  %spractice which level? (0-%s, then enter)%s ' "$W" "$((t - 1))" "$N"
 			   IFS= read -r k 2>/dev/null || continue
 			   id=$(level_ids | grep "^0*$k-" | head -1)
 			   if [ -n "$id" ]; then run_level "$id"; else no "no level $k"; pause_card; fi ;;
@@ -1363,9 +1397,12 @@ menu() {
 			d) daily ;;
 			g) if [ "$unlocked" = 1 ]; then challenge; else no "the gauntlet is locked."; pause_card; fi ;;
 			x) place ;;
-			f) cls; printf '  %swhich command?%s ' "$W" "$N"
+			f) cls; printf '  %swhich command? (a name like grep, then enter)%s ' "$W" "$N"
 			   IFS= read -r k 2>/dev/null || continue
-			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
+			   [ -n "$k" ] || continue
+			   if [ -f "$REF/$(refname "$k")" ]; then cls; ref "$k"
+			   else no "no page for '$k' -- not shipped on xos"; fi
+			   pause_card ;;
 			m) if scenarios_any_unlocked; then scenarios_menu; else no "no missions unlocked yet."; pause_card; fi ;;
 			w) if projects_any_unlocked; then projects_menu; else no "no projects unlocked yet."; pause_card; fi ;;
 			C) c_home ;;

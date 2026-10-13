@@ -108,7 +108,7 @@ autopsy() {
 			[ -n "$c" ] && [ -r "$c" ] && [ -s "$c" ] && { file=$c; break; }
 		done
 	fi
-	[ -n "$file" ] || { echo "learn: no history yet. run some commands first, or name a file: learn autopsy FILE" >&2; return 2; }
+	[ -n "$file" ] || { echo "learn: no shell history yet -- run some commands at your own prompt, then come back (or: learn autopsy FILE)" >&2; return 2; }
 	[ "$file" = /dev/stdin ] || [ -r "$file" ] || { echo "learn: cannot read $file" >&2; return 2; }
 
 	local scan total
@@ -161,7 +161,8 @@ autopsy() {
 		END {
 			if (t == 0) { print "    (no curriculum found)"; exit }
 			printf "    %d of %d taught commands you have run\n", run, t
-			if (gap > 0) printf "    first gap: level %02d, you have never run  %s\n", gap, gapcmd
+			if (gap > 0) { printf "    first gap: level %02d, you have never run  %s\n", gap, gapcmd
+			             printf "    p then %d at the menu practices it\n", gap }
 			else         print  "    every command the curriculum teaches, you have run. ROOT."
 		}'
 	echo

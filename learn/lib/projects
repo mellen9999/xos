@@ -184,6 +184,8 @@ ask_program() {
 	if [ -f "$work" ]; then :
 	elif [ "$PRJ_LANG" = c ]; then c_starter > "$work"
 	else printf '%s\n' "${Q_START:-#!/bin/sh}" > "$work"; fi
+	# the starter as handed out: `r` before any edit would only grade it
+	printf '%s\n' "${Q_START:-#!/bin/sh}" > "$TMP/prj.start"
 
 	printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
 	[ -n "$Q_SPEC" ] && { printf '%s\n' "$Q_SPEC" | prj_flow | say; echo; }
@@ -192,35 +194,47 @@ ask_program() {
 		note "vi: i types, esc stops, :wq saves and quits"
 	else
 		note "you are writing $name.  it is run for you when you leave the editor."
+		note "vi: i types, esc stops, :wq saves and quits"
 	fi
 
 	missed=0 guide=start
 	while :; do
 		rule
+		# what to press now comes first: ten equal keys said nothing
+		case "$guide" in
+			miss) printf '  %sfix it:%s e to edit, d shows what differed, h for a hint\n' "$Y$B" "$N" ;;
+			cerr) printf '  %sfix it:%s e opens vi on the line with the error\n' "$Y$B" "$N" ;;
+			*)    printf '  %sstart here:%s e to write it in vi\n' "$Y$B" "$N" ;;
+		esac
+		# one key a job; d only once there is a miss to look at
+		# two short rows: a phone's terminal is narrow
 		if [ "$PRJ_LANG" = c ]; then
-			# what to press now comes first: ten equal keys said nothing
-			case "$guide" in
-				miss) printf '  %sfix it:%s e to edit, d shows what differed, h for a hint\n' "$Y$B" "$N" ;;
-				cerr) printf '  %sfix it:%s e opens vi on the line with the error\n' "$Y$B" "$N" ;;
-				*)    printf '  %sstart here:%s e to write it in vi\n' "$Y$B" "$N" ;;
-			esac
-			# one key a job; d only once there is a miss to look at
-			# two short rows: a phone's terminal is narrow
 			printf '  '; _pk e write; _pk r check; _pk t "try it"; _pk h hint; _pk s task; echo
 			printf '  '; _pk l lesson; _pk a answer; _pk n restart
-			[ "$missed" = 1 ] && _pk d diff
-			_pk q quit; echo
 		else
-			printf '  %se%s edit   %sr%s run it   %sa%s show the answer   %sq%s leave\n' \
-				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
+			printf '  '; _pk e write; _pk r check; _pk h hint; _pk s task; echo
+			printf '  '; _pk a answer
 		fi
+		[ "$missed" = 1 ] && _pk d diff
+		_pk q "$([ "$PRJ_LANG" = c ] && echo quit || echo leave)"; echo
 		printf '  %schoose%s ' "$D" "$N"
 		IFS= read -rsn1 k 2>/dev/null || return 2
 		echo
 		case "$PRJ_LANG$k" in
 			ch)  rule; printf 'hint: %s\n' "$Q_HINT" | c_reflow | say; continue ;;
-			cs)  rule; printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
-			     printf '%s\n' "$Q_SPEC" | c_reflow | say; continue ;;
+			shh) rule; printf 'hint: %s\n' "${Q_HINT:-none for this one -- e to try it, then r}" | say; continue ;;
+			cs|shs) rule; printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
+			     printf '%s\n' "$Q_SPEC" | prj_flow | say; continue ;;
+			shd) [ "$missed" = 1 ] && { cls; c_full; cls; c_miss; }; continue ;;
+			sha) rule
+			     printf '  %sshow the reference? try a hint first. [y/N]%s ' "$Y" "$N"
+			     IFS= read -rsn1 k 2>/dev/null; echo
+			     case "$k" in y|Y) ;; *) continue ;; esac
+			     note "the reference solution -- yours does not have to look like it."
+			     printf '%s\n' "$Q_PROG" | sed 's/^/    /'
+			     return 1 ;;
+			shr) # grading the untouched starter only says "wrong"
+			     if cmp -s "$work" "$TMP/prj.start"; then rule; no "nothing written yet -- e to write it"; continue; fi ;;
 			cl)  cls; prj_field "$pid" intro | c_reflow | say | c_page
 			     [ $? = 3 ] || pause_card; cls; continue ;;
 			cd)  [ "$missed" = 1 ] && { cls; c_full; cls; c_miss; }; continue ;;
@@ -242,10 +256,6 @@ ask_program() {
 		case "$k" in
 			e|'')  prj_edit "$work" "$name" "$C_LINE" || continue ;;
 			r)     ;;
-			a)     rule
-			       note "the reference solution -- yours does not have to look like it."
-			       printf '%s\n' "$Q_PROG" | sed 's/^/    /'
-			       return 1 ;;
 			q|"$E_EOT") return 2 ;;
 			*)     continue ;;
 		esac
@@ -277,15 +287,8 @@ ask_program() {
 			continue
 		fi
 		C_LINE=""
-		if [ "$PRJ_LANG" = c ]; then
-			missed=1 guide=miss
-			c_miss
-			continue
-		fi
-		no "a case did not match"
-		_c_row case "$PRJ_CASE"
-		_c_row yours  "$(_c_line "$PRJ_GOT")"
-		_c_row wanted "$(_c_line "$PRJ_WANT")"
+		missed=1 guide=miss
+		c_miss
 	done
 }
 

@@ -559,7 +559,7 @@ selftest() {
 	# review must ASK a marked-up card, not skip it as stale: the stored key is
 	# card_key's backtick-stripped form, so a raw-template compare dropped every
 	# ``name``-marked card from every review. seed a due row for a real backtick
-	# card in the first level and prove review renders it ('? hint' prints only
+	# card in the first level and prove review renders it ('? enter: hint' prints only
 	# once a card is on screen).
 	( _rl=$(level_ids | head -1); _rn=$(level_nq "$_rl"); _ri=1
 	  while [ "$_ri" -le "$_rn" ]; do
@@ -570,7 +570,7 @@ selftest() {
 	  CARDS="$TMP/revc"; SESSION_SEEN="$TMP/revs"
 	  _rk=$(card_key "$_rl" "$_ri" "$Q_TPL")
 	  printf '%s\t1\t%s\t%s\t1\t1\t0\n' "$_rk" "$(now)" "$(( $(now) - 86400 ))" > "$CARDS"
-	  printf 'quit\n' | review 1 2>&1 | grep -q '? hint' ) \
+	  printf 'quit\n' | review 1 2>&1 | grep -q '? enter: hint' ) \
 		|| { echo "FAIL review: a marked-up card is skipped as stale" >&2; bad=$((bad+1)); }
 
 	( CARDS="$TMP/sc4"; SESSION_SEEN="$TMP/ss4"
@@ -1355,6 +1355,13 @@ two'; ED_PANEL_ROWS=2
 	[ -z "$_collide" ] || { printf '%s\n' "$_collide" >&2
 		echo "FAIL: flagnorm folds two different commands together" >&2
 		bad=$((bad+1)); }
+
+	# mount -o is a set: any order of its options is one command. ps -o is
+	# columns, where the order is the output, and must not fold.
+	[ "$(echo 'mount -o ro,nosuid /dev/sda1 /mnt' | flagnorm)" = "$(echo 'mount -o nosuid,ro /dev/sda1 /mnt' | flagnorm)" ] \
+		&& [ "$(echo 'mount -o ro /dev/sda1 /mnt' | flagnorm)" != "$(echo 'mount -o rw /dev/sda1 /mnt' | flagnorm)" ] \
+		&& [ "$(echo 'ps -o pid,comm' | flagnorm)" != "$(echo 'ps -o comm,pid' | flagnorm)" ] \
+		|| { echo "FAIL: flagnorm: mount -o option order must fold and ps -o column order must not" >&2; bad=$((bad+1)); }
 
 	# a string-matched block whose answer carries a value nothing on the card
 	# names is not vague, it is unanswerable
