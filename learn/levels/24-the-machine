@@ -19,6 +19,12 @@ brief: `clear` tidies it and `reset` rescues it after a binary has left it speak
 brief: garbage, `loadkmap` and `dumpkmap` load and save the keyboard map, `script`
 brief: and `scriptreplay` record a session and play it back. `microcom` talks to a
 brief: serial port -- the way in when the network is gone.
+brief:
+brief: `date +FORMAT` prints only the fields you ask for: `date +%H:%M` -> ``14:05``.
+brief: `script -q FILE` records into ``FILE`` (``-q`` = no banner); `script -tTIMING FILE` also
+brief: writes the pace to a file called ``TIMING`` (no space after ``-t``), which
+brief: `scriptreplay TIMING FILE` replays at the original speed. `microcom -s 9600 DEV`
+brief: sets the baud rate (``-s`` = speed) on the serial device DEV.
 ---
 q: {you just booted this stick -- get everything `uname` knows, in one line|dump every field `uname` knows about, on one line|report the full `uname` summary in a single line}
 a: uname -a
@@ -333,7 +339,7 @@ eg: microcom -s 9600 /dev/ttyUSB0
 why: live-hw
 ref: microcom
 teach: microcom -s
-hint: when ethernet is dead, this is how you reach a router or another machine
+hint: -s sets the serial speed in baud; when ethernet is dead, this is how you reach a router or another machine
 ---
 setup: the remote end might never answer, and a script waiting on it can't hang forever
 q: {talk to ``/dev/ttyS0``, giving up after 10000ms of silence|open ``/dev/ttyS0`` but bail out after 10000ms of silence|connect to ``/dev/ttyS0``, timing out after 10000ms idle}, with `microcom`
@@ -400,7 +406,7 @@ eg: script -q incident.log
 why: interactive
 ref: script
 teach: script -q
-hint: script logs everything printed to the terminal into a typescript file
+hint: script logs everything printed to the terminal into a typescript file; -q hides its start/done banner
 ---
 setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
 q: {capture just the output of `uname` into ``session.log``|record only `uname` into ``session.log``, not a whole shell|run `uname` and log just that to ``session.log``}, with `script`
@@ -420,13 +426,13 @@ ref: script
 teach: script -a
 hint: -a appends to the typescript; without it script starts the file fresh
 ---
-setup: you need proof of exactly what happened here, timing included, in case it's ever questioned
+setup: you need proof of exactly what happened here, in case it's ever questioned; the session was recorded with its timing in a file called timing
 q: {replay the recorded ``session.log`` at its original speed|play ``session.log`` back at the pace it was recorded|watch ``session.log`` again, timed as it happened}, with `scriptreplay`
 a: scriptreplay timing session.log
 why: fixture-cost
 ref: scriptreplay
 teach: scriptreplay
-hint: scriptreplay reads the timing file script wrote and plays the typescript back
+hint: scriptreplay takes the timing file first, then the typescript; it reads the timing file script -t wrote and plays the typescript back
 ---
 setup: recon reports any machine whose hardware inventory changed since its
 setup: baseline, on every boot, until a human says the change is expected

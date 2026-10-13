@@ -3,7 +3,10 @@ boss: Plaintext
 flavor: Every byte you send bare, I already have.
 brief: `wget` fetches over http. `nc` opens a raw tcp connection and hands it to
 brief: you as stdin and stdout, which is how you speak any text protocol by
-brief: hand. The older ``ftp`` and `tftp` clients are here because the machines you
+brief: hand: http is a request line, then an empty line to finish it, every line
+brief: ending ``\r\n`` (a method line like ``GET / HTTP/1.0``, then the blank line) --
+brief: send that to port 80 and the server answers with a page. `nc` is the pipe to it.
+brief: The older ``ftp`` and `tftp` clients are here because the machines you
 brief: will meet in a bad week are often older than you are.
 brief:
 brief: `udhcpc` is the first step when nothing handed you an address: it asks
@@ -103,7 +106,7 @@ eg: wget --no-check-certificate https://mirror.example.org/pkg.tgz
 why: live-net
 ref: wget
 teach: wget --no-check-certificate
-hint: this turns off the only thing proving you are talking to who you think
+hint: --no-check-certificate turns off the only thing proving you are talking to who you think
 ---
 q: {see what's listening on @host@:@port@ with a raw connection|poke whatever's on @host@:@port@ directly|probe @host@:@port@ with a bare tcp connection}
 a: nc @host@ @port@
@@ -112,8 +115,11 @@ ref: nc
 teach: nc
 hint: nc with just a host and port opens a raw tcp connection
 ---
+setup: the request is the line `HEAD / HTTP/1.0` then an empty line, each ending \r\n
 q: {send a ``HEAD`` request to @host@ on port ``80`` via `nc`, by hand|hand-craft a ``HEAD`` request to @host@ port ``80``, send it through `nc`|pipe a ``HEAD`` request into `nc`, talking http to @host@ port ``80``}
 a: printf 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
+a: echo -e 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
+a: printf 'HEAD / HTTP/1.1\r\n\r\n' | nc @host@ 80
 why: live-net
 ref: nc
 teach: nc

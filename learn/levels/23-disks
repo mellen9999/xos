@@ -15,7 +15,19 @@ brief:
 brief: Attaching: `mount`, `mountpoint` tests a path, `sync` forces writes out,
 brief: `umount` detaches -- pull a stick first and the loss is yours. `chroot`
 brief: runs a command with a mounted tree as its root, `blkdiscard` tells a
-brief: device to forget everything, `flock` keeps two scripts off one disk.
+brief: device to forget everything, `flock` keeps two scripts off one disk:
+brief: `flock FILE CMD` runs CMD while holding FILE's lock; ``-n`` fails at once
+brief: if someone else has it, instead of waiting.
+brief:
+brief: `mount -o` takes a comma list: ``ro`` read-only, ``nosuid`` ignore setuid bits,
+brief: ``nodev`` ignore device files, ``noexec`` refuse to run programs; `-r` is
+brief: shorthand for ``-o ro``, `-t TYPE` names the filesystem, and ``-o loop`` mounts
+brief: an image file (an iso, a disk image) by wiring a loop device for you.
+brief:
+brief: `cryptsetup luksFormat DEV` creates a luks container (it erases DEV); then
+brief: `open DEV NAME` unlocks it as ``/dev/mapper/NAME``, `close NAME` locks it,
+brief: `status NAME` and `luksDump DEV` inspect it. luksFormat takes ``--type luks2``,
+brief: ``--cipher``, ``--key-size`` (bits), ``--pbkdf``, ``--integrity``, ``--batch-mode``.
 brief:
 brief: Here the root is a read-only squashfs verified block by block and the
 brief: host's own drives are invisible -- no NVMe or SATA drivers are compiled
@@ -130,11 +142,12 @@ hint: findfs takes a LABEL= or UUID= and prints the matching device node
 ---
 q: {this isn't your machine -- `mount` ``/dev/sdb1`` read-only at ``/mnt``|`mount` ``/dev/sdb1`` at ``/mnt``, allowing no writes|`mount` ``/dev/sdb1`` at ``/mnt`` without write access}
 a: mount -r /dev/sdb1 /mnt
+a: mount -o ro /dev/sdb1 /mnt
 eg: mount -r /dev/sdc1 /mnt
 why: root
 ref: mount
 teach: mount -r
-hint: on a machine you do not trust, read-only is the default you want
+hint: -r mounts read-only (same as -o ro) -- on a machine you do not trust, the default you want
 ---
 setup: you name the type yourself rather than let a probe choose which parser runs
 q: {auto-detect got it wrong -- `mount` ``/dev/sdb1`` at ``/mnt`` as ``ext4``|`mount` ``/dev/sdb1`` at ``/mnt``, naming ``ext4`` instead of guessing|name ``ext4`` as the type, then `mount` ``/dev/sdb1`` at ``/mnt``}
@@ -145,13 +158,15 @@ teach: mount -t
 hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
 setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
-q: {don't trust it -- `mount` ``/dev/sdb1`` at ``/mnt`` with nosuid, nodev, noexec|`mount` ``/dev/sdb1`` at ``/mnt``, disallowing setuid, device nodes, execution|`mount` ``/dev/sdb1`` at ``/mnt`` with the nosuid, nodev, noexec options}
-a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
-a: mount -o noexec,nodev,nosuid /dev/sdb1 /mnt
+q: {`mount` ``/dev/sdb1`` at ``/mnt``: read-only, nosuid, nodev, noexec|`mount` ``/dev/sdb1`` at ``/mnt``, no writes, setuid, devices, exec|`mount` ``/dev/sdb1`` at ``/mnt`` with ro, nosuid, nodev, noexec}
+a: mount -o ro,nosuid,nodev,noexec /dev/sdb1 /mnt
+a: mount -r -o nosuid,nodev,noexec /dev/sdb1 /mnt
+a: mount -r -o noexec,nodev,nosuid /dev/sdb1 /mnt
+a: mount -o noexec,nodev,nosuid,ro /dev/sdb1 /mnt
 why: root
 ref: mount
 teach: mount -o
-hint: -o takes a comma-separated list of mount options
+hint: -o takes a comma-separated list of mount options, ro,nosuid,nodev,noexec
 ---
 q: %show% what is currently mounted
 a: mount
@@ -270,14 +285,14 @@ ref: sync
 teach: sync -d
 hint: naming the file scopes the flush to it; -d skips syncing its metadata
 ---
-q: {lock ``lock.file`` with `flock`, giving up at once if ``held``, `echo` ``held``|with `flock`, try ``lock.file``'s lock, failing fast, not waiting|take ``lock.file``'s lock with `flock`, bailing if someone has it}
+q: {`flock` ``lock.file`` and `echo` ``held`` inside it, failing if taken|run `echo` ``held`` under ``lock.file``'s `flock`, failing fast|with `flock`, `echo` ``held`` under ``lock.file``, don't wait for it}
 a: flock -n lock.file echo held
 eg: flock -n build.lock echo busy
 out: held
 cmp: ref
 ref: flock
 teach: flock -n
-hint: -n makes flock fail instead of waiting when the lock is held
+hint: -n makes flock fail instead of waiting when the lock is taken; the command follows the lock file
 ---
 q: {take ``lock.file``'s lock as shared with `flock`, around `echo` ``held``|with `flock`, hold a shared lock on ``lock.file``, echoing ``held``|lock ``lock.file`` shared with `flock`, running `echo` ``held``}
 a: flock -s lock.file echo held
@@ -299,7 +314,7 @@ why: root
 ref: cryptsetup
 teach: cryptsetup --type
 teach: cryptsetup --integrity
-hint: encryption stops them reading it; integrity stops them changing it
+hint: --type luks2 picks the format, --integrity hmac-sha256 adds tamper detection: encryption stops them reading it, integrity stops them changing it
 ---
 q: {unlock ``/dev/sda3`` and expose it as ``/dev/mapper/state``|`open` ``/dev/sda3`` and map it as ``/dev/mapper/state``|decrypt ``/dev/sda3``, exposing it under ``/dev/mapper`` as ``state``}
 a: cryptsetup open /dev/sda3 state
@@ -394,6 +409,8 @@ hint: no mount, no parser -- just the bytes. this is the forensically safe read
 setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {`mount` fat32 stick ``/dev/sda1`` at ``/mnt`` read-only, nosuid, nodev, noexec|`mount` ``/dev/sda1`` on ``/mnt`` as untrusted fat32 media: ro, nosuid, nodev, noexec|`mount` the fat32 volume ``/dev/sda1`` under ``/mnt``: ``ro,nosuid,nodev,noexec``}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
+a: mount -t vfat -r -o nosuid,nodev,noexec /dev/sda1 /mnt
+a: mount -t vfat -r -o noexec,nodev,nosuid /dev/sda1 /mnt
 a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
 ref: mount
@@ -403,6 +420,8 @@ hint: ro, and noexec, because you do not trust what is on it
 setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {`mount` ``exfat`` card ``/dev/sda1`` at ``/mnt`` read-only, nosuid, nodev, noexec|`mount` ``/dev/sda1`` on ``/mnt`` as untrusted ``exfat`` media: ro, nosuid, nodev, noexec|`mount` the ``exfat`` volume ``/dev/sda1`` under ``/mnt``: ``ro,nosuid,nodev,noexec``}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
+a: mount -t exfat -r -o nosuid,nodev,noexec /dev/sda1 /mnt
+a: mount -t exfat -r -o noexec,nodev,nosuid /dev/sda1 /mnt
 a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 why: root
 ref: mount
@@ -412,6 +431,8 @@ hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 setup: untrusted media goes at /mnt with ro,nosuid,nodev,noexec
 q: {`mount` ``ntfs3`` disk ``/dev/sda2`` at ``/mnt`` read-only, nosuid, nodev, noexec|`mount` ``/dev/sda2`` on ``/mnt`` as untrusted ``ntfs3`` media: ro, nosuid, nodev, noexec|`mount` the ``ntfs3`` volume ``/dev/sda2`` under ``/mnt``: ``ro,nosuid,nodev,noexec``}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
+a: mount -t ntfs3 -r -o nosuid,nodev,noexec /dev/sda2 /mnt
+a: mount -t ntfs3 -r -o noexec,nodev,nosuid /dev/sda2 /mnt
 a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt
 why: root
 ref: mount
@@ -421,10 +442,12 @@ hint: read only -- xos will not write ntfs, by design
 setup: image.iso is an iso9660 image; mount it at /mnt.
 q: {loop-mount ``image.iso`` read-only, without burning it|`mount` ``image.iso`` read-only at ``/mnt`` through a loop device|attach ``image.iso`` at ``/mnt`` as a read-only loop `mount`}
 a: mount -t iso9660 -o ro,loop image.iso /mnt
+a: mount -t iso9660 -o loop,ro image.iso /mnt
+a: mount -r -t iso9660 -o loop image.iso /mnt
 why: root
 ref: mount
 teach: mount -t
-hint: -o ro,loop reads the iso straight off the image file, no burn needed
+hint: -o ro,loop (read-only + loop device) reads the iso straight off the image file, no burn needed
 ---
 q: keys need a home -- %make% an ext filesystem on ``/dev/mapper/state``
 a: mke2fs /dev/mapper/state

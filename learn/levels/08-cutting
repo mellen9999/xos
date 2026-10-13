@@ -8,7 +8,13 @@ brief:
 brief: `cut`'s default delimiter is TAB, not space. That surprises everyone once.
 brief: For anything space-separated, `awk` is the better tool, and it is next.
 brief:
-brief: `-c` here picks characters by position, not a count.
+brief: `-c` here picks characters by position, not a count: `cut -c3-5`.
+brief:
+brief: `tr abc xyz` maps a to x, b to y, c to z; `a-z` means a through z, so
+brief: `tr a-e 1-5` maps a..e to 1..5. `tr -d aeiou` deletes those characters;
+brief: `-s x` squeezes a run into one; `-c` flips a set to "everything NOT in
+brief: it", so `-dc 'a-z'` deletes all but lowercase. Quote spaces and `\n` (a
+brief: newline): `tr ',' '\n'` turns commas into line breaks.
 brief:
 brief: `sort` comes back in this level. Cutting a field out is half the job;
 brief: what you do with the column afterwards is the other half.
@@ -21,7 +27,7 @@ out: ^gateway$
 ref: cut
 teach: cut -d
 teach: cut -f
-hint: -d sets the delimiter, -f picks the field number
+hint: `-d,` sets the delimiter, `-f1` picks the field number
 ---
 setup: @csv@ is name,id,status,count
 q: %show% just the status column of @csv@, with `cut`
@@ -45,7 +51,7 @@ a: cut -d, -f2-4 @csv@
 out: 1,up,42
 ref: cut
 teach: cut -f
-hint: a dash between two numbers means a range
+hint: `-f2-4` -- a dash between two numbers means a range
 ---
 setup: @csv@ is name,id,status,count
 q: %show% status and everything after it in @csv@, with `cut`
@@ -53,7 +59,7 @@ a: cut -d, -f3- @csv@
 out: up,42
 ref: cut
 teach: cut -f
-hint: a trailing dash with no end number means to the end of the line
+hint: `-f3-` -- a trailing dash with no end number means to the end of the line
 ---
 q: @log@ opens with a 10-char date -- %show% just that, with `cut`
 a: cut -c1-10 @log@
@@ -61,15 +67,15 @@ eg: date +%Y-%m-%d | cut -c 1-4
 out: ^2024-03-01$
 ref: cut
 teach: cut -c
-hint: -c counts characters by position, not fields
+hint: `-c1-10` counts characters by position, not fields
 ---
-q: @log@ opens with a date and a space -- %show% the rest, with `cut`
+q: @log@ opens with a 10-char date + space -- %show% the rest, `cut`
 a: cut -c12- @log@
 eg: head -1 /etc/os-release | cut -c 6-
 cmp: ref
 ref: cut
 teach: cut -c
-hint: same trailing-dash trick as field ranges, but for characters
+hint: `-c12-` -- same trailing-dash trick as field ranges, but for characters (the date and space fill 11)
 ---
 setup: -s is the guard for a line with no comma -- it drops rather than pass one through whole as if it were a name
 q: %show% @csv@'s name column with `cut`, skipping lines with no comma
@@ -79,7 +85,7 @@ out: ^gateway$
 cmp: ref
 ref: cut
 teach: cut -s
-hint: without -s, a line with no delimiter is printed whole
+hint: `-s` skips lines with no delimiter; without it, a line with no delimiter is printed whole
 ---
 q: {uppercase everything in @txt@|%turn% @txt@ to upper case|make @txt@ all capitals}, with `tr`
 a: tr a-z A-Z < @txt@
@@ -101,7 +107,7 @@ out: INFO
 cmp: ref
 ref: tr
 teach: tr -d
-hint: d deletes every character in the set, with nothing to replace it
+hint: `-d` deletes every character in the set, with nothing to replace it
 ---
 q: {strip the newlines from @txt@, one long line|delete every newline from @txt@, collapsing to one line|remove the line breaks so @txt@ reads as one line}, with `tr`
 a: tr -d '\n' < @txt@
@@ -109,7 +115,7 @@ out: rotate
 cmp: ref
 ref: tr
 teach: tr -d
-hint: \n is the newline character, deleted the same as any other
+hint: `-d '\n'` -- \n is the newline character, quoted, deleted like any other
 ---
 q: {squeeze repeated spaces in @log@ to one each|collapse runs of spaces in @log@ to one|collapse every space run in @log@ down to one}, with `tr`
 a: tr -s ' ' < @log@
@@ -117,14 +123,14 @@ eg: ps | tr -s ' '
 out: INFO service
 ref: tr
 teach: tr -s
-hint: s for squeeze
+hint: `-s ' '` squeezes a run of that character into one
 ---
 q: %turn% every space in @txt@ into a newline with `tr`, one word per line
 a: tr ' ' '\n' < @txt@
 out: ^rotate$
 ref: tr
 teach: tr
-hint: tr maps the first set onto the second, one character at a time
+hint: tr maps the first set onto the second, one character at a time; quote both: `' '` and `'\n'`
 ---
 q: {delete everything from @txt@ except letters and newlines|keep only letters and newlines in @txt@, delete the rest|strip @txt@ down to just letters and newlines}, with `tr`
 a: tr -dc 'a-zA-Z\n' < @txt@
@@ -132,7 +138,7 @@ eg: tr -dc '0-9.\n' < /etc/hosts
 out: rotate
 ref: tr
 teach: tr -c
-hint: -c complements the set, so -dc deletes everything NOT listed
+hint: `-d` deletes, `-c` complements the set, so `-dc 'a-zA-Z\n'` deletes everything NOT a letter or newline
 
 ---
 q: {`sort` the count column of @csv@ numerically, largest first|`sort` @csv@'s count column numerically, biggest first|pull @csv@'s count column and `sort` it numerically, descending}

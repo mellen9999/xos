@@ -11,7 +11,10 @@ brief: status, the way `exit` ends the whole script.
 brief:
 brief: Arguments arrive as `$1 $2 $3`. `shift` drops `$1` and slides the rest down,
 brief: which is how you walk a list you did not write. `getopts` walks option
-brief: letters instead, one call per option.
+brief: letters instead, one call per option: `getopts ab o` reads the next option
+brief: from the list `ab` into variable `o` -- letters first, then the variable.
+brief: `./name` runs a script in this directory (`.` is here; the shell does not
+brief: look in the current directory for commands unless you say `./`).
 brief:
 brief: `trap` is the cleanup. `trap CMD EXIT` runs CMD when the shell exits --
 brief: normally or by error -- so a temp file you made gets removed on the path
@@ -19,7 +22,10 @@ brief: you did not plan for. A kill signal is not an exit: catch it separately.
 brief:
 brief: `exec` and `.` both act on the shell you are in rather than a child: `exec`
 brief: replaces it or rewires its file descriptors for good, `.` runs a script
-brief: here so what it sets survives. Neither is undoable mid-line.
+brief: here so what it sets survives (`. ./name`, with the `./`). Neither is
+brief: undoable mid-line. `:` is the null command: it does nothing and succeeds,
+brief: so `: > log` empties log. `let n=4*2` does arithmetic with no spaces.
+brief: `eval` runs text as a command.
 ---
 q: {define a function f that echoes ok, then run it|write f so it echoes ok, then call it|f should `echo` ok -- define it, then run it}
 a: f() { echo ok; }; f
@@ -55,21 +61,21 @@ a: set -- a b c; shift 2; echo $1
 cmp: ref
 ref: shift
 teach: shift
-hint: a count shifts that many at once
+hint: `shift 2` -- a count shifts that many at once
 ---
 q: {`set` `--` `-a` x, read one option letter with `getopts` into o, `echo` o|`set` `--` `-a` x, then have `getopts` put one letter in o and `echo` o|after `set` `--` `-a` x, `getopts` one letter into o, then `echo` o}
 a: set -- -a x; getopts a o; echo $o
 cmp: ref
 ref: getopts
 teach: getopts
-hint: the letters you declare are the ones it accepts, one call per option
+hint: `getopts a o` -- the option letters first, then the variable; one call per option
 ---
 q: {run @script@ in this shell with dot, so it is not a child|source @script@ with dot, so it runs here and not in a child|dot-run @script@ so what it sets survives in this shell}
 a: . ./@script@
 cmp: ref
 ref: .
 teach: .
-hint: a dot-run script can change this shell, and a child could not
+hint: `. ./name` -- a dot-run script can change this shell, and a child could not
 ---
 setup: a file needs to go back to empty without deleting it outright
 q: {empty f with the null command, then count its bytes with `wc`|truncate f using the null command, then `wc` its byte count|blank f with the null command, then ask `wc` how many bytes}
@@ -77,14 +83,14 @@ a: : > f; wc -c < f
 cmp: ref
 ref: :
 teach: :
-hint: the null command does nothing and succeeds, so the redirect is the point
+hint: `:` is the null command: it does nothing and succeeds, so `: > f` and the redirect is the point
 ---
 q: {`trap` EXIT to `echo` ``bye``, then `echo` ``work``|`trap` ``bye`` onto EXIT with `echo`, then `echo` ``work``|arrange for `echo` ``bye`` on EXIT with `trap`, then `echo` ``work``}
 a: trap 'echo bye' EXIT; echo work
 cmp: ref
 ref: trap
 teach: trap
-hint: EXIT fires however the shell ends, which is where cleanup belongs
+hint: `trap 'cmd' EXIT` -- EXIT fires however the shell ends, which is where cleanup belongs
 ---
 setup: every command from here on should send its errors where stdout already goes, without redirecting each one
 q: {send errors to stdout with `exec`, then `ls` the missing ``nosuch``|point errors at stdout with `exec`, then `ls` ``nosuch``, which isn't there|rewire errors to stdout using `exec`, then `ls` the absent ``nosuch``}
@@ -125,7 +131,7 @@ a: let x=1+2; echo $x
 cmp: ref
 ref: let
 teach: let
-hint: let does arithmetic without $(( )) around it
+hint: `let x=1+2` does arithmetic without $(( )) around it -- no spaces
 ---
 q: {what does this print?|call it -- what comes out?|read it: what does it print?}
 predict: v=1; f() { local v=2; }; f; echo $v

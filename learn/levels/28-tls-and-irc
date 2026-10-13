@@ -16,6 +16,13 @@ brief: The other two ways out of this machine. ssh here is dropbear: `dbclient`
 brief: connects, `dropbearkey` makes the key, `dropbear` is the server. `wg` is
 brief: wireguard -- a private link to a machine elsewhere, brought up before
 brief: anything speaks over it.
+brief:
+brief: Shell syntax these cards lean on: a bare ``#`` starts a comment, so everything
+brief: after it vanishes -- quote any word that begins with one: `echo '#hi'`.
+brief: `dbclient -i KEY user@host` logs in as ``user`` on ``host`` with that private key;
+brief: a quoted word after the host is a command to run there instead of a shell:
+brief: `dbclient user@host 'uptime'`. `ip link add NAME type KIND` creates an
+brief: interface, e.g. `ip link add br0 type bridge`.
 ---
 q: {open `tlstunnel` to @host@:``443``, ready to pipe commands through|wrap a session to @host@:``443`` with `tlstunnel`, ready to drive by hand|reach @host@ on port ``443`` via `tlstunnel`, ready to speak the protocol}
 a: tlstunnel - @host@ 443
@@ -24,9 +31,10 @@ ref: tlstunnel
 teach: tlstunnel
 hint: tlstunnel takes - for stdin/stdout, then the host and port to wrap
 ---
-setup: the request is HEAD / HTTP/1.0, Host: @host@, Connection: close
+setup: the request is HEAD / HTTP/1.0, Host: @host@, Connection: close -- each line ends \r\n, then an empty line
 q: {send that request to @host@ on ``443`` through `tlstunnel`|pipe that request into `tlstunnel`, to @host@ on ``443``|hand that request to @host@ on ``443`` via `tlstunnel`}
 a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
+a: echo -e 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
 why: live-net
 ref: tlstunnel
 teach: tlstunnel
@@ -40,10 +48,11 @@ ref: strings
 teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
-setup: ii keeps one directory per server -- your nick is xos and your session
-setup: directory is $HOME/irc unless a question says otherwise
+setup: ii keeps one directory per server -- the plain irc port is 6667, your nick
+setup: is xos and your session directory is $HOME/irc unless a question says otherwise
 q: {start `ii` against @host@ on the standard tls-free irc port, as nick ``xos``|connect `ii` to @host@ on the plain irc port, using the nick ``xos``|start `ii`, joining @host@ on the standard irc port as ``xos``}
 a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
+a: ii -s @host@ -p 6667 -n xos
 eg: ii -s irc.libera.chat -p 6697 -n xos -i $HOME/irc
 why: live-net
 ref: ii
@@ -52,9 +61,10 @@ teach: ii -p
 teach: ii -n
 hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
-setup: your nick is xos
+setup: your nick is xos and the plain irc port is 6667
 q: {start a second `ii` session on @host@ as ``xos``, its files in ``/tmp/irc``|run `ii` on @host@ as nick ``xos``, files in ``/tmp/irc``, not the default|point `ii` at @host@ as ``xos`` with ``/tmp/irc`` as its directory}
 a: ii -s @host@ -n xos -i /tmp/irc
+a: ii -s @host@ -p 6667 -n xos -i /tmp/irc
 why: live-net
 ref: ii
 teach: ii -i
@@ -63,6 +73,9 @@ hint: -i points ii at a directory of your choosing instead of the default
 setup: ii's files live under $HOME/irc, one directory per server
 q: {join ``#xos`` on @host@ by sending `/j` ``#xos`` to its in fifo|write `/j` ``#xos`` into @host@'s in fifo|send the line `/j` ``#xos`` to @host@'s in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in
+a: echo "/j #xos" > $HOME/irc/@host@/in
+a: echo /j '#xos' > $HOME/irc/@host@/in
+a: echo /j "#xos" > $HOME/irc/@host@/in
 why: live-net
 ref: ii
 teach: ii
@@ -127,7 +140,7 @@ a: ip link add wg0 type wireguard
 why: live-net
 ref: ip
 teach: ip
-hint: ip link add type wireguard creates the interface itself, before any config
+hint: ip link add NAME type KIND -- here KIND is wireguard -- creates the interface itself, before any config
 ---
 setup: same wireguard link, one continuous build -- wg0, addressed 10.9.0.2/24, brought up piece by piece
 q: {give ``wg0`` the address ``10.9.0.2`` in a ``/24``|assign ``wg0`` the address ``10.9.0.2`` with a ``/24`` netmask|`add` the address ``10.9.0.2/24`` to ``wg0``}, with `ip`
@@ -218,6 +231,7 @@ hint: -i points dbclient at the private key to authenticate with
 setup: the host key is /state/host_key; you log in with the key /state/id
 q: {reach root at 10.9.0.1 by `dbclient`, straight into `abduco`'s ``work`` session|`dbclient` to root at 10.9.0.1, attaching straight to `abduco`'s ``work``|combine `dbclient` to root at 10.9.0.1 with `abduco` `-a` ``work``, one line}
 a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
+a: dbclient -i /state/id root@10.9.0.1 "abduco -a work"
 why: live-net
 ref: dbclient
 teach: dbclient
@@ -225,6 +239,7 @@ hint: the whole point -- reconnect straight into the work that survived the drop
 ---
 q: {`dbclient` to root at 10.9.0.1 on port ``2222`` instead of 22|`dbclient` to root at 10.9.0.1, connecting on port ``2222``|use `dbclient` to reach root at 10.9.0.1 on port ``2222``}
 a: dbclient -p 2222 root@10.9.0.1
+a: dbclient -i /state/id -p 2222 root@10.9.0.1
 eg: dbclient -p 2200 10.9.0.5
 why: live-net
 ref: dbclient
@@ -242,18 +257,20 @@ hint: -L takes LPORT:HOST:PORT, here 8080:localhost:80
 setup: ii and the tls tunnel are two commands wired by hand above -- `irc` is
 setup: the one word that brings both up the only way that reaches a real network
 q: {reach ``#xos`` on libera in one word with `irc`, as one screen|open ``#xos`` as a one-screen chat with `irc`, on libera's defaults|join ``#xos`` on libera in one screen using `irc`}
-a: irc #xos
+a: irc '#xos'
+a: irc "#xos"
 why: live-net
 ref: irc
 teach: irc
-hint: given just a #channel, irc uses its defaults -- libera over tls, nick xos -- and opens it as one screen
+hint: quote the channel (a bare # is a shell comment); given just a #channel, irc uses its defaults -- libera over tls, nick xos -- and opens it as one screen
 ---
 q: {open ``#xos`` on @host@ as nick ``xos`` in one screen with `irc`|one-screen ``#xos`` on @host@ as ``xos`` via `irc`|use `irc` to open ``#xos`` on @host@ as the nick ``xos``, one screen}
-a: irc #xos xos @host@
+a: irc '#xos' xos @host@
+a: irc "#xos" xos @host@
 why: live-net
 ref: irc
 teach: irc
-hint: after the #channel, irc reads a nick then a server, each the way it looks
+hint: quote the '#channel' (a bare # is a shell comment); after it, irc reads a nick then a server, each the way it looks
 ---
 q: {bring the link up and print the paths, no channel yet, with `irc`|start the tunnel and ii and just print the fifo paths using `irc`|open the link with `irc` and no channel, so it prints the paths}
 a: irc

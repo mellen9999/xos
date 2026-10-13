@@ -8,6 +8,11 @@ brief:
 brief: Numeric modes are the fast way once they click: ``r=4``, ``w=2``, ``x=1``, added up
 brief: per set. ``755`` is ``rwxr-xr-x``, ``644`` is ``rw-r--r--``, ``600`` is ``rw-------``.
 brief:
+brief: Symbolic modes edit one set at a time: who is ``u`` owner, ``g`` group, ``o`` other,
+brief: ``a`` all; the op is ``+`` add, ``-`` remove, ``=`` set exactly; perms are ``r w x``.
+brief: `chmod g+w f` = the group gains write; `chmod o= f` = other gets nothing.
+brief: A leading ``4`` (``4000``) is the setuid bit: the file runs as its owner.
+brief:
 brief: `whoami` and `id` say who the shell thinks you are. `stat` prints a file's
 brief: whole record -- mode, owner, size, timestamps -- where `ls -l` prints a
 brief: summary of it. `umask` is the mode a new file does not get. `chattr` sets
@@ -61,7 +66,7 @@ a: chmod g+w @txt@
 state: mode:@txt@:664
 ref: chmod
 teach: chmod
-hint: g targets the group set specifically, leaving owner and other untouched
+hint: g+w = the group set (g) gains write (+w), leaving owner and other untouched
 ---
 q: {owner and group keep @txt@ access, lock everyone else out|strip @txt@'s permissions for everyone outside owner/group|zero out what everyone else can do to @txt@}, with `chmod`
 a: chmod o= @txt@
@@ -72,6 +77,8 @@ hint: = sets the listed permissions exactly, and an empty list means none
 ---
 q: {make everything under @dir@ readable, subdirs included|@dir@ and every subdirectory under it should be readable|open @dir@ up for reading, all the way down}, with `chmod`
 a: chmod -R a+r @dir@
+a: chmod -R +r @dir@
+a: chmod -R ugo+r @dir@
 eg: chmod -R go-w /opt/app
 why: primitive-cost
 ref: chmod

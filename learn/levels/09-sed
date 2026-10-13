@@ -10,6 +10,10 @@ brief: `-n` turns off the automatic printing, which turns `sed` into a selector:
 brief: `-n '5p'` prints only line 5. `-i` edits the file in place, and on a
 brief: read-only root that only works on files you put somewhere writable.
 brief:
+brief: `s/old/new/p` with `-n` prints only the lines that changed. `-E` adds
+brief: groups: `(a+)` saves what it matched, `\1` puts it back (`\2` the second
+brief: group): `sed -E 's/(a+)b/\1/'` turns `aab` into `aa`.
+brief:
 brief: `&&` runs the next command only if the last one worked -- copy first,
 brief: edit only if the copy landed.
 ---
@@ -18,14 +22,14 @@ a: sed 's/@old@/@new@/' @cfg@
 cmp: ref
 ref: sed
 teach: sed
-hint: s/pattern/replacement/ -- no trailing g means only the first match per line
+hint: `s/pattern/replacement/` -- no trailing g means only the first match per line
 ---
 q: {replace EVERY @old@ throughout @cfg@ with @new@|every @old@ in @cfg@ becomes @new@, start to finish|swap every @old@ for @new@ throughout @cfg@}, with `sed`
 a: sed 's/@old@/@new@/g' @cfg@
 cmp: ref
 ref: sed
 teach: sed
-hint: the g goes after the final slash
+hint: the `g` flag goes after the final slash
 ---
 q: {replace @old@ with @new@ in @cfg@, ignoring case|replace @old@ with @new@ in @cfg@, case-insensitive|swap @old@ for @new@ in @cfg@, case-blind}, with `sed`
 a: sed 's/@old@/@new@/gi' @cfg@
@@ -33,7 +37,7 @@ a: sed 's/@old@/@new@/Ig' @cfg@
 cmp: ref
 ref: sed
 teach: sed
-hint: i (or I) after the slashes makes the match case-insensitive
+hint: the `i` (or `I`) flag after the slashes makes the match case-insensitive
 ---
 setup: you're chasing one failure in a log too long to read start to finish
 q: %show% only line 3 of @log@ with `sed`, nothing else
@@ -42,7 +46,7 @@ out: WARN
 cmp: ref
 ref: sed
 teach: sed -n
-hint: -n suppresses the automatic print, so only what you p yourself appears
+hint: `-n` suppresses the automatic print, so only what you p yourself appears
 ---
 setup: you're chasing one failure in a log too long to read start to finish
 q: %show% lines 2 through 4 of @log@ with `sed`
@@ -66,7 +70,7 @@ a: sed '/@sev@/d' @log@
 cmp: ref
 ref: sed
 teach: sed
-hint: d deletes the whole line the pattern matched, not just the text
+hint: `d` deletes the whole line the pattern matched, not just the text
 ---
 q: {delete the # comment lines from @cfg@|remove every line of @cfg@ that starts with #|drop the # comment lines out of @cfg@}, with `sed`
 a: sed '/^#/d' @cfg@
@@ -102,16 +106,16 @@ eg: sed -e '/^#/d' -e '/^$/d' /etc/profile
 out: listen
 ref: sed
 teach: sed -e
-hint: -e lets you give more than one script
+hint: `-e` lets you give more than one script
 ---
-setup: you want capture groups without backslash-escaping every paren
+setup: @cfg@ has a line like "port = 8080" and you want capture groups without backslash-escaping every paren
 q: {pull the port number out of @cfg@ using extended regex|extract the port number from @cfg@ with extended regex|using extended regex, pull the port number from @cfg@}, with `sed`
 a: sed -E 's/^port = ([0-9]+)$/\1/' @cfg@
 out: 8080
 cmp: ref
 ref: sed
 teach: sed -E
-hint: \1 refers to whatever the first (group) matched
+hint: `-E` enables groups; `\1` refers to whatever the first (group) matched
 ---
 setup: you want capture groups without backslash-escaping every paren
 q: {@csv@ is name,id,status,count -- with `sed`, swap name and id|@csv@ is name,id,status,count -- with `sed`, put id ahead of name|@csv@ has name,id,status,count -- use `sed` to lead with id}
@@ -127,7 +131,7 @@ eg: sed -i 's/staging/production/g' app.yaml
 state: exists:edit.ini
 ref: sed
 teach: sed -i
-hint: -i writes the file back rather than printing it
+hint: `-i` writes the file back rather than printing it
 ---
 setup: you're chasing one failure in a log too long to read start to finish
 q: @log@ ends with why it died -- %show% that line, `sed` not tail
@@ -152,14 +156,14 @@ eg: printf 's/beta/release/g\n' > fix.sed && sed -f fix.sed app.yaml
 cmp: ref
 ref: sed
 teach: sed -f
-hint: -f takes a filename holding the script, like -e takes it inline
+hint: `-f` takes a filename holding the script, like -e takes it inline
 ---
 q: {copy @cfg@ to ``edit.ini``, swap @old@/@new@, backed up|swap @old@ for @new@ in a @cfg@ copy, backup kept|edit @cfg@'s copy @old@-to-@new@, backup kept}, with `sed`
 a: cp @cfg@ edit.ini && sed -i.bak 's/@old@/@new@/g' edit.ini
 state: exists:edit.ini.bak
 ref: sed
 teach: sed -i[SFX]
-hint: a suffix stuck to -i means "back the original up under this name"
+hint: `-i.bak` -- a suffix stuck to -i means "back the original up under this name"
 ---
 setup: sed edits one line at a time and can't sort, count, or dedupe across lines -- getting some answers takes more than one command
 q: {count how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report how many @sev@ lines are in @log@}, with `sed`
@@ -178,11 +182,11 @@ ref: sed
 teach: sed -E
 hint: swap id in front with a capture group -- sort -n reads each line's leading number to order it
 ---
-setup: sed edits one line at a time and can't sort, count, or dedupe across lines -- getting some answers takes more than one command
+setup: @log@ lines run "date time SEV message"; sed can't count or dedupe across lines -- that takes more than one command
 q: {how many severities does @log@ have, pulled out with `sed`?|count the distinct severities in @log@, via `sed`|@log@'s severities, deduped and counted with `sed`}
 a: sed -n -E 's/^[^ ]+ [^ ]+ ([A-Z]+) .*/\1/p' @log@ | sort -u | wc -l
 out: ^[0-9]+$
 cmp: ref
 ref: sed
 teach: sed -E
-hint: the pattern captures just the severity word -- sort -u drops repeats, wc -l counts what's left
+hint: `-n` with the `p` flag prints only the substituted lines; the group captures just the severity word -- sort -u drops repeats, wc -l counts what's left

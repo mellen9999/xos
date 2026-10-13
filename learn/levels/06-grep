@@ -12,6 +12,12 @@ brief: moment your pattern contains a dot or a bracket you meant as itself.
 brief:
 brief: regex here, not filename globs: `grep`'s `*` means "any number of the last
 brief: thing", the shell's means "any run of characters".
+brief:
+brief: Pattern pieces: `^` line start, `$` line end, `.` any one character,
+brief: `\.` a real dot, `[0-9]` one digit, `[^,]` anything but a comma, `+` (with `-E`) one or
+brief: more of the last thing: `grep '^ERROR'` keeps lines starting with ERROR.
+brief: `-E` adds `+` and `|` (or) without backslashes. Put patterns in single
+brief: quotes, or the shell eats the `|`, `$` and `*` before grep sees them.
 ---
 q: {%show% every line of @log@ containing @sev@|which lines of @log@ mention @sev@?|pull the @sev@ lines out of @log@}
 a: grep @sev@ @log@
@@ -27,14 +33,14 @@ out: @sev@
 cmp: ref
 ref: grep
 teach: grep -i
-hint: i for case-insensitive
+hint: `-i` ignores case
 ---
 q: {%show% every line of @log@ that does NOT contain @sev@|which lines of @log@ are missing @sev@?|drop the @sev@ lines from @log@ and show the rest}, with `grep`
 a: grep -v @sev@ @log@
 cmp: ref
 ref: grep
 teach: grep -v
-hint: v for invert
+hint: `-v` inverts: lines that do NOT match
 ---
 setup: a script needs the count of @sev@ lines, not the lines themselves
 q: {%count% how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report the number of @sev@ lines in @log@}, with `grep`
@@ -52,7 +58,7 @@ out: ^[0-9]+:
 cmp: ref
 ref: grep
 teach: grep -n
-hint: n prefixes each match with its line number
+hint: `-n` prefixes each match with its line number
 ---
 setup: @term@ could be anywhere in this tree and checking every file by hand isn't realistic
 q: {not sure which file has @term@ -- `grep` it anywhere below|@term@ could be in any file here -- `grep` the whole tree|`grep` every file below for @term@}
@@ -60,7 +66,7 @@ a: grep -r @term@ .
 cmp: ref
 ref: grep
 teach: grep -r
-hint: r walks into subdirectories; the dot is where it starts
+hint: `-r` walks into subdirectories; the dot is where it starts
 ---
 q: %list% just the filenames under here that contain @term@, with `grep`
 a: grep -rl @term@ .
@@ -68,7 +74,7 @@ eg: grep -rl TODO src/
 cmp: ref
 ref: grep
 teach: grep -l
-hint: l switches grep from printing lines to printing filenames
+hint: `-l` switches grep from printing lines to printing filenames
 ---
 q: %list% the files under here that do NOT contain @term@, with `grep`
 a: grep -rL @term@ .
@@ -76,7 +82,7 @@ eg: grep -rL TODO src/
 cmp: ref
 ref: grep
 teach: grep -L
-hint: capital L is the opposite of -l -- files with NO match
+hint: capital `-L` is the opposite of `-l` -- files with NO match
 ---
 setup: you want to pull @sev@ out to use it elsewhere, not the whole line around it
 q: %show% the matched @sev@ text in @log@, not the line, with `grep`
@@ -85,7 +91,7 @@ out: ^@sev@$
 cmp: ref
 ref: grep
 teach: grep -o
-hint: o prints just the matched substring, one per line
+hint: `-o` prints just the matched substring, one per line
 ---
 q: %show% @log@ lines with @sev@ as a whole word only, with `grep`
 a: grep -w @sev@ @log@
@@ -94,7 +100,7 @@ out: @sev@
 cmp: ref
 ref: grep
 teach: grep -w
-hint: w anchors the match to word boundaries
+hint: `-w` anchors the match to word boundaries
 ---
 setup: another line in @log@ merely contains @sev@
 q: %show% @log@ lines that match @sev@ exactly, with `grep`
@@ -103,7 +109,7 @@ out: ^@sev@$
 cmp: ref
 ref: grep
 teach: grep -x
-hint: x requires the whole line to match, not just part of it
+hint: `-x` requires the whole line to match, not just part of it
 ---
 q: %find% @sev@ in @log@, plus the 2 lines after, with `grep`
 a: grep -A 2 @sev@ @log@
@@ -112,7 +118,7 @@ out: @sev@
 cmp: ref
 ref: grep
 teach: grep -A
-hint: A for after, followed by the count
+hint: `-A 2` is after: the match plus 2 lines following
 ---
 q: %find% @sev@ in @log@, plus the 2 lines before, with `grep`
 a: grep -B 2 @sev@ @log@
@@ -121,7 +127,7 @@ out: @sev@
 cmp: ref
 ref: grep
 teach: grep -B
-hint: B for before, followed by the count
+hint: `-B 2` is before: the match plus 2 lines preceding
 ---
 q: %show% @sev@ in @log@ plus 2 lines of context, with `grep`
 a: grep -C 2 @sev@ @log@
@@ -130,7 +136,7 @@ out: @sev@
 cmp: ref
 ref: grep
 teach: grep -C
-hint: C for context -- both before and after
+hint: `-C 2` is context -- both before and after
 ---
 q: %show% the first 2 @sev@ lines of @log@, then stop, with `grep`
 a: grep -m 2 @sev@ @log@
@@ -139,7 +145,7 @@ out: @sev@
 cmp: ref
 ref: grep
 teach: grep -m
-hint: m caps the number of matches before grep stops reading
+hint: `-m 2` caps the number of matches before grep stops reading
 ---
 q: {`grep` @log@ for the literal ``0.0.0.0`` -- the dots aren't wildcards|`grep` @log@ for ``0.0.0.0``, dots not wildcards|`grep` @log@ for ``0.0.0.0`` as plain text, no regex}
 a: grep -F 0.0.0.0 @log@
@@ -147,7 +153,7 @@ out: 0\.0\.0\.0
 cmp: ref
 ref: grep
 teach: grep -F
-hint: F for fixed string
+hint: `-F` is fixed string: no regex, dots are dots
 ---
 setup: writing this pattern in basic regex means backslash before every +
 q: %find% ip-shaped numbers in @log@ with `grep`'s extended regex
@@ -156,7 +162,7 @@ out: [0-9]
 cmp: ref
 ref: grep
 teach: grep -E
-hint: E turns on extended regex, so + doesn't need a backslash
+hint: `-E` turns on extended regex; `[0-9]+` is one or more digits and `\.` is a real dot; quote the pattern
 ---
 setup: you want a hit on @needle@ or @term@ without searching twice
 q: {match @needle@ or @term@ in @log@ in one regex pass|find @needle@ or @term@ in @log@, one pass|search @log@ for @needle@ or @term@ at once}, with `grep`
@@ -164,7 +170,7 @@ a: grep -E '@needle@|@term@' @log@
 cmp: ref
 ref: grep
 teach: grep -E
-hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped
+hint: `-E` lets `a|b` mean a OR b; quote it in single quotes so the shell leaves the `|` alone
 ---
 setup: a script needs to know if @sev@ is there without printing anything
 q: {`grep` @log@ for @sev@ quietly -- just an exit status|`grep` @sev@ in @log@ silently, via exit status|`grep` @log@ for @sev@ without printing anything}
@@ -173,7 +179,7 @@ status: 0
 cmp: ref
 ref: grep
 teach: grep -q
-hint: grep's exit status is 0 for a match, 1 for none
+hint: `-q` prints nothing; the exit status says it: 0 = found, 1 = not found
 ---
 setup: the job greps @log@ and also @word@-missing, which may not exist yet
 q: {`grep` @log@ for @sev@ without a missing-file error|`grep` @log@ for @sev@, no script-halting error|`grep` @log@ for @sev@ without a can't-read-file complaint}
@@ -183,14 +189,14 @@ out: @log@:.*@sev@
 cmp: ref
 ref: grep
 teach: grep -s
-hint: s silences the "no such file" complaints, built into grep itself
+hint: `-s` silences the "no such file" complaints, built into grep itself
 ---
 q: {`grep` @txt@ using its own lines as the patterns|@txt@ holds the patterns -- `grep` @txt@ with them|use @txt@'s own lines as `grep`'s pattern list}
 a: grep -f @txt@ @txt@
 cmp: ref
 ref: grep
 teach: grep -f
-hint: f reads patterns from a file instead of the command line, one per line
+hint: `-f file` reads patterns from a file instead of the command line, one per line
 ---
 setup: your pattern starts with a dash and would otherwise get read as a flag
 q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using `-e` to name the pattern}
@@ -231,4 +237,4 @@ a: grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' @log@ | sort -u | wc -l
 cmp: ref
 ref: grep
 teach: grep
-hint: -o prints the matched text instead of the line, which is what makes it countable
+hint: `-o` prints the matched text instead of the line, which is what makes it countable; `\.` is a real dot, `+` one or more

@@ -6,6 +6,8 @@ brief: A variable is `NAME=VALUE`, with no spaces around the `=`. You read it ba
 brief: with `$NAME`. Command substitution `$(CMD)` runs a command and becomes its
 brief: output, which is how you get a number out of `wc` and into a comparison.
 brief:
+brief: `date` prints the current date and time: `now=$(date)` saves it.
+brief:
 brief: Quote your expansions. `"$x"` is one word whatever spaces it holds; unquoted,
 brief: `$x` splits on them and any `*` left is matched against the directory. A
 brief: backslash protects the next character. Most shell bugs are a missing quote.
@@ -13,6 +15,15 @@ brief:
 brief: `${NAME}` is the same expansion with braces, so you can glue text right
 brief: after a name. `${#NAME}` is its length, `${NAME:-WORD}` falls back to WORD
 brief: when NAME is unset or empty.
+brief:
+brief: Trimming: `${v#pat}` cuts the shortest match of pat off the FRONT, `${v%pat}`
+brief: off the END; doubled (`##`, `%%`) they cut the longest. With `v=a.b.c`:
+brief: `${v#*.}` is `b.c`, `${v##*.}` is `c`, `${v%.*}` is `a.b`, `${v%%.*}` is `a`.
+brief: `${v:=w}` also assigns w when v is unset; `${v:+w}` gives w only when v is set.
+brief: `:` is a command that does nothing, handy to run an expansion for its side effect.
+brief:
+brief: `alias ll='ls -l'` makes `ll` a shortcut; plain `alias` lists them.
+brief: `printf` reuses its format for every extra word: `printf '<%s>' x y z` is `<x><y><z>`.
 brief:
 brief: A variable lives in the shell that set it. `export` hands it down to the
 brief: programs that shell starts; `env` prints what is being handed over, and
@@ -36,7 +47,7 @@ ref: echo
 teach: echo
 hint: $NAME (or ${NAME}) is how you read a variable back
 ---
-q: {grab the current timestamp into a variable called @tvar@ so you can reuse it|save right-now's date and time in @tvar@ before it changes|stash the current timestamp in @tvar@ for later}
+q: {grab the current timestamp into @tvar@ to reuse later|save right-now's date and time in @tvar@|stash the current timestamp in @tvar@}, with `date`
 a: @tvar@=$(date)
 why: primitive-cost
 ref: sh
@@ -97,14 +108,14 @@ a: env -i sh -c 'echo empty'
 out: empty
 ref: env
 teach: env
-hint: -i drops the entire inherited environment before running the command
+hint: `-i` drops the entire inherited environment before running the command
 ---
 q: {run `env` with ONLY @mvar@=@word@ set, nothing inherited|`env` the environment down to just @mvar@=@word@ and nothing else|show a clean environment holding only @mvar@=@word@, with `env`}
 a: env -i @mvar@=@word@ env
 cmp: ref
 ref: env
 teach: env -i
-hint: -i starts from an empty environment, so only what you set after it survives
+hint: `-i` starts from an empty environment, so only what you set after it survives
 ---
 q: {remove @mvar@ from the environment, printing ``gone`` to prove it|run a command that cannot see @mvar@, printing ``gone`` to prove it|hide @mvar@ from one command, printing ``gone`` to prove it}, with `env`
 a: env -u @mvar@ sh -c 'echo gone'
@@ -113,7 +124,7 @@ out: gone
 cmp: ref
 ref: env
 teach: env -u
-hint: -u strips one variable out of the environment for that command only
+hint: `-u` strips one variable out of the environment for that command only
 ---
 q: %show% the environment NUL-separated so xargs `-0` can parse it safely
 a: env -0
@@ -121,7 +132,7 @@ eg: env -0 | tr '\0' '\n' | wc -l
 cmp: ref
 ref: env
 teach: env -0
-hint: -0 separates entries with NUL instead of a newline
+hint: `-0` separates entries with NUL instead of a newline
 ---
 q: {remove the variable @var@ from your shell entirely|delete @var@ so it is no longer set at all|make @var@ fully `unset`, not just empty}
 a: unset @var@
@@ -144,7 +155,7 @@ eg: read -r reply < /etc/hostname
 why: interactive
 ref: read
 teach: read -r
-hint: -r is what you want essentially always; without it a backslash vanishes
+hint: `-r` is what you want essentially always; without it a backslash vanishes
 ---
 q: {prompt with "``name:`` " and `read` the reply into @var@|show "``name:`` " then `read` what comes back into @var@|ask "``name:`` " and store the answer in @var@}, with `read`
 a: read -p "name: " @var@
@@ -152,7 +163,7 @@ eg: read -p "user: " reply
 why: interactive
 ref: read
 teach: read -p
-hint: -p prints its argument as a prompt before reading
+hint: `-p` prints its argument as a prompt before reading
 ---
 setup: the delimiter you need is sitting in a variable, not written as a literal
 q: set d to a comma, then %show% @csv@'s first column with `cut`
@@ -168,7 +179,7 @@ a: sh -c 'echo @word@'
 out: ^@word@$
 ref: sh
 teach: sh -c
-hint: -c takes the command to run as its next argument
+hint: `-c` takes the command to run as its next argument
 ---
 q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}, with `unalias`
 a: unalias -a
@@ -176,7 +187,7 @@ eg: alias ll=ls; unalias -a
 why: conceptual
 ref: unalias
 teach: unalias -a
-hint: -a clears every alias in one shot
+hint: `-a` clears every alias in one shot
 ---
 setup: your `$PATH` might be hijacked or broken
 q: %show% every place in your $PATH with a command called `sh`, with `which`
@@ -185,7 +196,7 @@ eg: which -a ls
 cmp: ref
 ref: which
 teach: which -a
-hint: -a lists every match in $PATH, not just the first one found
+hint: `which -a` lists every match in $PATH, not just the first one found
 ---
 q: {set @var@ to @word@, then `echo` it with s glued on the end|put @word@ in @var@, then `echo` @var@ with s stuck on|@var@ holds @word@ -- `echo` it with a trailing s, no space}
 a: @var@=@word@; echo ${@var@}s
@@ -223,7 +234,7 @@ teach: sh
 hint: "%%" is the greedy version of "%" -- it eats from the FIRST dot onward, keeping only the start
 ---
 setup: you're reading someone else's script that predates $( )
-q: {grab the current timestamp into @tvar@, but write it the older backtick way|save the current date/time into @tvar@ using backticks, not $( )|stash the timestamp in @tvar@ with backticks instead of $( )}
+q: {grab the timestamp into @tvar@ the older backtick way|save the date/time into @tvar@ using backticks, not $( )|stash the timestamp in @tvar@ with backticks}, with `date`
 a: @tvar@=`date`
 why: conceptual
 ref: sh
@@ -235,7 +246,7 @@ a: alias @word@=ls; alias
 cmp: ref
 ref: alias
 teach: alias
-hint: alias with no name or value lists every alias you've defined, as name=value
+hint: `alias name=ls` defines one; `alias` alone lists every alias as name=value
 ---
 q: {what does this print?|call it -- what comes out?|read it: what does it print?}
 predict: f=app.log; echo ${f%.log}

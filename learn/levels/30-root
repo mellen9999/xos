@@ -14,10 +14,19 @@ brief:
 brief: This is one argument, in order. Each answer is a link, and the chain is
 brief: only worth what its weakest link is worth -- so read what each one
 brief: actually proves, and what it does not.
+brief:
+brief: Notation used below. A ``/proc/mounts`` line is ``device mountpoint type flags dump pass``,
+brief: e.g. ``/dev/dm-0 / squashfs ro,relatime 0 0`` -- awk's ``$1`` to ``$6``. sed's default
+brief: regex writes groups and counts as ``\( \)`` and ``\{64\}``; `sed -E` takes plain ``( )`` and ``{64}``.
+brief: `A && B || C` runs B if A worked, else C: `cd /x && echo ok || echo no`.
+brief: `mount -o remount,ro /mnt` re-mounts something already mounted with new options;
+brief: `2>/dev/null` hides error text. awk's `printf` is the shell's, but its arguments follow
+brief: commas and it adds no newline: `awk '{printf "%s-%s ", $1, $2}'`.
 ---
 setup: Start with the claim. The root filesystem is not trusted because it
 setup: looks right; it is trusted because every block read out of it is
-setup: checked against a hash tree.
+setup: checked against a hash tree. Print the device, filesystem type and mount
+setup: flags of the line for / (fields: device, mountpoint, type, flags).
 q: %show% / as read-only squashfs on device-mapper, with `awk` on ``/proc/mounts``
 a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
 cmp: ref
@@ -33,9 +42,14 @@ ref: ls
 teach: ls
 hint: a dm device lists what it is stacked on under slaves/
 ---
-setup: The claim was read-only. Check the flag, not the feeling.
+setup: The claim was read-only. Check the flag, not the feeling: print just `ro`
+setup: from the flags field.
 q: {confirm ``/proc/mounts`` has / read-only|check ``/proc/mounts`` says / is mounted read-only|prove the root is mounted read-only, from ``/proc/mounts``}, with `grep`
 a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro'
+a: awk '$2=="/" {print $4}' /proc/mounts | grep -o ro
+a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro,'
+a: grep ' / ' /proc/mounts | grep -o ' ro,'
+a: awk '$2=="/" && $4 ~ /^ro/' /proc/mounts
 why: live-hw
 ref: grep
 teach: grep -o
@@ -53,9 +67,11 @@ hint: no filtering this time -- the whole line, hash included
 ---
 setup: The command line is baked into the unified kernel image on the ESP, and
 setup: that image is signed with keys you enrolled into the firmware yourself.
-setup: So the hash is anchored OUTSIDE the filesystem it describes.
+setup: So the hash is anchored OUTSIDE the filesystem it describes. It sits on
+setup: the command line as the words `sha256 HASH`, HASH being 64 hex characters.
 q: %get% the root hash the kernel was given, with `sed`, from ``/proc/cmdline``
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
+a: sed -nE 's/.*sha256 ([0-9a-f]{64}).*/\1/p' /proc/cmdline
 why: live-hw
 ref: sed
 teach: sed -n
@@ -75,6 +91,9 @@ setup: Now the other end. Hash the bytes actually mounted and see the number
 setup: for yourself.
 q: %show% ``/dev/dm-0``'s digest with `sha256sum` -- the filesystem you're on, alone
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
+a: sha256sum /dev/dm-0 | awk '{print $1}'
+a: sha256sum /dev/dm-0 | cut -d ' ' -f 1
+a: sha256sum /dev/dm-0 | cut -c1-64
 why: live-hw
 ref: sha256sum
 teach: sha256sum
@@ -82,7 +101,8 @@ hint: cut -d' ' -f1 drops the device name sha256sum prints after the hash
 ---
 setup: The roothash the kernel enforces is a Merkle-tree root, not a flat
 setup: sha256sum of the device -- the two numbers are different things and will
-setup: not be equal. Print both as two facts, not a comparison.
+setup: not be equal. Print both as two facts, not a comparison: each line is the
+setup: label, a space, then the hash.
 q: {print the running digest ``mounted``, the anchored hash as roothash|label the running digest ``mounted``, the anchored hash roothash|two labelled lines: ``mounted``, then roothash}, with `printf`
 a: printf 'mounted %s\nroothash %s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
 cmp: ref
@@ -116,7 +136,9 @@ ref: [
 teach: [ -e
 hint: -e tests for existence, same idea as the modules check above
 ---
-setup: Three doors, one line. Close them and check they stayed closed.
+setup: Three doors, one line. Close them and check they stayed closed. Each line is
+setup: the label, a space, then its value: modules reads present or none, devmem
+setup: present or absent, lockdown the file's contents as they stand.
 q: {label 3 lines -- ``modules``, devmem ``present`` or absent, lockdown|print ``modules``, devmem ``present`` or absent, lockdown's value|one line each: ``modules``, devmem ``present`` or absent, then lockdown}, with `printf`
 a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo none)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
 cmp: ref
@@ -141,9 +163,11 @@ teach: dmesg
 hint: dmesg's boot log names the verity target as it starts checking blocks
 ---
 setup: And nothing writable may be executable, or the read-only root is a
-setup: formality.
+setup: formality. Print each one's mount point, then its flags.
 q: %show% every writable filesystem in ``/proc/mounts``, noexec or not, with `awk`
 a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
+a: awk '$4 ~ /^rw/ {print $2, $4}' /proc/mounts
+a: awk '$4 ~ "rw" {print $2, $4}' /proc/mounts
 why: live-hw
 ref: awk
 teach: awk
@@ -151,17 +175,19 @@ hint: $4 ~ /rw/ matches writable filesystems by their mount options
 ---
 setup: The kernel is the one enforcing this, so ask it directly -- try to undo
 setup: the read-only root and watch it refuse.
-q: {remount / rw, printing ``WRITABLE`` if it takes, ``refused`` if not|try remounting / rw with `mount`, ``WRITABLE`` or ``refused``|attempt / read-write, ``WRITABLE`` on success, ``refused`` on failure}, with `mount`
+q: {remount / rw quietly: ``WRITABLE`` if it takes, else ``refused``|remount / rw, errors hidden, ``WRITABLE`` or ``refused``|try / read-write silently, ``WRITABLE`` or ``refused``}, with `mount`
 a: mount -o remount,rw / 2>/dev/null && echo WRITABLE || echo refused
 why: live-hw
 ref: mount
 teach: mount -o
-hint: remount,rw attempts the write; the kernel refuses it if verity is enforced
+hint: -o remount,rw attempts the write (2>/dev/null hides the error text); the kernel refuses it if verity is enforced
 ---
 setup: The other half of that rule: the places you CAN write must refuse to
 setup: execute. Copy /bin/busybox to $HOME/x, make it executable, and try it.
 q: {copy busybox to `$HOME/x`, `chmod` ``+x``, run it `true` -- print ``ran`` or ``refused``|does a `chmod` ``+x`` busybox at `$HOME/x` run `true`? say ``ran`` or ``refused``|test exec in $HOME: busybox as `$HOME/x`, `chmod` ``+x``, `true` -- ``ran`` or ``refused``}
 a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
+a: cp /bin/busybox $HOME/x && chmod 755 $HOME/x && $HOME/x true && echo ran || echo refused
+a: cp /bin/busybox $HOME/x; chmod +x $HOME/x; $HOME/x true && echo ran || echo refused
 why: live-hw
 ref: chmod
 teach: chmod
@@ -193,9 +219,11 @@ ref: learn
 teach: learn
 hint: learn list enumerates every documented command; wc -l counts the lines
 ---
-setup: One line now. The whole argument, in the order you made it.
+setup: One line now. The whole argument, in the order you made it: the device,
+setup: type and flags of /, then the word panic_on_corruption, space-separated.
 q: %show% ``/proc/mounts``' line for / with `awk`, then ``/proc/cmdline``'s policy
 a: awk '$2=="/" {printf "%s %s %s ", $1, $3, $4}' /proc/mounts && grep -o panic_on_corruption /proc/cmdline
+a: awk '$2=="/" {printf "%s %s %s ", $1, $3, $4}' /proc/mounts ; grep -o panic_on_corruption /proc/cmdline
 why: live-hw
 ref: awk
 teach: awk
@@ -204,7 +232,8 @@ hint: two commands chained with && so both must succeed as evidence
 setup: Last. Everything you have learned, aimed at the machine underneath you.
 setup: The roothash is signed and enforced -- panic_on_corruption halts the
 setup: machine on a single altered block. That live enforcement, not a hash you
-setup: match by eye, is what proves this is the system you built.
+setup: match by eye, is what proves this is the system you built. Three bare
+setup: lines, no labels.
 q: %show% the mounted digest, the anchored hash, enforcement, with `printf`
 a: printf '%s\n%s\n%s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)" "$(grep -o panic_on_corruption /proc/cmdline)"
 cmp: ref

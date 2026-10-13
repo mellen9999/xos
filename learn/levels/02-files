@@ -69,7 +69,7 @@ eg: cp -a /opt/app /mnt/app-mirror
 state: sametime:@dir@:@dir2@-archive
 ref: cp
 teach: cp -a
-hint: cp calls it "Same as -dpR"
+hint: `-a` is archive: copy everything, keep links, modes and times
 ---
 q: {rename @txt@ to @word@.txt|change @txt@'s name to @word@.txt|give @txt@ the new name @word@.txt}
 a: mv @txt@ @word@.txt

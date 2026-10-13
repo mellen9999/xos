@@ -29,7 +29,7 @@ eg: cat -e /etc/passwd
 cmp: ref
 ref: cat
 teach: cat -e
-hint: cat calls this "End each line with $"
+hint: `-e` puts a $ at the end of every line, so trailing spaces show
 ---
 q: %show% the first ten lines of @log@
 a: head @log@

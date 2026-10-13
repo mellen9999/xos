@@ -16,7 +16,11 @@ brief: `gunzip`, `bunzip2` and `unxz` put it back, and `zcat` and `xzcat` read a
 brief: compressed file straight through without unpacking it first. `unzip`
 brief: handles the ``.zip`` archives that arrive from elsewhere. `cpio` is the older
 brief: bundler that never went away -- an initramfs, including this system's,
-brief: is a cpio archive.
+brief: is a cpio archive. It reads the file names to pack from stdin, one per line:
+brief: `ls | cpio -o > a.cpio`; ``-H newc`` picks the format a kernel boots from.
+brief:
+brief: To pick the smallest in a `tar -tv` listing, sort by a column: `ls -l | sort -k5n,5`
+brief: sorts by field 5 only (``,5`` ends the key), numerically.
 ---
 setup: you just downloaded @archive@ and don't trust it yet
 q: %list% @archive@'s contents with `tar`, not extracting
@@ -324,7 +328,7 @@ state: match:out.cpio:070701
 ref: cpio
 teach: cpio -o
 teach: cpio -H
-hint: -o creates from a list of names on stdin; -H newc picks the portable format
+hint: -o creates from a list of names on stdin (here echo supplies it); -H newc picks the portable format
 ---
 q: %list% what is inside ``archive.cpio`` with `cpio`, without extracting
 a: cpio -t < archive.cpio
@@ -362,7 +366,7 @@ teach: tar
 hint: tar -tvf's first column is d for a directory and - for a file; grep -c counts just the dash lines
 ---
 setup: @archive@ arrived with nothing describing it, and you want its shape before it touches anything
-q: {%find% @archive@'s smallest real file|which file in @archive@ takes least space?|@archive@'s tiniest member, dirs aside}, with `tar`
+q: {pick @archive@'s smallest file, ties by name|smallest file in @archive@? ties: 1st name|@archive@'s tiniest file, ties by name}, with `tar`
 a: tar -tvf @archive@ | grep '^-' | sort -k3n,3 -k6 | head -1
 cmp: ref
 ref: tar

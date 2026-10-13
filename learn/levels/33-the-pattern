@@ -42,7 +42,7 @@ teach: grep -E
 hint: the group captures "dot then 1-3 digits", and {3} repeats that whole group three more times after the first octet
 ---
 setup: you want ERROR and WARN treated the same downstream, without two separate sed passes
-q: {turn @log@'s bare ERROR or WARN lines into ``ALERT``, `sed -E`|collapse @log@'s bare ERROR/WARN lines to ``ALERT``, one `sed -E` pass|rewrite @log@'s lone ERROR/WARN lines as ``ALERT``, `sed -E`}
+q: {`sed -E` @log@'s bare ERROR/WARN lines to ``ALERT``, `grep` count them|`sed -E` a lone ERROR or WARN in @log@ to ``ALERT``, count via `grep`|how many ``ALERT`` lines does `sed -E` leave in @log@? count with `grep`}
 a: sed -E 's/^(ERROR|WARN)$/ALERT/' @log@ | grep -c ALERT
 out: ^2$
 cmp: ref

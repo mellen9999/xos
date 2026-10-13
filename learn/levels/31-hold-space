@@ -15,6 +15,18 @@ brief:
 brief: `:label` marks a spot, `b label` jumps to it unconditionally, `t label`
 brief: jumps to it only if the last `s///` actually changed something --
 brief: which is how a substitution loops until nothing is left to fix.
+brief:
+brief: Addresses pick which lines a command runs on: ``$`` is the last line, ``1`` the first,
+brief: and ``!`` inverts the pick -- `$!d` deletes every line except the last, `1!G` runs
+brief: `G` on every line but the first. `printf 'a\nb\n' | sed '$!d'` prints ``b``;
+brief: `sed '2!d'` keeps only line 2. A `!` before a command means "unless the address
+brief: matches", for `b` just the same.
+brief:
+brief: Lowercase `n` prints the pattern space (unless `-n`), then loads the next line over it (`N`
+brief: appends instead). `{ }` groups commands under one address: `sed -n '2{p;p}'`
+brief: prints line 2 twice. Inside a pattern, ``\n`` matches the newline in a two-line
+brief: pattern space and ``\1`` repeats what group 1 matched, so ``\(x*\)\n\1`` matches
+brief: a run of x's, a newline, then the very same run again.
 ---
 setup: tac isn't always around, but sed's hold space can do its job
 q: {reverse the line order of @cfg@ using `sed`'s hold space, no `tac`|read @cfg@ backwards with `sed` alone, not `tac`|flip @cfg@ top-to-bottom with `sed`, no `tac` involved}
@@ -25,7 +37,7 @@ teach: sed
 hint: every line appends itself before whatever G already holds, then h saves it back -- only the last line's turn prints, by when the hold has all of it in reverse
 ---
 setup: you want to skim a dense @cfg@ with breathing room between lines, without editing the file
-q: {double @cfg@'s line spacing with `sed`'s bare `G`|blank-line-pad every line of @cfg@ with `sed`'s `G`|add a blank line after each line of @cfg@, with `sed`}
+q: {count @cfg@'s lines once `sed`'s bare `G` double-spaces it, `wc`|count @cfg@'s lines after `sed`'s `G` pads each one, using `wc`|how many lines is @cfg@ after `sed` `G`-pads it, counted with `wc`}
 a: sed 'G' @cfg@ | wc -l
 out: ^[0-9]*[02468]$
 cmp: ref
@@ -34,7 +46,7 @@ teach: sed
 hint: G appends the hold space, still empty, after every line -- one blank line per real line, so the total count always comes out even
 ---
 setup: @log@ carries one line straight after a byte-identical copy of itself, and neither d nor s alone can compare a line to its neighbor
-q: {collapse @log@'s one back-to-back repeat with `sed`|drop @log@'s one adjacent duplicate line, `sed` not `uniq`|remove @log@'s repeated-in-a-row line, `sed`-only}
+q: {`sed` out @log@'s adjacent repeat, `grep` count ``connection refused``|drop @log@'s repeat with `sed`, `grep` count ``connection refused``|`sed` away @log@'s repeated line, `grep` the ``connection refused`` count}
 a: sed '$!N; /^\(.*\)\n\1$/!P; D' @log@ | grep -c 'connection refused'
 out: ^1$
 cmp: ref

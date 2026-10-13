@@ -9,6 +9,13 @@ brief:
 brief: `dd` names its arguments with `=` rather than flags: `if=` in, `of=` out, `bs=`
 brief: block size, `count=` how many blocks.
 brief:
+brief: `hexdump -e` takes your own layout: ``COUNT/BYTES "fmt"`` prints COUNT units of
+brief: BYTES bytes each through a printf-style fmt. `-e '4/1 "%02x "'` = four bytes as
+brief: two hex digits each, then a space; a trailing ``"\n"`` ends the line.
+brief:
+brief: Two special files feed `dd` and friends: ``/dev/zero`` is endless zero bytes,
+brief: ``/dev/urandom`` is endless random bytes.
+brief:
 brief: Sizing and slicing: `truncate` sets a file's length to whatever you say,
 brief: `fallocate` reserves the blocks up front so the space is already yours,
 brief: `split` cuts one large file into lettered pieces (`xaa`, `xab`, ...) you can move separately.
@@ -49,7 +56,7 @@ ref: hexdump
 teach: hexdump -v
 hint: hexdump normally folds repeated lines into a *; -v turns that off
 ---
-setup: another script needs to parse this dump and the usual hex-plus-text layout doesn't line up cleanly for it
+setup: another script needs to parse this dump and the usual hex-plus-text layout doesn't line up cleanly for it: it wants 16 bytes per line, each as two lowercase hex digits and a space
 q: {dump @bin@ with your own format string|dump @bin@ with a format string you supply|write your own format, dump @bin@ with it}, with `hexdump`
 a: hexdump -e '16/1 "%02x " "\n"' @bin@
 out: [0-9a-f]

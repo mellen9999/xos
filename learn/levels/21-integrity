@@ -224,13 +224,13 @@ teach: sha256sum
 hint: find lists the files, sort fixes their order, xargs feeds them to sha256sum, then the same digest-column/dedupe/count as before
 ---
 setup: someone handed you files to verify and a bare hash on screen proves nothing by itself
-q: {`sha256sum` ``*.log`` to ``sums.txt``, break ``error.log``, list the failure|`sha256sum` ``*.log`` to ``sums.txt``, break ``error.log``, show what fails|hash ``*.log`` to ``sums.txt`` with `sha256sum`, break ``error.log``, failures}
+q: {`sha256sum` ``*.log`` to ``sums.txt``, append a byte to ``error.log``, list the failure|`sha256sum` ``*.log`` to ``sums.txt``, append a byte to ``error.log``, show what fails|hash ``*.log`` to ``sums.txt`` with `sha256sum`, append a byte to ``error.log``, failures}
 a: sha256sum *.log > sums.txt; printf x >> error.log; sha256sum -c sums.txt 2>&1 | grep FAILED
 out: FAILED
 cmp: ref
 ref: sha256sum
 teach: sha256sum
-hint: appending a byte after hashing breaks just error.log's checksum; -c reports each line OK or FAILED, and grep keeps only the bad one
+hint: appending a byte after hashing breaks just error.log's checksum; -c reports each line OK or FAILED (its WARNING summary goes to stderr, so 2>&1 sends it down the pipe and grep hides it, leaving a clean screen), and grep keeps only the bad one
 ---
 setup: someone handed you files to verify and a bare hash on screen proves nothing by itself
 q: {`base64` @txt@ and back into ``round.txt``, then `cmp` the two|encode @txt@ with `base64`, decode into ``round.txt``, `cmp` it|round-trip @txt@ through `base64` into ``round.txt`` and `cmp` it}

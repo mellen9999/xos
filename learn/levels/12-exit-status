@@ -17,10 +17,13 @@ brief:
 brief: The other specials: `$$` this shell's pid, `$!` the last background pid,
 brief: `$#` how many arguments, `$@` all of them, `$0` the name it was invoked as.
 brief:
-brief: `$*` joins that same list into one word. `--` marks the end of options,
+brief: Quoted, `"$*"` joins that same list into one word. `--` marks the end of options,
 brief: so anything after it is a literal argument even if it starts with `-`.
 brief: `( )` run their commands in a fresh subshell -- a copy that can't change
 brief: the parent; `{ }` run them in the current shell, just grouped as one.
+brief: Write `{ y=5; }` with a space after `{` and a `;` before `}`.
+brief: A leading `!` flips a status. `for w in a b; do echo $w; done` runs the
+brief: body once per word (loops get their own level).
 ---
 q: {run false, then %show% the exit status it left behind in `$?`|run false and check what `$?` comes back as|execute false, then %show% its exit code from `$?`}
 a: false; echo $?
@@ -43,7 +46,7 @@ out: @word@
 cmp: ref
 ref: grep
 teach: grep -q
-hint: -q silences grep's output, leaving only its exit status for &&
+hint: `-q` silences grep's output, leaving only its exit status for &&
 ---
 setup: the absence is the thing worth reporting here, not the presence
 q: %show% "``missing``" if @log@ has no match for ``nonexistent``, with `grep`
@@ -97,7 +100,7 @@ a: ! grep -q nonexistent @log@
 status: 0
 ref: grep
 teach: grep -q
-hint: a leading ! flips the status
+hint: a leading `!` flips the status
 ---
 q: {make a broken step stop the script instead of continuing|one failing command should end the script, not be ignored|stop at the first failure rather than carrying on}, with `set`
 a: set -e
@@ -105,7 +108,7 @@ eg: set -e; false; echo unreachable
 why: conceptual
 ref: set
 teach: set -e
-hint: -e makes any failing command end the script immediately
+hint: `set -e` makes any failing command end the script immediately
 ---
 q: {catch a typo'd variable expanding to empty -- fail loudly|a misspelled variable is an error -- not an empty string|an unset variable should stop the shell -- not blank out}, with `set`
 a: set -u
@@ -113,7 +116,7 @@ eg: set -u; echo "$UNSET_VAR"
 why: conceptual
 ref: set
 teach: set -u
-hint: -u turns a reference to an unset variable into a hard error
+hint: `set -u` turns a reference to an unset variable into a hard error
 ---
 q: {`cd` into @word@-place, or create it if that fails|enter @word@-place, falling back to creating it if `cd` fails|`cd` into @word@-place or, failing that, make it}
 a: cd @word@-place || mkdir @word@-place
@@ -128,14 +131,14 @@ eg: set -x; ls /tmp
 why: conceptual
 ref: set
 teach: set -x
-hint: this is the shell debugger, and it is usually enough
+hint: `set -x` prints each command before it runs
 ---
 q: {turn command tracing back off|stop tracing each command}, with `set`
 a: set +x
 why: conceptual
 ref: set
 teach: set
-hint: + turns an option off, the mirror of - turning it on
+hint: `set +x` -- a plus turns an option off, the mirror of `-x` turning it on
 ---
 setup: you don't know which options this shell already has switched on
 q: %show% the shell's current option settings, with `set`
@@ -143,7 +146,7 @@ a: set -o
 out: errexit
 ref: set
 teach: set -o
-hint: -o with no name lists every option and whether it's on or off
+hint: `set -o` with no name lists every option and whether it's on or off
 ---
 q: `set` `--` a b c, then %show% how many positional parameters there are
 a: set -- a b c; echo $#
@@ -192,7 +195,7 @@ a: x=1; { x=2; }; echo $x
 cmp: ref
 ref: sh
 teach: sh
-hint: { } runs in the current shell -- x=2 here really overwrites the outer x
+hint: `{ x=2; }` runs in the current shell -- space after `{`, `;` before `}` -- so x=2 really overwrites the outer x
 ---
 setup: an argument you need to pass looks exactly like a flag
 q: {load -n as a plain argument with `set`, then `printf` it back|`set` -n as an argument, not a flag, then `printf` it|make -n a plain word with `set`, then `printf` what you got}
@@ -200,7 +203,7 @@ a: set -- -n; printf '%s\n' "$1"
 cmp: ref
 ref: printf
 teach: printf
-hint: -- marks the end of options, so -n after it is read as a plain word
+hint: `--` marks the end of options, so -n after it is read as a plain word
 ---
 q: {what does this print?|call it -- what comes out?|read it: what does it print?}
 predict: set -- "a b" c; echo $#

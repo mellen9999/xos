@@ -15,9 +15,14 @@ brief:
 brief: `|` wires one command's stdout into the next's stdin -- `tee`, later in
 brief: this level, needs it.
 brief:
-brief: The commands either side are ones you have: `ls`, `grep`, `sort`, `wc`, `echo`.
-brief: `printf` is the new one, and the better one -- it prints exactly the
-brief: format you hand it, no newline unless you write `\n` yourself.
+brief: `wc -l` counts lines. `a; b` runs a, then b. `: > log` empties (or makes) log.
+brief: Commands you have: `ls`, `sort`, `wc`, `echo`. `grep word` keeps the lines containing word.
+brief:
+brief: `printf` is the better echo -- it prints exactly the format you hand it, no
+brief: newline unless you write `\n` yourself. `%s` is the next word, `%d` a
+brief: number, `%05d` a zero-padded one: `printf '%s is %d\n' age 12`.
+brief: Put the format in single quotes: they hand text over untouched, so the
+brief: shell does not eat the `\`, the spaces or the `|` -- `printf 'a\tb\n'`.
 ---
 q: {write @word@ into @word@.txt with `echo`, replacing what's there|write @word@ into @word@.txt with `echo`, overwriting what was before|save @word@ to @word@.txt with `echo`, wiping out old contents}
 a: echo @word@ > @word@.txt
@@ -83,7 +88,7 @@ a: wc -l @txt@ > @cvar@.txt
 state: match:@cvar@.txt:^[0-9]
 ref: wc
 teach: wc -l
-hint: redirecting in with < keeps the filename out of wc's output
+hint: `wc -l` counts lines; redirecting in with < keeps the filename out of wc's output
 ---
 q: %show% the word @word@ with `printf` -- no surprises like echo has
 a: printf '%s\n' @word@

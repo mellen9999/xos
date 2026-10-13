@@ -74,7 +74,7 @@ a: :%s/@old@/@new@/g
 why: interactive
 ref: vi
 teach: vi
-hint: the same s/// you already know from sed
+hint: the same s/// you already know from sed; % = every line, g = every match on a line
 ---
 q: {delete the current line in vi|remove the current line in vi|delete the line the cursor is on, in vi}
 a: dd

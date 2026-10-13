@@ -31,7 +31,7 @@ a: ps -o pid,comm
 out: ^PID +COMMAND$
 ref: ps
 teach: ps -o
-hint: -o picks exactly which columns to show
+hint: -o pid,comm picks exactly which columns to show (comm = command name)
 ---
 q: a process looks hung -- %list% its threads too, with `ps`
 a: ps -T
@@ -55,7 +55,7 @@ out: PID|Mem
 ref: top
 teach: top -b
 teach: top -n
-hint: b for batch mode -- plain text, no cursor tricks
+hint: -b for batch mode -- plain text, no cursor tricks; -n 1 = one refresh, then exit
 ---
 q: {`top` refreshes too fast to read -- slow it to every 5 seconds|slow `top`'s refresh to every 5 seconds so the numbers hold still|watch `top` updating only once every 5 seconds instead}
 a: top -d 5
@@ -304,7 +304,7 @@ teach: killall
 hint: killall matches by exact process name, unlike pkill's substring matching
 ---
 setup: you want to poke around as root without any of it reaching the real filesystem or network
-q: {run a shell in new mount, net and pid namespaces|give a shell its own mounts, network and pids|a shell that sees its own mount, net and pid namespaces}, with `unshare`
+q: {a root-mapped shell in new mount, net, pid namespaces|a shell as root with its own mounts, network, pids|root-mapped shell, own mount, net and pid namespaces}, with `unshare`
 a: unshare -r -m -n -p sh
 eg: unshare -r -m -n -p sleep 5
 why: root
@@ -322,7 +322,7 @@ eg: unshare -f -p sleep 5
 why: root
 ref: unshare
 teach: unshare -f
-hint: a pid namespace only takes effect for children, so -f forks before exec
+hint: -p is the new pid namespace; it only takes effect for children, so -f forks before exec
 ---
 setup: you need a shell inside another process's world to see what it sees, not a new one of your own
 q: {enter pid 1's mount, net and pid namespaces|join pid 1's mounts, network and pids|a shell that shares the mount, net and pid namespaces of pid 1}, with `nsenter`

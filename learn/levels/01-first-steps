@@ -10,6 +10,11 @@ brief: Answers RUN. Type what you would really type -- if it produces the
 brief: correct output it counts, whether or not it is the phrasing anyone
 brief: expected.
 brief:
+brief: A flag changes what a command does: a dash and a letter, `ls -l`. Every
+brief: command has a reference page -- `f ls` at the menu, or Tab at a card.
+brief: Common `ls` flags: `-a` hidden files, `-l` long format, `-h` friendly
+brief: sizes, `-t` newest first, `-r` reversed.
+brief:
 brief: `$NAME` expands to a variable's value -- `$HOME` is where you live. `echo`
 brief: prints what it is handed after the shell has expanded it, which makes
 brief: it how you look at a value before you trust it.
@@ -35,7 +40,7 @@ eg: ls -a /home
 cmp: ref
 ref: ls
 teach: ls -a
-hint: the flag ls describes as "Include names starting with ."
+hint: `-a` shows all, hidden dotfiles too
 ---
 q: %list% @dir@ with `ls`, long format for sizes and permissions
 a: ls -l @dir@
@@ -43,7 +48,7 @@ a: ls -l @dir@/
 out: ^total
 ref: ls
 teach: ls -l
-hint: the long format flag, then the path
+hint: `-l` is long format -- one detailed line per file -- then the path
 ---
 q: %list% this directory with `ls`, long format, sizes in K and M
 a: ls -lh
@@ -51,7 +56,7 @@ eg: ls -lh /etc
 out: ^total [0-9.]+[KMGT]
 ref: ls
 teach: ls -h
-hint: two flags -- long format, and the one ls calls "Human readable"
+hint: `-l` for long format plus `-h` for human sizes
 ---
 q: %list% this directory with `ls`, {newest first|by modification time}
 a: ls -lt
@@ -60,7 +65,7 @@ eg: ls -lt /etc
 why: fixture-cost
 ref: ls
 teach: ls -t
-hint: sort by time
+hint: `-t` sorts by modification time, newest first
 ---
 setup: you are about to pipe this list into another command
 q: %list% this directory with `ls`, one filename per line
@@ -69,7 +74,7 @@ eg: ls -1 /root
 out: ^server\.log$
 ref: ls
 teach: ls -1
-hint: the digit one, not the letter l
+hint: `-1` -- the digit one, not the letter l
 ---
 q: {print|`echo`} the word @word@
 a: echo @word@
@@ -85,7 +90,7 @@ out: @word@
 cmp: ref
 ref: echo
 teach: echo -n
-hint: n for newline -- the flag suppresses it
+hint: `-n` suppresses the newline
 ---
 q: %show% the value of `$HOME` with `echo`
 a: echo $HOME
@@ -126,7 +131,7 @@ eg: ls -A /root
 cmp: ref
 ref: ls
 teach: ls -A
-hint: like -a, but leaves out . and ..
+hint: `-A` is like `-a` but leaves out . and ..
 ---
 q: {confirm @dir@ exists, without dumping what's inside it|check @dir@ is there but don't list its contents|does @dir@ exist? don't print what's in it}, with `ls`
 a: ls -d @dir@
@@ -134,7 +139,7 @@ eg: ls -d /etc
 out: ^@dir@$
 ref: ls
 teach: ls -d
-hint: stops ls from descending into the directory
+hint: `-d` lists the directory itself, not what is inside it
 ---
 q: %list% this directory with `ls` so files, dirs, executables stand out
 a: ls -F
@@ -142,7 +147,7 @@ eg: ls -F /root
 cmp: ref
 ref: ls
 teach: ls -F
-hint: appends a symbol showing each entry's type
+hint: `-F` appends a symbol to each name: / for directories, * for programs
 ---
 setup: you are hunting for two names that are secretly one file
 q: %list% this directory with `ls`, showing inode numbers for hard links
@@ -151,7 +156,7 @@ eg: ls -i /etc/hosts
 out: ^ *[0-9]+ [^ ]
 ref: ls
 teach: ls -i
-hint: the number a file is known by at the filesystem level, not its name
+hint: `-i` prints each file's inode -- the number the filesystem knows it by; two names with one inode are one file
 ---
 setup: these files came off another machine, and its users do not exist here
 q: %list% this directory with `ls`, long format, numeric ids not names
@@ -160,7 +165,7 @@ eg: ls -ln /home
 out: ^[-dlbcps][rwxsStT.+-]{9,10} +[0-9]+ +[0-9]+ +[0-9]+
 ref: ls
 teach: ls -n
-hint: n modifies -l to print ids as numbers instead of names
+hint: `-n` with `-l` prints user and group as numbers instead of names
 ---
 q: %list% this directory with `ls`, marking directories only
 a: ls -p
@@ -168,7 +173,7 @@ eg: ls -p /home
 cmp: ref
 ref: ls
 teach: ls -p
-hint: like -F but only marks directories, nothing else
+hint: `-p` is like `-F` but only marks directories with /
 ---
 q: %list% this directory with `ls`, in reverse order
 a: ls -r
@@ -176,7 +181,7 @@ eg: ls -r /home
 cmp: ref
 ref: ls
 teach: ls -r
-hint: reverses whatever order ls would otherwise use
+hint: `-r` reverses the order
 ---
 q: %list% everything under @dir@ with `ls`, recursively
 a: ls -R @dir@
@@ -184,7 +189,7 @@ eg: ls -R /home
 cmp: ref
 ref: ls
 teach: ls -R
-hint: capital R -- lowercase r reverses order instead
+hint: `-R` -- capital R; lowercase `-r` reverses order instead
 ---
 q: %list% this directory with `ls`, largest file first
 a: ls -S
@@ -192,7 +197,7 @@ eg: ls -S /home
 cmp: ref
 ref: ls
 teach: ls -S
-hint: sorts by size instead of name
+hint: capital `-S` sorts by size, largest first (lowercase `-s` is something else)
 ---
 setup: a file can claim more bytes than it actually spends on disk
 q: %list% this directory with `ls`, the disk blocks each file uses
@@ -201,7 +206,7 @@ eg: ls -sh /home
 cmp: ref
 ref: ls
 teach: ls -s
-hint: shows size in blocks, not bytes -- pair with -h for human units
+hint: lowercase `-s` shows size in blocks, not bytes -- pair with `-h` for human units
 ---
 q: %show% where you are standing, using `echo` rather than pwd
 a: echo $PWD

@@ -194,7 +194,7 @@ a: arping -c 3 @ip@
 why: live-hw
 ref: arping
 teach: arping -c
-hint: arp works below ip, so this finds hosts that will not answer a ping
+hint: -c 3 stops after three probes; arp works below ip, so this finds hosts that will not answer a ping
 ---
 setup: every arping here sends one probe, then stops
 q: {send the arp probe for @ip@ out of @iface@|send the arp probe for @ip@ through @iface@|pick @iface@ as the interface the arp probe for @ip@ goes out of}
