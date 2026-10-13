@@ -3,11 +3,13 @@ after: 21-integrity
 intro: You are about to hand these files to someone else, or to yourself on a
 intro: worse day. Three programs about getting them there intact: pack them,
 intro: prove two copies are the same, and leave a record that says so.
+intro: what it prints means stdout and stderr together, and its exit status is checked too.
 ---
 q: pack.sh -- box a directory up and count what went in
 spec: It takes a directory and an archive name. It makes a gzip-compressed
-spec: tar archive of that directory under that name, then prints how many
-spec: entries the archive holds and nothing else.
+spec: tar archive of that directory under that name, stored by the path you were
+spec: given (no ./ in front); the directory itself counts as an entry. Then it
+spec: prints how many entries the archive holds and nothing else.
 spec:
 spec: With anything other than exactly two arguments it exits 2.
 file: pack.sh

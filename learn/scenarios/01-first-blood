@@ -2,8 +2,8 @@ name: first blood
 after: 08-cutting
 intro: Hints cost nothing here -- see how far you get without them. Three
 intro: questions on the one file every unix has. Build each pipeline a stage at
-intro: a time and look at what each stage prints before you add the next --
-intro: that IS the skill.
+intro: a time -- that IS the skill. Try each stage in the shell (t at the menu)
+intro: first -- every line typed here is graded.
 ---
 setup: /etc/passwd is colon-separated. Field 1 is the username, field 7 the
 setup: login shell. It is the first file you read on any machine you are handed.

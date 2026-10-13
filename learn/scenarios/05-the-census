@@ -1,8 +1,8 @@
 name: the census
 after: 19-xargs
 intro: Four commands minimum from here. Build the pipeline one stage at a time
-intro: and read the output of each before you add the next -- that is the actual
-intro: skill, not memorising flags.
+intro: -- that is the actual skill, not memorising flags. Try each stage in the
+intro: shell (t at the menu) first -- every line typed here is graded.
 ---
 setup: Every ref file lists its flags on indented lines beginning with a dash.
 setup: A character class avoids having to type a literal tab.
@@ -25,7 +25,6 @@ setup: drills on ref: lines. Difference the whole corpus down to the unique set
 setup: of commands the curriculum touches.
 q: every command drilled in ``/usr/share/learn/levels`` with `sed`, deduped
 a: sed -n 's/^ref: //p' /usr/share/learn/levels/* | sort -u
-a: grep -h '^ref: ' /usr/share/learn/levels/* | sed 's/^ref: //' | sort -u
-why: live-hw
 ref: sed
+cmp: ref
 hint: strip the "ref: " prefix, then sort -u does the deduplicating

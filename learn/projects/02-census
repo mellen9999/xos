@@ -6,6 +6,7 @@ intro: because your program is compared against a reference run on the same
 intro: files, and two right answers have to agree on what right looks like.
 intro:
 intro: How you get there is still yours. Nothing here names a tool.
+intro: what it prints means stdout and stderr together, and its exit status is checked too.
 ---
 q: census.sh -- which severities a log is full of
 spec: It takes one log file. Every line of that log is a date, a time, a
@@ -26,7 +27,7 @@ case: sh census.sh; echo $?
 case: sh census.sh a b; echo $?
 ref: sh
 teach: sh
-hint: count them however you like -- the work is getting the severity out of each line and the two sort keys right
+hint: count them however you like -- the work is getting the severity out of each line and the two sort keys right: count high to low, then name a to z on a tie
 ---
 q: keep.sh -- trim a file to its tail, in place
 spec: It takes a file and a number. Afterwards that file holds only its last

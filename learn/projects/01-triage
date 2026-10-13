@@ -6,11 +6,14 @@ intro: and it is run against cases you do not see; a case that does not match
 intro: tells you which input broke it and what came out instead.
 intro:
 intro: Anything that behaves right passes. There is no shape it has to have.
+intro: vi basics: `i` types, Esc stops, `:wq` saves and quits.
+intro: what it prints means stdout and stderr together, and its exit status is checked too.
 ---
 q: count.sh -- how many lines of a file carry a word
 spec: It takes two arguments: a word, then a file. It prints how many lines
 spec: of that file contain the word, and nothing else.
 spec:
+spec: When no line matches it prints 0 and exits 1, the way grep -c does.
 spec: Given fewer than two arguments it prints nothing and exits 2.
 file: count.sh
 prog: #!/bin/sh
@@ -47,8 +50,8 @@ spec: It takes one file. It writes that file's sorted, de-duplicated lines to
 spec: a working file called out.tmp, prints how many lines that came to, and
 spec: nothing else.
 spec:
-spec: out.tmp must not exist afterwards -- not on the way out, and not if the
-spec: script dies partway.
+spec: out.tmp must not exist afterwards -- not on a normal finish, and not
+spec: when a command in it fails.
 file: tmp.sh
 prog: #!/bin/sh
 prog: t=out.tmp

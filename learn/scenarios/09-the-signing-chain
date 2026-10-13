@@ -41,7 +41,7 @@ a: platform key
 a: the PK
 a: PK key
 why: conceptual
-hint: two letters -- until it lands, the firmware is still in setup mode
+hint: two letters -- the key whose arrival ends setup mode; until it lands, the firmware stays open
 ---
 setup: A UKI is a PE binary, and PE signatures have a quirk you must know before
 setup: you ever reach for sha256sum to check one. Authenticode does NOT hash the
@@ -68,7 +68,7 @@ hint: the PE-aware one that skips three regions, not the whole-file one
 setup: Now revocation. A signature proves WHO signed an image. It can never, by
 setup: itself, prove WHEN -- so a key stolen today can sign something and backdate
 setup: the story. The firmware's answer is a denylist of digests it refuses even
-setup: though they were once validly signed.
+setup: though they were once validly signed. That denylist is the opposite of db.
 q: name the denylist that rejects a signed but known-bad image
 a: dbx
 a: DBX
@@ -76,7 +76,7 @@ a: Dbx
 a: the dbx
 a: the dbx database
 why: conceptual
-hint: the counterpart of db -- the forbidden-signatures database
+hint: three letters, the counterpart of db -- the forbidden-signatures database
 ---
 setup: Verified boot has now proven one thing precisely: the machine runs what
 setup: was SIGNED. It has said nothing about whether what was signed matches the
@@ -96,7 +96,8 @@ hint: rebuild from source, compare image.sha256, get the same number
 setup: Know where the chain STOPS, or you will trust it too far. The signature
 setup: covers the kernel, the command line and every block of the root. Two
 setup: things on the stick it does not cover: the partition table, and the
-setup: filesystem metadata of the EFI partition. Tamper there and you can stop
+setup: filesystem metadata of the EFI partition (the one format
+setup: every firmware can read). Tamper there and you can stop
 setup: the machine booting -- you cannot change what runs.
 q: which filesystem's metadata on the efi partition the signature misses
 a: FAT
@@ -116,6 +117,11 @@ a: write protect switch
 a: the write-protect switch
 a: write-protection switch
 a: the write-protection switch
+a: write-protect
+a: write protect
+a: hardware write protect switch
+a: hardware switch
+a: write-protect switch on the stick
 a: hardware write protect
 a: hardware write-protect switch
 why: conceptual

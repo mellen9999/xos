@@ -7,3 +7,4 @@ Print FILEs (or stdin) unambiguously, as octal bytes by default.
 	-j SKIP		Skip SKIP bytes first
 	-N SIZE		Read only SIZE bytes
 	-t TYPE		Show as TYPE (e.g. x1 for hex bytes)
+	-v		Print every line, do not fold repeats into *

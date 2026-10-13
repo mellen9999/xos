@@ -4,6 +4,7 @@ intro: A file on a machine you were handed does not have to tell you what it
 intro: is, and its name is whatever the last person felt like. Three programs
 intro: for deciding that yourself: name it by what is in its first four bytes,
 intro: say whether it is text or not, and pull the readable part out.
+intro: what it prints means stdout and stderr together, and its exit status is checked too.
 ---
 q: what.sh -- name a file by its first four bytes
 spec: It takes one file and prints exactly one word, from this list, by what
@@ -35,7 +36,7 @@ case: sh what.sh @txt@
 case: sh what.sh; echo $?
 ref: sh
 teach: sh
-hint: the hard part is getting those four bytes into something you can compare -- after that it is one case
+hint: the hard part is getting those four bytes into something you can compare -- od can print just the first N bytes as hex, tr can strip the spaces and newline it leaves, and after that it is one case
 ---
 q: bytes.sh -- how much of a file is not text
 spec: It takes one file and prints two lines and nothing else:
@@ -43,8 +44,11 @@ spec:
 spec:   bytes N     how many bytes the file holds
 spec:   binary N    how many of those are not printable ASCII
 spec:
-spec: A byte counts as printable when it is a tab, a newline, a carriage
-spec: return, or falls in 32 to 126. Everything else is binary.
+spec: Each line is the label, one space, then the number.
+spec:
+spec: A byte counts as printable when its value is 9 to 13 or 32 to 126
+spec: (tab, newline and friends, plus the visible characters). Everything
+spec: else is binary.
 spec:
 spec: With anything other than exactly one argument it exits 2.
 file: bytes.sh
@@ -58,7 +62,7 @@ case: sh bytes.sh archive.zip
 case: sh bytes.sh; echo $?
 ref: sh
 teach: sh
-hint: od can hand you every byte as a number, one screenful of columns at a time -- the counting is then arithmetic, not pattern matching
+hint: od can hand you every byte as a number (-tu1, with -An to drop the offsets) -- add -v or repeated rows collapse to *; the counting is then arithmetic, not pattern matching
 ---
 q: strings-in.sh -- the readable part of everything in a directory
 spec: It takes a directory. For every regular file directly inside it, it
@@ -67,6 +71,8 @@ spec: then the first run of 6 or more printable characters in that file.
 spec:
 spec: A file with no such run prints nothing at all. Subdirectories are
 spec: skipped.
+spec:
+spec: It exits 0.
 spec:
 spec: With anything other than exactly one argument it exits 2.
 file: strings-in.sh
@@ -77,6 +83,7 @@ prog: [ -f "$f" ] || continue
 prog: s=$(strings -n 6 "$f" | head -n 1)
 prog: [ -n "$s" ] && echo "${f##*/} $s"
 prog: done
+prog: exit 0
 case: sh strings-in.sh samples
 case: sh strings-in.sh src
 case: sh strings-in.sh; echo $?
