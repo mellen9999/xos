@@ -279,6 +279,8 @@ _ed_budget() {
 # failures are told apart by -gt 128 and a hangup is never read as a timeout.
 _ed_getc() {
 	local _rc _t
+	# a timed-out read leaves _r unset, and the caller reads it under set -u
+	_r=
 	if [ -z "${_dl:-}" ]; then
 		IFS= read -rsn1 _r 2>/dev/null
 		return $?
