@@ -252,6 +252,9 @@ c_tree() {
 #
 # what the case printed comes back as its stdout, then -- only when there is
 # any -- a `--- stderr ---` line and its stderr: both streams are compared.
+# $(...) eats trailing newlines, so a stream that does not end in one says so
+# on a line of its own -- else printf("hi") passes for printf("hi\n").
+C_NONL='(no newline at the end)'
 c_run() {
 	local o="$TMP/c.case.o" e="$TMP/c.case.e" r
 	c_tree || return 1
@@ -262,10 +265,11 @@ $2" </dev/null > "$o" 2> "$e" &
 	  kill -9 -- "-$p" 2>/dev/null
 	  exit "$r" ); r=$?
 	head -c 2097152 "$o"
+	[ -s "$o" ] && [ -n "$(tail -c 1 "$o")" ] && printf '\n%s\n' "$C_NONL"
 	if [ -s "$e" ]; then
-		[ -s "$o" ] && [ -n "$(tail -c 1 "$o")" ] && echo
 		echo '--- stderr ---'
 		head -c 65536 "$e"
+		[ -n "$(tail -c 1 "$e")" ] && printf '\n%s\n' "$C_NONL"
 	fi
 	return "$r"
 }
@@ -321,11 +325,16 @@ c_miss() {
 		n=$(printf '%s\n' "$d" | sed -n 1p)
 		y=$(printf '%s\n' "$d" | sed -n 2p)
 		x=$(printf '%s\n' "$d" | sed -n 3p)
-		_c_row line "$n"
-		if [ "$y" = "$(printf '\001')" ]; then _c_row yours "(your output ends before this line)"
-		else _c_row yours "'$(printf '%s' "$y" | cut -c1-$cut)'"; fi
-		if [ "$x" = "$(printf '\001')" ]; then _c_row wanted "(nothing more -- yours goes on)"
-		else _c_row wanted "'$(printf '%s' "$x" | cut -c1-$cut)'"; fi
+		if [ "$y" = "$C_NONL" ]; then note "'$(sed -n "$((n - 1))p" "$g" | cut -c1-$cut)' is missing its \\n at the end."
+		elif [ "$x" = "$C_NONL" ]; then note "'$(sed -n "$((n - 1))p" "$w" | cut -c1-$cut)' should not end in \\n -- yours does."
+		else
+			_c_row line "$n"
+			if [ "$y" = "$(printf '\001')" ]; then _c_row yours "(your output ends before this line)"
+			else _c_row yours "'$(printf '%s' "$y" | cut -c1-$cut)'"; fi
+			if [ "$x" = "$(printf '\001')" ]; then _c_row wanted "(nothing more -- yours goes on)"
+			else _c_row wanted "'$(printf '%s' "$x" | cut -c1-$cut)'"; fi
+			case "$y" in "$x/n"*) note "a newline is \\n -- backslash, not slash." ;; esac
+		fi
 	fi
 	if [ "$PRJ_GS" != "$PRJ_WS" ]; then
 		_c_row exit "yours $(c_status "$PRJ_GS")"
