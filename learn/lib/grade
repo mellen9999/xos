@@ -83,6 +83,23 @@ flagnorm() {
 			close(f)
 			if (c == "tar") { bool["tarc"] = 1; bool["tarx"] = 1; bool["tart"] = 1 }
 		}
+		# csvsort -- a comma list in sorted order. mount -o is a set of options,
+		# so ro,nosuid and nosuid,ro are one command. only mount asks for it
+		# below: ps -o pid,comm is columns, and their order is the output.
+		function csvsort(s,   m, a, i, j, t, r, hro, hrw) {
+			m = split(s, a, ",")
+			# ro and rw together: the last one wins, so their order is meaning
+			for (i = 1; i <= m; i++) { if (a[i] == "ro") hro = 1; if (a[i] == "rw") hrw = 1 }
+			if (hro && hrw) return s
+			for (i = 2; i <= m; i++) {
+				t = a[i]
+				for (j = i - 1; j >= 1 && a[j] > t; j--) a[j + 1] = a[j]
+				a[j + 1] = t
+			}
+			r = a[1]
+			for (i = 2; i <= m; i++) r = r "," a[i]
+			return r
+		}
 		# flush -- emit the flag run collected so far, sorted by letter. the
 		# sort is a stable insertion sort: two -e keep the order they were
 		# typed in, which is the order sed applies them in.
@@ -113,6 +130,7 @@ flagnorm() {
 						if (cmd ch in val) {
 							rest = substr(body, j + 1)
 							if (rest == "" && i < n) { rest = t[i + 1]; i++ }
+							if (cmd == "mount" && ch == "o") rest = csvsort(rest)
 							# \001 joins a flag to its value. no answer can
 							# contain it, and unlike a space or a tab it cannot
 							# be confused with a field separator downstream, so

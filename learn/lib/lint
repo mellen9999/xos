@@ -827,8 +827,14 @@ unnamed_value() {
 			}
 			return refseen[c] ~ ("default[^A-Za-z0-9]*" v "([^A-Za-z0-9]|$)")
 		}
-		function named(v, ctx, q, rc,   w) {
+		function named(v, ctx, q, rc,   w, k, m, parts) {
 			if (index(ctx, v) || inevery(v, q)) return 1
+			# a comma list is a set (flagnorm sorts mount -o): named when each item is
+			if (v ~ /,/) {
+				m = split(v, parts, ",")
+				for (k = 1; k <= m; k++) if (!named(parts[k], ctx, q, rc)) break
+				if (k > m) return 1
+			}
 			for (w in NUM) if (NUM[w] == v && (index(ctx, w) || inevery(w, q))) return 1
 			return inref(v, rc)
 		}
