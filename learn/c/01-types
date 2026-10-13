@@ -13,8 +13,22 @@ intro:     size_t    sizes and counts; unsigned; print it with %zu
 intro:     bool      true or false; needs #include <stdbool.h>
 intro:
 intro: `int` and `long` change size from machine to machine. When the size
-intro: matters, say so with <stdint.h>: int32_t, uint8_t, int64_t. Print them
-intro: with the macros in <inttypes.h>, which glue onto the format string:
+intro: matters, name it exactly: put `#include <stdint.h>` at the top and use
+intro: int8_t, int16_t, int32_t, int64_t -- the number is how many bits, and
+intro: 8 bits make a byte. A u in front means unsigned, no minus sign:
+intro: uint8_t holds 0 to 255.
+intro:
+intro: `sizeof` asks how many bytes a type takes. Write it like a call, with
+intro: the type inside: sizeof(int) is 4 here, sizeof(char) is always 1. The
+intro: number it gives back is a size_t, so printf shows it with %zu:
+intro:
+intro:     printf("int %zu\n", sizeof(int));
+intro:
+intro: prints `int 4`. The text before %zu is printed as-is; %zu is where the
+intro: number goes.
+intro:
+intro: Printing the stdint types themselves takes the macros in
+intro: <inttypes.h>, which glue onto the format string:
 intro:
 intro:     int64_t big = INT64_C(3000000000) * 3;
 intro:     printf("%" PRId64 "\n", big);
