@@ -755,11 +755,11 @@ c_help() {
 			"compiles and runs against hidden cases at once." \
 			"your code is saved: leave any time, come back."
 		_ch "on a program"
-		_ck e "edit it again"  r "run the cases"
+		_ck e "write it in vi" r "check it again"
 		_ck t "try it by hand" h "a hint"
 		_ck s "the task again" l "the lesson again"
 		_ck d "full diff"      a "the answer"
-		_ck n "start it over"  q "back, code kept"
+		_ck n "restart it"     q "back, code kept"
 		_ch "vi"
 		_ck i "start typing"   esc "stop typing"
 		_ck a "type after"     o "new line below"

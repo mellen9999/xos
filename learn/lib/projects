@@ -165,8 +165,9 @@ prj_cases_bite() {
 # 29 teaches that one and it is the one you would have on a machine you were
 # handed. learn hands the terminal over the way playground does and takes it
 # back the same way.
+_pk() { printf '%s%s%s %-8s' "$C$B" "$1" "$N" "$2"; }
 ask_program() {
-	local path=$1 idx=$2 pid=$3 name work k rc missed
+	local path=$1 idx=$2 pid=$3 name work k rc missed guide
 	q_load "$path" "$idx" || return 1
 	name=${Q_FILE:-answer.sh}
 	# keyed by file too: a bare index handed unit 02's first program the code
@@ -193,17 +194,22 @@ ask_program() {
 		note "you are writing $name.  it is run for you when you leave the editor."
 	fi
 
-	missed=0
+	missed=0 guide=start
 	while :; do
 		rule
 		if [ "$PRJ_LANG" = c ]; then
+			# what to press now comes first: ten equal keys said nothing
+			case "$guide" in
+				miss) printf '  %sfix it:%s e to edit, d shows what differed, h for a hint\n' "$Y$B" "$N" ;;
+				cerr) printf '  %sfix it:%s e opens vi on the line with the error\n' "$Y$B" "$N" ;;
+				*)    printf '  %sstart here:%s e to write it in vi\n' "$Y$B" "$N" ;;
+			esac
 			# one key a job; d only once there is a miss to look at
 			# two short rows: a phone's terminal is narrow
-			printf '  %se%s edit   %sr%s run    %st%s try    %sh%s hint   %ss%s spec\n' \
-				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
-			printf '  %sl%s lesson %sa%s answer %sn%s new  ' "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
-			[ "$missed" = 1 ] && printf ' %sd%s diff ' "$C$B" "$N"
-			printf ' %sq%s quit\n' "$C$B" "$N"
+			printf '  '; _pk e write; _pk r check; _pk t "try it"; _pk h hint; _pk s task; echo
+			printf '  '; _pk l lesson; _pk a answer; _pk n restart
+			[ "$missed" = 1 ] && _pk d diff
+			_pk q quit; echo
 		else
 			printf '  %se%s edit   %sr%s run it   %sa%s show the answer   %sq%s leave\n' \
 				"$C$B" "$N" "$C$B" "$N" "$C$B" "$N" "$C$B" "$N"
@@ -224,7 +230,7 @@ ask_program() {
 			     IFS= read -rsn1 k 2>/dev/null; echo
 			     case "$k" in y|Y) ;; *) continue ;; esac
 			     cp "$work" "$work.prev" 2>/dev/null && c_starter > "$work" \
-				     && { C_LINE=""; missed=0; ok "a fresh $name -- e to write it."; } \
+				     && { C_LINE=""; missed=0 guide=start; ok "a fresh $name -- e to write it."; } \
 				     || no "cannot write $work"
 			     continue ;;
 			ca)  rule
@@ -267,11 +273,12 @@ ask_program() {
 		fi
 		if [ -n "$PRJ_CERR" ]; then
 			c_cerr "$PRJ_CERR"
+			guide=cerr
 			continue
 		fi
 		C_LINE=""
 		if [ "$PRJ_LANG" = c ]; then
-			missed=1
+			missed=1 guide=miss
 			c_miss
 			continue
 		fi
