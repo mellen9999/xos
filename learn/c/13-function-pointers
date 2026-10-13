@@ -35,6 +35,19 @@ intro:
 intro:     typedef void (*visit_fn)(const char *line, void *ctx);
 intro:     struct tally *t = ctx;    /* void * converts without a cast */
 intro:
+intro: Splitting a line in place: find the space, overwrite it with '\0'
+intro: so the line ends there, then skip extra spaces to reach the rest:
+intro:
+intro:     char *rest = strchr(line, ' ');   /* NULL if no space */
+intro:     if (rest != NULL) {
+intro:         *rest++ = '\0';               /* line is the 1st word */
+intro:         while (*rest == ' ') rest++;  /* skip extra spaces */
+intro:         if (*rest == '\0') rest = NULL;
+intro:     }
+intro:
+intro: A parameter you do not use trips -Wextra's unused warning; write
+intro: `(void)x;` in the body to say "ignored on purpose".
+intro:
 intro: Calling a null or mistyped function pointer is undefined behaviour,
 intro: usually a crash. A table row you forgot to fill in is a null.
 ---
@@ -49,8 +62,11 @@ spec: text that is not a number counts as 0); equal numbers in strcmp order.
 spec:
 spec: Pick the comparator through a table of names and function pointers,
 spec: and sort with `qsort`. Lines are at most 60 characters and there are
-spec: at most 256 of them; a 257th prints `sortby: too many lines` to
-spec: standard error, prints nothing to standard output, and exits 1.
+spec: at most 256 of them (`char lines[256][64]` holds them; then qsort an
+spec: array of `char *` pointing at those lines, not the lines). A 257th
+spec: prints `sortby: too many lines` to standard error, prints nothing to
+spec: standard output, and exits 1. To catch it, read 256 lines, then try
+spec: to read one more; if it exists, that is the error.
 spec: A wrong argument count prints `usage: sortby MODE` and a MODE not in
 spec: the table prints `sortby: unknown mode NAME`, both to standard error,
 spec: both exit 2. Empty input prints nothing and exits 0.
@@ -146,7 +162,7 @@ case: printf 'bb\naa\nc\ndddd\n' | sortby len
 case: printf '10\n9\n-3\n100\n09\nabc\n' | sortby num
 case: sortby; echo $?; sortby shuffle </dev/null 2>&1; echo $?; sortby alpha </dev/null; echo $?
 case: seq 1 300 | sortby num 2>&1; echo $?
-hint: qsort wants a function of two const void pointers; each really points at a char pointer, so read it as a pointer to const char pointer
+hint: qsort wants a function of two const void pointers; each really points at a char pointer, so read it as a pointer to const char pointer. after 256 lines, one more getchar() that is not EOF means too many
 ---
 q: mapfilter.c -- transform, then keep
 spec: Takes two arguments, MAP and KEEP, and reads whole numbers from
@@ -156,7 +172,9 @@ spec: in input order. The filter sees the mapped values, not the originals.
 spec:
 spec: MAP is one of `double`, `square`, `negate`, `same`. KEEP is one of
 spec: `even`, `odd`, `pos` (greater than 0), `all`. Look both up in tables
-spec: of function pointers, and write one `apply` and one `filter` that
+spec: of function pointers (a function that ignores its argument can say
+spec: `(void)x;` -- see the intro), and write one `apply` and one
+spec: `filter` that
 spec: know nothing about which function they were handed.
 spec:
 spec: Every input number must be between -30000 and 30000 so that
@@ -305,8 +323,10 @@ spec: arithmetic can overflow. The first failing command stops the run:
 spec: print `cmdtab: line L: MESSAGE` to standard error and exit 1. The
 spec: messages are `unknown command`, `stack empty` (too few items),
 spec: `stack full`, `bad number` (push argument not a whole number, or
-spec: too big for a long), `out of range`, `bad argument` (push without one, or any other
-spec: command with one) and `divide by zero`. Check an argument first, then
+spec: too big for a long), `out of range`, `bad argument` (push without
+spec: one, or any other command with one) and `divide by zero`. Check an
+spec: argument
+spec: first (that includes `bad number` and `out of range` for push), then
 spec: the stack depth, then the arithmetic. Spaces after a command with no
 spec: argument change nothing (`pop ` is `pop`). End of input exits 0.
 file: cmdtab.c
@@ -492,8 +512,10 @@ hint: each handler gets the stack and the argument and returns an error code; ma
 q: ctxcount.c -- which lines mention each word
 spec: Takes one or more WORD arguments. Reads standard input and, for each
 spec: word, counts the LINES that contain it as a substring (`strstr` finds
-spec: one; a line with the word twice counts once). Prints one line per word in argument
-spec: order, `WORD: COUNT`, then `lines: TOTAL` for the number of input
+spec: one: it returns a pointer to the match, or NULL if none; a
+spec: line with the word twice counts once). Prints one line per word in
+spec: argument order, `WORD: COUNT`, then `lines: TOTAL` for the number of
+spec: input
 spec: lines read. A last line with no newline still counts. Lines are at
 spec: most 200 characters. No arguments prints `usage: ctxcount WORD...`
 spec: to standard error and exits 2.

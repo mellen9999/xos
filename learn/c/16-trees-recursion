@@ -39,6 +39,14 @@ intro: you push and pop yourself, grown with `realloc`, bounded by memory
 intro: and not by the call stack. To walk in-order: push nodes while going
 intro: left; pop one and visit it; then go right and repeat. Pre-order:
 intro: pop one, visit it, push its right child, then its left.
+intro:
+intro: Freeing the same way: pop a node, push its children, then free it
+intro: (the children are saved first, so nothing reads freed memory).
+intro:
+intro: To draw a tree indented by depth, printf can take the width from an
+intro: argument: `*` in the format eats an int. `printf("%*s", n, "")`
+intro: prints n spaces (an empty string padded to width n). Contrast
+intro: `%.*s`, where the number is the most characters to print.
 ---
 q: bstsort.c -- sort and dedupe with a tree
 spec: Reads whole numbers from standard input, one per line, inserts each
@@ -255,7 +263,7 @@ case: printf '5\n3\n8\n1\n4\n9\n' | bstshape
 case: printf '1\n2\n3\n' | bstshape
 case: printf '2\n2\n2\n' | bstshape; bstshape </dev/null
 case: seq 1 1001 | bstshape 2>&1; echo $?; printf '3\n\n' | bstshape 2>&1; echo $?
-hint: print the right child first with depth plus one, then the node with depth times four spaces, then the left; height is 1 plus the taller side
+hint: print the right child first with depth plus one, then the node with depth times four spaces (printf("%*s", n, "") gives n spaces), then the left; height is 1 plus the taller side
 ---
 q: bstwalk.c -- walk a tree without recursion
 spec: Reads whole numbers, one per line, into a binary search tree
@@ -269,7 +277,8 @@ spec:
 spec: Do NOT recurse: insert with a loop, walk with an explicit stack of
 spec: node pointers that grows by doubling through `realloc` (a fixed
 spec: size breaks on a tree 8000 deep), and free the tree without
-spec: recursion too. Free the stack as well.
+spec: recursion too (pop a node, push its children, then free it). Free
+spec: the stack as well.
 spec:
 spec: At most 10000 numbers (`bstwalk: too many numbers`); a bad line
 spec: prints `bstwalk: line L: bad number`; both go to standard error,

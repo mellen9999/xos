@@ -11,8 +11,12 @@ intro:     ssize_t n = read(fd, buf, sizeof buf);   /* 0 = end, -1 = error */
 intro:     ssize_t w = write(out, buf, n);          /* bytes written */
 intro:     close(fd);
 intro:
-intro: `O_CREAT` makes the file if missing; the third argument is then its
-intro: permission bits (octal; the process umask clears some). `O_TRUNC`
+intro: `ssize_t` is `size_t` with a sign, so it can hold -1 for an error;
+intro: print one with `%zd`. `O_CREAT` makes the file if missing; the third
+intro: argument is then its permission bits. A leading 0 makes a number
+intro: octal, so `0644` is octal 644: owner read+write, everyone else read.
+intro: The process umask then clears some bits (umask 022 removes group and
+intro: other write). `O_TRUNC`
 intro: empties an existing file the moment you open it -- so copying a file
 intro: onto itself destroys it before the first read. Check for that.
 intro:
@@ -51,7 +55,7 @@ spec:
 spec: A pipe may hand over fewer bytes than you ask for, so a record can
 spec: arrive in pieces; keep reading until you have all 4 or the input ends.
 spec: If the input ends partway through a record, print `partial N` (N the
-spec: bytes of it) and exit 1. A read error prints `recs4: read error` to
+spec: bytes of it) to standard output and exit 1. A read error prints `recs4: read error` to
 spec: standard error and exits 1. Otherwise exit 0. Empty input prints
 spec: nothing.
 file: recs4.c
@@ -216,18 +220,20 @@ hint: printf only fills stdio buffer; push it out with fflush(stdout) before eve
 ---
 q: fdcopy.c -- copy a file to a new file
 spec: `fdcopy SRC DST` copies SRC byte for byte to DST, using `open`, `read`,
-spec: `write` and `close`. DST is created with mode 0644 (the umask may
+spec: `write` and `close`. DST is created with mode 0644 (octal; the umask may
 spec: clear bits) or, if it exists, emptied first. Print
-spec: `copied N bytes` (N the byte count) and exit 0.
+spec: `copied N bytes` (N the byte count) to standard output and exit 0.
 spec:
 spec: If SRC and DST are the same file, print `fdcopy: same file` to
 spec: standard error and exit 1 before touching either (a truncating open
-spec: would destroy it). Compare the device and inode from `stat`. If SRC
+spec: would destroy it). Compare the device and inode from `stat`; it is
+spec: normal for `stat(DST)` to fail when DST does not exist yet, which
+spec: means they differ. If SRC
 spec: cannot be opened print `fdcopy: cannot open SRC`, exit 1, and create
 spec: nothing. If DST cannot be created print `fdcopy: cannot create DST`
 spec: and exit 1. Any other failure, including a failing `close` of DST,
 spec: prints `fdcopy: copy failed` and exits 1. Any other number of arguments
-spec: prints `usage: fdcopy SRC DST` and exits 2.
+spec: prints `usage: fdcopy SRC DST` to standard error and exits 2.
 file: fdcopy.c
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>

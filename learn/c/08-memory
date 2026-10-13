@@ -14,8 +14,9 @@ intro: `sizeof *v` keeps the size right if the type changes. Check EVERY
 intro: allocation: malloc returns NULL when it fails, and writing through
 intro: NULL is undefined. `calloc(n, size)` zeroes the block and refuses
 intro: an n * size that overflows; with malloc you check it yourself:
-intro: `if (n > SIZE_MAX / sizeof *v)` fail. A wrapped multiply gives a
-intro: small block that you then write far past -- a classic exploit.
+intro: `if (n > SIZE_MAX / sizeof *v)` fail (SIZE_MAX is in <stdint.h>). A
+intro: wrapped multiply gives a small block that you then write far past --
+intro: a classic exploit.
 intro:
 intro: Every malloc needs exactly one free, by whoever owns the block.
 intro: Decide who owns it and write it in a comment. Using a block after
@@ -27,6 +28,10 @@ intro:
 intro:     char *tmp = realloc(buf, cap * 2);
 intro:     if (tmp == NULL) { free(buf); /* fail */ }
 intro:     buf = tmp;
+intro:
+intro: For an array of other things, multiply by the element size:
+intro:
+intro:     int *w2 = realloc(w, cap * 2 * sizeof *w);
 intro:
 intro: Write `buf = realloc(buf, ...)` and a failure overwrites buf with
 intro: NULL: the old block leaks and you crash. Doubling keeps the total
@@ -51,7 +56,9 @@ spec: 1048576 bytes. Larger prints `rep: too big`; an N that is not a whole
 spec: number, is negative or does not fit a long prints `rep: bad count`;
 spec: both to standard error, exit 1. N is a long and the length a size_t:
 spec: cast N after you know it is not negative. Check the size with a
-spec: division, not a multiply that could wrap. Empty TEXT prints an empty line for any valid N.
+spec: division, not a multiply that could wrap. TEXT may be empty (len is
+spec: 0): don't divide by it. Empty TEXT prints an empty line for any valid
+spec: N.
 spec: Any other argument count prints nothing and exits 2.
 file: rep.c
 prog: #include <errno.h>

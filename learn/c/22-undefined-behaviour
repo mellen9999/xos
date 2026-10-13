@@ -28,6 +28,19 @@ intro: The fix is to never get there. Check the operands first:
 intro:
 intro:     if (b > 0 && a > INT_MAX - b)  /* a + b would overflow */
 intro:
+intro: Multiply works the same way: divide the limit by one operand. The
+intro: answer must stay between the type's MIN and MAX, so there is one test
+intro: per sign pair. Shown for int32_t (INT32_MAX, INT32_MIN, from
+intro: <stdint.h>), with x and y not 0 (0 never overflows):
+intro:
+intro:     x > 0, y > 0:  overflows if x > INT32_MAX / y
+intro:     x > 0, y < 0:  overflows if y < INT32_MIN / x
+intro:     x < 0, y > 0:  overflows if x < INT32_MIN / y
+intro:     x < 0, y < 0:  overflows if x < INT32_MAX / y
+intro:
+intro: Never write `MIN / -1`: it overflows itself. The tests above never
+intro: do, and C rounds division toward zero, which makes each one exact.
+intro:
 intro: Unsigned arithmetic wraps by definition (mod 2^N), so it is safe but
 intro: silently wrong if you wanted a real sum. `__builtin_add_overflow` is a
 intro: GCC and clang extension; it is not standard C and tcc lacks it, so
@@ -39,6 +52,9 @@ intro: `assert(cond)` for things that must be true (it is compiled out with
 intro: NDEBUG, so never put a side effect inside it). Compile with
 intro: `-Wall -Wextra`; build tests with `-fsanitize=undefined,address`
 intro: (gcc/clang only).
+intro:
+intro: `INT_MIN` and `INT_MAX` (the smallest and largest `int`) come from
+intro: <limits.h>; `strtol`, `strtoll` and `abs` from <stdlib.h>.
 intro:
 intro: `strtoll` is `strtol` for a `long long`: the same `end` pointer to see
 intro: where the number stopped, the same `errno == ERANGE` when it is too big.
@@ -96,8 +112,8 @@ q: chk64.c -- add, subtract and multiply without overflow
 spec: `chk64 OP A B` where OP is `add`, `sub` or `mul` and A and B are whole
 spec: decimal numbers that fit in a signed 64-bit integer. Print the result
 spec: in decimal and exit 0. If the true result does not fit in 64 bits,
-spec: print `overflow` and exit 1. Decide before computing: never let a
-spec: signed operation overflow.
+spec: print `overflow` to standard output and exit 1. Decide before
+spec: computing: never let a signed operation overflow.
 spec:
 spec: A wrong argument count or an OP that is not one of the three prints
 spec: `usage: chk64 OP A B` to standard error and exits 2. A number that is

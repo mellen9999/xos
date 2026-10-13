@@ -69,7 +69,8 @@ spec: `error: col C: unexpected character 'X'` for any other byte, and
 spec: `error: col C: number too large` for a number above
 spec: 9223372036854775807 (the largest 64-bit signed integer). C is where
 spec: the character or number starts. The exit status is 1 if any line
-spec: had an error, otherwise 0.
+spec: had an error, otherwise 0. Token lines and `error:` lines go to
+spec: standard output.
 file: calctok.c
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>
@@ -1214,12 +1215,14 @@ spec:
 spec: The first error ends the run. It prints one line,
 spec: `error: line L, col C: MESSAGE`, and nothing after it runs. The
 spec: exit status is 1 then, otherwise 0. The messages are those of
-spec: `calcvar`, plus two new ones at column 1 of the statement:
+spec: `calcvar`, plus two new ones, at the column of the first token:
 spec: - `not a statement`: the line starts with neither `print` nor a
 spec:   name followed by `=`.
 spec: - `print is reserved`: an attempt to assign to `print`.
 spec: A missing value at the end of a line, such as a lone `print`, is
-spec: reported at the column of the statement's first token.
+spec: reported where the code on the line stops: the column of the `#`,
+spec: or one past the last byte of the line (blanks count). So `print # c`
+spec: reports col 7 and `  print 1 +` col 12.
 file: calcrun.c
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>

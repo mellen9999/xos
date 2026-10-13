@@ -22,8 +22,33 @@ intro:         printf("%d\n", i);
 intro:
 intro: `i < 5` runs 0 to 4: five turns. Off-by-one is the classic loop bug, so
 intro: say the first and last value out loud before you write the test.
+intro: `while (cond) { ... }` tests first and repeats the braces while cond
+intro: is true:
+intro:
+intro:     int n = 3;
+intro:     while (n > 0) {
+intro:         printf("%d\n", n);
+intro:         n--;
+intro:     }
+intro:
+intro: prints 3, 2, 1. Change something the test looks at, or it never ends.
 intro: `do { ... } while (cond);` runs the body once before it tests; you will
-intro: need it rarely.
+intro: need it rarely. `break` leaves the loop at once; `continue` skips the
+intro: rest of this round and starts the next.
+intro:
+intro: The tests you can write:
+intro:
+intro:     == equal        != not equal     < <= > >=  compare
+intro:     a && b  both true       a || b  either true      !a  not
+intro:     i++  add 1      i--  subtract 1
+intro:     x += y  means  x = x + y; same for -= *= /= %= |= &= ^= <<= >>=
+intro:
+intro: Careful: `=` stores, `==` compares. `if (x = 3)` stores 3 and is
+intro: always true; plain C allows it, and here the compiler stops you.
+intro:
+intro: `cond ? a : b` is a one-line if that gives a value: a when cond is
+intro: true, else b. It nests -- `x < 0 ? -1 : x > 0 ? 1 : 0` is the sign of
+intro: x -- but past two levels use if.
 intro:
 intro: `switch` picks by exact integer value. Each case runs on into the next
 intro: one until a `break`, so forget one and you get both:
@@ -43,6 +68,15 @@ intro:     }
 intro:
 intro: Stacked labels like `case 1:` `case 2:` share one body on purpose. Keep
 intro: a `default`: it is where the values you did not think of land.
+intro:
+intro: To declare a variable right after a label, wrap the body in braces,
+intro: or the compiler refuses:
+intro:
+intro:     case 4: {
+intro:         int twice = n * 2;
+intro:         printf("%d\n", twice);
+intro:         break;
+intro:     }
 intro:
 intro: Everything here is fixed loops -- no input yet.
 ---
@@ -103,7 +137,8 @@ spec: `start 27`
 spec: `steps 111`
 spec: `peak 9232`
 spec:
-spec: Use `uint64_t` and `PRIu64`.
+spec: Use `uint64_t` and `PRIu64` for the numbers, and an `unsigned` step
+spec: counter printed with `%u`.
 file: collatz.c
 prog: #include <inttypes.h>
 prog: #include <stdint.h>

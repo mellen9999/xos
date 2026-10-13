@@ -27,8 +27,15 @@ intro: `\r\n`.
 intro:
 intro: CSV adds quoting. A field in double quotes may hold commas, and a
 intro: doubled `""` inside it is one quote. Walk it with a small state
-intro: machine; unquoting in place is safe, because the result is never
-intro: longer than the input.
+intro: machine (unit 19: a variable that remembers where you are, here
+intro: "inside quotes or not"). Unquoting in place is safe, because the
+intro: result is never longer than the input: keep a read pointer `p` and
+intro: a write pointer `w`, both starting in the same place:
+intro:
+intro:     *w++ = *p++;      /* copy one byte; w never passes p */
+intro:     *w++ = '"';       /* write a quote... */
+intro:     p += 2;           /* ...for the two you read */
+intro:     *w = '\0';        /* end the shortened string */
 intro:
 intro: Say WHERE input is wrong. A column is `p - line + 1`, 1-based,
 intro: counted in bytes: `line 3 col 7: expected )` can be fixed without a
@@ -36,6 +43,21 @@ intro: hunt. Errors go to stderr. Call `fflush(stdout)` first as good
 intro: practice: stdout is buffered when it is a pipe or a file, and
 intro: stderr is not, so the two streams can otherwise interleave out of
 intro: order when you read them together.
+intro:
+intro: Arithmetic like `1 + 2 * 3` is parsed with one function per
+intro: precedence level. "Binds tighter" means done first: `*` binds
+intro: tighter than `+`, so the product is a unit inside the sum. Each
+intro: level calls the next tighter one, and loops on its own operators,
+intro: which groups them left to right (`8 - 3 - 2` is `(8 - 3) - 2`).
+intro: This is recursive descent. The shape, for + and * only:
+intro:
+intro:     long long sum(P)     /* a = prod(P); while '+': a += prod(P) */
+intro:     long long prod(P)    /* a = atom(P); while '*': a *= atom(P) */
+intro:     long long atom(P)    /* a number, or '(' sum(P) ')' */
+intro:
+intro: An atom that sees `(` calls the top function again: that loop back
+intro: up is the recursion. Here you also need a level for unary minus,
+intro: between the `*` level and the atom: `-` then itself, or an atom.
 intro:
 intro: `memcmp(a, b, n)` compares n bytes and returns 0 when they all match:
 intro: `strcmp` for bytes that are not a string, so no `\0` is needed.
@@ -350,8 +372,9 @@ spec: are at most 200 characters.
 spec:
 spec: Every number and every intermediate result must lie between
 spec: -1000000000 and 1000000000, so nothing can overflow (use `long
-spec: long` and print it with `%lld`). Parse with recursive descent: one function per precedence
-spec: level, walking a pointer along the line; no `strtok`, no `sscanf`.
+spec: long`, printed with `%lld` -- see unit 01). Parse with recursive
+spec: descent (see the intro): one function per precedence level, walking
+spec: a pointer along the line; no `strtok`, no `sscanf`.
 spec:
 spec: The first bad line stops the run: print `exprcalc: line L col C:
 spec: MESSAGE` to standard error after flushing standard output, and exit

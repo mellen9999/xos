@@ -6,6 +6,10 @@ intro: include:
 intro:
 intro:     #define _POSIX_C_SOURCE 200809L
 intro:
+intro: Headers: <dirent.h> for `opendir`, `readdir`, `closedir`, `DIR` and
+intro: `struct dirent`; <sys/stat.h> for `lstat` and `S_ISDIR`; <string.h>
+intro: for `strcmp` and `strdup`; <errno.h> for `errno`.
+intro:
 intro:     DIR *d = opendir(path);          /* NULL on failure */
 intro:     struct dirent *e;
 intro:     for (;;) {
@@ -26,7 +30,9 @@ intro: The order is whatever the filesystem likes -- it can differ between
 intro: two machines. Never print in that order. Collect the names (`strdup`
 intro: each, grow the array with `realloc`), `qsort` them with a comparator
 intro: that calls `strcmp`, then print. Same input, same output, every
-intro: time.
+intro: time. `strdup(s)` (needs the define above) returns a copy of `s` in
+intro: fresh `malloc`ed memory, or NULL if there is no memory left -- check
+intro: it, and `free` the copy when done.
 intro:
 intro: An entry has a name, not a path. To ask about it, build the path
 intro: with `snprintf(buf, sizeof buf, "%s/%s", dir, name)` and check the
@@ -40,7 +46,8 @@ intro:
 intro: To walk a tree, write a function that lists one directory and calls
 intro: itself on each subdirectory. Collect and `closedir` before you
 intro: recurse, so you hold one open directory at a time, not one per level
-intro: of depth.
+intro: of depth. To indent by depth, `printf("%*s", n, "")` prints n spaces
+intro: (unit 16: the `*` takes the width from the next argument).
 ---
 q: dircount.c -- count what is in a directory
 spec: Take exactly one argument, a directory. Count its entries by kind,

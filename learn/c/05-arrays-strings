@@ -5,10 +5,16 @@ intro:
 intro:     const char *days[] = {"mon", "tue", "wed"};
 intro:     size_t n = sizeof days / sizeof days[0];   /* 3 */
 intro:
+intro: `const char *` is "text you may read but not change"; read
+intro: `const char *days[]` as an array of strings (the `*` is unit 6).
 intro: Bytes in the whole array divided by bytes in one element. Write
 intro: that once and the count follows the data when you add a row. That
 intro: count is a `size_t` (unsigned). Loop with `size_t i`, and cast before
 intro: comparing it with a signed value: `k > (long)n`.
+intro:
+intro: Arrays can have two dimensions: `int t[3][2] = {{1, 2}, {3, 4}, {5, 6}};`
+intro: is 3 rows of 2, and `t[i][j]` is row i, column j (t[2][0] is 5).
+intro: `char lines[4][80]` is 4 strings of up to 79 characters each.
 intro:
 intro: C does not check indexes. `days[7]` compiles, runs, and reads
 intro: whatever sits past the array -- undefined behaviour. It may print
@@ -19,6 +25,24 @@ intro: A string is a char array ending in a NUL byte (`'\0'`). "hi" takes
 intro: three bytes. `strlen` counts up to the NUL and stops, so it is 2;
 intro: `sizeof` is the array's size, 3. Mix them up and you are off by
 intro: one, which in C means a write past the end.
+intro:
+intro: A character literal is one character in single quotes, and it is
+intro: really a small number: 'A' is 65. Escapes: `'\n'` newline, `'\t'`
+intro: tab, `'\0'` the NUL byte, `'\''` a single quote, `'\\'` a backslash,
+intro: and `\xHH` any byte in hex (`'\x41'` is 'A'). Careful: \x eats every
+intro: hex digit after it, so `"\x7fELF"` reads \x7fE as one byte. Write
+intro: `"\x7f" "ELF"` -- two literals side by side join into one.
+intro:
+intro: Because they are numbers, letters in a range sit side by side:
+intro: 'A'..'Z', 'a'..'z' and '0'..'9' are each consecutive. So
+intro: `c >= 'a' && c <= 'f'` tests one range, and `c - '0'` turns a digit
+intro: character into its value ('7' - '0' is 7).
+intro:
+intro: Counting down with an unsigned index is a trap: `i >= 0` is always
+intro: true, so the loop never ends. Stop at 1 and use `i - 1`:
+intro:
+intro:     for (size_t i = n; i > 0; i--)
+intro:         use(data[i - 1]);   /* data[n-1] down to data[0] */
 intro:
 intro: Never use `gets` (it cannot be told a limit, so it was removed from
 intro: C11), and treat `strcpy`, `strcat`, `sprintf` as the same trap.
@@ -33,7 +57,14 @@ intro:         /* did not fit */
 intro:
 intro: `fgets(buf, sizeof buf, stdin)` reads one line, keeps the `\n`,
 intro: and returns NULL at end of input. `<string.h>` has `strcmp` (0
-intro: means equal), `strchr` (find a byte) and `memcpy` (copy n bytes).
+intro: means equal) and these, with the argument order to remember:
+intro:
+intro:     strchr(s, '=')        pointer to the first '=' in s, or NULL
+intro:     strstr(hay, needle)   pointer to the first needle in hay, or NULL
+intro:     memcpy(dst, src, n)   copy n bytes; adds no '\0' of its own
+intro:
+intro: strchr counts the terminating NUL as part of s, so
+intro: `strchr(set, c)` with c == '\0' is not NULL -- check c first.
 ---
 q: dayname.c -- number to weekday
 spec: Takes one argument, a number 1 to 7, and prints the weekday:
@@ -82,7 +113,8 @@ spec: followed by a newline. `abc` becomes `cba`; an empty line stays an
 spec: empty line. A last line with no newline at the end is still
 spec: reversed and printed with one. Empty input prints nothing.
 spec:
-spec: Lines are at most 80 characters, not counting the newline.
+spec: Lines are at most 80 characters, not counting the newline, so the
+spec: buffer is 82 bytes: 80, the newline, and the NUL.
 file: revline.c
 prog: #include <stdio.h>
 prog: #include <string.h>
@@ -111,9 +143,9 @@ q: cclass.c -- count kinds of characters
 spec: Read all of standard input and print five lines, in this order:
 spec: `upper N`, `lower N`, `digit N`, `space N`, `other N`.
 spec:
-spec: upper is A-Z, lower is a-z, digit is 0-9, space is a blank, a tab
-spec: or a newline, other is every remaining byte. Every byte counts in
-spec: exactly one class. Empty input gives all zeros.
+spec: upper is A-Z, lower is a-z, digit is 0-9, space is a blank (' '), a
+spec: tab (`'\t'`) or a newline, other is every remaining byte. Every byte
+spec: counts in exactly one class. Empty input gives all zeros.
 file: cclass.c
 prog: #include <stdio.h>
 prog: 
@@ -155,7 +187,9 @@ spec: prints `a,b,c`. No words prints an empty line.
 spec:
 spec: Append with `snprintf(buf + len, sizeof buf - len, ...)`: `buf + len` is
 spec: the address len bytes in. Never pass buf as both the destination and a
-spec: `%s` source.
+spec: `%s` source. Keep a running length `len` of what is in buf, add what
+spec: each call wrote, and start with `buf[0] = '\0'` so an empty result
+spec: prints as an empty line.
 spec:
 spec: Build the result in a 32-byte buffer with snprintf (31 characters
 spec: fit, the 32nd byte is the NUL). If the result does not fit, print

@@ -37,7 +37,25 @@ intro: To delete: `struct node *gone = *pp; *pp = gone->next; free(gone);`
 intro: and do NOT advance pp: the next node has slid into `*pp`.
 intro:
 intro: Reverse in place by turning each `next` around: keep prev, cur, and
-intro: the next you saved before overwriting. A list costs a malloc per
+intro: the next you saved before overwriting:
+intro:
+intro:     struct node *prev = NULL, *cur = head;
+intro:     while (cur != NULL) {
+intro:         struct node *next = cur->next;   /* save it first */
+intro:         cur->next = prev;                /* turn the link round */
+intro:         prev = cur;  cur = next;         /* step forward */
+intro:     }
+intro:     head = prev;                         /* old last is first */
+intro:
+intro: To append at the end in O(1), keep `struct node **tail`, the link
+intro: where the next node goes. It starts as `&head`:
+intro:
+intro:     struct node **tail = &head;
+intro:     /* for each new node n (n->next already NULL): */
+intro:     *tail = n;          /* fill the empty link */
+intro:     tail = &n->next;    /* the new empty link is n's next */
+intro:
+intro: A list costs a malloc per
 intro: item and a cache miss per step; use one when you insert and remove
 intro: a lot, not as plain storage.
 ---
@@ -342,8 +360,11 @@ spec: `even` deletes even numbers, `odd` odd ones (a negative odd number
 spec: is odd), `neg` numbers below 0, and `dup` any node whose value
 spec: already appears in an EARLIER node: it keeps the first of each.
 spec:
-spec: Look the rule up in a table of function pointers, and delete with a
-spec: pointer to the link so that the first node, a run of adjacent
+spec: Look the rule up in a table of function pointers. Every rule has the
+spec: same shape, `bool rule(const struct node *head,
+spec: const struct node *n)`:
+spec: each rule gets (head, node), and only `dup` needs the head. Delete
+spec: with a pointer to the link so that the first node, a run of adjacent
 spec: matches and the last node need no special cases. Free every node,
 spec: kept or deleted, before you exit.
 spec:
@@ -484,8 +505,11 @@ spec: them. With no empty line the whole input is the first list and the
 spec: second is empty; a leading empty line makes the first list empty.
 spec:
 spec: Build each list as a linked list, then merge by RELINKING the
-spec: existing nodes into one ascending list -- the merge step of merge
-spec: sort, with no new allocation. Print the result one number per line,
+spec: existing nodes into one ascending list, with no new allocation.
+spec: (Merge: repeatedly take the smaller of the two front nodes and move
+spec: it onto the end of the result; when one list runs out, attach the
+spec: other. The `tail` idiom in the intro does the appending.) Print the
+spec: result one number per line,
 spec: and free the nodes before you exit. Empty input prints nothing.
 spec:
 spec: A line that is not a whole number, or a second empty line, prints

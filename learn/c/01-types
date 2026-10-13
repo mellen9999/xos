@@ -6,11 +6,33 @@ intro:
 intro: The ones you will meet:
 intro:
 intro:     char      one byte: a character, or a small number
-intro:     int       the natural size; 32 bits here
+intro:     int       the natural size; 32 bits here; print with %d
+intro:     unsigned  an int with no minus sign, 0 and up; print with %u
 intro:     long      at least 32 bits; 64 on 64-bit Linux; print with %ld
 intro:               (unsigned long: %lu)
+intro:     long long at least 64 bits; print with %lld; write 5LL
+intro:     double    a number with a fraction; print with %f
 intro:     size_t    sizes and counts; unsigned; print it with %zu
 intro:     bool      true or false; needs #include <stdbool.h>
+intro:
+intro: A variable is a type, a name and a starting value: `int x = 7;`.
+intro: printf fills each % in its text with the values after it, in order.
+intro: `%s` is for a string, text in double quotes. `%.2f` is a double with
+intro: 2 decimals, rounded:
+intro:
+intro:     long n = 4;
+intro:     printf("%ld of %s is %.2f\n", n, "pi", 3.14159);
+intro:
+intro: prints `4 of pi is 3.14`.
+intro:
+intro: `a > b` is a comparison: it gives 1 (true) or 0 (false), and a bool
+intro: holds it. Others: `<` `>=` `<=` `==` (equal) `!=` (not equal). To
+intro: turn true/false into words, use `cond ? one : two` -- it gives `one`
+intro: when cond is true, else `two`:
+intro:
+intro:     printf("%s\n", n > 3 ? "big" : "small");
+intro:
+intro: prints `big`.
 intro:
 intro: `int` and `long` change size from machine to machine. When the size
 intro: matters, name it exactly: put `#include <stdint.h>` at the top and use
@@ -33,12 +55,24 @@ intro:
 intro:     int64_t big = INT64_C(3000000000) * 3;
 intro:     printf("%" PRId64 "\n", big);
 intro:
+intro: The name is PRI + d (signed) or u (unsigned) + the bits: PRId32,
+intro: PRIu32, PRIu64. `INT64_C(3000000000)` makes the literal an int64_t
+intro: on every machine, so the multiply is done in 64 bits even where
+intro: long is only 32.
+intro:
+intro: The edges have names. <limits.h> has INT_MIN, INT_MAX, LONG_MIN and
+intro: LONG_MAX. <stdint.h> has SIZE_MAX and INT32_MAX, INT32_MIN,
+intro: UINT32_MAX, INT64_MAX, UINT64_MAX and so on.
+intro:
 intro: A literal `%` in a printf format is written `%%`.
 intro:
 intro: Signed and unsigned behave differently at the edge. Unsigned arithmetic
 intro: wraps, by definition: 0u - 1 is the largest value. Signed overflow is
 intro: undefined behaviour: the compiler may assume it never happens and
 intro: delete your checks. Never rely on it, never test for it afterwards.
+intro:
+intro: `a % b` is the remainder of a / b: 7 % 3 is 1, and `n % k == 0`
+intro: means n is a multiple of k.
 intro:
 intro: Integer division truncates toward zero, and `%` takes the sign of the
 intro: left side: -7 / 2 is -3, -7 % 2 is -1. And 7 / 2 is 3, not 3.5 -- make
@@ -146,8 +180,9 @@ hint: passed / total is 0 in integers -- multiply by 100 first, or cast one side
 ---
 q: big.c -- when int is too small
 spec: Print exactly these six lines. Use `int32_t`, `uint32_t`, `int64_t`
-spec: and `uint64_t` with the matching `PRI` macros, taking the limits from
-spec: the `INT32_MAX` family in `stdint.h` rather than typing them:
+spec: and `uint64_t` with the matching `PRI` macros, taking `INT32_MAX`,
+spec: `INT32_MIN`, `UINT32_MAX`, `INT64_MAX` and `UINT64_MAX` from
+spec: `stdint.h` rather than typing them:
 spec:
 spec: `int32 max 2147483647`
 spec: `int32 min -2147483648`

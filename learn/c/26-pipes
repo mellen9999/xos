@@ -33,7 +33,19 @@ intro:     close(fd[0]);                /* the originals are not needed */
 intro:     close(fd[1]);
 intro:     execlp("ls", "ls", (char *)NULL);
 intro:
-intro: `fdopen(fd, "w")` wraps a descriptor in a `FILE *`.
+intro: `execlp(file, arg0, arg1, ..., (char *)NULL)` takes its arguments as
+intro: a list instead of an array. `file` is looked up on PATH; then comes
+intro: argv[0], the program's own name (usually `file` again); then the real
+intro: arguments, ended by NULL. The cast matters: a bare NULL may be
+intro: a plain int to the variadic call, and the end marker must be a
+intro: pointer. To run a shell line `echo hi; echo bye`:
+intro:
+intro:     execlp("sh", "sh", "-c", "echo hi; echo bye", (char *)NULL);
+intro:
+intro: `fdopen(fd, "w")` (in <stdio.h>) wraps a descriptor in a `FILE *`,
+intro: so `fprintf` works on it. Finish with `fclose(f)`, not `close(fd)`:
+intro: fclose flushes the buffered text into the pipe and closes the fd.
+intro: close alone drops whatever text was still in the buffer.
 intro:
 intro: An exec'd program keeps descriptors 0, 1 and 2, and never knows they
 intro: are a pipe. That is all `a | b` is: two forks, one pipe, one `dup2`
@@ -130,8 +142,8 @@ spec: Start the program `tr a-z A-Z` (found through PATH, so use
 spec: `execlp` or `execvp`) as a child whose standard input is a pipe from
 spec: you. Write each command-line argument to that pipe followed by a
 spec: newline, in order, then close the write end so `tr` sees end of
-spec: file. Wait for `tr`, then print `tr exited N` with its exit status.
-spec: Exit 0. `tr` writes its own output (the arguments in capitals, one
+spec: file. Wait for `tr`, then print `tr exited N` (its exit status) to
+spec: standard output. Exit 0. `tr` writes its own output (the arguments in capitals, one
 spec: per line) straight to your standard output, so it appears before
 spec: the last line. With no arguments `tr` gets an empty input.
 spec:
@@ -188,7 +200,7 @@ case: feedtr abc Def
 case: feedtr
 case: feedtr "hello world" "" 'MiXeD 123'
 case: feedtr x; echo $?
-hint: child: dup2(fd[0], STDIN_FILENO), close both fd, execlp("tr", "tr", "a-z", "A-Z", NULL); parent: close fd[0], write the lines, close fd[1] so tr can finish
+hint: child: dup2(fd[0], STDIN_FILENO), close both fd, execlp("tr", "tr", "a-z", "A-Z", (char *)NULL); parent: close fd[0], write the lines, close fd[1] so tr can finish
 ---
 q: twostage.c -- build a pipe by hand
 spec: Do by hand what a shell does for a two-command pipeline. Take

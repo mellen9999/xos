@@ -11,6 +11,15 @@ intro:
 intro:     player p = { .score = 40 };
 intro:     p = (player){ .score = 41 };   /* compound literal */
 intro:
+intro: The other form gives the struct a tag instead, and the type is then
+intro: written `struct point`, with the word struct every time:
+intro:
+intro:     struct point { long x; long y; };
+intro:     struct point p = { .x = 3, .y = 4 };
+intro:     static long dist2(const struct point *p);
+intro:
+intro: Same thing; typedef just saves typing the word. Either is fine.
+intro:
 intro: Structs copy by value, so a big one passed to a function is copied
 intro: whole. Pass a pointer instead, and `const` when it only reads:
 intro:
@@ -34,6 +43,16 @@ intro:
 intro: Each case ends in `return` or `break`; without one, execution
 intro: falls into the next case. An array of structs makes a table: a
 intro: fixed list of records you loop over with sizeof arr / sizeof arr[0].
+intro: Each row is its own braces, and an enum is a type you can use for a
+intro: field, a variable or a parameter:
+intro:
+intro:     enum color { RED, GREEN };
+intro:     struct paint { const char *name; enum color c; };
+intro:     static const struct paint shelf[] = {
+intro:         { .name = "apple", .c = RED },
+intro:         { .name = "lime", .c = GREEN },
+intro:     };
+intro:     enum color want = shelf[1].c;      /* GREEN */
 ---
 q: rect.c -- area and perimeter
 spec: Takes two arguments, width and height, each a whole number from 0
@@ -197,9 +216,11 @@ spec: most 60 characters. Print three lines:
 spec: `players N`, `total T` (sum of scores), `best NAME SCORE` (highest
 spec: score; on a tie the earlier line wins).
 spec:
-spec: Store the records in an array of structs. On a malformed line print
-spec: `scores: line L: bad record` to standard error (L counts from 1) and
-spec: exit 1. A ninth record prints `scores: too many records` and exits
+spec: Store the records in an array of structs. A copied name needs its
+spec: closing NUL in `char name[16]`: zero the struct first, or copy with
+spec: `snprintf(dst, sizeof dst, "%.*s", len, src)`.
+spec: On a malformed line print `scores: line L: bad record` to standard
+spec: error (L counts from 1) and exit 1. A ninth record prints `scores: too many records` and exits
 spec: 1. Empty input prints `scores: no records` and exits 1. Nothing is
 spec: printed to standard output when it exits 1.
 file: scores.c

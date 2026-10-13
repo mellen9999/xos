@@ -25,8 +25,12 @@ intro:
 intro: Alignment matters: a `long` must sit at an address that is a multiple
 intro: of its alignment (`_Alignof(long)`), or the access is undefined and on
 intro: some hardware crashes. Round `used` up to a power-of-two multiple with
-intro: the mask above before handing out. Write the fit test as
-intro: `size > cap - start`, never `start + size > cap` -- the sum can wrap.
+intro: the mask above before handing out. To test that `a` is a power of
+intro: two (and not 0): `a != 0 && (a & (a - 1)) == 0`. A power of two has
+intro: one bit set; minus 1 turns it into all ones below that bit, so the
+intro: two share no bit: 100000 & 011111 is 0, while 101000 & 100111 is not.
+intro: Write the fit test as `size > cap - start`, never
+intro: `start + size > cap` -- the sum can wrap.
 intro:
 intro: There is no per-object free. You release the whole arena with one
 intro: `free`. That is the point: no leaks to track, no use-after-free of one
@@ -34,7 +38,8 @@ intro: node while another lives. The price: nothing is reclaimed early.
 intro:
 intro: A pool is the other small tool: many blocks of one size. Keep the free
 intro: ones in a list -- inside the free blocks themselves, a `union` of the
-intro: payload and a "next free" link -- so alloc and free are one step each.
+intro: payload and a "next free" link (a union shares one spot between its
+intro: members; see unit 11) -- so alloc and free are one step each.
 intro: Freeing a block twice corrupts that list, so check before you push.
 intro:
 intro: Always ask who owns each thing, and when it ends.
@@ -44,6 +49,11 @@ intro: of bytes promises only byte alignment; `_Alignas(16)` on its declaration
 intro: puts it on a 16-byte boundary, enough for every basic type here:
 intro:
 intro:     _Alignas(16) static unsigned char mem[4096];
+intro:
+intro: Put it at file scope (outside every function) or inside a function.
+intro: Inside a function `static` means the array is made once, keeps its
+intro: contents between calls and lives as long as the program; without
+intro: `static` it would be a normal local, gone when the function returns.
 ---
 q: bumpoff.c -- hand out aligned bytes from a fixed arena
 spec: Keep an arena of 256 bytes, starting empty and 16-byte aligned. Read

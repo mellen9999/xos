@@ -7,7 +7,7 @@ intro:
 intro: FNV-1a is a hash small enough to type from memory:
 intro:
 intro:     uint32_t h = 2166136261u;
-intro:     for (const unsigned char *p = s; *p; p++) {
+intro:     for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
 intro:         h ^= *p;
 intro:         h *= 16777619u;
 intro:     }
@@ -19,6 +19,9 @@ intro: byte like 0xC3 would sign-extend and change the hash. It is fast and
 intro: fine for tables, and no defence if an attacker chooses the keys.
 intro:
 intro:     struct entry **bucket = &table[h % nbuckets];
+intro:
+intro: "mod" is the `%` operator: the remainder after dividing. h % 8 is
+intro: always 0 to 7, so with 8 buckets it is always a valid slot.
 intro:
 intro: Lookup walks the chain with `strcmp`. Insert at the front of the
 intro: chain; a key already there is updated, not added twice. Delete is
@@ -39,7 +42,8 @@ q: strhash.c -- hash words, pick buckets
 spec: Takes a bucket count and one or more words:
 spec: `strhash 8 foobar` prints the 32-bit FNV-1a hash of each word as
 spec: eight lowercase hex digits, a space, the bucket number (the hash
-spec: modulo the bucket count, in decimal), a space, and the word. One
+spec: modulo the bucket count -- h % buckets, in decimal), a space, and
+spec: the word. One
 spec: line per word, in argument order.
 spec:
 spec: FNV-1a: start at 2166136261, and for each BYTE of the word xor the
@@ -102,10 +106,13 @@ spec: Reads commands from standard input, one per line, and keeps keys and
 spec: values in a chained hash table you write: FNV-1a on the key, bucket
 spec: = hash mod bucket count. Lines are at most 100 characters. Empty
 spec: lines are skipped (they still count in line numbers). Spaces after a
-spec: command with no argument change nothing (`dump ` is `dump`).
+spec: command with no argument change nothing (`dump ` is `dump`), but
+spec: `get k ` (trailing space) is `bad argument`: the key is `k `, which
+spec: holds a space. The same goes for `del`.
 spec:
 spec: `set KEY VALUE` stores a value (everything after the key and its
-spec: spaces, spaces inside included); an existing key is updated, not
+spec: spaces, spaces inside AND trailing ones kept: `set k v  ` stores
+spec: `v` plus two spaces); an existing key is updated, not
 spec: duplicated. `get KEY` prints its value. `del KEY` removes it.
 spec: `count` prints the number of keys. `dump` prints every `KEY=VALUE`,
 spec: sorted by key with strcmp, one per line. `stats` prints

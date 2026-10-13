@@ -25,6 +25,12 @@ intro:
 intro: The int main returns is the exit status, the same number `$?` shows
 intro: in the shell. 0 means it worked; anything else means it did not.
 intro:
+intro: A program has two places to print. Standard output (stdout) is for
+intro: results; printf writes there. Standard error (stderr) is for
+intro: complaints; `fprintf(stderr, "oops\n")` writes there. On screen they
+intro: look the same, but the shell can split them: `2>/dev/null` hides
+intro: stderr, `>/dev/null` hides stdout.
+intro:
 intro: You write the code in `vi`. Four keys get you through it: `i` starts
 intro: typing, Escape stops, `:wq` then Enter saves and leaves, `:q!` leaves
 intro: without saving. `h` `j` `k` `l` move (the arrow keys work too). That

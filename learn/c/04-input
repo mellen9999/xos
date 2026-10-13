@@ -21,6 +21,12 @@ intro:     long n = strtol(s, &end, 10);
 intro:     if (end == s || *end != '\0' || errno == ERANGE)
 intro:         /* bad */
 intro:
+intro: Treat this as a recipe until unit 06 explains pointers: `char *end` is
+intro: a marker strtol moves, `&end` hands it the marker to move, and `*end`
+intro: reads the character the marker stopped on. A string ends with a
+intro: zero byte written `'\0'`. The `10` is the base: 10 means ordinary
+intro: decimal digits. `||` means "or", `&&` means "and".
+intro:
 intro: `end` is left pointing at the first character it could not use.
 intro: `end == s` means no digits at all -- including the empty string, which
 intro: would otherwise sneak through as 0. `*end != '\0'` means junk after the
@@ -51,6 +57,11 @@ intro:         count++;
 intro:
 intro: A line at a time is `fgets(buf, sizeof buf, stdin)`. It keeps the
 intro: newline when the line fits, and returns NULL at end of input.
+intro: `char buf[64];` is room for 64 bytes in a row (arrays are unit 5):
+intro: as text, 63 characters and the zero byte that ends them. `sizeof
+intro: buf` is its size in bytes, 64; on a variable, sizeof
+intro: needs no parentheses. NULL counts as false, so
+intro: `while (fgets(buf, sizeof buf, stdin))` loops until input ends.
 ---
 q: addup.c -- add the numbers you are given
 spec: Add up the integer arguments and print the total and a newline.
@@ -150,7 +161,9 @@ spec: `max HIGH`
 spec:
 spec: A line that is not a whole number -- empty, `abc`, `5x` -- prints
 spec: `figures: line N: bad number` (N counts from 1) to stderr and exits 1,
-spec: printing nothing to stdout. The last line may have no trailing newline.
+spec: printing nothing to stdout. The last line may have no trailing newline,
+spec: so after `strtol` on an `fgets` line, `*end` may be `'\n'` or `'\0'`:
+spec: both are fine, anything else is junk.
 spec: No numbers at all: print `figures: no input` to stderr, exit 2. If the
 spec: sum would overflow a `long`, print `figures: sum overflows` to stderr and
 spec: exit 1.

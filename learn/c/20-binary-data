@@ -29,10 +29,10 @@ intro: and a byte of 0x80 or more ends up in the sign bit, which is
 intro: undefined. Use `unsigned char`, not `char`, which may be signed.
 intro:
 intro: A real format has a header: a few fixed "magic" bytes that say what
-intro: the file is (`\x7fELF`, `\x89PNG`), a version, a count, then records
-intro: of a fixed size, and often a checksum so damage is noticed. Read the
-intro: header first, check every field, and never trust a count until you
-intro: know the file is long enough to hold it.
+intro: the file is (0x7f then "ELF" for ELF), a version, a count, then
+intro: records of a fixed size, and often a checksum so damage is
+intro: noticed. Read the header first, check every field, and never trust a
+intro: count until you know the file is long enough to hold it.
 intro:
 intro: In the cases, `printf '\001\002'` feeds raw bytes: a backslash and
 intro: three octal digits is one byte.

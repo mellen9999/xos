@@ -7,7 +7,9 @@ intro: default action: most kill the process (the wait status then says
 intro: WIFSIGNALED), SIGCHLD is ignored.
 intro:
 intro: Change it with `sigaction`, never `signal()` -- what `signal()` does
-intro: varies between systems.
+intro: varies between systems. It, `struct sigaction`, `sigset_t` (a
+intro: variable that holds a set of signals) and the SIG names are in
+intro: <signal.h>; also put the POSIX line first.
 intro:
 intro:     static volatile sig_atomic_t hit;
 intro:     static void on_int(int sig) { (void)sig; hit = 1; }
@@ -17,6 +19,12 @@ intro:     memset(&sa, 0, sizeof sa);
 intro:     sa.sa_handler = on_int;      /* or SIG_IGN, or SIG_DFL */
 intro:     sigemptyset(&sa.sa_mask);
 intro:     if (sigaction(SIGINT, &sa, NULL) != 0) { ...fail... }
+intro:
+intro: `memset(&sa, 0, sizeof sa)` (<string.h>) sets every byte of `sa` to 0,
+intro: so no field starts as garbage. `(void)sig;` uses the unused argument
+intro: so -Werror does not stop the build over it. `volatile` tells the
+intro: compiler the variable can change behind its back, so it must re-read
+intro: it each time instead of remembering an old value.
 intro:
 intro: A handler runs in the middle of whatever your program was doing,
 intro: between any two instructions. So it may only set a flag of type
@@ -30,7 +38,15 @@ intro: arrive as one. `sigprocmask` blocks signals so they wait as pending.
 intro: That closes a classic race: you test a flag, then sleep, and the
 intro: signal lands between the two -- you sleep forever. Block the signal
 intro: first, then `sigsuspend(&old)`, which unblocks and sleeps in one
-intro: step.
+intro: step. The whole wait, with `old` filled in by the block:
+intro:
+intro:     sigprocmask(SIG_BLOCK, &set, &old);
+intro:     while (!flag) sigsuspend(&old);
+intro:     sigprocmask(SIG_SETMASK, &old, NULL);  /* put the old mask back */
+intro:
+intro: The last line undoes the block; a signal that was pending runs its
+intro: handler right then. Loop, don't `if`: sigsuspend can return for
+intro: another signal.
 intro:
 intro: A handler that interrupts a slow call such as `read` makes it fail
 intro: with `EINTR` (with `sa_flags` 0, as above; `SA_RESTART` makes it
@@ -46,7 +62,9 @@ intro: error itself sets it to SIG_IGN, and `write` then fails with
 intro: `EPIPE`.
 intro:
 intro: Never order things with `sleep`. To know a child is ready, have it
-intro: write a byte down a pipe, and wait for that byte.
+intro: write a byte down a pipe, and wait for that byte. To make a child
+intro: wait with nothing to do, use a second pipe nobody writes to: its
+intro: `read` blocks until something happens (like a signal).
 ---
 q: sigcount.c -- catch a signal N times
 spec: Take two arguments: a signal NAME, one of `INT`, `TERM`, `HUP`,
@@ -203,22 +221,23 @@ hint: sigprocmask(SIG_BLOCK, &set, &old) before the raises; ask sigpending while
 ---
 q: killkid.c -- kill your own child
 spec: Take one argument, MODE: `default`, `handled` or `ignored`. Make two
-spec: pipes and fork a child. The child sets itself up for its MODE, then
-spec: writes one byte to the first pipe to say it is ready, then waits:
+spec: pipes, READY and HOLD, and fork a child. The child sets itself up
+spec: for its MODE, then writes one byte to READY to say it is set up,
+spec: then waits (HOLD never gets a write; reading it just blocks):
 spec:
-spec: `default`: leaves SIGTERM alone and blocks in `read` on the second
-spec: pipe (nobody ever writes to it).
+spec: `default`: leaves SIGTERM alone and blocks in `read` on HOLD.
 spec: `ignored`: sets SIGTERM to `SIG_IGN`, then blocks the same way.
 spec: `handled`: blocks SIGTERM with `sigprocmask` first, installs a
 spec: handler that sets a flag, then sleeps in `sigsuspend` until the flag
 spec: is set and leaves with `_exit(42)`. (Block first, or a SIGTERM that
 spec: lands between the check and the sleep is lost.)
 spec:
-spec: The parent reads the ready byte, then sends the child SIGTERM; in
+spec: The parent reads the byte from READY, then sends the child SIGTERM; in
 spec: `ignored` mode it then also sends SIGKILL. It waits for the child,
-spec: and prints `exit N` or `signal S` as the child really ended: that
+spec: and prints `exit N` or `signal S` to standard output as the child
+spec: really ended: that
 spec: is `signal 15` for default, `exit 42` for handled, `signal 9` for
-spec: ignored. Exit 0. Keep the parent's end of the second pipe open
+spec: ignored. Exit 0. Keep the parent's end of HOLD open
 spec: until the child has been collected.
 spec:
 spec: A missing or unknown MODE prints `usage: killkid MODE` to standard

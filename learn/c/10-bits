@@ -38,6 +38,14 @@ intro:
 intro: Parsing a number from text for bit work: `strtoul` quietly accepts
 intro: `-1` and wraps it to a huge value. Check the first character is a
 intro: digit yourself, then check the end pointer, `errno` and the range.
+intro: One call, like strtol in unit 04, but it returns `unsigned long`:
+intro:
+intro:     char *end;
+intro:     errno = 0;
+intro:     unsigned long v = strtoul(s, &end, 10);
+intro:
+intro: `end` now points at the first char it did not use; `*end == '\0'`
+intro: means the whole string was a number. (`errno` is in <errno.h>.)
 ---
 q: popcnt.c -- count the one bits
 spec: Take one or more arguments, each an unsigned decimal number from 0
@@ -218,7 +226,8 @@ hint: each group is one octal digit -- test the three bits with & 4, & 2, & 1, a
 ---
 q: rotl32.c -- rotate bits left
 spec: Usage `rotl32 N K`: N is an unsigned decimal number from 0 to
-spec: 4294967295 (digits only), K a whole number from 0 to 31. Rotate the
+spec: 4294967295 (digits only), K from 0 to 31 (digits only: `+3` is
+spec: bad). Rotate the
 spec: 32 bits of N left by K places -- bits shifted off the top come back
 spec: in at the bottom -- and print the result as eight lowercase hex
 spec: digits and a newline. `rotl32 1 1` prints `00000002`.

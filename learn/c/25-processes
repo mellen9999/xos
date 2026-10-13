@@ -6,6 +6,9 @@ intro: <sys/wait.h>.
 intro:
 intro:     pid_t pid = fork();
 intro:
+intro: `pid_t` is an integer type that holds a process id (print with `%d`
+intro: after a cast to `int`).
+intro:
 intro: `fork` copies the running program -- memory, open files, everything
 intro: -- and returns twice. In the original (the parent) it returns the
 intro: child's pid; in the copy (the child) it returns 0; on failure it

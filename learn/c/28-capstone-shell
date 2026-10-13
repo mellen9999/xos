@@ -18,6 +18,9 @@ intro: `execvp(argv[0], argv)` in the child, then `waitpid`. The status the
 intro: shell keeps is the exit code, or 128 plus the signal number: that is
 intro: why a killed command shows 137, and why a missing command is 127
 intro: (and one that exists but cannot run, 126). `$?` is that number.
+intro: When `execvp` returns it failed, and `errno` (<errno.h>) says why:
+intro: `ENOENT` is "no such file", so 127; anything else, such as `EACCES`
+intro: ("permission denied", the file is not executable), is 126.
 intro:
 intro: Some commands cannot be run by a child. `cd` changes the directory
 intro: of the process that calls `chdir`; a child's `cd` would vanish with
@@ -29,6 +32,27 @@ intro: 1, then every pipe descriptor is closed: a spare write end anywhere
 intro: keeps the reader waiting forever. A redirection is the same move
 intro: with a file: in the child, `open` it, `dup2` it onto 0 or 1, `close`
 intro: it.
+intro:
+intro: For N commands, loop once per command and carry the read end of
+intro: the previous pipe along. There is one pipe per gap, so N - 1:
+intro:
+intro:     int prev = -1;                    /* no input pipe yet */
+intro:     for (i = 0; i < n; i++) {
+intro:         int p[2] = {-1, -1};
+intro:         if (i + 1 < n) pipe(p);       /* not after the last one */
+intro:         pid = fork();
+intro:         if (pid == 0) {
+intro:             if (prev != -1) dup2(prev, 0);
+intro:             if (p[1] != -1) dup2(p[1], 1);
+intro:             ...close prev, p[0], p[1] where not -1, then exec...
+intro:         }
+intro:         if (prev != -1) close(prev);  /* parent: done with these */
+intro:         if (p[1] != -1) close(p[1]);
+intro:         prev = p[0];                  /* the next child reads this */
+intro:     }
+intro:
+intro: Then `waitpid` for every child you started. Check each `pipe` and
+intro: `fork` for failure, and still wait for the ones already running.
 intro:
 intro: Four programs, each a complete shell a little bigger than the last.
 intro: Each starts in vi as the previous one, so you grow it instead of
@@ -111,7 +135,7 @@ prog: 				if (*s == '"') {
 prog: 					quoted = !quoted;
 prog: 					s++;
 prog: 				} else if (s[0] == '$' && s[1] == '?') {
-prog: 					out += sprintf(out, "%d", status);
+prog: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 prog: 					s += 2;
 prog: 				} else {
 prog: 					*out++ = *s++;
@@ -260,7 +284,7 @@ prog: 				if (*s == '"') {
 prog: 					quoted = !quoted;
 prog: 					s++;
 prog: 				} else if (s[0] == '$' && s[1] == '?') {
-prog: 					out += sprintf(out, "%d", status);
+prog: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 prog: 					s += 2;
 prog: 				} else {
 prog: 					*out++ = *s++;
@@ -446,7 +470,7 @@ start: 				if (*s == '"') {
 start: 					quoted = !quoted;
 start: 					s++;
 start: 				} else if (s[0] == '$' && s[1] == '?') {
-start: 					out += sprintf(out, "%d", status);
+start: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 start: 					s += 2;
 start: 				} else {
 start: 					*out++ = *s++;
@@ -589,7 +613,7 @@ prog: 				if (*s == '"') {
 prog: 					quoted = !quoted;
 prog: 					s++;
 prog: 				} else if (s[0] == '$' && s[1] == '?') {
-prog: 					out += sprintf(out, "%d", status);
+prog: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 prog: 					s += 2;
 prog: 				} else {
 prog: 					*out++ = *s++;
@@ -861,7 +885,7 @@ start: 				if (*s == '"') {
 start: 					quoted = !quoted;
 start: 					s++;
 start: 				} else if (s[0] == '$' && s[1] == '?') {
-start: 					out += sprintf(out, "%d", status);
+start: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 start: 					s += 2;
 start: 				} else {
 start: 					*out++ = *s++;
@@ -1087,7 +1111,7 @@ prog: 				if (*s == '"') {
 prog: 					quoted = !quoted;
 prog: 					s++;
 prog: 				} else if (s[0] == '$' && s[1] == '?') {
-prog: 					out += sprintf(out, "%d", status);
+prog: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 prog: 					s += 2;
 prog: 				} else {
 prog: 					*out++ = *s++;
@@ -1391,7 +1415,7 @@ start: 				if (*s == '"') {
 start: 					quoted = !quoted;
 start: 					s++;
 start: 				} else if (s[0] == '$' && s[1] == '?') {
-start: 					out += sprintf(out, "%d", status);
+start: 					out += snprintf(out, 4, "%d", status); /* status is 0..255 */
 start: 					s += 2;
 start: 				} else {
 start: 					*out++ = *s++;

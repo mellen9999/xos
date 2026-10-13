@@ -17,6 +17,22 @@ intro:         *b = t;
 intro:     }
 intro:     /* swap(&x, &y); */
 intro:
+intro: A common shape: return success or failure, and hand the value back
+intro: through a pointer. The caller passes the address of its variable:
+intro:
+intro:     static bool parse_pct(const char *s, long *out)
+intro:     {
+intro:         char *end;
+intro:         errno = 0;
+intro:         long v = strtol(s, &end, 10);
+intro:         if (end == s || *end != '\0' || errno == ERANGE
+intro:             || v < 0 || v > 100)
+intro:             return false;      /* *out left alone */
+intro:         *out = v;
+intro:         return true;
+intro:     }
+intro:     /* long pct; if (!parse_pct(arg, &pct)) ... */
+intro:
 intro: An array name used in an expression turns into a pointer to its
 intro: first element (it "decays"), so `f(arr)` hands over an address
 intro: and the length is gone -- pass `n` alongside. Adding to a pointer
@@ -41,14 +57,17 @@ spec: and A % B -- then a newline. `divmod 17 5` prints `3 2`. Negative
 spec: numbers divide toward zero, so `divmod -17 5` prints `-3 -2`.
 spec:
 spec: B of 0 prints `divmod: divide by zero` to standard error and exits
-spec: 1. An argument that is not a whole number prints `divmod: bad
-spec: number` to standard error and exits 1. Any other argument count
-spec: prints nothing and exits 2.
+spec: 1. So does A of `LONG_MIN` (from <limits.h>) with B of -1, printing
+spec: `divmod: overflow`: that quotient does not fit a `long`, and dividing
+spec: it is undefined behaviour. An argument that is not a whole number
+spec: prints `divmod: bad number` to standard error and exits 1.
+spec: Any other argument count prints nothing and exits 2.
 spec:
 spec: Write a function that hands back both Q and R through pointer
 spec: parameters, and one that parses a number into a `long *`.
 file: divmod.c
 prog: #include <errno.h>
+prog: #include <limits.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -84,6 +103,10 @@ prog: 	if (b == 0) {
 prog: 		fprintf(stderr, "divmod: divide by zero\n");
 prog: 		return 1;
 prog: 	}
+prog: 	if (a == LONG_MIN && b == -1) {
+prog: 		fprintf(stderr, "divmod: overflow\n");
+prog: 		return 1;
+prog: 	}
 prog: 	long q, r;
 prog: 	divmod(a, b, &q, &r);
 prog: 	printf("%ld %ld\n", q, r);
@@ -92,6 +115,8 @@ prog: }
 case: divmod 17 5
 case: divmod -17 5
 case: divmod 4 0 2>&1; echo $?
+case: divmod -9223372036854775808 -1 2>&1; echo $?
+case: divmod -9223372036854775807 -1
 case: divmod 4 x 2>&1; echo $?
 case: divmod 4; echo $?
 hint: both results go out through q and r, the caller passes &q and &r; check b before you divide

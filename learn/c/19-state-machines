@@ -31,6 +31,26 @@ intro:
 intro: When the next state depends only on (state, input) and nothing else
 intro: happens, a table says it shorter: `next[state][input]`. Use a table
 intro: when every cell is data; use a switch when states do different work.
+intro: Declare it with one row per state and one column per input, and
+intro: index it the same way. A machine that tracks whether the 1-bits
+intro: seen so far are even (0) or odd (1):
+intro:
+intro:     static const int next[2][2] = { {0, 1}, {1, 0} };
+intro:     s = next[s][bit];     /* row = state, column = input 0 or 1 */
+intro:
+intro: A state can exist just to remember "I just saw X". To copy a quoted
+intro: string but not treat a quote after a backslash as its end, you
+intro: need a third state, for the byte after the backslash:
+intro:
+intro:     case QUOTE:                 /* inside "..." */
+intro:         if (c == '\\') s = QUOTE_ESC;
+intro:         else if (c == '"') s = CODE;
+intro:         break;
+intro:     case QUOTE_ESC: s = QUOTE; break;   /* skip whatever it was */
+intro:
+intro: Real tasks have more states than the three in the sketch above:
+intro: one per thing you must remember, such as "inside a comment" or
+intro: "inside a comment, just saw a star".
 intro:
 intro: A byte that ends one token often starts the next (the space after a
 intro: number is fine, the `+` after it is not). Give it back with
@@ -40,6 +60,9 @@ intro:
 intro: At EOF the loop ends, but the machine may be mid-token. Always ask
 intro: what each state means at end of input: a number just ends, a string
 intro: is an error. Ignoring this is how real parsers accept half a file.
+intro:
+intro: `strchr(s, c)` also matches c == 0 (the string's own end), so test
+intro: `c != '\0'` before using it to ask "is c one of these characters".
 intro:
 intro: `strspn(s, " ")` is the twin of `strcspn`: the length of the run at the
 intro: start of `s` made only of those bytes. `s += strspn(s, " \t");` skips
@@ -103,7 +126,10 @@ spec: are not comments: copy those exactly. A backslash inside either
 spec: protects the next character, so the quote in "x\"y" does not end the
 spec: string. A lone slash that starts nothing, as in `a / b`, is copied.
 spec:
-spec: An unterminated block comment prints `cstrip: unterminated comment` to
+spec: An unterminated string or character constant is not an error: what
+spec: was copied stays, a newline does not end it, and it exits 0. An
+spec: unterminated line comment (no final newline) also exits 0. An
+spec: unterminated block comment prints `cstrip: unterminated comment` to
 spec: standard error after the output so far and exits 1. Otherwise exit 0.
 spec: Use one enum state variable, not several flags.
 file: cstrip.c
@@ -213,7 +239,7 @@ spec:
 spec:   `NUM 42`   a run of digits
 spec:   `ID name`  a letter or underscore, then letters, digits, underscores
 spec:   `OP +`     one of + - * / ( ) , ;  and  = ! < >  and the two-character
-spec:              == != <= >=  (print `OP ==`; a lone ! is an error)
+spec:              == != <= >=  (print `OP ==`; a lone ! is `bad character`)
 spec:   `STR "hi"` a double-quoted string
 spec:
 spec: Whitespace separates tokens and is otherwise skipped. A number and a
@@ -382,13 +408,28 @@ spec:
 spec: Blank lines (empty or only spaces) are ignored. Each batch starts at
 spec: total 0.
 spec:
+spec: Split each line at its FIRST space: the command is the text before
+spec: it, the argument is everything after it, spaces included. The
+spec: command must match exactly, so ` END` (leading space) is `unknown command`.
+spec: `BEGIN` takes the argument as the name as is, so `BEGIN  a` (two
+spec: spaces, name ` a`), `BEGIN a ` and a missing name are `bad name`.
+spec: `ADD` hands the argument to strtol, which skips leading spaces:
+spec: `ADD  5` is fine, `ADD 5 ` and a missing number are `bad number`.
+spec: `END` ignores any argument: `END x` is accepted.
+spec:
 spec: The first problem stops everything: print `batchp: line L: WHY` to
 spec: standard error and exit 1, L counting lines from 1. WHY is one of
 spec: `line too long` (over 126 characters), `BEGIN inside a batch`,
 spec: `bad name`, `ADD outside a batch`, `bad number`, `END without BEGIN`,
 spec: `unknown command` (commands are exactly upper case), or, at end of
 spec: input inside a batch, `batch never ended` (L is the last line read).
+spec: Check the state first, then the argument: `BEGIN` inside a batch is
+spec: `BEGIN inside a batch` even when its name is bad too.
 spec: Exit 0 if all went well.
+spec:
+spec: With `fgets(buf, 128, stdin)` a longer line comes back in pieces and
+spec: the first piece has no `\n`: a full buffer with no newline at the
+spec: end means the line is too long.
 file: batchp.c
 prog: #include <errno.h>
 prog: #include <stdio.h>

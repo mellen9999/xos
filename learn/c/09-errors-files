@@ -24,6 +24,12 @@ intro:     while ((n = fread(buf, 1, sizeof buf, f)) > 0)
 intro:         fwrite(buf, 1, n, stdout);
 intro:     fclose(f);
 intro:
+intro: The mode is `"r"` to read text or `"rb"` to read raw bytes (same on
+intro: Linux); `"w"` writes, `"a"` appends. `fread(buf, size, count, f)`
+intro: reads up to count items of size bytes into buf and returns how many
+intro: whole items it got; `fwrite(buf, size, count, f)` writes them out.
+intro: With size 1, the count is a byte count.
+intro:
 intro: `fread` and `fwrite` move raw bytes, count included, so they are
 intro: safe for data with zero bytes in it; `fgets` and `puts` are not.
 intro: `fread` returning 0 means end of file or an error: `ferror(f)` tells
@@ -44,6 +50,20 @@ intro:
 intro: Start every owned thing as NULL so cleanup can free what exists.
 intro: In your own functions, return 0 for success and nonzero for failure,
 intro: the way programs do.
+intro:
+intro: To keep a copy of a string you must malloc room for it, plus one byte
+intro: for the NUL, and copy it in. A function that does so returns NULL
+intro: if malloc failed; the caller owns the result and must free it:
+intro:
+intro:     static char *dup_n(const char *s, size_t n)   /* first n chars */
+intro:     {
+intro:         char *p = malloc(n + 1);
+intro:         if (p != NULL) {
+intro:             memcpy(p, s, n);
+intro:             p[n] = '\0';
+intro:         }
+intro:         return p;
+intro:     }
 intro:
 intro: `fputs(s, f)` writes a string to any stream exactly as it is. Unlike
 intro: `puts` it adds no newline, so `fputs("bad input\n", stderr)` sends a
@@ -102,11 +122,14 @@ spec: A last line with no newline still counts. Each number is a plain
 spec: decimal int, with an optional leading `-` or `+`.
 spec:
 spec: A line that is not exactly one int (blank, trailing junk, too big
-spec: for an int) is an error: print `numsum: FILE:N: bad number` to
+spec: for an int, so outside `INT_MIN` to `INT_MAX` from <limits.h>) is an
+spec: error: print `numsum: FILE:N: bad number` to
 spec: standard error, N being the line number counted from 1, print no
 spec: sum, and exit 1. A file that cannot be opened prints
-spec: `numsum: cannot open FILE` and exits 2. Any other number of
-spec: arguments prints `usage: numsum FILE` and exits 2.
+spec: `numsum: cannot open FILE` to standard error and exits 2 (not 1,
+spec: unlike the others). Any other number of arguments prints
+spec: `usage: numsum FILE` to standard error and exits 2. Sum in a
+spec: `long long` and print it with `%lld`.
 spec:
 spec: Lines are under 64 characters. Use `fgets` and `strtol` with an
 spec: end pointer and `errno`.
@@ -164,12 +187,16 @@ spec: print them all. A final line with no newline is printed without one.
 spec:
 spec: N must be a whole number from 1 to 1000. Anything else prints
 spec: `lastn: bad count` to standard error and exits 2. Any other number of
-spec: arguments prints `usage: lastn N FILE` and exits 2. If FILE cannot be
-spec: opened print `lastn: cannot open FILE` and exit 1.
+spec: arguments prints `usage: lastn N FILE` to standard error and exits 2.
+spec: If FILE cannot be opened print `lastn: cannot open FILE` to standard
+spec: error and exit 1.
 spec:
 spec: Lines are under 255 characters. Keep only the last N lines in
 spec: memory, in malloc'd copies, and release everything through a single
 spec: `goto cleanup` exit -- the file and every line, on every path.
+spec: Use an array of N `char *` (calloc zeroes it, so unused slots are
+spec: NULL and free(NULL) is fine). Line number `seen` goes in slot
+spec: `ring[seen % n]`; free what the slot held before you overwrite it.
 file: lastn.c
 prog: #include <errno.h>
 prog: #include <stdio.h>

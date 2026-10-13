@@ -48,13 +48,39 @@ intro:
 intro: `main` returns int because that number is the exit status the caller
 intro: reads. A function that promises a value must return one on every path.
 intro:
+intro: A function that gives nothing back has return type `void`, and a bare
+intro: `return;` (or just reaching the end) leaves it:
+intro:
+intro:     static void greet(void)
+intro:     {
+intro:         printf("hi\n");
+intro:     }
+intro:
+intro: A yes/no function returns `bool` (`#include <stdbool.h>`), using the
+intro: keywords `true` and `false`. `!` flips a bool: `if (!is_odd(n))` reads
+intro: "if n is not odd".
+intro:
+intro: To print items with a separator between them and none after the last,
+intro: put the separator before every item except the first. Remember
+intro: whether you are on the first one:
+intro:
+intro:     bool first = true;
+intro:     for (int i = 1; i <= 3; i++) {
+intro:         if (!first)
+intro:             putchar(',');
+intro:         printf("%d", i * i);
+intro:         first = false;
+intro:     }
+intro:
+intro: prints `1,4,9`.
+intro:
 intro: `putchar(c)` prints one character: `putchar('\n')` ends a line. It is
 intro: printf for a single char, with nothing to format.
 ---
 q: fact.c -- factorials by recursion
 spec: Write a `static uint64_t factorial(unsigned n)` that calls itself, with
 spec: a prototype above `main`. Print the factorials of 0 to 10, one per line,
-spec: like `5! = 120`. `0!` is 1.
+spec: like `5! = 120` (print `n` with `%u`). `0!` is 1.
 file: fact.c
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
@@ -84,7 +110,7 @@ q: primes.c -- a function that answers yes or no
 spec: Write `static bool is_prime(unsigned n)`: true only for 2, 3, 5, ... --
 spec: 0 and 1 are not prime. Print every prime below 30 on one line,
 spec: separated by single spaces, with no trailing space and a newline at the
-spec: end: `2 3 5 7 11 13 17 19 23 29`.
+spec: end: `2 3 5 7 11 13 17 19 23 29`. Print each with `%u`.
 file: primes.c
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -131,7 +157,8 @@ spec: `gcd(0, 9) = 9`
 spec: `lcm(4, 6) = 12`
 spec: `lcm(21, 6) = 42`
 spec:
-spec: Divide before you multiply in lcm, so the product cannot overflow.
+spec: Print each result with `%u`. Divide before you multiply in lcm, so
+spec: the product cannot overflow.
 file: gcd.c
 prog: #include <stdio.h>
 prog: 

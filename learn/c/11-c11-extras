@@ -12,6 +12,18 @@ intro: the type of `x` -- at compile time, nothing is tested at run time. It
 intro: is how a macro can print any type. Note `'x'` is an int in C, and a
 intro: `const char *` is not a `char *`.
 intro:
+intro: A macro with a parameter is written `#define NAME(x) body`. A long
+intro: body continues on the next line if the line ends with `\`:
+intro:
+intro:     #define SIZE_OF(x) _Generic((x), \
+intro:         short: "two", long: "eight", \
+intro:         default: "who knows")
+intro:
+intro: `(x)` is in parentheses so any expression works. The starter's
+intro: `((void)(x), "?")` is a placeholder: `(void)(x)` uses x and
+intro: drops it (so the compiler does not warn), and a comma gives its
+intro: right side, here "?". Replace it whole.
+intro:
 intro: A flexible array member is a last, unsized array in a struct. One
 intro: malloc holds the header and the data together:
 intro:
@@ -24,8 +36,17 @@ intro: An anonymous struct or union has no name of its own, so its members
 intro: read as the outer struct's: `v.i` instead of `v.u.i`. A tagged value
 intro: is an enum saying which member of an anonymous union is live.
 intro:
+intro: A union's members share one piece of memory, so it holds only one
+intro: of them at a time -- the one written last. Read another and you get
+intro: its bytes reinterpreted, usually nonsense:
+intro:
+intro:     struct num { enum { F, S } tag; union { float f; short s; }; };
+intro:     struct num n = { .tag = S, .s = 4 };   /* n.f: invalid now */
+intro:
 intro: `_Noreturn` marks a function that never comes back (it exits). The
-intro: compiler then knows nothing runs after the call.
+intro: compiler then knows nothing runs after the call. `exit(status)`
+intro: (<stdlib.h>) ends the program at once from anywhere, with that exit
+intro: status; `exit(2)` is like `return 2` from main.
 intro: `static inline` hints that a small function should be pasted into its
 intro: caller; the compiler decides.
 intro:
@@ -33,7 +54,10 @@ intro: `restrict` on a pointer promises that nothing else reaches that
 intro: memory in this function -- you may then not pass overlapping
 intro: arrays, and the compiler may reorder loads and stores freely. Break
 intro: the promise and the behaviour is undefined. `memcpy` has it,
-intro: `memmove` does not.
+intro: `memmove` does not. It goes after the star:
+intro:
+intro:     static void scale(double *restrict out, const double *restrict in,
+intro:                       size_t n);
 intro:
 intro: C23 exists now and adds `nullptr`, `constexpr`, `#embed` and `bool`
 intro: as a keyword. This compiler is C11, so this track stops at C11.
