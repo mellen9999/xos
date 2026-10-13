@@ -597,6 +597,56 @@ c_continue() {
 	done
 }
 
+# c_new -- throw the run away: every passed program forgotten, the code you
+# wrote moved aside to c-work.prev (scratch stays -- it was never graded).
+# the code moves first, so a failure leaves the ledger and nothing is lost.
+c_new() {
+	local k f prev="$C_WORK.prev" shown
+	shown=$prev; case "$prev" in "$HOME"/*) shown="~/${prev#"$HOME"/}" ;; esac
+	printf '\n  %sstarting over forgets every program you passed%s\n' "$Y" "$N"
+	printf '  %syour code is kept in %s -- y to start over%s ' "$Y" "$shown" "$N"
+	IFS= read -rsn1 k 2>/dev/null || return 1
+	echo
+	case "$k" in y|Y) : ;; *) return 1 ;; esac
+	rm -rf "$prev" && mkdir -p "$prev" || { no "cannot write $prev"; pause_card; return 1; }
+	for f in "$C_WORK"/*; do
+		[ -e "$f" ] && [ "${f##*/}" != scratch.c ] || continue
+		mv "$f" "$prev/" || { no "cannot move $f"; pause_card; return 1; }
+	done
+	rm -f "$C_DONE" || { no "cannot clear $C_DONE"; pause_card; return 1; }
+	return 0
+}
+
+# c_confirm -- c on the home, the way learn's continue works: it names the
+# place first and asks, so a slipped key does not drop you into a program,
+# and n is the one way to start the whole track over.
+c_confirm() {
+	local d t ud u nx k
+	read -r d t ud u nx <<-EOF
+	$(c_tally)
+	EOF
+	cls
+	if [ "${nx:--}" = - ]; then
+		printf '  %severy unit written%s %s-- %s of %s programs%s\n' "$W" "$N" "$D" "$d" "$t" "$N"
+		printf '  %sstart over? (y/N)%s ' "$W" "$N"
+		IFS= read -rsn1 k 2>/dev/null || return 0
+		echo
+		case "$k" in y|Y) c_new && c_continue ;; esac
+		return 0
+	fi
+	printf '  %sunit %s  %s%s %s-- %s of %s programs written%s\n' "$W" "$(level_no "$nx")" \
+		"$(prj_field "$nx" name)" "$N" "$D" "$d" "$t" "$N"
+	if [ "${d:-0}" = 0 ]; then printf '  %sstart? (Y/n)%s ' "$W" "$N"
+	else printf '  %scontinue? (Y/n)%s ' "$W" "$N"; fi
+	IFS= read -rsn1 k 2>/dev/null || return 0
+	echo
+	case "$k" in
+		''|y|Y) c_continue ;;
+		n|N)    [ "${d:-0}" = 0 ] || { c_new && c_continue; } ;;
+	esac
+	return 0
+}
+
 # c_home -- `learn c` and the C key: the track's own home, in the shape of
 # learn's menu. one key a mode, and every mode comes back here.
 c_home() {
@@ -611,7 +661,7 @@ c_home() {
 		hdr "learn c" "modern c, written in vi"
 		printf '  '; bar "${d:-0}" "${t:-1}" 20
 		printf ' %s%s/%s programs  %s/%s units%s\n\n' "$D" "$d" "$t" "$ud" "$u" "$N"
-		if [ "${nx:--}" = - ]; then _mi_off c continue "every unit written"
+		if [ "${nx:--}" = - ]; then _mi c "start over" "every unit written"
 		elif [ "${d:-0}" = 0 ]; then _mi c start "unit 0, your first program"
 		else _mi c continue "$(printf 'unit %s %s' "$(level_no "$nx")" "$(prj_field "$nx" name)" \
 			| cut -c1-$(( COLS - 22 )))"; fi
@@ -625,7 +675,7 @@ c_home() {
 		IFS= read -rsn1 k 2>/dev/null || break
 		echo
 		case "$k" in
-			c|'') [ "${nx:--}" = - ] || c_continue ;;
+			c|'') c_confirm ;;
 			u) c_units ;;
 			p) c_scratch ;;
 			f) cls; printf '  %sfind which word?%s ' "$W" "$N"
