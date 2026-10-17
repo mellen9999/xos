@@ -360,6 +360,7 @@ SFDISK
   [ -b "$p3" ] || { echo "FAIL: p3 did not appear as ${dev}3 or ${dev}p3" >&2; return 1; }
 
   echo "  formatting p3 as LUKS2 with hmac-sha256 integrity -- you will be asked for a passphrase"
+  echo "  it will ask to confirm: type YES in capital letters (its own prompt says yes, but only YES works)"
   # pin the KDF explicitly instead of taking cryptsetup's adaptive default. two
   # reasons, both about a stick formatted here but unlocked elsewhere:
   #   portability -- the adaptive default sizes argon2 to THIS host's RAM (up to
