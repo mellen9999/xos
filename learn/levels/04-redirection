@@ -5,23 +5,19 @@ syntax: 2>&1, >&2, 2>, >>, >, <, |, '...'
 brief: A command has three channels: stdin (0) it reads, stdout (1) it prints,
 brief: and stderr (2) it complains on. Redirection re-points them at files.
 brief:
-brief: `>` truncates the target first. `>>` appends. That single character is the
-brief: difference between adding today's log and destroying yesterday's, and
-brief: no confirmation stands between you and it.
-brief:
+brief: `>` truncates the target first. `>>` appends. That one character is the
+brief: difference between adding today's log and destroying yesterday's, with no
+brief: confirmation between you and it.
 brief: `2>` catches errors only. `> file 2>&1` catches both, in that order --
 brief: `2>&1 > file` does not, because the duplication happens before the move.
-brief:
 brief: `|` wires one command's stdout into the next's stdin -- `tee`, later in
 brief: this level, needs it.
 brief:
 brief: `wc -l` counts lines. `a; b` runs a, then b. `: > log` empties (or makes) log.
-brief: Commands you have: `ls`, `sort`, `wc`, `echo`. `grep word` keeps the lines containing word.
-brief:
-brief: `printf` is the better echo -- it prints exactly the format you hand it, no
-brief: newline unless you write `\n` yourself. `%s` is the next word, `%d` a
-brief: number, `%05d` a zero-padded one: `printf '%s is %d\n' age 12`.
-brief: Put the format in single quotes: they hand text over untouched, so the
+brief: Commands you have: `ls`, `sort`, `wc`, `echo`. `grep word` keeps lines with word.
+brief: `printf` prints exactly the format you hand it, no newline unless you write
+brief: `\n`. `%s` is the next word, `%d` a number, `%05d` a zero-padded one:
+brief: `printf '%s is %d\n' age 12`. Single quotes hand text over untouched, so the
 brief: shell does not eat the `\`, the spaces or the `|` -- `printf 'a\tb\n'`.
 ---
 q: {write @word@ into @word@.txt with `echo`, replacing what's there|write @word@ into @word@.txt with `echo`, overwriting what was before|save @word@ to @word@.txt with `echo`, wiping out old contents}

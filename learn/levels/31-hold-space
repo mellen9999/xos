@@ -1,32 +1,24 @@
 name: hold space
 boss: Palimpsest
 flavor: Erase me and I remember anyway.
-brief: `sed` keeps a second buffer alongside the line it is working on: the
-brief: hold space, empty until you touch it. `h` copies pattern space into
-brief: it, `H` appends instead of overwriting, `g` copies it back, `G`
-brief: appends it back, and `x` swaps the two outright.
-brief:
-brief: `N` reads one more line into the pattern space instead of starting a
-brief: new cycle -- now a pattern can span two lines. `P` prints just the
-brief: first of them, `D` deletes it and restarts the cycle without reading
-brief: a fresh line, which is how a script walks the file two lines at a
-brief: time without ever losing its place.
-brief:
-brief: `:label` marks a spot, `b label` jumps to it unconditionally, `t label`
-brief: jumps to it only if the last `s///` actually changed something --
-brief: which is how a substitution loops until nothing is left to fix.
-brief:
-brief: Addresses pick which lines a command runs on: ``$`` is the last line, ``1`` the first,
-brief: and ``!`` inverts the pick -- `$!d` deletes every line except the last, `1!G` runs
-brief: `G` on every line but the first. `printf 'a\nb\n' | sed '$!d'` prints ``b``;
-brief: `sed '2!d'` keeps only line 2. A `!` before a command means "unless the address
-brief: matches", for `b` just the same.
-brief:
-brief: Lowercase `n` prints the pattern space (unless `-n`), then loads the next line over it (`N`
-brief: appends instead). `{ }` groups commands under one address: `sed -n '2{p;p}'`
-brief: prints line 2 twice. Inside a pattern, ``\n`` matches the newline in a two-line
-brief: pattern space and ``\1`` repeats what group 1 matched, so ``\(x*\)\n\1`` matches
-brief: a run of x's, a newline, then the very same run again.
+brief: `sed` keeps a second buffer beside the line it works on: the hold space, empty
+brief: until you touch it. `h` copies pattern space into it, `H` appends instead of
+brief: overwriting, `g` copies it back, `G` appends it back, `x` swaps the two outright.
+brief: `N` reads one more line into the pattern space instead of starting a new cycle
+brief: -- a pattern can span two lines. `P` prints just the first of them, `D` deletes
+brief: it and restarts the cycle without reading a fresh line: how a script walks
+brief: the file two lines at a time without losing its place. `:label` marks a spot,
+brief: `b label` jumps to it unconditionally, `t label` only if the last `s///` changed
+brief: something -- a substitution loops until nothing is left to fix. Addresses
+brief: pick lines: ``$`` is the last, ``1`` the first, ``!`` inverts the pick -- `$!d` deletes
+brief: all but the last, `1!G` runs `G` on every line but the first.
+brief: `printf 'a\nb\n' | sed '$!d'` prints ``b``; `sed '2!d'` keeps only line 2. A `!`
+brief: before a command means "unless the address matches", for `b` too. Lowercase `n`
+brief: prints pattern space (unless `-n`), then loads the next line over it (`N`
+brief: appends). `{ }` groups commands under one address: `sed -n '2{p;p}'` prints line
+brief: 2 twice. In a pattern, ``\n`` matches the newline in a two-line pattern space
+brief: and ``\1`` repeats group 1, so ``\(x*\)\n\1`` matches a run of x's, a newline, then
+brief: the very same run again.
 ---
 setup: tac isn't always around, but sed's hold space can do its job
 q: {reverse the line order of @cfg@ using `sed`'s hold space, no `tac`|read @cfg@ backwards with `sed` alone, not `tac`|flip @cfg@ top-to-bottom with `sed`, no `tac` involved}

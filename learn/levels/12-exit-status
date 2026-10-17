@@ -6,22 +6,19 @@ brief: Every command returns a number. Zero means success; anything else is a
 brief: failure the command chose. `$?` holds the last one.
 brief:
 brief: That number is what `&&` and `||` branch on. `cmd1 && cmd2` runs the second
-brief: only if the first succeeded; `cmd1 || cmd2` only if it failed. This is
-brief: the smallest conditional the shell has, and the most used.
+brief: only if the first succeeded; `cmd1 || cmd2` only if it failed. The smallest
+brief: conditional the shell has, and the most used.
 brief:
-brief: `true` and `false` do nothing but return a status, which is how you test a
-brief: chain without doing any work. `exit N` ends a shell with the status you
-brief: pick. `set -e` stops a script at the first command that fails, instead of
-brief: carrying on with wrong data.
+brief: `true` and `false` only return a status, to test a chain without work.
+brief: `exit N` ends a shell with the status you pick. `set -e` stops a script at
+brief: the first failing command, instead of carrying on with wrong data.
 brief:
-brief: The other specials: `$$` this shell's pid, `$!` the last background pid,
-brief: `$#` how many arguments, `$@` all of them, `$0` the name it was invoked as.
-brief:
-brief: Quoted, `"$*"` joins that same list into one word. `--` marks the end of options,
-brief: so anything after it is a literal argument even if it starts with `-`.
-brief: `( )` run their commands in a fresh subshell -- a copy that can't change
-brief: the parent; `{ }` run them in the current shell, just grouped as one.
-brief: Write `{ y=5; }` with a space after `{` and a `;` before `}`.
+brief: Specials: `$$` this shell's pid, `$!` the last background pid, `$#` how many
+brief: arguments, `$@` all of them, `$0` the name it was invoked as.
+brief: Quoted, `"$*"` joins that list into one word. `--` ends options, so what
+brief: follows is literal even if it starts with `-`. `( )` run commands in a fresh
+brief: subshell -- a copy that can't change the parent; `{ }` run them in the
+brief: current shell, grouped. Write `{ y=5; }`: space after `{`, `;` before `}`.
 brief: A leading `!` flips a status. `for w in a b; do echo $w; done` runs the
 brief: body once per word (loops get their own level).
 ---

@@ -2,26 +2,25 @@ name: root
 boss: ROOT
 flavor: I answer to nothing. Show me you belong here.
 syntax: /dev/null
-brief: You are standing at a machine you did not build, that you booted from a
-brief: stick in your pocket. Everything you need to decide whether to trust it
-brief: is readable from where you are sitting, with commands you already know.
-brief: No special tool. Nothing you could not do on someone else's box.
+brief: You are at a machine you did not build, booted from a stick in your pocket.
+brief: Everything you need to decide whether to trust it is readable from where you
+brief: sit, with commands you already know. No special tool.
 brief:
-brief: xos makes a specific claim: every block of the root filesystem is
-brief: checked against a hash tree whose root hash arrives on the kernel
-brief: command line, inside an image signed with keys you enrolled yourself.
+brief: xos makes a specific claim: every block of the root filesystem is checked
+brief: against a hash tree whose root hash arrives on the kernel command line,
+brief: inside an image signed with keys you enrolled yourself.
+brief: This is one argument, in order. Each answer is a link, and the chain is only
+brief: worth its weakest link -- read what each one proves, and what it does not.
 brief:
-brief: This is one argument, in order. Each answer is a link, and the chain is
-brief: only worth what its weakest link is worth -- so read what each one
-brief: actually proves, and what it does not.
-brief:
-brief: Notation used below. A ``/proc/mounts`` line is ``device mountpoint type flags dump pass``,
-brief: e.g. ``/dev/dm-0 / squashfs ro,relatime 0 0`` -- awk's ``$1`` to ``$6``. sed's default
-brief: regex writes groups and counts as ``\( \)`` and ``\{64\}``; `sed -E` takes plain ``( )`` and ``{64}``.
+brief: Notation. A ``/proc/mounts`` line is ``device mountpoint type flags dump pass``,
+brief: e.g. ``/dev/dm-0 / squashfs ro,relatime 0 0`` -- awk's ``$1`` to ``$6``. sed's
+brief: default regex writes groups and counts as ``\( \)`` and ``\{64\}``; `sed -E`
+brief: takes plain ``( )`` and ``{64}``.
 brief: `A && B || C` runs B if A worked, else C: `cd /x && echo ok || echo no`.
-brief: `mount -o remount,ro /mnt` re-mounts something already mounted with new options;
-brief: `2>/dev/null` hides error text. awk's `printf` is the shell's, but its arguments follow
-brief: commas and it adds no newline: `awk '{printf "%s-%s ", $1, $2}'`.
+brief: `mount -o remount,ro /mnt` re-mounts something already mounted with new
+brief: options; `2>/dev/null` hides error text. awk's `printf` is the shell's, but
+brief: its arguments follow commas and it adds no newline:
+brief: `awk '{printf "%s-%s ", $1, $2}'`.
 ---
 setup: Start with the claim. The root filesystem is not trusted because it
 setup: looks right; it is trusted because every block read out of it is

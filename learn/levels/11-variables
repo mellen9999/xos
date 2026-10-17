@@ -2,36 +2,24 @@ name: variables
 boss: $VARIABLE
 flavor: I hold what you've forgotten.
 syntax: ;, NAME=, ${#NAME}, ${NAME:-WORD}, ${NAME#%}, ${NAME}, $(CMD), `CMD`, "..."
-brief: A variable is `NAME=VALUE`, with no spaces around the `=`. You read it back
-brief: with `$NAME`. Command substitution `$(CMD)` runs a command and becomes its
-brief: output, which is how you get a number out of `wc` and into a comparison.
-brief:
-brief: `date` prints the current date and time: `now=$(date)` saves it.
-brief:
-brief: Quote your expansions. `"$x"` is one word whatever spaces it holds; unquoted,
-brief: `$x` splits on them and any `*` left is matched against the directory. A
-brief: backslash protects the next character. Most shell bugs are a missing quote.
-brief:
-brief: `${NAME}` is the same expansion with braces, so you can glue text right
-brief: after a name. `${#NAME}` is its length, `${NAME:-WORD}` falls back to WORD
-brief: when NAME is unset or empty.
-brief:
-brief: Trimming: `${v#pat}` cuts the shortest match of pat off the FRONT, `${v%pat}`
-brief: off the END; doubled (`##`, `%%`) they cut the longest. With `v=a.b.c`:
-brief: `${v#*.}` is `b.c`, `${v##*.}` is `c`, `${v%.*}` is `a.b`, `${v%%.*}` is `a`.
-brief: `${v:=w}` also assigns w when v is unset; `${v:+w}` gives w only when v is set.
-brief: `:` is a command that does nothing, handy to run an expansion for its side effect.
-brief:
-brief: `alias ll='ls -l'` makes `ll` a shortcut; plain `alias` lists them.
-brief: `printf` reuses its format for every extra word: `printf '<%s>' x y z` is `<x><y><z>`.
-brief:
-brief: A variable lives in the shell that set it. `export` hands it down to the
-brief: programs that shell starts; `env` prints what is being handed over, and
-brief: `sh -c 'echo $x'` proves which of the two you made. `unset` removes a
-brief: variable, `unalias` an alias.
-brief:
-brief: `;` runs the next command whatever the last one did. `&&` only runs it if
-brief: the last one succeeded.
+brief: A variable is `NAME=VALUE`, no spaces around the `=`. Read it back with `$NAME`.
+brief: `$(CMD)` runs a command and becomes its output -- how you get a number out of
+brief: `wc` and into a comparison. `now=$(date)` saves the date. Quote expansions. `"$x"`
+brief: is one word whatever spaces it holds; unquoted, `$x` splits on them and any `*`
+brief: left is matched against the directory. A backslash protects the next
+brief: character. Most shell bugs are a missing quote. `${NAME}` is the same with
+brief: braces, to glue text after a name. `${#NAME}` is its length, `${NAME:-WORD}`
+brief: falls back to WORD when NAME is unset or empty. Trimming: `${v#pat}` cuts the
+brief: shortest match of pat off the FRONT, `${v%pat}` off the END; doubled (`##`, `%%`)
+brief: they cut the longest. With `v=a.b.c`: `${v#*.}` is `b.c`, `${v##*.}` is `c`, `${v%.*}`
+brief: is `a.b`, `${v%%.*}` is `a`. `${v:=w}` also assigns w when v is unset; `${v:+w}` gives
+brief: w only when v is set. `:` does nothing, handy to run an expansion for its side
+brief: effect. `alias ll='ls -l'` makes a shortcut; plain `alias` lists them.
+brief: `printf '<%s>' x y z` reuses its format per word: `<x><y><z>`. `export` hands a
+brief: variable to programs the shell starts; `env` prints what is handed over;
+brief: `sh -c 'echo $x'` proves which you made. `unset` removes a variable, `unalias` an
+brief: alias. `;` runs the next command whatever happened; `&&` only if the last one
+brief: succeeded.
 ---
 q: {store the word @word@ in a variable called @var@|put @word@ into a variable named @var@|make a variable called @var@ hold the word @word@}
 a: @var@=@word@

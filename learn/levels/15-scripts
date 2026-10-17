@@ -1,31 +1,25 @@
 name: scripts
 boss: SIGEXIT
 flavor: Whatever you started, I run last.
-brief: Everything so far was a line you typed. A script is the same shell
-brief: reading the lines instead of you -- which means it needs three things
-brief: a prompt never does: arguments, structure, and a way to clean up.
+brief: Everything so far was a line you typed. A script is the same shell reading
+brief: the lines instead of you -- so it needs what a prompt never does: arguments,
+brief: structure, and a way to clean up.
 brief:
-brief: A function is structure. `name() { ... }` defines it, the bare name runs
-brief: it. `local` keeps a variable inside it. `return` ends it with an exit
-brief: status, the way `exit` ends the whole script.
-brief:
-brief: Arguments arrive as `$1 $2 $3`. `shift` drops `$1` and slides the rest down,
-brief: which is how you walk a list you did not write. `getopts` walks option
-brief: letters instead, one call per option: `getopts ab o` reads the next option
-brief: from the list `ab` into variable `o` -- letters first, then the variable.
-brief: `./name` runs a script in this directory (`.` is here; the shell does not
-brief: look in the current directory for commands unless you say `./`).
-brief:
-brief: `trap` is the cleanup. `trap CMD EXIT` runs CMD when the shell exits --
-brief: normally or by error -- so a temp file you made gets removed on the path
-brief: you did not plan for. A kill signal is not an exit: catch it separately.
-brief:
-brief: `exec` and `.` both act on the shell you are in rather than a child: `exec`
-brief: replaces it or rewires its file descriptors for good, `.` runs a script
-brief: here so what it sets survives (`. ./name`, with the `./`). Neither is
-brief: undoable mid-line. `:` is the null command: it does nothing and succeeds,
-brief: so `: > log` empties log. `let n=4*2` does arithmetic with no spaces.
-brief: `eval` runs text as a command.
+brief: A function is structure. `name() { ... }` defines it, the bare name runs it.
+brief: `local` keeps a variable inside it. `return` ends it with an exit status, the
+brief: way `exit` ends the whole script. Arguments arrive as `$1 $2 $3`. `shift` drops `$1`
+brief: and slides the rest down, to walk a list you did not write. `getopts` walks
+brief: option letters, one call per option: `getopts ab o` reads the next option from
+brief: the list `ab` into variable `o` -- letters first, then the variable. `./name` runs
+brief: a script here (`.` is here; the shell does not look in the current directory
+brief: for commands unless you say `./`). `trap CMD EXIT` runs CMD when the shell exits
+brief: -- normally or by error -- so a temp file gets removed on the path you did
+brief: not plan for. A kill signal is not an exit: catch it separately. `exec` and `.`
+brief: act on the shell you are in, not a child: `exec` replaces it or rewires its
+brief: file descriptors for good, `.` runs a script here so what it sets survives
+brief: (`. ./name`, with the `./`). Neither is undoable mid-line. `:` is the null
+brief: command: does nothing, succeeds, so `: > log` empties log. `let n=4*2` does
+brief: arithmetic with no spaces. `eval` runs text as a command.
 ---
 q: {define a function f that echoes ok, then run it|write f so it echoes ok, then call it|f should `echo` ok -- define it, then run it}
 a: f() { echo ok; }; f

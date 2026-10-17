@@ -1,37 +1,25 @@
 name: disks and filesystems
 boss: Phantom
 flavor: Every privilege is a door I already opened.
-brief: A disk is a block device, a filesystem is a structure written onto it,
-brief: and until you mount that structure somewhere it is just bytes.
-brief:
-brief: Looking: `lsblk` draws what is attached, `blkid` names each filesystem and
-brief: its uuid, `findfs` turns a `UUID=` back into a device, `blockdev` asks the
-brief: device its size, `df` how full a mount is, `du` what a directory costs.
-brief:
-brief: Making: `fdisk` edits the partition table, `partprobe` re-reads it, `mkdosfs`
-brief: and `mke2fs` write a fat or ext filesystem, `losetup` turns a file into a
-brief: block device, `cryptsetup` makes a luks container, noise without the key.
-brief:
-brief: Attaching: `mount`, `mountpoint` tests a path, `sync` forces writes out,
-brief: `umount` detaches -- pull a stick first and the loss is yours. `chroot`
-brief: runs a command with a mounted tree as its root, `blkdiscard` tells a
-brief: device to forget everything, `flock` keeps two scripts off one disk:
-brief: `flock FILE CMD` runs CMD while holding FILE's lock; ``-n`` fails at once
-brief: if someone else has it, instead of waiting.
-brief:
-brief: `mount -o` takes a comma list: ``ro`` read-only, ``nosuid`` ignore setuid bits,
-brief: ``nodev`` ignore device files, ``noexec`` refuse to run programs; `-r` is
-brief: shorthand for ``-o ro``, `-t TYPE` names the filesystem, and ``-o loop`` mounts
-brief: an image file (an iso, a disk image) by wiring a loop device for you.
-brief:
-brief: `cryptsetup luksFormat DEV` creates a luks container (it erases DEV); then
-brief: `open DEV NAME` unlocks it as ``/dev/mapper/NAME``, `close NAME` locks it,
-brief: `status NAME` and `luksDump DEV` inspect it. luksFormat takes ``--type luks2``,
-brief: ``--cipher``, ``--key-size`` (bits), ``--pbkdf``, ``--integrity``, ``--batch-mode``.
-brief:
-brief: Here the root is a read-only squashfs verified block by block and the
-brief: host's own drives are invisible -- no NVMe or SATA drivers are compiled
-brief: in. You see the stick you booted from, and USB. `-s` means summarize.
+brief: A disk is a block device; a filesystem is a structure written onto it, and
+brief: until you mount that structure somewhere it is just bytes. Looking: `lsblk`
+brief: lists devices, `blkid` names each filesystem and its uuid, `findfs` turns a
+brief: `UUID=` back into a device, `blockdev` asks a device its size, `df` how full a
+brief: mount is, `du` what a directory costs. Making: `fdisk` edits the partition
+brief: table, `partprobe` re-reads it, `mkdosfs` and `mke2fs` write a fat or ext
+brief: filesystem, `losetup` turns a file into a block device, `cryptsetup` makes a
+brief: luks container. Attaching: `mount`, `mountpoint` tests a path, `sync` forces
+brief: writes out, `umount` detaches. `chroot` runs a command with a mounted tree as
+brief: its root, `blkdiscard` tells a device to forget everything, `flock FILE CMD`
+brief: runs CMD holding FILE's lock; ``-n`` fails at once if someone else has it.
+brief: `mount -o` takes a comma list: ``ro`` read-only, ``nosuid`` ignore setuid bits, ``nodev``
+brief: ignore device files, ``noexec`` refuse programs; `-r` is shorthand for ``-o ro``,
+brief: `-t TYPE` names the filesystem, ``-o loop`` mounts an image file.
+brief: `cryptsetup luksFormat DEV` makes a luks container (erases DEV); `open DEV NAME`
+brief: unlocks it as ``/dev/mapper/NAME``, `close NAME` locks it, `status NAME` and
+brief: `luksDump DEV` inspect it. luksFormat takes ``--type luks2``, ``--cipher``, ``--key-size``
+brief: (bits), ``--pbkdf``, ``--integrity``, ``--batch-mode``. The host's drives are invisible
+brief: (no NVMe or SATA drivers); the boot stick and USB show. `-s` = summarize.
 ---
 q: {how full are this machine's disks -- show free space on each filesystem|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
 a: df

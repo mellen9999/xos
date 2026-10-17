@@ -1,29 +1,23 @@
 name: the machine
 boss: Spectrum
 flavor: It is all in the air, and someone is always listening.
-brief: Every machine will tell you what it is, if you ask. `uname` names the
-brief: kernel, `dmesg` carries what the kernel said while booting, and ``/proc`` and
-brief: ``/sys`` are the kernel's own filesystem -- files that are not on any disk.
-brief:
-brief: ``/proc`` is the habit worth forming. Nearly everything a monitoring tool
-brief: reports, it read out of a file in there, and so can you.
-brief:
-brief: The rest of the asking: `hostname` is its name, `date` the software clock
-brief: and `hwclock` the battery-backed one under it, `lspci` `lsusb` and `lsscsi`
-brief: list what is plugged into which bus, `devmem` reads physical memory by
-brief: address, `logger` writes your own line into the system log, `watch`
-brief: reruns a command so you can see a number move.
-brief:
-brief: The terminal is a device too: `tty` names yours, `stty` sets how it behaves,
-brief: `clear` tidies it and `reset` rescues it after a binary has left it speaking
-brief: garbage, `loadkmap` and `dumpkmap` load and save the keyboard map, `script`
-brief: and `scriptreplay` record a session and play it back. `microcom` talks to a
-brief: serial port -- the way in when the network is gone.
-brief:
+brief: Every machine will tell you what it is, if you ask. `uname` names the kernel,
+brief: `dmesg` carries what the kernel said while booting, and ``/proc`` and ``/sys`` are the
+brief: kernel's own filesystem -- files that are not on any disk. ``/proc`` is the
+brief: habit worth forming: nearly everything a monitoring tool reports, it read
+brief: out of a file in there, and so can you. More asking: `hostname` is its name,
+brief: `date` the software clock and `hwclock` the battery-backed one, `lspci` `lsusb` and
+brief: `lsscsi` list what is plugged into which bus, `devmem` reads physical memory by
+brief: address, `logger` writes your own line into the system log, `watch` reruns a
+brief: command so you see a number move. The terminal is a device too: `tty` names
+brief: yours, `stty` sets how it behaves, `clear` tidies it and `reset` rescues it after
+brief: a binary leaves it speaking garbage, `loadkmap` and `dumpkmap` load and save the
+brief: keyboard map, `script` and `scriptreplay` record a session and play it back.
+brief: `microcom` talks to a serial port -- the way in when the network is gone.
 brief: `date +FORMAT` prints only the fields you ask for: `date +%H:%M` -> ``14:05``.
 brief: `script -q FILE` records into ``FILE`` (``-q`` = no banner); `script -tTIMING FILE` also
-brief: writes the pace to a file called ``TIMING`` (no space after ``-t``), which
-brief: `scriptreplay TIMING FILE` replays at the original speed. `microcom -s 9600 DEV`
+brief: writes the pace to ``TIMING`` (no space after ``-t``), which
+brief: `scriptreplay TIMING FILE` replays at original speed. `microcom -s 9600 DEV`
 brief: sets the baud rate (``-s`` = speed) on the serial device DEV.
 ---
 q: {you just booted this stick -- get everything `uname` knows, in one line|dump every field `uname` knows about, on one line|report the full `uname` summary in a single line}

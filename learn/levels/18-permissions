@@ -1,28 +1,22 @@
 name: permissions and identity
 boss: Gatekeeper
 flavor: Every door has a lock. I hold the modes.
-brief: Every file has three sets of permissions -- owner, group, everyone --
-brief: and three bits in each: read, write, execute. `ls -l` shows them as
-brief: ``rwxr-xr-x``. `chmod` changes them.
+brief: Every file has three sets of permissions -- owner, group, everyone -- and
+brief: three bits in each: read, write, execute. `ls -l` shows them as ``rwxr-xr-x``.
+brief: `chmod` changes them. Numeric modes are fast once they click: ``r=4``, ``w=2``, ``x=1``,
+brief: added up per set. ``755`` is ``rwxr-xr-x``, ``644`` is ``rw-r--r--``, ``600`` is ``rw-------``.
 brief:
-brief: Numeric modes are the fast way once they click: ``r=4``, ``w=2``, ``x=1``, added up
-brief: per set. ``755`` is ``rwxr-xr-x``, ``644`` is ``rw-r--r--``, ``600`` is ``rw-------``.
-brief:
-brief: Symbolic modes edit one set at a time: who is ``u`` owner, ``g`` group, ``o`` other,
-brief: ``a`` all; the op is ``+`` add, ``-`` remove, ``=`` set exactly; perms are ``r w x``.
-brief: `chmod g+w f` = the group gains write; `chmod o= f` = other gets nothing.
-brief: A leading ``4`` (``4000``) is the setuid bit: the file runs as its owner.
-brief:
-brief: `whoami` and `id` say who the shell thinks you are. `stat` prints a file's
-brief: whole record -- mode, owner, size, timestamps -- where `ls -l` prints a
-brief: summary of it. `umask` is the mode a new file does not get. `chattr` sets
-brief: flags the filesystem itself enforces underneath the mode bits, and ``+i``
-brief: is immutable: not even root writes it until the flag comes off. `lsattr`
-brief: reads them back. `setuidgid` runs one command as another user.
-brief:
-brief: On xos everything runs as root and the root filesystem is read-only, so
-brief: these matter for what you write to tmpfs and to disks you mount -- not
-brief: for defending this machine from you.
+brief: Symbolic modes edit one set at a time: who is ``u`` owner, ``g`` group, ``o`` other, ``a``
+brief: all; the op is ``+`` add, ``-`` remove, ``=`` set exactly; perms are ``r w x``. `chmod g+w f`
+brief: = the group gains write; `chmod o= f` = other gets nothing. A leading ``4`` (``4000``)
+brief: is the setuid bit: the file runs as its owner. `whoami` and `id` say who the
+brief: shell thinks you are. `stat` prints a file's whole record -- mode, owner,
+brief: size, timestamps -- where `ls -l` summarizes. `umask` is the mode a new file
+brief: does not get. `chattr` sets flags the filesystem enforces under the mode bits;
+brief: ``+i`` is immutable: not even root writes it until the flag comes off. `lsattr`
+brief: reads them back. `setuidgid` runs one command as another user. On xos
+brief: everything runs as root on a read-only root filesystem, so these matter for
+brief: tmpfs and mounted disks -- not for defending this machine from you.
 ---
 setup: you just wrote @script@ and ./@script@ says permission denied
 q: {make @script@ executable|add the execute bit to @script@|@script@ should be runnable}, with `chmod`

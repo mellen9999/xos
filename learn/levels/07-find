@@ -2,28 +2,22 @@ name: finding files
 boss: Globber
 flavor: Name what you want. I will walk the whole tree.
 syntax: {}, \;, !
-brief: `grep` searches inside files. `find` searches FOR them. It walks a tree and
+brief: `grep` searches inside files. `find` searches FOR them: it walks a tree and
 brief: tests every entry against predicates you chain together.
 brief:
-brief: Predicates are joined with an implied AND. `-o` makes it OR, `!` negates.
-brief: `-exec` runs a command per result; ending it with `+` batches many results
-brief: into one invocation instead of forking per file.
+brief: Predicates join with an implied AND. `-o` makes it OR, `!` negates. `-exec`
+brief: runs a command per result; ending it with `+` batches many into one run.
 brief:
-brief: Predicates you will meet: `-name '*.conf'` `-type f` (`d` dir) `-size +10k`
-brief: (`+` more than, `-` less than) `-mtime -7` (days) `-mmin -10` `-empty`
-brief: `-perm 644` `-user bob` `-maxdepth 2` `-print` (show it; added for you when
-brief: you use no action; with `-prune` you need it, or the pruned directory gets
-brief: printed too).
+brief: Predicates: `-name '*.conf'` `-type f` (`d` dir) `-size +10k` (`+` more, `-`
+brief: less) `-mtime -7` (days) `-mmin -10` `-empty` `-perm 644` `-user bob`
+brief: `-maxdepth 2` `-print` (added for you when you use no action; with `-prune`
+brief: you need it, or the pruned directory gets printed too).
 brief: `find -L .` follows symlinks and goes BEFORE the path.
-brief: To skip a directory: `find . -name cache -prune -o -name '*.tmp' -print`
-brief: -- if the name is `cache`, do not enter it; otherwise match `*.tmp` and print.
+brief: Skip a directory: `find . -name cache -prune -o -name '*.tmp' -print`
+brief: -- a `cache` is not entered; otherwise match `*.tmp` and print.
 brief:
-brief: Quote your patterns. `find . -name *.log` lets the SHELL expand the glob
-brief: before `find` ever sees it, which does something else entirely.
-brief:
-brief: the reverse reminder: `-name '*.log'` is a shell GLOB, not the regex you
-brief: just learned in `grep` -- `*` here means "any run of characters", not "any
-brief: number of the last thing".
+brief: Quote patterns: `find . -name *.log` lets the SHELL expand the glob first.
+brief: And `-name '*.log'` is a GLOB, not a `grep` regex: `*` means any run of chars.
 ---
 q: {list every file and directory under here|what's every file and directory under this tree|you need a full inventory of everything under here}, with `find`
 a: find .
