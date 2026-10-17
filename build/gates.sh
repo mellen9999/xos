@@ -1188,9 +1188,14 @@ G69
   # corpus is: it called `fold`, which xos does not ship, and the GNU one on
   # PATH answered for it -- so every gate passed while on the image every
   # level brief printed nothing. a fallback is a place for that to hide.
-  local st_out st_ok=1 lsh
-  lsh=$(mktemp -d); ln -sf "$PWD/busybox" "$lsh/sh"
-  st_out=$(PATH="$PWD/root/bin" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+  # usb() runs the gates again under sudo, as root. learn then drops answers to
+  # `nobody`, who cannot reach this 0700 dir or a tree under a 0700 home, so the
+  # sandbox never builds. the invariant fixtures states -- G25 runs as a normal
+  # user -- is restored by running the selftest as whoever invoked sudo.
+  local st_out st_ok=1 lsh asu=""
+  [ "$(id -u)" = 0 ] && [ -n "${SUDO_USER:-}" ] && asu="sudo -u $SUDO_USER"
+  lsh=$($asu mktemp -d); $asu ln -sf "$PWD/busybox" "$lsh/sh"
+  st_out=$($asu env PATH="$PWD/root/bin" LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
            XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
            ./busybox ash learn/learn selftest 2>&1) || st_ok=0
   printf '%s\n' "$st_out" | grep -v '^learn: ' >&2 || true
