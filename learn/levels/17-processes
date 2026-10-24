@@ -180,7 +180,7 @@ teach: pkill -f
 hint: -f matches the whole command line, and -9 makes it unignorable
 ---
 setup: another process has a name that merely contains "@proc@"
-q: {kill only the process named exactly @proc@, not that other one|end @proc@ by exact name, leaving the lookalike alone|kill @proc@ by name, but not anything whose name merely contains it}, with `pkill`
+q: {kill only @proc@ by exact name, not the lookalike|end @proc@ by exact name, leaving the lookalike alone|kill @proc@ by name, not lookalike names}, with `pkill`
 a: pkill -x @proc@
 eg: pkill -x mysqld
 why: live-hw
