@@ -266,7 +266,6 @@ pkill -o
 pkill -P
 pkill -s
 pkill -v
-pkill -x
 pgrep -s
 kill -SIG       # a placeholder in --help for any signal name, not a flag
 find -newer     # -mtime and -mmin cover time in the triage level
