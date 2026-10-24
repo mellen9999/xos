@@ -92,6 +92,15 @@ spec: `int8_t`, `int16_t`, `int32_t`, `int64_t`, `char`
 spec:
 spec: For example the first line is `int8_t 1`.
 file: sizes.c
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	printf("int8_t %zu\n", sizeof(int8_t));
+start: 	/* one line per type, same shape as the line above */
+start: 	return 0;
+start: }
 prog: #include <stdint.h>
 prog: #include <stdio.h>
 prog: 
