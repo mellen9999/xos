@@ -1,17 +1,33 @@
 name: parsing text
-intro: Input is text, and text is a pointer you walk: one pointer, a
-intro: loop, one decision per character.
+intro: Input is text, and text is a pointer you walk: one pointer `p`, a
+intro: loop, one decision per character. Splitting a line into words is
+intro: two small jobs, done over and over:
 intro:
-intro:     const char *p = line;
-intro:     while (*p == ' ') p++;                  /* skip blanks */
-intro:     const char *start = p;
-intro:     while (*p != '\0' && *p != ' ') p++;    /* one token */
-intro:     size_t len = (size_t)(p - start);       /* its length */
-intro:     printf("[%.*s]\n", (int)len, start);    /* print a slice */
+intro:   1. SKIP: while `*p` is a blank, move `p` forward. Now `p` sits on
+intro:      the first byte of a word, or on the `\0` that ends the line.
+intro:      If it is the `\0`, there are no more words: stop.
+intro:   2. READ: remember `start = p`, then move `p` forward until it hits
+intro:      a blank or the `\0`. The word is everything from `start` up to
+intro:      (not including) `p`, so its length is `p - start`.
+intro:
+intro: Trace it on `"  hi yo"` (blanks written as dots: `..hi.yo`):
+intro:
+intro:     ..hi.yo      SKIP: p moves from byte 0 to byte 2 (the `h`)
+intro:     ..hi.yo      READ: start = 2, p walks to byte 4 (the blank)
+intro:                  length = 4 - 2 = 2, word = "hi"
+intro:     ..hi.yo      SKIP again: p moves to byte 5 (the `y`)
+intro:     ..hi.yo      READ: start = 5, p walks to byte 7 (the `\0`)
+intro:                  length = 7 - 5 = 2, word = "yo"
+intro:     ..hi.yo      SKIP: p is already on `\0`, so stop
+intro:
+intro: Your loop is just SKIP, check for the end, READ, print, repeat. The
+intro: spec adds a twist to READ: a word that starts with a quote ends at
+intro: the next quote instead of the next blank.
 intro:
 intro: You rarely need to copy: a token is a start pointer and a length,
-intro: and `%.*s` prints exactly that many bytes. To keep one, `memcpy`
-intro: into a buffer you sized and add the `\0` yourself.
+intro: and `%.*s` prints exactly that many bytes (`printf("%.*s", (int)len,
+intro: start)`). To keep one, `memcpy` into a buffer you sized and add the
+intro: `\0` yourself.
 intro:
 intro: Do not use `strtok`. It splits by writing NULs into your string and
 intro: remembers its place in a hidden static variable: a second tokenizer

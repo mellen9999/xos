@@ -19,14 +19,32 @@ intro:
 intro: It reads in the machine's order, and `buf` may not be aligned for a
 intro: 4-byte load; an unaligned or wrongly-typed access is undefined
 intro: behaviour (the type rules are called strict aliasing). Build the
-intro: number from bytes, which is the same on every machine:
+intro: number from bytes instead, which is the same on every machine.
 intro:
-intro:     uint32_t le = (uint32_t)b[3] << 24 | (uint32_t)b[2] << 16
-intro:                 | (uint32_t)b[1] << 8  | b[0];
+intro: The idea: each byte is worth 256 times the byte before it (a byte
+intro: holds 0 to 255, then you carry). Shifting left by 8 bits multiplies
+intro: by 256, so "shift the byte up to its place, then OR it in" builds
+intro: the number. Take two bytes, 34 12, read little-endian (first byte
+intro: is the low one):
 intro:
-intro: Cast to the wide type before shifting: `b[3] << 24` shifts an int,
-intro: and a byte of 0x80 or more ends up in the sign bit, which is
-intro: undefined. Use `unsigned char`, not `char`, which may be signed.
+intro:     b[0] = 0x34 stays where it is           -> 0x0034
+intro:     b[1] = 0x12 moves up one byte (<< 8)    -> 0x1200
+intro:     OR them together                        -> 0x1234  (4660)
+intro:
+intro: In C that is one line for 16 bits:
+intro:
+intro:     uint16_t le = (uint16_t)(b[1] << 8 | b[0]);
+intro:
+intro: Big-endian is the same trick with the roles swapped: the FIRST
+intro: byte is the high one. For a wider number there are more bytes, and
+intro: each step up the number is another 8 bits of shift. Work out which
+intro: byte gets which shift by asking "how many bytes above the lowest
+intro: is it?".
+intro:
+intro: Cast to the wide type before shifting when the result is wide:
+intro: `b[3] << 24` would shift an int, and a byte of 0x80 or more ends up
+intro: in the sign bit, which is undefined. Use `unsigned char`, not
+intro: `char`, which may be signed.
 intro:
 intro: A real format has a header: a few fixed "magic" bytes that say what
 intro: the file is (0x7f then "ELF" for ELF), a version, a count, then

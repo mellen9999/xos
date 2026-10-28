@@ -4,13 +4,26 @@ intro: items it holds. A hash function turns the key into a number; that
 intro: number mod the bucket count picks a slot. Two keys in one slot is a
 intro: collision, not an error: with chaining each bucket is a linked list.
 intro:
-intro: FNV-1a is a hash small enough to type from memory:
+intro: A hash function has three steps, whatever its name:
 intro:
-intro:     uint32_t h = 2166136261u;
-intro:     for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
-intro:         h ^= *p;
-intro:         h *= 16777619u;
-intro:     }
+intro:     1. start from a fixed seed number
+intro:     2. for each byte of the key, mix that byte into the number
+intro:     3. fit the result to the table with `%` (the bucket count)
+intro:
+intro: Tiny made-up example (NOT a real hash): seed 7, and "mix" means
+intro: multiply by 10 then add the byte. Take the key "ab" with a=1, b=2
+intro: and 5 buckets:
+intro:
+intro:     seed            7
+intro:     after 'a'       7 * 10 + 1 = 71
+intro:     after 'b'       71 * 10 + 2 = 712
+intro:     bucket          712 % 5 = 2
+intro:
+intro: Same key, same number, every time -- that is what lets you find it
+intro: again. A good mix scrambles, so near keys land far apart. Real
+intro: hashes pick the seed and the mix with care. FNV-1a, the one you
+intro: will use, is that small: its seed and prime are in the task, and
+intro: its mix is xor the byte in, then multiply, in `uint32_t`.
 intro:
 intro: Unsigned arithmetic wraps by definition, which is what a hash
 intro: wants; signed overflow is undefined, so never hash with `int`. Read

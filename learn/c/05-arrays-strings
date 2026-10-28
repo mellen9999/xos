@@ -1,4 +1,13 @@
 name: arrays and strings
+intro: First, the off-by-one that bites everyone. A string ends with a hidden
+intro: NUL byte (`'\0'`), so its text is one shorter than its storage:
+intro:
+intro:     "hi"  =  'h', 'i', '\0'  =  3 bytes      strlen("hi") = 2
+intro:     "cat" =  'c', 'a', 't', '\0'  =  4 bytes  strlen("cat") = 3
+intro:
+intro: `strlen` counts the characters before the NUL; `sizeof` counts every
+intro: byte, NUL included. Room for n characters needs n + 1 bytes.
+intro:
 intro: An array is a fixed run of same-typed values, side by side in memory.
 intro: Its size is part of the declaration, and you can ask C for it:
 intro:
@@ -21,10 +30,8 @@ intro: whatever sits past the array -- undefined behaviour. It may print
 intro: junk today and crash next week. The check is your job: compare
 intro: the index to the count before you use it.
 intro:
-intro: A string is a char array ending in a NUL byte (`'\0'`). "hi" takes
-intro: three bytes. `strlen` counts up to the NUL and stops, so it is 2;
-intro: `sizeof` is the array's size, 3. Mix them up and you are off by
-intro: one, which in C means a write past the end.
+intro: A string is a char array ending in that NUL byte. Mix up strlen and
+intro: sizeof and you are off by one, which in C means a write past the end.
 intro:
 intro: A character literal is one character in single quotes, and it is
 intro: really a small number: 'A' is 65. Escapes: `'\n'` newline, `'\t'`

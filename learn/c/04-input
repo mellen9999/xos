@@ -13,26 +13,35 @@ intro: takes no arguments keeps `int main(void)`.
 intro:
 intro: Turn text into a number with `strtol`, never `atoi`. atoi returns 0 for
 intro: "abc" and for "0", so you cannot tell them apart, and it has no way to
-intro: report overflow. strtol tells you everything:
+intro: report overflow.
+intro:
+intro: But strtol alone is not safe either. Give it "12abc" and it quietly
+intro: returns 12 and says nothing: it reads the digits, stops at the `a`,
+intro: and walks away. Give it "" or "abc" and it returns 0. The number it
+intro: hands back looks fine every time. The only way to catch bad input is
+intro: to ask where it stopped:
 intro:
 intro:     char *end;
 intro:     errno = 0;
 intro:     long n = strtol(s, &end, 10);
-intro:     if (end == s || *end != '\0' || errno == ERANGE)
-intro:         /* bad */
 intro:
-intro: Treat this as a recipe until unit 06 explains pointers: `char *end` is
-intro: a marker strtol moves, `&end` hands it the marker to move, and `*end`
-intro: reads the character the marker stopped on. A string ends with a
-intro: zero byte written `'\0'`. The `10` is the base: 10 means ordinary
-intro: decimal digits. `||` means "or", `&&` means "and".
+intro: `char *end` is a marker strtol moves (pointers are unit 06), `&end`
+intro: hands it the marker to move, and `*end` reads the character the marker
+intro: stopped on. A string ends with a zero byte written `'\0'`. The `10`
+intro: is the base: 10 means ordinary decimal digits. `||` means "or", `&&`
+intro: means "and".
 intro:
-intro: `end` is left pointing at the first character it could not use.
-intro: `end == s` means no digits at all -- including the empty string, which
-intro: would otherwise sneak through as 0. `*end != '\0'` means junk after the
-intro: digits ("12abc"). errno is set to ERANGE when the number does not fit
-intro: a long; zero it first, because nothing else clears it. Needs
-intro: <errno.h> and <stdlib.h>.
+intro: `end` is left pointing at the first character it could not use. Three
+intro: things make the input bad, and you test each one:
+intro:
+intro:     1. the marker never moved off the start (no digits at all --
+intro:        the empty string would otherwise sneak through as 0)
+intro:     2. the marker did not stop on the end-of-string zero byte (junk
+intro:        after the digits, like the "abc" in "12abc")
+intro:     3. errno says ERANGE (the number does not fit a long)
+intro:
+intro: Zero errno before the call, because nothing else clears it. Needs
+intro: <errno.h> and <stdlib.h>. Join the three tests with `||`.
 intro:
 intro: `LONG_MAX`/`LONG_MIN` come from <limits.h>. Test before adding:
 intro:

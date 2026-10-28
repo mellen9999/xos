@@ -9,20 +9,37 @@ intro:         long val;
 intro:         struct tnode *left, *right;
 intro:     };
 intro:
-intro: Insert with the link trick from lists, in one short recursion:
+intro: The key idea: a tree is a node plus a smaller tree on the left and a
+intro: smaller tree on the right (and an empty tree, NULL, is a tree too).
+intro: Recursion means giving the SAME job to a smaller piece. A recursive
+intro: function needs a base case that stops (an empty piece) and a step
+intro: that makes the problem smaller (hand the job to one sub-piece).
 intro:
-intro:     static int insert(struct tnode **link, long val)
+intro: Here is that idea on a sibling: insert into a SORTED linked list,
+intro: skipping duplicates. `link` points at the pointer to the rest of the
+intro: list, so an empty list and the end of a list look the same:
+intro:
+intro:     struct lnode { long val; struct lnode *next; };
+intro:
+intro:     static int add(struct lnode **link, long val)
 intro:     {
-intro:         if (*link == NULL) { /* make a node, *link = it */ }
-intro:         if (val < (*link)->val) return insert(&(*link)->left, val);
-intro:         if (val > (*link)->val) return insert(&(*link)->right, val);
-intro:         return 0;      /* equal: already there */
+intro:         if (*link == NULL || val < (*link)->val) { /* new node goes
+intro:             here: point it at *link, then set *link to it */ }
+intro:         if (val == (*link)->val) return 0;         /* already there */
+intro:         return add(&(*link)->next, val);           /* rest of list */
 intro:     }
 intro:
-intro: A recursive function needs a base case that stops and a step that
-intro: makes the problem smaller. A tree is a node plus two smaller trees,
-intro: so walks fit: left, node, right visits in ASCENDING order
-intro: (in-order); node first is pre-order; node last is post-order, and
+intro: Trace adding 5 to `3 -> 8`: 5 is not below 3 and not equal, so ask
+intro: the list `8`; 5 is below 8, so the new node goes here: `3 -> 5 -> 8`.
+intro:
+intro: A tree insert is the same job with one change: a node has TWO smaller
+intro: pieces, so the "rest" you hand the job to is chosen by comparing:
+intro: smaller values belong in the left subtree, larger in the right. The
+intro: base case (an empty link) is where the new node is made. Write that
+intro: yourself; it is the heart of `bstsort`.
+intro:
+intro: Because a tree is a node plus two smaller trees, walks fit: left,
+intro: node, right visits in ASCENDING order (in-order); node first is pre-order; node last is post-order, and
 intro: post-order is how you free a tree: children before the node, since
 intro: after `free(t)` its links are gone. Height is the number of nodes on
 intro: the longest path down: 0 when empty, else 1 + the taller child.

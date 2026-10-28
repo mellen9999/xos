@@ -13,11 +13,18 @@ intro: is how a macro can print any type. Note `'x'` is an int in C, and a
 intro: `const char *` is not a `char *`.
 intro:
 intro: A macro with a parameter is written `#define NAME(x) body`. A long
-intro: body continues on the next line if the line ends with `\`:
+intro: body continues on the next line if the line ends with `\`. Each
+intro: `type: result` pair is one row; the first row whose type matches wins,
+intro: and `default` catches the rest. Here is a different job -- picking a
+intro: printf code for a number type:
 intro:
-intro:     #define SIZE_OF(x) _Generic((x), \
-intro:         short: "two", long: "eight", \
-intro:         default: "who knows")
+intro:     #define CODE(x) _Generic((x), \
+intro:         float: "%f", unsigned: "%u", \
+intro:         default: "%d")
+intro:
+intro: Worked: with `unsigned n`, `CODE(n)` is "%u"; with `short s`, no row
+intro: names short, so it falls to `default` and gives "%d". Your task has its
+intro: own types and its own results: read it, then write your own rows.
 intro:
 intro: `(x)` is in parentheses so any expression works. The starter's
 intro: `((void)(x), "?")` is a placeholder: `(void)(x)` uses x and

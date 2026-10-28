@@ -10,18 +10,26 @@ intro: no constant expression. An `enum` is scoped and visible in a
 intro: debugger. `#define MAX 8` is for what only the preprocessor can do.
 intro:
 intro: A function-like macro is substitution, so parenthesise every
-intro: argument and the whole body:
+intro: argument and the whole body. Take a macro that halves a number:
 intro:
-intro:     #define SQUARE(x) ((x) * (x))
+intro:     #define HALF(x) x / 2
 intro:
-intro: Without them SQUARE(1 + 2) is 1 + 2 * 1 + 2, which is 5. An
-intro: argument with a side effect runs once per appearance: SQUARE(i++)
+intro: HALF(8 + 4) becomes 8 + 4 / 2, which is 8 + 2 = 10, not 6. Wrapping
+intro: the argument, `(x) / 2`, fixes that; wrapping the whole body fixes
+intro: the mirror problem, 100 / HALF(10) becoming 100 / 10 / 2 = 5 not 20.
+intro: An argument with a side effect runs once per appearance: SQUARE(i++)
 intro: is undefined behaviour and MAX(f(), 0) calls f twice when f() is the larger. A
 intro: `static inline` function has none of these problems; use one.
 intro:
 intro: A macro is one line; end a line with `\` to continue it.
-intro: A macro of several statements goes in `do { ... } while (0)`: ONE
-intro: statement, so it survives an unbraced `if`/`else`.
+intro: A macro of several statements has a trap. Say CLEAR(p, q) expands to
+intro: `p = 0; q = 0;` and you write `if (ok) CLEAR(a, b); else x = 1;`.
+intro: Only `p = 0;` is under the `if`, `q = 0;` always runs, and the `else`
+intro: has lost its `if`: a compile error. The fix is to wrap the body in
+intro: `do { ... } while (0)`. That is ONE statement, runs once, and takes
+intro: the caller's `;` as its own, so it survives an unbraced `if`/`else`.
+intro: A variable declared inside those braces is private to the macro (end
+intro: its name in `_` so it cannot clash with the caller's).
 intro: `#x` turns an argument into a string literal; `a##b` glues two
 intro: tokens into one name:
 intro:

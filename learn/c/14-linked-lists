@@ -11,13 +11,20 @@ intro:     };
 intro:
 intro: The list is a pointer to the first node, `head`; NULL is the empty
 intro: list. Each node is its own malloc, so check each one and free each
-intro: one. Read `next` BEFORE you free -- after free the node is gone:
+intro: one. Read `next` BEFORE you free. Once a node is freed it is gone,
+intro: and so is the pointer to the rest of the list that lived inside it.
+intro: Say the list is 10 -> 20 -> 30 and the job is "throw away the first
+intro: node, keep the rest":
 intro:
-intro:     while (n != NULL) {
-intro:         struct node *next = n->next;
-intro:         free(n);
-intro:         n = next;
-intro:     }
+intro:     free(head);                  /* WRONG: node 10 is gone... */
+intro:     head = head->next;           /* ...so this reads freed memory */
+intro:
+intro:     struct node *rest = head->next;   /* RIGHT: save 20 first */
+intro:     free(head);                       /* now 10 can go */
+intro:     head = rest;                      /* the list is 20 -> 30 */
+intro:
+intro: Save the next link, then free, then move on. The same order is how
+intro: you free a whole list: one node at a time, saving before each free.
 intro:
 intro: A function that may change the head (push, delete the first node)
 intro: cannot do it through a copy, so it takes `struct node **head`, the
