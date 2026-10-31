@@ -316,6 +316,7 @@ start: #include <unistd.h>
 start: 
 start: int main(int argc, char **argv)
 start: {
+start: 	(void)argv;
 start: 	if (argc != 3) {
 start: 		fprintf(stderr, "usage: fdcopy SRC DST\n");
 start: 		return 2;

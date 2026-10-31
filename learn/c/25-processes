@@ -222,6 +222,7 @@ start: #include <unistd.h>
 start: 
 start: int main(int argc, char **argv)
 start: {
+start: 	(void)argv;
 start: 	if (argc < 2) {
 start: 		fprintf(stderr, "usage: runcmd CMD [ARG...]\n");
 start: 		return 2;
@@ -307,6 +308,7 @@ start: #define MAXKIDS 20
 start: 
 start: int main(int argc, char **argv)
 start: {
+start: 	(void)argv;
 start: 	if (argc != 2) {
 start: 		fprintf(stderr, "usage: reapall N\n");
 start: 		return 2;

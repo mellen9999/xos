@@ -405,6 +405,7 @@ start: #include <unistd.h>
 start: 
 start: int main(int argc, char **argv)
 start: {
+start: 	(void)argv;
 start: 	if (argc < 2) {
 start: 		fprintf(stderr, "usage: capture CMD [ARG...]\n");
 start: 		return 2;
