@@ -147,6 +147,7 @@ need: - uint8_t holds 0 to 255; past 255 it wraps round to 0
 need: - a + 10 is done as an int (260); keep it small with a cast:
 need:       uint8_t r = (uint8_t)(a + 10);
 need: - print int and uint8_t with %d, uint32_t with "%" PRIu32
+need: - PRIu32 comes from #include <inttypes.h>
 need: - -7 / 2 is -3 (cut toward zero), -7 % 2 is -1
 need: - a real % sign in printf is written %%
 start: #include <inttypes.h>

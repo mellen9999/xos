@@ -188,7 +188,7 @@ ask_program() {
 		work="$C_WORK/$pid.$name"
 	fi
 	C_LINE=""
-	if [ -f "$work" ]; then :
+	if [ -f "$work" ]; then [ "$PRJ_LANG" = c ] && c_rehead "$work"
 	elif [ "$PRJ_LANG" = c ]; then c_starter > "$work"
 	else printf '%s\n' "${Q_START:-#!/bin/sh}" > "$work"; fi
 	# the starter as handed out: `r` before any edit would only grade it

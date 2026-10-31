@@ -94,6 +94,17 @@ c_starter() {
 	else printf '#include <stdio.h>\n\nint main(void)\n{\n\treturn 0;\n}\n'; fi
 }
 
+# c_rehead FILE -- a program begun under an older lesson keeps its code but
+# gets the current top comment, so a task or need: written since shows up in
+# vi too. only a header this file wrote is touched: first line the task's,
+# closed by a bare ` */`. anything else is the learner's and is left alone.
+c_rehead() {
+	local f=$1
+	[ "$(head -1 "$f")" = "/* $Q_PROMPT" ] && grep -q '^ \*/$' "$f" || return 0
+	{ c_starter | sed '/^ \*\/$/q'; sed '1,/^ \*\/$/d' "$f"; } > "$f.new" || { rm -f "$f.new"; return 0; }
+	if cmp -s "$f" "$f.new"; then rm -f "$f.new"; else mv "$f.new" "$f"; fi
+}
+
 # c_errs FILE -- C_ERR from a compiler's output: the message lines only. gcc
 # and clang draw the line and a caret under it, which a narrow screen wraps
 # into noise -- and `e` puts you on that line anyway. a compiler (or a linker)
