@@ -135,8 +135,21 @@ spec: `-7 % 2 = -1`
 spec:
 spec: The first sum is a `uint8_t` 250 plus 10, stored back into a `uint8_t`.
 spec: The second is a `uint32_t` 0 minus 1. The last two use an `int` -7.
-spec: Print the `uint32_t` with `PRIu32`.
+spec: Print the `uint32_t` with `PRIu32`. A `uint8_t` prints with plain `%d`:
+spec: printf gets it as an int.
 file: rollover.c
+start: #include <inttypes.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	uint8_t a = 250;
+start: 
+start: 	printf("250 + 10 = %d\n", a);
+start: 	/* a is still 250: add 10 into a uint8_t first. then the other three lines */
+start: 	return 0;
+start: }
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
