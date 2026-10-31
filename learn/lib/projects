@@ -165,6 +165,13 @@ prj_cases_bite() {
 # 29 teaches that one and it is the one you would have on a machine you were
 # handed. learn hands the terminal over the way playground does and takes it
 # back the same way.
+# the lesson facts this program needs, under the task it is for
+prj_need() {
+	[ -n "$Q_NEED" ] || return 0
+	printf '  %syou will need%s\n' "$B" "$N"
+	printf '%s\n' "$Q_NEED" | sed 's/^/  /'
+	echo
+}
 _pk() { printf '%s%s%s %-8s' "$C$B" "$1" "$N" "$2"; }
 ask_program() {
 	local path=$1 idx=$2 pid=$3 name work k rc missed guide
@@ -189,6 +196,7 @@ ask_program() {
 
 	printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
 	[ -n "$Q_SPEC" ] && { printf '%s\n' "$Q_SPEC" | prj_flow | say; echo; }
+	prj_need
 	if [ "$PRJ_LANG" = c ]; then
 		note "$name compiles and runs when you leave vi."
 		note "vi: i types, esc stops, :wq saves and quits"
@@ -224,7 +232,7 @@ ask_program() {
 			ch)  rule; printf 'hint: %s\n' "$Q_HINT" | c_reflow | say; continue ;;
 			shh) rule; printf 'hint: %s\n' "${Q_HINT:-none for this one -- e to try it, then r}" | say; continue ;;
 			cs|shs) rule; printf '  %s\n\n' "$(printf '%s' "$Q_PROMPT_HI" | hi_expand)"
-			     printf '%s\n' "$Q_SPEC" | prj_flow | say; continue ;;
+			     printf '%s\n' "$Q_SPEC" | prj_flow | say; echo; prj_need; continue ;;
 			shd) [ "$missed" = 1 ] && { cls; c_full; cls; c_miss; }; continue ;;
 			sha) rule
 			     printf '  %sshow the reference? try a hint first. [y/N]%s ' "$Y" "$N"

@@ -98,6 +98,10 @@ spec:
 spec: The number in the name is bits; sizeof gives bytes (8 bits each), so
 spec: the first line is `int8_t 1`. `char` has no number: guess, then check.
 file: sizes.c
+need: - sizeof(T) is how many bytes type T takes
+need: - it gives a size_t, printed with %zu
+need: - bits / 8 = bytes: int16_t is 16 bits, so 2 bytes
+need: - printf prints its text as-is; %zu is where the number goes
 start: #include <stdint.h>
 start: #include <stdio.h>
 start: 
@@ -138,6 +142,13 @@ spec: The second is a `uint32_t` 0 minus 1. The last two use an `int` -7.
 spec: Print the `uint32_t` with `PRIu32`. A `uint8_t` prints with plain `%d`:
 spec: printf gets it as an int.
 file: rollover.c
+need: - a variable: type name = value;   uint8_t a = 250;
+need: - uint8_t holds 0 to 255; past 255 it wraps round to 0
+need: - a + 10 is done as an int (260); keep it small with a cast:
+need:       uint8_t r = (uint8_t)(a + 10);
+need: - print int and uint8_t with %d, uint32_t with "%" PRIu32
+need: - -7 / 2 is -3 (cut toward zero), -7 % 2 is -1
+need: - a real % sign in printf is written %%
 start: #include <inttypes.h>
 start: #include <stdint.h>
 start: #include <stdio.h>
@@ -186,6 +197,11 @@ spec: The integer percent is 7 * 100 / 9 with whole-number division. The real
 spec: percent is the same ratio as a `double`, shown with `%.2f`. Majority is
 spec: a `bool`: more than half passed, printed as `yes` or `no`.
 file: ratio.c
+need: - int / int throws the fraction away: 7 / 9 is 0
+need: - (double)x makes x a double so the divide keeps the fraction
+need: - %d prints an int, %.2f a double with 2 decimals
+need: - bool needs #include <stdbool.h>; a > b gives true or false
+need: - cond ? "yes" : "no" picks one of two strings; print with %s
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
 prog: 
@@ -222,6 +238,11 @@ spec:
 spec: The last product must be computed in an `int64_t`; written with plain
 spec: ints it overflows, which is undefined behaviour.
 file: big.c
+need: - the limits are names: INT32_MAX, INT32_MIN, UINT32_MAX, ...
+need: - print stdint types with PRI macros: PRId32 (signed 32),
+need:   PRIu32 (unsigned 32), PRId64, PRIu64
+need: - the macro sits between string pieces: "%" PRId64 "\n"
+need: - INT64_C(3000000000) makes the number 64 bits before the multiply
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>

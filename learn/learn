@@ -401,13 +401,16 @@ blk_load() {
 	# four fields it never has. the bodies go through render_tokens, not
 	# render: they are code, and code has braces and pipes in it that the
 	# {a|b|c} pass would read as a choice and throw half of away.
-	Q_SPEC= Q_FILE= Q_PROG= Q_CASES= Q_START=
+	Q_SPEC= Q_FILE= Q_PROG= Q_CASES= Q_START= Q_NEED=
 	case "$1" in
 		"$PROJECTS"/*)
 			Q_SPEC=$(sed -n 's/^spec: \{0,1\}//p' "$blk" | render_named "$seed")
 			Q_FILE=$(sed -n 's/^file: \{0,1\}//p' "$blk" | head -1)
 			Q_PROG=$(sed -n 's/^prog: \{0,1\}//p' "$blk" | render_tokens)
 			Q_START=$(sed -n 's/^start: \{0,1\}//p' "$blk" | render_tokens)
+			# need: the few lesson facts this one program leans on, said again
+			# beside the task -- the intro is pages back by the time you write.
+			Q_NEED=$(sed -n 's/^need: \{0,1\}//p' "$blk" | render_tokens)
 			Q_CASES=$(sed -n 's/^case: \{0,1\}//p' "$blk" | render_tokens) ;;
 	esac
 	[ -n "$Q_PROMPT" ]
