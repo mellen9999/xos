@@ -10,7 +10,7 @@ what that first sighting was anchored to. They are not equal:
 
 | source | anchor | strength |
 |---|---|---|
-| linux 6.18.56 | maintainer PGP signature (Greg Kroah-Hartman, `.tar.sign` over the uncompressed tar), matched against a committed key on every fetch | **best -- signed by the maintainer** |
+| linux 6.18.60 | maintainer PGP signature (Greg Kroah-Hartman, `.tar.sign` over the uncompressed tar), matched against a committed key on every fetch | **best -- signed by the maintainer** |
 | busybox 1.38.0 | maintainer PGP signature (Denys Vlasenko, `.sig` over the `.tar.bz2`), matched against a committed key on every fetch | **best -- signed by the maintainer** (oldest key in the tier: 2006 dsa-1024, sha-1 digest) |
 | bearssl | none available (bearssl.org publishes no .sig/.asc) | **weakest -- trust-on-first-use over TLS only** |
 | ii | none available (suckless publishes no .sig/.asc/.sha256) | **weakest -- trust-on-first-use over TLS only** |
