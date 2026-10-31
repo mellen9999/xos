@@ -101,6 +101,28 @@ spec: col C: text after closing quote` (C is that text's column). Either
 spec: goes to standard error, after flushing standard output, and exits 1;
 spec: words of earlier lines stay printed.
 file: wordsplit.c
+need: - walk one pointer p. SKIP: while (*p is blank) p++; stop at '\0'.
+need:   READ: start = p, move p to the next blank or '\0'
+need: - length of a word is end - start (pointer minus pointer)
+need: - printf("%.*s", (int)len, start) prints exactly len bytes
+need: - column of p in the line: p - line + 1 (1-based), cast to size_t
+need: - cut the newline: line[strcspn(line, "\n")] = '\0'
+need: - fflush(stdout) before an error to stderr. no strtok
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(void)
+start: {
+start: 		char line[256];
+start: 		for (int lineno = 1; fgets(line, sizeof line, stdin) != NULL; lineno++) {
+start: 				line[strcspn(line, "\n")] = '\0';
+start: 				const char *p = line;
+start: 				/* SKIP blanks, READ a word, print it; repeat until the '\0' */
+start: 				(void)p;
+start: 				(void)lineno;
+start: 		}
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <string.h>
 prog: 
@@ -179,6 +201,23 @@ spec: (no `=`; C is the first non-blank), `empty key` (C is the `=`), or
 spec: `bad character in key` (C is that character, a space inside the key
 spec: included).
 file: cfgget.c
+need: - strchr(p, '=') finds the FIRST '=' (NULL if there is none)
+need: - trim: skip blanks forward; step end back while the byte before
+need:   it is a blank. blank = space, tab, '\r'
+need: - isalnum((unsigned char)c) (ctype.h) for a letter or digit
+need: - memcmp(a, b, n) == 0: n bytes equal, no '\0' needed
+need: - memcpy(dst, src, n) then dst[n] = '\0' to keep a copy
+need: - column is p - line + 1; fflush(stdout), then message to stderr
+start: #include <ctype.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <ctype.h>
 prog: #include <stdio.h>
 prog: #include <string.h>
@@ -284,6 +323,24 @@ spec: opening quote), `text after closing quote` (C is that text), and
 spec: `quote inside unquoted field` (C is that quote). A row with fewer
 spec: than N fields prints `csvcol: line L: no column N` and exits 1.
 file: csvcol.c
+need: - read pointer p and write pointer w start together:
+need:   *w++ = *p++ copies a byte; w never passes p; *w = '\0' ends it
+need: - a doubled quote inside quotes: write one '"' and p += 2
+need: - state: inside quotes or not. a comma only ends a field outside
+need: - cut the line ending: line[strcspn(line, "\r\n")] = '\0'
+need: - column is p - line + 1; fflush(stdout) before stderr
+need: - N: strtol(argv[1], &end, 10); end == argv[1], *end, errno, n < 1
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -401,6 +458,26 @@ spec: expression), `division by zero` (C is the `/`) and `out of range`
 spec: (C is the number, or the operator that made the result too big).
 spec: Values of lines before it stay printed.
 file: exprcalc.c
+need: - one function per level: sum calls prod, prod calls unary, unary
+need:   calls atom. each loops on its own operators: left to right
+need: - atom: a number, or '(' sum ')': that call is the recursion
+need: - unary minus: a '-' then unary again, or an atom
+need: - digits: isdigit (ctype.h); v = v * 10 + (c - '0'); use long long
+need: - skip blanks before every token; column is p - line + 1
+need: - fflush(stdout), then the message to stderr; print with %lld
+start: #include <ctype.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(void)
+start: {
+start: 		char line[256];
+start: 		while (fgets(line, sizeof line, stdin) != NULL) {
+start: 				line[strcspn(line, "\n")] = '\0';
+start: 				/* skip a blank line; parse the expression and print its value */
+start: 		}
+start: 		return 0;
+start: }
 prog: #include <ctype.h>
 prog: #include <stdio.h>
 prog: #include <string.h>

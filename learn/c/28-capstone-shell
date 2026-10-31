@@ -88,6 +88,47 @@ spec: The last line counts even without a final newline. Lines may be any
 spec: length. A failed read or allocation prints `shtok: read error` or
 spec: `shtok: out of memory` to standard error and exits 1.
 file: shtok.c
+need: - needs #define _POSIX_C_SOURCE 200809L first (for getline)
+need: - ssize_t len = getline(&line, &cap, stdin): -1 at end; it grows
+need:   line with malloc; start with char *line = NULL; size_t cap = 0;
+need:   free(line) once at the end; it keeps the newline: strip it
+need: - one pass over the characters with a few flags (quoted?), not a
+need:   pile of special cases
+need: - blank = space or tab; operators: | < >  (a token of their own)
+need: - a quote toggles "quoted": inside it blanks and operators are
+need:   plain, the quote marks are dropped, the word goes on
+need: - worst case an output word is 2 * len + 1 bytes: malloc a buffer
+need:   and a token array, store text + an op flag, free both per line
+need: - ferror(stdin) after the loop tells a read error from the end
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: typedef struct {
+start: 	char *text;
+start: 	bool op;
+start: } tok;
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		/* split line into tok entries, print: N: [word] op ... */
+start: 	}
+start: 	free(line);
+start: 	if (ferror(stdin)) {
+start: 		fprintf(stderr, "shtok: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -234,6 +275,18 @@ spec: At end of input the shell exits with the last status. Failed
 spec: `fork`, `waitpid` or allocation print `shrun: fork failed`,
 spec: `shrun: wait failed` or `shrun: out of memory` and give status 1.
 file: shrun.c
+need: - start from your shtok: same tokenizer, plus status for $?
+need: - fork(): child 0, parent the pid, -1 = failed
+need: - execvp(argv[0], argv): argv is NULL-ended; returns only on
+need:   failure; errno ENOENT = 127 not found, anything else = 126
+need: - child that failed to exec leaves with _exit(code), never exit
+need: - waitpid(pid, &st, 0): retry on EINTR; WIFEXITED then
+need:   WEXITSTATUS, else 128 + WTERMSIG
+need: - cd and exit run in the shell itself: chdir(dir) is 0 on success;
+need:   a child's cd would vanish with the child
+need: - strtol(s, &end, 10): bad if end == s or *end != '\0';
+need:   set errno = 0 first
+need: - an empty line changes nothing, status included
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <stdbool.h>
@@ -563,6 +616,17 @@ spec: - A pipe that cannot be made prints `shpipe: pipe failed`; a
 spec:   failed fork prints `shpipe: fork failed`. Either way the commands
 spec:   already started are still waited for, and the status is 1.
 file: shpipe.c
+need: - start from your shrun: split the words at each | into commands
+need: - N commands = N - 1 pipes; start ALL children before any wait
+need: - carry the read end of the previous pipe along:
+need:       int prev = -1;
+need:       for each cmd: if not last, pipe(p); fork
+need:       child:  dup2(prev, 0), dup2(p[1], 1), close spares, exec
+need:       parent: close prev and p[1]; prev = p[0]
+need: - a spare write end open anywhere keeps the reader waiting
+need: - check pipe and fork; on failure still waitpid the started ones
+need: - the pipeline status is the LAST command's
+need: - a bar with no command beside it: empty command, status 2
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <stdbool.h>
@@ -1060,6 +1124,17 @@ spec:   `minish: empty command`, like a bar with nothing beside it.
 spec: - `cd` or `exit` with a redirection prints
 spec:   `minish: builtins take no redirection`.
 file: minish.c
+need: - start from your shpipe: add < FILE and > FILE per command
+need: - in the CHILD, after the pipe is wired: open the file, dup2 it
+need:   onto 0 or 1, close it
+need: - open(path, O_RDONLY) is -1 on error
+need: - open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644): created if
+need:   missing, emptied if not; needs <fcntl.h>
+need: - a file that cannot open: message, _exit(1) in the child
+need: - a redirection wins over the pipe: dup2 it last
+need: - save in and out names per command while scanning; the last one
+need:   of each wins; the file name is the word after the operator
+need: - cd and exit with a redirection: refused, status 2
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <fcntl.h>

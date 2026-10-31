@@ -79,6 +79,24 @@ spec: standard error (NAME is the argument as given) and exit 1. Do not
 spec: print the strerror text. With any other number of arguments print
 spec: `usage: fdump FILE` to standard error and exit 2.
 file: fdump.c
+need: - FILE *f = fopen(path, "rb");  NULL = failed: check it
+need: - char buf[4096]; size_t n;
+need:   while ((n = fread(buf, 1, sizeof buf, f)) > 0) { ... }
+need: - fwrite(buf, 1, n, stdout) writes those same n bytes out
+need: - fclose(f) when done
+need: - your own message to stderr, not strerror; usage exit 2
+start: #include <stdio.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2) {
+start: 		fprintf(stderr, "usage: fdump FILE\n");
+start: 		return 2;
+start: 	}
+start: 	(void)argv;
+start: 	/* open argv[1], copy it to stdout, close it */
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(int argc, char **argv)
@@ -134,6 +152,31 @@ spec:
 spec: Lines are under 64 characters. Use `fgets` and `strtol` with an
 spec: end pointer and `errno`.
 file: numsum.c
+need: - FILE *f = fopen(path, "r");  NULL: message, exit 2 here
+need: - while (fgets(line, sizeof line, f) != NULL); count lines from 1
+need: - errno = 0; v = strtol(line, &end, 10); bad if end == line,
+need:   *end is not '\n' or '\0', errno != 0, or v is outside
+need:   INT_MIN..INT_MAX (<limits.h>)
+need: - long long sum prints with %lld; unsigned long with %lu
+need: - fclose(f) on every path out
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	long long sum = 0;
+start: 
+start: 	if (argc != 2) {
+start: 		fprintf(stderr, "usage: numsum FILE\n");
+start: 		return 2;
+start: 	}
+start: 	(void)argv;
+start: 	/* open argv[1]; add up each line; report bad lines */
+start: 	printf("%lld\n", sum);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <limits.h>
 prog: #include <stdio.h>
@@ -198,6 +241,37 @@ spec: Use an array of N `char *` (calloc zeroes it, so unused slots are
 spec: NULL and free(NULL) is fine). Line number `seen` goes in slot
 spec: `ring[seen % n]`; free what the slot held before you overwrite it.
 file: lastn.c
+need: - ring: char **ring = calloc(n, sizeof *ring);  slots start NULL
+need: - line number seen goes in ring[seen % n]; free(*slot) first
+need: - copy a line: p = malloc(strlen(s) + 1); memcpy it; caller frees
+need: - print with fputs(ring[i % n], stdout): no newline added;
+need:   first line to print is seen > n ? seen - n : 0
+need: - one exit: status = 1; goto cleanup; at cleanup free every
+need:   slot, ring, and fclose(f); start FILE *f = NULL
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	int status = 1;
+start: 	FILE *f = NULL;
+start: 	char **ring = NULL;
+start: 
+start: 	(void)argv;
+start: 	if (argc != 3) {
+start: 		fprintf(stderr, "usage: lastn N FILE\n");
+start: 		status = 2;
+start: 		goto cleanup;
+start: 	}
+start: 	/* parse N, open argv[2], fill the ring, print it */
+start: cleanup:
+start: 	free(ring);
+start: 	if (f != NULL)
+start: 		fclose(f);
+start: 	return status;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>

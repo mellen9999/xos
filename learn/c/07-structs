@@ -66,6 +66,36 @@ spec: A bad or out-of-range number prints `rect: bad size` to standard
 spec: error and exits 1. Any other argument count prints nothing and
 spec: exits 2.
 file: rect.c
+need: - struct rect { long w; long h; };
+need:   struct rect r = { .w = 3, .h = 4 };
+need: - r.w on a value; p->w through a pointer
+need: - static long area(const struct rect *r) -- const = read only;
+need:   call it with area(&r)
+need: - strtol(s, &end, 10): bad if end == s, *end != '\0', errno;
+need:   here the range is 0 to 1000
+need: - long prints with %ld
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: struct rect {
+start: 	long w;
+start: 	long h;
+start: };
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	if (argc != 3)
+start: 		return 2;
+start: 	(void)argv;
+start: 
+start: 	struct rect r = { .w = 0, .h = 0 };
+start: 
+start: 	/* parse argv[1] and argv[2] (0..1000) into r */
+start: 	printf("area %ld perimeter %ld\n", r.w, r.h);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -132,6 +162,35 @@ spec: An unknown operator prints `arith: unknown op` to standard error and
 spec: exits 1. A bad number prints `arith: bad number` and exits 1. Any
 spec: other argument count prints nothing and exits 2.
 file: arith.c
+need: - enum op { OP_ADD, OP_SUB, OP_MUL };
+need:   struct entry { const char *name; enum op op; };
+need: - a table: static const struct entry table[] = {
+need:   { .name = "add", .op = OP_ADD }, ... };  count it with
+need:   sizeof table / sizeof table[0]
+need: - strcmp(a, b) == 0 means equal (<string.h>)
+need: - switch (op) { case OP_ADD: return a + b; ... } with no
+need:   default, then a return after it
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: enum op { OP_ADD, OP_SUB, OP_MUL };
+start: 
+start: struct entry {
+start: 	const char *name;
+start: 	enum op op;
+start: };
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	if (argc != 4)
+start: 		return 2;
+start: 	(void)argv;
+start: 	/* table of names, look up argv[1], parse the numbers, switch */
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -224,6 +283,42 @@ spec: error (L counts from 1) and exit 1. A ninth record prints `scores: too man
 spec: 1. Empty input prints `scores: no records` and exits 1. Nothing is
 spec: printed to standard output when it exits 1.
 file: scores.c
+need: - struct player { char name[16]; long score; };
+need:   struct player rec[8];  rec[n].score, or p->score via a pointer
+need: - fgets(line, sizeof line, stdin); strchr(line, ' ') finds the
+need:   space: the name is sp - line chars (1 to 15), the number
+need:   starts at sp + 1 (strtol; *end must be '\n' or '\0')
+need: - zero first, then copy:  *out = (struct player){ .score = v };
+need:   memcpy(out->name, line, len);
+need: - a pointer to one record: const struct player *best = &rec[0];
+need: - size_t prints with %zu, long with %ld
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define MAXREC 8
+start: #define NAMELEN 16
+start: 
+start: struct player {
+start: 	char name[NAMELEN];
+start: 	long score;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 	struct player rec[MAXREC];
+start: 	size_t n = 0;
+start: 	char line[64];
+start: 
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* split line at the space into rec[n], then n++ */
+start: 	}
+start: 	(void)rec;
+start: 	printf("players %zu\n", n);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>

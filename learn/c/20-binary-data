@@ -64,6 +64,25 @@ spec: If the input ends with 1 to 3 bytes that do not make a whole number,
 spec: print `u32dump: N stray bytes at the end` to standard error and exit 1. Any other argument, or more than one, prints
 spec: `usage: u32dump [be]` and exits 2. Empty input prints nothing.
 file: u32dump.c
+need: - fread(buf, 1, size, stdin) returns bytes read; short = end
+need: - read into unsigned char, never char (may be signed)
+need: - build a number: shift each byte up to its place, OR together
+need: - little-endian: first byte is the LOW one; big-endian: HIGH
+need: - widen first: (uint32_t)b[3] << 24, else the shift is on an int
+need: - print a uint32_t as (unsigned long) with %lu
+need: - errors go to stderr (fprintf); usage exit 2, stray bytes exit 1
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	/* check argv: only none, "be" or "le" is allowed, else usage + 2 */
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	/* read 4 bytes at a time, print each as a number */
+start: 	return 0;
+start: }
 prog: #include <stdint.h>
 prog: #include <stdio.h>
 prog: #include <string.h>
@@ -117,6 +136,35 @@ spec:   `data`   anything else
 spec:
 spec: A file shorter than a signature cannot match it.
 file: sniff.c
+need: - fread returns how many bytes it got: check n before comparing
+need: - memcmp(a, b, len) == 0 means the bytes match
+need: - a signature is bytes, not text: 0x89, 'P', 'N', 'G'
+need: - table of structs: name, length, bytes; loop over it
+need: - sizeof table / sizeof *table is the entry count
+need: - text: bytes 0x20-0x7e, tab, newline, return (unsigned char)
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: struct magic {
+start: 	const char *name;
+start: 	size_t len;
+start: 	unsigned char bytes[8];
+start: };
+start: 
+start: static const struct magic table[] = {
+start: 	{ "png", 8, { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a } },
+start: 	/* gzip, elf, zip, pdf */
+start: };
+start: 
+start: int main(void)
+start: {
+start: 	unsigned char buf[512];
+start: 	size_t n = fread(buf, 1, sizeof buf, stdin);
+start: 	(void)n;
+start: 	(void)table;
+start: 	/* empty? then each signature, then text, else data */
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <string.h>
 prog: 
@@ -175,6 +223,24 @@ spec: byte: a = (a + byte) mod 65521, then b = (b + a) mod 65521. The result
 spec: is b in the high 16 bits and a in the low 16: b shifted left 16 bits, ORed with a. Empty
 spec: input is `00000001`. For `abc` it is `024d0127`.
 file: adlersum.c
+need: - getchar() gives an int: a byte 0-255, or EOF; keep it in an int
+need: - uint32_t a = 1, b = 0;  % is the remainder
+need: - take the remainder after EACH addition, not once at the end
+need: - b << 16 | a puts b in the high 16 bits
+need: - print 8 hex digits: "%08" PRIx32 "\n"  (needs <inttypes.h>)
+start: #include <inttypes.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	uint32_t a = 1, b = 0;
+start: 	/* for every byte: update a, then b */
+start: 	/* print b << 16 | a as 8 hex digits */
+start: 	(void)a;
+start: 	(void)b;
+start: 	return 0;
+start: }
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -219,6 +285,38 @@ spec: byte xor it into the low bits, then 8 times: if the lowest bit is 1,
 spec: shift right one and xor 0xedb88320, else just shift right. The final
 spec: value is the complement (~) of what is left.
 file: recread.c
+need: - fread the whole input into one buffer; make it 1 byte bigger
+need:   than the largest good file, so extra bytes show up
+need: - memcmp(buf, "XREC", 4) == 0 checks the magic bytes
+need: - big-endian: first byte high; little-endian: first byte low
+need: - widen before shifting: (uint32_t)b[0] << 24
+need: - check the length before you trust the count
+need: - per byte, 8 times: crc & 1 ? crc >> 1 ^ 0xedb88320u : crc >> 1
+need: - errors: fprintf(stderr, ...), nothing on stdout, return 1
+need: - print a uint32_t as (unsigned long) with %lu
+start: #include <inttypes.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: #define MAXREC 100
+start: #define RECSIZE 6
+start: 
+start: static int fail(const char *why)
+start: {
+start: 	fprintf(stderr, "recread: %s\n", why);
+start: 	return 1;
+start: }
+start: 
+start: int main(void)
+start: {
+start: 	unsigned char buf[7 + MAXREC * RECSIZE + 4 + 1];
+start: 	size_t n = fread(buf, 1, sizeof buf, stdin);
+start: 	if (n < 4 || memcmp(buf, "XREC", 4) != 0)
+start: 		return fail("bad magic");
+start: 	/* the other checks, in the order the spec gives */
+start: 	return 0;
+start: }
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>

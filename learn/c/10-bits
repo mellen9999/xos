@@ -57,6 +57,24 @@ spec: `popcnt: bad number: ARG` to standard error and exit 1; lines already
 spec: printed stay. With no arguments print `usage: popcnt N...` to
 spec: standard error and exit 2.
 file: popcnt.c
+need: - lowest bit of x is x & 1; x >>= 1 brings the next one down
+need: - do bit work on unsigned: uint32_t (stdint.h)
+need: - strtoul(s, &end, 10) wants a digit first (it takes "-1"): check
+need:   s[0] by hand, then *end == '\0', errno == 0, v <= UINT32_MAX
+need: - set errno = 0 (errno.h) before the call
+need: - argv[0] is the program, so arguments start at argv[1]
+need: - errors: fprintf(stderr, "...\n") then return the exit code
+start: #include <errno.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -116,6 +134,23 @@ spec: Any other argument prints `bin8: bad byte: ARG` to standard error and
 spec: exits 1. Any other number of arguments prints `usage: bin8 N` and
 spec: exits 2.
 file: bin8.c
+need: - strtoul(s, &end, 10): digit first, *end == '\0', errno == 0,
+need:   then the range (errno.h, stdlib.h)
+need: - uint8_t b holds one byte; bit i of it is (b >> i) & 1u
+need: - putchar('1') prints one character
+need: - "%02x" prints a byte as two lowercase hex digits
+need: - the wrong count of arguments is a different error: exit 2
+start: #include <errno.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -163,6 +198,21 @@ spec: Anything else (wrong length, a letter in the wrong place, a digit
 spec: above 7) prints `perms: bad flags` to standard error and exits 1. Any
 spec: other number of arguments prints `usage: perms FLAGS` and exits 2.
 file: perms.c
+need: - read 4, write 2, execute 1: test a group with mode & 4, & 2, & 1
+need: - groups sit at shifts 6, 3, 0: (mode >> 6) & 7 is the owner digit
+need: - "%03o" prints octal, padded to 3 digits
+need: - '7' - '0' is the number 7; strlen(s) is size_t (string.h)
+need: - building text: a char out[10] needs '\0' last; puts(out) prints
+need: - s[i] == 'r' compares one char; use '-' for a missing bit
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <string.h>
 prog: 
@@ -238,6 +288,24 @@ spec: number of arguments prints `usage: rotl32 N K` and exits 2.
 spec:
 spec: K of 0 must work. Shifting a 32-bit value by 32 is undefined.
 file: rotl32.c
+need: - strtoul(s, &end, 10): digit first, *end == '\0', errno == 0, and
+need:   v <= UINT32_MAX for N but v <= 31 for K
+need: - x << k and x >> k move bits; | joins two halves into one value
+need: - shifting a 32-bit value by 32 or more is undefined
+need: - print 32 bits with "%08" PRIx32 (inttypes.h)
+need: - different errors, different messages: bad number, bad count
+start: #include <errno.h>
+start: #include <inttypes.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <inttypes.h>
 prog: #include <stdint.h>

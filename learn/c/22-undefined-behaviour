@@ -72,6 +72,28 @@ spec:
 spec: An optional leading `+` or `-` is allowed. No arguments prints
 spec: nothing. Exit 0.
 file: strint.c
+need: - argv[i] for i = 1 .. argc - 1 are the arguments
+need: - strtol(s, &end, 10) parses a long; end points past the number
+need: - set errno = 0 before; errno == ERANGE means too big for a long
+need: - bad: end == s (no digits) or *end != '\0' (trailing junk)
+need: - a long may still not fit an int: compare with INT_MIN, INT_MAX
+need: - strtol skips leading spaces; isspace((unsigned char)c)
+need: - INT_MIN, INT_MAX from <limits.h>; print a long with %ld
+start: #include <ctype.h>
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	for (int i = 1; i < argc; i++) {
+start: 		const char *s = argv[i];
+start: 		/* empty, bad, range, or ok N */
+start: 		(void)s;
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <ctype.h>
 prog: #include <errno.h>
 prog: #include <limits.h>
@@ -120,6 +142,35 @@ spec: `usage: chk64 OP A B` to standard error and exits 2. A number that is
 spec: not whole, or does not fit in 64 bits, prints `chk64: bad number` to
 spec: standard error and exits 2.
 file: chk64.c
+need: - decide BEFORE computing; signed overflow is undefined
+need: - add: b > 0 && a > MAX - b, or b < 0 && a < MIN - b
+need: - mul: split by the sign of each side and divide the limit by one
+need:   operand (MAX / b, MIN / a); never write MIN / -1
+need: - limits: INT64_MAX, INT64_MIN from <stdint.h>
+need: - strtoll(s, &end, 10) for a long long; bad if end == s,
+need:   *end != '\0', or errno == ERANGE (set errno = 0 first)
+need: - print an int64_t with %lld after a (long long) cast
+need: - usage and bad number: stderr, exit 2; overflow: stdout, exit 1
+start: #include <errno.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	int64_t a, b, r;
+start: 	if (argc != 4) {
+start: 		fprintf(stderr, "usage: chk64 OP A B\n");
+start: 		return 2;
+start: 	}
+start: 	(void)argv;
+start: 	(void)a;
+start: 	(void)b;
+start: 	(void)r;
+start: 	/* check OP, parse A and B, test for overflow, then compute */
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -213,6 +264,37 @@ spec: I is a whole decimal number from -1000000 to 1000000; V is a whole
 spec: decimal number that fits in an int. Anything else -- a missing or bad
 spec: number, extra words, an unknown command -- prints `?`. Exit 0.
 file: bbuf.c
+need: - every access checks the index first: i < 0 or i >= len = range
+need: - compare as unsigned: (unsigned long)i >= len
+need: - struct buf { int data[8]; size_t len; };  push: data[len++] = v
+need: - strtol(s, &end, 10): bad if end == s or *end != '\0';
+need:   set errno = 0 first, then errno == ERANGE means too big
+need: - INT_MIN, INT_MAX from <limits.h>; size_t prints with %zu
+need: - strtok(line, " \n") splits a line into words; strcmp(a, b) == 0
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define CAP 8
+start: 
+start: struct buf {
+start: 	int data[CAP];
+start: 	size_t len;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 	struct buf b = { .len = 0 };
+start: 	char line[64];
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* push V, get I, set I V, len, else ? */
+start: 	}
+start: 	(void)b;
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <limits.h>
 prog: #include <stdbool.h>

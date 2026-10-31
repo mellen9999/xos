@@ -66,6 +66,30 @@ spec:
 spec: Write a function that hands back both Q and R through pointer
 spec: parameters, and one that parses a number into a `long *`.
 file: divmod.c
+need: - hand back two results through pointers:
+need:   static void divmod(long a, long b, long *q, long *r)
+need:   inside: *q = a / b;   caller: long q, r; divmod(a, b, &q, &r);
+need: - success flag + value out: static bool parse_long(const char *s,
+need:   long *out)  -- set *out only when good (<stdbool.h>)
+need: - strtol(s, &end, 10): bad if end == s, *end != '\0', errno
+need: - check b == 0 and LONG_MIN / -1 BEFORE dividing
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	long q = 0, r = 0;
+start: 
+start: 	if (argc != 3)
+start: 		return 2;
+start: 	(void)argv;
+start: 	/* parse argv[1], argv[2]; check them; fill q and r */
+start: 	printf("%ld %ld\n", q, r);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <limits.h>
 prog: #include <stdbool.h>
@@ -134,6 +158,25 @@ spec: copying it: `printf("%.*s", (int)(eq - arg), arg)` -- subtracting two
 spec: pointers into the same string gives the distance between them, a
 spec: `ptrdiff_t`; `.*` wants an int.
 file: kvsplit.c
+need: - strchr(s, '=') points at the first '=' in s, or NULL
+need: - eq - arg = chars before it; eq + 1 = the text after it
+need: - printf("%.*s", (int)(eq - arg), arg) prints just that many chars
+need: - printf("%s", p) prints from p to the end of the string
+need: - const char *: text you may read, not change
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	if (argc != 2)
+start: 		return 2;
+start: 
+start: 	const char *arg = argv[1];
+start: 
+start: 	/* find the first '=' and print key: and value: */
+start: 	printf("key: %s\n", arg);
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <string.h>
 prog: 
@@ -172,6 +215,30 @@ spec: No arguments prints nothing and exits 2. More than 16 arguments
 spec: prints `minmax: too many` to standard error and exits 1. A bad
 spec: number prints `minmax: bad number` to standard error and exits 1.
 file: minmax.c
+need: - an array goes to a function as pointer + length:
+need:   static void minmax(const long *v, size_t n, long *min, long *max)
+need: - answers go out through pointers: *min = ...; caller passes &lo
+need: - walk it: for (const long *p = v; p < v + n; p++) reads *p
+need: - seed min and max from the first element, not 0
+need: - parse each word: strtol(argv[i], &end, 10) into vals[i]
+need: - #define MAXN 16 names the limit; the words are argc - 1
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: #define MAXN 16
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	long lo = 0, hi = 0;
+start: 
+start: 	if (argc < 2)
+start: 		return 2;
+start: 	(void)argv;
+start: 	/* too many? parse into long vals[MAXN]; find lo and hi */
+start: 	printf("min %ld max %ld\n", lo, hi);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>

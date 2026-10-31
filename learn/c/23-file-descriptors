@@ -59,6 +59,25 @@ spec: bytes of it) to standard output and exit 1. A read error prints `recs4: re
 spec: standard error and exits 1. Otherwise exit 0. Empty input prints
 spec: nothing.
 file: recs4.c
+need: - needs #define _POSIX_C_SOURCE 200809L first, then <unistd.h>
+need: - ssize_t n = read(0, buf, size): 0 = end, -1 = error, else the
+need:   bytes got (maybe fewer than asked: a pipe hands over pieces)
+need: - EINTR (signal mid-call) is not an error: call read again
+need: - loop until you have all 4 bytes: buf + got, size - got
+need: - ssize_t prints with %zd; a byte as 2 hex digits is %02x
+need: - partial record: stdout, exit 1; read error: stderr, exit 1
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <unistd.h>
+start: 
+start: int main(void)
+start: {
+start: 	unsigned char rec[4];
+start: 	/* keep reading until rec is full or the input ends */
+start: 	(void)rec;
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <stdio.h>
@@ -118,6 +137,29 @@ spec: read or write failure prints `rawcat: error on NAME` (NAME is `stdin`
 spec: when reading standard input) and counts the same way. Exit 0 if
 spec: everything copied.
 file: rawcat.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>, <fcntl.h>
+need: - fd = open(path, O_RDONLY): -1 on error; 0 is stdin, 1 is stdout
+need: - read(fd, buf, sizeof buf): 0 = end, -1 = error
+need: - write may take only part: loop p += w; n -= w until n is 0
+need: - EINTR is not an error: call again
+need: - close(fd) what you open
+need: - one bad file must not stop the rest: remember it, exit 1 at end
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <fcntl.h>
+start: #include <stdio.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	int status = 0;
+start: 	char buf[4096];
+start: 	/* no arguments: copy fd 0; else open and copy each file */
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	(void)buf;
+start: 	return status;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <fcntl.h>
@@ -193,6 +235,24 @@ spec: second, fourth ... with `write(1, ...)`. When standard output is a
 spec: pipe or a file the lines must still come out in argument order, not
 spec: reordered. No arguments prints nothing. Exit 0.
 file: mixout.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>
+need: - write(1, p, n) goes out at once; printf waits in its own buffer
+need: - mix them and the output reorders
+need: - fflush(stdout) before a raw write puts them back in order
+need: - strlen(s) is the length for write; write returns bytes written
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <stdio.h>
+start: #include <string.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	for (int i = 1; i < argc; i++) {
+start: 		/* odd i: printf the line; even i: write(1, ...) it */
+start: 		(void)argv;
+start: 	}
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <stdio.h>
 prog: #include <string.h>
@@ -235,6 +295,34 @@ spec: and exit 1. Any other failure, including a failing `close` of DST,
 spec: prints `fdcopy: copy failed` and exits 1. Any other number of arguments
 spec: prints `usage: fdcopy SRC DST` to standard error and exits 2.
 file: fdcopy.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>, <fcntl.h>,
+need:   <sys/stat.h>
+need: - open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644): -1 on error;
+need:   0644 is octal; O_TRUNC empties an existing file AT open
+need: - same file? struct stat a, b; fstat(fd, &a) / stat(path, &b)
+need:   return 0 when ok; same file = same st_dev AND st_ino
+need: - stat of a missing DST fails: that just means they differ
+need: - check same-file BEFORE opening DST
+need: - read: 0 = end, -1 = error; write may be short: loop;
+need:   EINTR: call again
+need: - close(out) can fail too: check it
+need: - size_t prints with %zu
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <fcntl.h>
+start: #include <stdio.h>
+start: #include <sys/stat.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 3) {
+start: 		fprintf(stderr, "usage: fdcopy SRC DST\n");
+start: 		return 2;
+start: 	}
+start: 	/* open SRC, refuse the same file, open DST, copy, close */
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <fcntl.h>

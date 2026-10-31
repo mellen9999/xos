@@ -79,6 +79,25 @@ spec: exits 2. The input can be any length, so do not build the number: keep
 spec: only its remainder mod 3 as the state. Reading a bit b turns n into
 spec: 2n + b.
 file: div3.c
+need: - state = what you must remember so far: here a remainder
+need: - a table: static const int next[3][2] = { {..}, {..}, {..} };
+need:   row = state, column = input; s = next[s][bit];
+need: - int c; while ((c = getchar()) != EOF); c - '0' turns '1' into 1
+need: - 2n + b is the new number; its remainder follows from the old one
+need: - puts("yes") prints with a newline; errors go to stderr
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 		int state = 0;
+start: 		int c;
+start: 		while ((c = getchar()) != EOF) {
+start: 				/* skip newlines, reject anything but 0 and 1, move the state */
+start: 				(void)state;
+start: 		}
+start: 		/* print yes or no */
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: /* state = the remainder of the number so far, divided by 3.
@@ -133,6 +152,30 @@ spec: unterminated block comment prints `cstrip: unterminated comment` to
 spec: standard error after the output so far and exits 1. Otherwise exit 0.
 spec: Use one enum state variable, not several flags.
 file: cstrip.c
+need: - one enum for where you are; switch (s) { case CODE: ... break; }
+need: - a state per thing to remember: "saw a slash", "in a block
+need:   comment, just saw a star"
+need: - int c; while ((c = getchar()) != EOF); putchar(c) copies a byte
+need: - ungetc(c, stdin) hands a byte back to be read again
+need: - '\'' is a quote character, '\\' a backslash
+need: - after the loop ask what each state means at EOF
+start: #include <stdio.h>
+start: 
+start: enum state { CODE }; /* add a state for each thing to remember */
+start: 
+start: int main(void)
+start: {
+start: 		enum state s = CODE;
+start: 		int c;
+start: 		while ((c = getchar()) != EOF) {
+start: 				switch (s) {
+start: 				case CODE:
+start: 						putchar(c);
+start: 						break;
+start: 				}
+start: 		}
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: enum state {
@@ -257,6 +300,38 @@ spec: `bad character`, `bad escape`, `unterminated string` (a newline or
 spec: end of input before the closing quote) or `string too long`.
 spec: Tokens before the error are still printed. Exit 0 otherwise.
 file: lexdump.c
+need: - enum state { START, NUM, ... } one state per token in progress;
+need:   for (;;) { c = getchar(); switch (s) { ... } }
+need: - ungetc(c, stdin) gives back the byte that ended a token
+need: - isdigit, isalpha, isalnum, isspace (ctype.h) take the int c
+need: - strchr(ops, c) also matches c == 0: test c != '\0' first
+need: - printf("\\x%02x", c) prints \xHH; "\\n" prints a backslash and n
+need: - at EOF a number just ends, a string is an error
+start: #include <ctype.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: enum state { START };
+start: 
+start: int main(void)
+start: {
+start: 		enum state s = START;
+start: 		long line = 1;
+start: 		int c;
+start: 		for (;;) {
+start: 				c = getchar();
+start: 				switch (s) {
+start: 				case START:
+start: 						if (c == EOF)
+start: 								return 0;
+start: 						if (c == '\n')
+start: 								line++;
+start: 						/* what starts a token? */
+start: 						(void)line;
+start: 						break;
+start: 				}
+start: 		}
+start: }
 prog: #include <ctype.h>
 prog: #include <stdio.h>
 prog: #include <string.h>
@@ -431,6 +506,30 @@ spec: With `fgets(buf, 128, stdin)` a longer line comes back in pieces and
 spec: the first piece has no `\n`: a full buffer with no newline at the
 spec: end means the line is too long.
 file: batchp.c
+need: - enum state { IDLE, IN_BATCH }; check state, then the argument
+need: - fgets(buf, 128, stdin): a full buffer with no '\n' is too long
+need: - strchr(buf, ' ') is the FIRST space; *arg++ = '\0' splits there
+need: - strspn(buf, " ") == n means the line is all spaces
+need: - strtol(arg, &end, 10): end == arg, *end != '\0', errno == ERANGE
+need:   (errno.h), then the range
+need: - strcmp(buf, "BEGIN") == 0; strcpy(name, arg) into char name[32]
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: enum state { IDLE, IN_BATCH };
+start: 
+start: int main(void)
+start: {
+start: 		enum state s = IDLE;
+start: 		char buf[128];
+start: 		while (fgets(buf, sizeof buf, stdin) != NULL) {
+start: 				/* too long? blank? split at the first space, then act on it */
+start: 				(void)s;
+start: 		}
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>

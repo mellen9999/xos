@@ -64,6 +64,35 @@ spec: If the file cannot be opened print `wcount: cannot open NAME` to
 spec: standard error and exit 1. More than one argument prints
 spec: `usage: wcount [FILE]` and exits 2.
 file: wcount.c
+need: - no argument: FILE *in = stdin; one: in = fopen(argv[1], "rb")
+need: - fopen gives NULL on failure; fclose(in) only when in != stdin
+need: - int c; while ((c = getc(in)) != EOF) -- an int, never a char
+need: - isspace(c) (ctype.h); '\n' is the newline
+need: - keep a bool inword (stdbool.h) to tell a new word from the rest
+need: - counts are size_t: print them with %zu
+start: #include <ctype.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		if (argc > 2) {
+start: 				fprintf(stderr, "usage: wcount [FILE]\n");
+start: 				return 2;
+start: 		}
+start: 		FILE *in = stdin;
+start: 		if (argc == 2) {
+start: 				in = fopen(argv[1], "rb");
+start: 				if (in == NULL) {
+start: 						fprintf(stderr, "wcount: cannot open %s\n", argv[1]);
+start: 						return 1;
+start: 				}
+start: 		}
+start: 		/* read in with getc, count, then print the line */
+start: 		if (in != stdin)
+start: 				fclose(in);
+start: 		return 0;
+start: }
 prog: #include <ctype.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -134,6 +163,33 @@ spec: Empty input prints just `000000`. A missing file prints
 spec: `hexd: cannot open NAME` to standard error and exits 1. More than
 spec: one argument prints `usage: hexd [FILE]` and exits 2.
 file: hexd.c
+need: - fread(row, 1, sizeof row, in) returns how many bytes it got
+need:   (a size_t); 0 means the end. unsigned char row[8];
+need: - "%06zx" size_t as 6 hex digits; "%02x" a byte as 2
+need: - keep a running offset (size_t) and add n each row
+need: - a missing byte in a short row prints two spaces instead
+need: - putchar(c) prints one character; non-printable becomes '.'
+start: #include <stdio.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		if (argc > 2) {
+start: 				fprintf(stderr, "usage: hexd [FILE]\n");
+start: 				return 2;
+start: 		}
+start: 		FILE *in = stdin;
+start: 		if (argc == 2) {
+start: 				in = fopen(argv[1], "rb");
+start: 				if (in == NULL) {
+start: 						fprintf(stderr, "hexd: cannot open %s\n", argv[1]);
+start: 						return 1;
+start: 				}
+start: 		}
+start: 		/* read 8 bytes at a time with fread and print each row */
+start: 		if (in != stdin)
+start: 				fclose(in);
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(int argc, char **argv)
@@ -200,6 +256,38 @@ spec: `runs: cannot open NAME` to standard error and exits 1. More than one
 spec: argument prints `usage: runs [FILE]` and exits 2. Lines are under 1000
 spec: characters.
 file: runs.c
+need: - fgets(cur, sizeof cur, in) reads a line; NULL at the end
+need: - cur[strcspn(cur, "\n")] = '\0' cuts the newline (string.h)
+need: - strcmp(a, b) == 0 means equal; strcpy(dst, src) copies
+need: - keep the previous line and a size_t count; "%zu %s\n" prints one
+need: - a group ends when the line changes, and once more after the loop
+need: - open this one with "r"
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		if (argc > 2) {
+start: 				fprintf(stderr, "usage: runs [FILE]\n");
+start: 				return 2;
+start: 		}
+start: 		FILE *in = stdin;
+start: 		if (argc == 2) {
+start: 				in = fopen(argv[1], "r");
+start: 				if (in == NULL) {
+start: 						fprintf(stderr, "runs: cannot open %s\n", argv[1]);
+start: 						return 1;
+start: 				}
+start: 		}
+start: 		char cur[1024];
+start: 		while (fgets(cur, sizeof cur, in) != NULL) {
+start: 				cur[strcspn(cur, "\n")] = '\0';
+start: 				/* same as the previous line? count it. else print and restart */
+start: 		}
+start: 		if (in != stdin)
+start: 				fclose(in);
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <string.h>
 prog: 
@@ -269,6 +357,34 @@ spec: `flip: cannot open NAME` to standard error and exits 1. More than one
 spec: argument prints `usage: flip [FILE]` and exits 2. If memory or reading
 spec: fails print `flip: read error` and exit 1.
 file: flip.c
+need: - grow: fread(buf + n, 1, cap - n, in) appends after n bytes
+need: - full? bigger = realloc(buf, cap * 2); test bigger for NULL
+need:   before you overwrite buf, and free(buf) on failure
+need: - keep len (held) and cap (room); leave a spare byte for a '\n'
+need: - fwrite(p, 1, count, stdout) writes count bytes from p
+need: - a line starts just after the previous '\n' in the buffer
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		if (argc > 2) {
+start: 				fprintf(stderr, "usage: flip [FILE]\n");
+start: 				return 2;
+start: 		}
+start: 		FILE *in = stdin;
+start: 		if (argc == 2) {
+start: 				in = fopen(argv[1], "rb");
+start: 				if (in == NULL) {
+start: 						fprintf(stderr, "flip: cannot open %s\n", argv[1]);
+start: 						return 1;
+start: 				}
+start: 		}
+start: 		/* read it all into a growing buffer, then print the lines backwards */
+start: 		if (in != stdin)
+start: 				fclose(in);
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
 prog: 

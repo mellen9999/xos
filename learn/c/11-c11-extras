@@ -80,6 +80,11 @@ spec: `int` gives "int", `double` gives "double", `char` gives "char",
 spec: `const char *` gives "string", anything else "other". The line `lit`
 spec: is the character literal `'x'` itself, which has type int in C.
 file: kind.c
+need: - _Generic((x), float: "f", default: "?") picks by the type of x
+need: - the first row whose type matches wins; default takes the rest
+need: - a macro: #define NAME(x) body; a backslash ends a line, goes on
+need: - 'x' is an int in C; a char variable is a char
+need: - const char * is its own type, not the same as char *
 start: #include <stdio.h>
 start: 
 start: #define KIND(x) ((void)(x), "?")
@@ -141,6 +146,11 @@ spec: Any other number of arguments prints `usage: revmsg TEXT` to
 spec: standard error and exits 2. If malloc fails print
 spec: `revmsg: out of memory` and exit 1.
 file: revmsg.c
+need: - struct msg { size_t len; char data[]; };  data is last, no size
+need: - one malloc for both: malloc(sizeof *m + n + 1); 1 is the '\0'
+need: - m->len and m->data[i] reach the members through a pointer
+need: - strlen(s) (string.h) is the length without the '\0'
+need: - malloc can return NULL: check it; one free(m) frees all
 start: #include <stdio.h>
 start: #include <stdlib.h>
 start: #include <string.h>
@@ -217,6 +227,12 @@ spec:
 spec: The tag names are given to you in a table with a `_Static_assert`:
 spec: add a tag and forget its name and the build breaks.
 file: tagged.c
+need: - anonymous union in a struct: v.i and v.s, no middle name
+need: - strtol(arg, &end, 10): end == arg is no digits, *end != '\0' is
+need:   junk after; set errno = 0 first, nonzero after means too big
+need: - _Noreturn void usage(void) { ...; exit(2); }  (stdlib.h)
+need: - malloc(n * sizeof *vals) for n values: check NULL, free once
+need: - TAGNAME[v.tag] is the printed name of a tag
 start: #include <stdio.h>
 start: #include <stdlib.h>
 start: 
@@ -324,6 +340,24 @@ spec:
 spec: Do the adding in a `static inline` function whose three pointers are
 spec: `restrict`, one malloc'd block holding A, B and the result.
 file: addv.c
+need: - static inline void f(long *restrict d, const long *restrict a);
+need:   restrict promises the pointers never overlap
+need: - one block: long *block = malloc(3 * n * sizeof *block);
+need:   then b = block + n is the second part (pointer plus count)
+need: - strtol(s, &end, 10): end == s, *end, errno; INT_MIN..INT_MAX
+need:   (limits.h); long holds the sum, int could wrap
+need: - "%ld" prints a long; putchar(' ') for the gaps
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <limits.h>
 prog: #include <stdio.h>

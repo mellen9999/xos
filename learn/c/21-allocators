@@ -67,6 +67,40 @@ spec: as it was. A line that is not exactly two valid numbers, or has an
 spec: ALIGN that is not allowed, prints `bad` and changes nothing.
 spec: Exit 0.
 file: bumpoff.c
+need: - arena: one block + a used counter; alloc moves the counter
+need: - round up to align: (used + align - 1) & ~(align - 1)
+need: - fit test: size > cap - start, never start + size > cap
+need: - align is ok only if a != 0 && (a & (a - 1)) == 0
+need: - _Alignas(16) static unsigned char mem[N];  (file or function)
+need: - strtol(s, &end, 10): bad if end == s or *end != '\0';
+need:   set errno = 0 first, then errno == ERANGE means too big
+need: - fgets(line, sizeof line, stdin) returns NULL at end of input
+need: - strtok(line, " \n") then strtok(NULL, " \n") splits into words
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define CAP 256
+start: 
+start: struct arena {
+start: 	unsigned char *base;
+start: 	size_t used;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 	_Alignas(16) static unsigned char mem[CAP];
+start: 	struct arena a = { mem, 0 };
+start: 	char line[64];
+start: 
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* split into words, check both numbers, then allocate */
+start: 	}
+start: 	(void)a;
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -154,6 +188,46 @@ spec:
 spec: Anything else, including a missing or non-numeric N, prints `?`.
 spec: A freed slot is the next one handed out. Exit 0.
 file: poolfree.c
+need: - a union shares one spot between its members:
+need:       union slot { int next; long value; };
+need: - free list: head index, each free slot holds the next free index;
+need:   -1 = end of list
+need: - alloc: take the head, move head to its next
+need: - free: put the slot back at the head
+need: - check before you push: out of range or not in use = bad free
+need:   (that catches a double free)
+need: - strtol(s, &end, 10): bad if end == s or *end != '\0';
+need:   set errno = 0 first, then errno == ERANGE means too big
+need: - strcmp(a, b) == 0 means equal; strtok splits a line into words
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define SLOTS 4
+start: 
+start: union slot {
+start: 	int next;
+start: 	long value;
+start: };
+start: 
+start: static union slot pool[SLOTS];
+start: static bool in_use[SLOTS];
+start: static int free_head = 0;
+start: 
+start: int main(void)
+start: {
+start: 	char line[64];
+start: 	/* link the slots 0 -> 1 -> 2 -> 3 -> end */
+start: 	(void)pool;
+start: 	(void)in_use;
+start: 	(void)free_head;
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* alloc, free N, or ? */
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -266,6 +340,52 @@ spec: `arenarec: line L: bad record` to standard error, nothing to
 spec: standard output, and exits 1 (L from 1). If the arena runs out, print
 spec: `arenarec: arena full` instead and exit 1, likewise with no output.
 file: arenarec.c
+need: - one malloc(65536) is the arena; one free releases everything
+need: - alloc: start = (used + align - 1) & ~(align - 1); NULL if
+need:   size > cap - start; else used = start + size
+need: - align a struct with _Alignof(struct rec); chars need align 1
+need: - copy the name into the arena: strlen(name) + 1 bytes, strcpy
+need: - newest first: new->next = head; head = new
+need: - sscanf(line, "%31s %31s %1s", a, b, extra) returns how many
+need:   fields it filled; a 3rd field means a bad line
+need: - strtol(s, &end, 10): bad if end == s or *end != '\0';
+need:   set errno = 0 first, then errno == ERANGE means too big
+need: - on error: stderr only, nothing on stdout, exit 1, still free
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define ARENA_SIZE 65536
+start: 
+start: struct arena {
+start: 	unsigned char *mem;
+start: 	size_t used;
+start: };
+start: 
+start: struct rec {
+start: 	char *name;
+start: 	long score;
+start: 	struct rec *next;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 	struct arena a = { malloc(ARENA_SIZE), 0 };
+start: 	if (a.mem == NULL) {
+start: 		fprintf(stderr, "arenarec: out of memory\n");
+start: 		return 1;
+start: 	}
+start: 	struct rec *head = NULL;
+start: 	char line[128];
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* parse, allocate record + name from the arena, link it */
+start: 	}
+start: 	(void)head;
+start: 	free(a.mem);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>

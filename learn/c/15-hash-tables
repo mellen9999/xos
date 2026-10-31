@@ -68,6 +68,25 @@ spec: The bucket count must be a whole number from 1 to 1000000, else
 spec: `strhash: bad bucket count` on standard error and exit 1. Fewer than
 spec: two arguments prints `usage: strhash BUCKETS WORD...` and exits 2.
 file: strhash.c
+need: - uint32_t (stdint.h) wraps by itself: h *= 16777619u
+need: - h ^= byte xors a byte in; read bytes as unsigned char, so
+need:   const unsigned char *p = (const unsigned char *)s;
+need: - "%08x" is 8 hex digits (cast to unsigned); bucket is h % n
+need: - strtol(argv[1], &end, 10): end, *end, errno; then 1..1000000
+need: - argv[2] and up are the words
+start: #include <errno.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: #define MAXBUCKETS 1000000
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -143,6 +162,37 @@ spec: command`; `bad argument` (missing or bad key or value, or an
 spec: argument to count, dump or stats); `no such key` (get or del).
 spec: End of input frees everything and exits 0.
 file: kvstore.c
+need: - chain: struct entry { struct entry *next; char key[32]; ... };
+need: - buckets: calloc(nb, sizeof *bucket), all NULL; index = h % nb
+need: - find: pp = &(*pp)->next until NULL or strcmp matches
+need: - split at a space: strchr, *p++ = '\0', skip spaces; twice: set
+need: - grow: new array, relink each entry (save next first), free old
+need: - dump: collect pointers in an array, qsort; the comparator gets
+need:   struct entry ** behind const void *
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define KEYMAX 31
+start: #define VALMAX 63
+start: 
+start: struct entry {
+start: 		struct entry *next;
+start: 		char key[KEYMAX + 1];
+start: 		char val[VALMAX + 1];
+start: };
+start: 
+start: struct table {
+start: 		struct entry **bucket;
+start: 		size_t nbuckets;
+start: 		size_t items;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <stdint.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -392,6 +442,40 @@ spec: A word longer than 31 letters prints `wordfreq: word too long` to
 spec: standard error, nothing to standard output, exit 1. A bad N or more
 spec: than one argument prints `usage: wordfreq [N]` and exits 2.
 file: wordfreq.c
+need: - same FNV-1a as strhash, bytes read as unsigned char
+need: - entry with a flexible name: struct entry { struct entry *next;
+need:   size_t count; char word[]; };  malloc(sizeof *e + len + 1)
+need: - buckets: calloc zeroes; grow relinks by the new index
+need: - int c = getchar(); isalpha, tolower (ctype.h); last word at EOF
+need: - qsort cmp gets struct entry ** behind const void *
+need: - N: strtol(argv[1], &end, 10) with end, errno checks; at least 1
+start: #include <ctype.h>
+start: #include <errno.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define WORDMAX 31
+start: 
+start: struct entry {
+start: 		struct entry *next;
+start: 		size_t count;
+start: 		char word[];
+start: };
+start: 
+start: struct table {
+start: 		struct entry **bucket;
+start: 		size_t nbuckets;
+start: 		size_t items;
+start: };
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <ctype.h>
 prog: #include <errno.h>
 prog: #include <stdint.h>

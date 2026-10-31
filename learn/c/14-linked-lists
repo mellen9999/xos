@@ -86,6 +86,35 @@ spec: an argument); `list empty` (pop on an empty list). End of input
 spec: frees the list and exits 0. Take the head by `struct node **` so no
 spec: function special-cases the first node.
 file: listcmd.c
+need: - struct node { long val; struct node *next; };  NULL ends it
+need: - each node is its own malloc: check NULL; free each, and read
+need:   next BEFORE you free
+need: - to change the head, take struct node **head; step a link with
+need:   pp = &(*pp)->next
+need: - split a line: strchr(line, ' ') is NULL if none; *arg++ = '\0'
+need: - strtol(arg, &end, 10): end == arg, *end != '\0', errno (errno.h)
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: struct node {
+start: 		long val;
+start: 		struct node *next;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		struct node *head = NULL;
+start: 		char line[128];
+start: 		while (fgets(line, sizeof line, stdin) != NULL) {
+start: 				line[strcspn(line, "\n")] = '\0';
+start: 				/* count the lines; skip empty ones; split off the argument; run it */
+start: 				(void)head;
+start: 		}
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -269,6 +298,31 @@ spec: to standard error, nothing to standard output, exit 1. Any other
 spec: arguments print `usage: sortins [OPTION]` to standard error and
 spec: exit 2. Empty input prints nothing and exits 0.
 file: sortins.c
+need: - walk a pointer to the LINK, not the node: struct node **pp
+need:   = head; step pp = &(*pp)->next; *pp is the link you stand on
+need: - one node per distinct value: add a size_t count field
+need: - *n = (struct node){ .val = v, .count = 1 }; rest is zero
+need: - strtol(line, &end, 10): end == line, *end must be '\n' or '\0',
+need:   errno (errno.h)
+need: - free the list: save next, free the node, move on
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: struct node {
+start: 		long val;
+start: 		size_t count;
+start: 		struct node *next;
+start: };
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -381,6 +435,32 @@ spec: `usage: lprune RULE`, an unknown RULE prints `lprune: unknown rule
 spec: NAME`, both to standard error, exit 2. If nothing is left print
 spec: nothing and exit 0.
 file: lprune.c
+need: - typedef bool (*dropfn)(const struct node *, const struct node *)
+need: - a table { "even", drop_even } plus strcmp finds the rule
+need: - a rule that ignores head: (void)head; in its body
+need: - pp = &(*pp)->next steps over; *pp = gone->next unlinks one
+need: - append in input order: keep struct node **tail = &head;
+need:   *tail = n; then tail = &n->next
+need: - strtol(line, &end, 10): end == line, *end, errno (errno.h)
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: struct node {
+start: 		long val;
+start: 		struct node *next;
+start: };
+start: 
+start: typedef bool (*dropfn)(const struct node *head, const struct node *n);
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -525,6 +605,27 @@ spec: it in the same list prints `lmerge: line L: not ascending` (L counts
 spec: from 1). Either way: standard error, nothing to standard output,
 spec: free what you built, exit 1.
 file: lmerge.c
+need: - append in O(1): struct node **tail = &head; *tail = n; then
+need:   tail = &n->next. two lists: struct node *list[2], tails likewise
+need: - an empty line from fgets is "\n": strcmp(line, "\n") == 0
+need: - strtol(line, &end, 10): end == line, *end must be '\n' or '\0',
+need:   errno (errno.h)
+need: - merge by relinking: *tail = node; node = node->next; no malloc
+need: - one list runs out: *tail = the other hangs the rest on
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: struct node {
+start: 		long val;
+start: 		struct node *next;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>

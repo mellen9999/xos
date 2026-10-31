@@ -84,6 +84,21 @@ q: fizz.c -- fizz and buzz
 spec: Print the numbers 1 to 15, one per line, except: multiples of 3 print
 spec: `fizz`, multiples of 5 print `buzz`, multiples of both print `fizzbuzz`.
 file: fizz.c
+need: - for (int i = 1; i <= 15; i++) { ... }  i runs 1 to 15
+need: - n % k == 0 means n is a multiple of k
+need: - if / else if / else: the first true test runs, the rest skip
+need: - printf("%d\n", i) prints a number; printf("fizz\n") a word
+need: - a multiple of 15 is also a multiple of 3 and 5: mind the order
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	for (int i = 1; i <= 15; i++) {
+start: 		/* fizz, buzz, fizzbuzz, or the number */
+start: 		printf("%d\n", i);
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)
@@ -112,6 +127,18 @@ spec: r*5, every number printed with `%4d` (right-aligned in four columns),
 spec: no spaces added, a newline after each row. The first row is
 spec: `   1   2   3   4   5`.
 file: table.c
+need: - a loop inside a loop: the inner one runs fully per outer turn
+need: - printf("%4d", x) prints x right-aligned in 4 columns
+need: - printf("\n") ends a row: after the inner loop, not inside it
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	for (int row = 1; row <= 5; row++) {
+start: 		/* inner loop over columns, then the newline */
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)
@@ -140,6 +167,27 @@ spec:
 spec: Use `uint64_t` and `PRIu64` for the numbers, and an `unsigned` step
 spec: counter printed with `%u`.
 file: collatz.c
+need: - while (cond) { ... } repeats while cond is true
+need: - n % 2 == 0 is even; n /= 2 halves; n = 3 * n + 1 triples + 1
+need: - uint64_t: <stdint.h>; print it with "%" PRIu64 (<inttypes.h>)
+need: - unsigned prints with %u; steps++ adds 1
+need: - if (n > peak) peak = n;  keeps the biggest seen
+start: #include <inttypes.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	uint64_t n = 27;
+start: 	uint64_t peak = n;
+start: 	unsigned steps = 0;
+start: 
+start: 	/* while n is not 1: step, count, track the peak */
+start: 	printf("start 27\n");
+start: 	printf("steps %u\n", steps);
+start: 	printf("peak %" PRIu64 "\n", peak);
+start: 	return 0;
+start: }
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -178,6 +226,24 @@ spec: anything else: `4 many` (with that n)
 spec:
 spec: So the six lines run from `0 none` to `5 many`.
 file: bucket.c
+need: - switch (n) { case 0: ...; break; default: ...; break; }
+need: - case 1: case 2: case 3: stacked labels share one body
+need: - no break means falling through into the next case
+need: - printf("%d few\n", n) prints n, then the word
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	for (int n = 0; n <= 5; n++) {
+start: 		switch (n) {
+start: 		case 0:
+start: 			printf("%d none\n", n);
+start: 			break;
+start: 		/* the other cases, and default */
+start: 		}
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)

@@ -61,6 +61,31 @@ spec: 0): don't divide by it. Empty TEXT prints an empty line for any valid
 spec: N.
 spec: Any other argument count prints nothing and exits 2.
 file: rep.c
+need: - strtol(argv[2], &end, 10): bad if end == s, *end != '\0', errno,
+need:   or n < 0;   strlen(text) is in <string.h>
+need: - size check by DIVISION: len > 0 && n > MAX / len
+need:   (a multiply could wrap)
+need: - char *out = malloc(total + 1);  NULL = failed;  free(out) once
+need: - memcpy(out + i * len, text, len) copies len bytes to that spot
+need: - out[total] = '\0' closes the string
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define MAXOUT 1048576
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	if (argc != 3)
+start: 		return 2;
+start: 
+start: 	const char *text = argv[1];
+start: 
+start: 	/* parse argv[2]; refuse too big; malloc, fill, print, free */
+start: 	printf("%s\n", text);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -120,6 +145,33 @@ spec: realloc (through a temporary) when full. If memory runs out, free
 spec: what you hold, print `revall: out of memory` to standard error and
 spec: exit 1. Free the buffer before you exit.
 file: revall.c
+need: - size_t cap = 16, len = 0;  char *buf = malloc(cap);  NULL = fail
+need: - int c; while ((c = getchar()) != EOF) { buf[len++] = (char)c; }
+need: - full (len == cap): char *tmp = realloc(buf, cap * 2);
+need:   NULL -> free(buf) and fail; else buf = tmp; cap *= 2
+need: - buf[len - 1] is the last byte; count len down to 0
+need: - free(buf) before you exit; a goto label gives one error exit
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(void)
+start: {
+start: 	size_t cap = 16, len = 0;
+start: 	char *buf = malloc(cap);
+start: 	int c;
+start: 
+start: 	if (buf == NULL)
+start: 		return 1;
+start: 	while ((c = getchar()) != EOF) {
+start: 		if (len == cap)
+start: 			break; /* grow buf here instead */
+start: 		buf[len++] = (char)c;
+start: 	}
+start: 	/* print buf backwards */
+start: 	free(buf);
+start: 	return 0;
+start: }
 prog: #include <stdint.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -175,6 +227,34 @@ spec: prints nothing to standard output, and exits 1. Lines are at most
 spec: 60 characters. Running out of memory prints `sortnums: out of
 spec: memory` to standard error and exits 1.
 file: sortnums.c
+need: - long *v = malloc(cap * sizeof *v);  NULL = fail;  free(v) at end
+need: - grow: long *tmp = realloc(v, cap * 2 * sizeof *v);
+need:   NULL -> free(v) and fail; else v = tmp; cap *= 2
+need: - qsort(v, n, sizeof *v, cmp);  cmp(const void *a, const void *b)
+need:   gets: long x = *(const long *)a;  return (x > y) - (x < y);
+need:   never a - b (it overflows)
+need: - fgets + strtol(line, &end, 10), errno = 0 first
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(void)
+start: {
+start: 	size_t cap = 8, n = 0;
+start: 	long *v = malloc(cap * sizeof *v);
+start: 	char line[64];
+start: 
+start: 	if (v == NULL)
+start: 		return 1;
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* parse line; grow v when n == cap; v[n++] = x */
+start: 	}
+start: 	/* sort v with qsort */
+start: 	for (size_t i = 0; i < n; i++)
+start: 		printf("%ld\n", v[i]);
+start: 	free(v);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>

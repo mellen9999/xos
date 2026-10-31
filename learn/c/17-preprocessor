@@ -72,6 +72,13 @@ spec:
 spec: Each of the first four lines goes wrong if an argument or the body
 spec: is not parenthesised: `SQUARE(1 + 2)` must be 9, not 5.
 file: macrolab.c
+need: - a macro is swapped-in text: wrap EVERY argument and the whole
+need:   body in parentheses: #define HALF(x) ((x) / 2)
+need: - c ? a : b picks one of two values
+need: - an argument with a side effect runs once per place it appears
+need: - several statements: do { ... } while (0) is ONE statement; the
+need:   caller's ; closes it. a local inside ends in _ (t_)
+need: - end each macro line but the last with a backslash
 start: #include <stdio.h>
 start: 
 start: static int calls;
@@ -176,6 +183,12 @@ spec: and `byte 7 255` on four lines and exits 0. (`byte` is a typedef
 spec: for unsigned char: `##` pastes ONE token, so `unsigned char` would
 spec: not make a name.)
 file: statgen.c
+need: - ## glues two tokens into one name: min_##T becomes min_int
+need: - it pastes ONE token, so a two-word type needs a typedef (byte)
+need: - a macro body can be a whole function; end each line but the last
+need:   with a backslash
+need: - declare: static T name(const T *v, size_t n) { ... }
+need: - for (size_t i = 1; i < n; i++) loops over the rest of the array
 start: #include <stdio.h>
 start: 
 start: typedef unsigned char byte;
@@ -270,6 +283,13 @@ spec: to the last level, print its name. Anything else prints `xenum:
 spec: unknown ARG` to standard error and exits 1. Two or more arguments
 spec: print `usage: xenum [ARG]` to standard error and exit 2.
 file: xenum.c
+need: - X-macro: the list is written once, expanded twice:
+need:   #define AS_NAME(c) #c,   (# turns the argument into a string)
+need:   #define AS_ENUM(c) LV_##c,
+need: - enum { LEVELS(AS_ENUM) LV_COUNT };  LV_COUNT = how many
+need: - static const char *const names[] = { LEVELS(AS_NAME) };
+need: - _Static_assert(sizeof names / sizeof *names == LV_COUNT, "msg");
+need: - strtol(arg, &end, 10): end == arg, *end != '\0', errno (errno.h)
 start: #include <stdio.h>
 start: #include <stdlib.h>
 start: #include <string.h>
@@ -363,6 +383,13 @@ spec: The program then prints `9 checks, 2 failed` and exits 1, because
 spec: two checks are written to fail: `chkmac.c:6: check failed:
 spec: is_leap(2023)` and `chkmac.c:12: check failed: clamp(7, 8, 9) == 7`.
 file: chkmac.c
+need: - do { ... } while (0) is one statement and takes the caller's ;
+need: - #cond turns the expression into a string, printed with %s
+need: - __FILE__ is a string, __LINE__ an int: the line where CHECK is
+need:   written, since a macro is pasted in place
+need: - name cond once only, so a side effect runs once: if (!(cond))
+need: - fprintf(stderr, "%s:%d: ...\n", __FILE__, n, text)
+need: - end each macro line but the last with a backslash
 start: #include <stdio.h>
 start: 
 start: static int checks, failed;

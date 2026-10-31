@@ -64,6 +64,41 @@ spec: A directory that cannot be opened prints `dircount: cannot open NAME`
 spec: to standard error and exits 1. Any other number of arguments prints
 spec: `usage: dircount DIR` and exits 2.
 file: dircount.c
+need: - needs #define _POSIX_C_SOURCE 200809L first; <dirent.h>,
+need:   <sys/stat.h>, <string.h>, <errno.h>
+need: - DIR *d = opendir(path): NULL on failure; closedir(d) at the end
+need: - readdir(d) gives the next entry (name: e->d_name); NULL = end
+need:   OR error: set errno = 0 before, errno != 0 after = error
+need: - skip "." and ".." with strcmp(..) == 0
+need: - an entry is a name, not a path: snprintf(buf, sizeof buf,
+need:   "%s/%s", dir, name), and check it was not cut short
+need: - lstat(path, &st) is 0 on success; st.st_mode tested with
+need:   S_ISREG, S_ISDIR (lstat looks at a symlink itself, stat follows)
+need: - size_t prints with %zu
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <dirent.h>
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: #include <sys/stat.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2) {
+start: 		fprintf(stderr, "usage: dircount DIR\n");
+start: 		return 2;
+start: 	}
+start: 	DIR *d = opendir(argv[1]);
+start: 	if (d == NULL) {
+start: 		fprintf(stderr, "dircount: cannot open %s\n", argv[1]);
+start: 		return 1;
+start: 	}
+start: 	size_t files = 0, dirs = 0, other = 0;
+start: 	/* readdir loop: skip . and .., lstat each, count by kind */
+start: 	closedir(d);
+start: 	printf("files=%zu dirs=%zu other=%zu\n", files, dirs, other);
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <dirent.h>
 prog: #include <errno.h>
@@ -138,6 +173,58 @@ spec: A directory that cannot be opened prints `dirsort: cannot open NAME`
 spec: to standard error and exits 1. Any other number of arguments prints
 spec: `usage: dirsort DIR` and exits 2.
 file: dirsort.c
+need: - needs #define _POSIX_C_SOURCE 200809L first; <dirent.h>,
+need:   <sys/stat.h>, <string.h>, <stdlib.h>, <errno.h>
+need: - opendir NULL on failure; readdir NULL = end OR error
+need:   (errno = 0 before, != 0 after = error); skip . and ..
+need: - the order is the filesystem's: collect, then sort
+need: - strdup(s) = malloc'd copy (NULL if out of memory); free it later
+need: - grow an array: realloc into a temp, check it, then assign
+need: - qsort(list, n, sizeof *list, cmp): cmp takes const void *,
+need:   casts to the struct, returns strcmp of the names
+need: - lstat(path, &st): S_ISDIR / S_ISLNK on st.st_mode;
+need:   path = snprintf "%s/%s", checked for truncation
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <dirent.h>
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: #include <sys/stat.h>
+start: 
+start: typedef struct {
+start: 	char *name;
+start: 	char mark;
+start: } entry;
+start: 
+start: static int by_name(const void *a, const void *b)
+start: {
+start: 	const entry *x = a, *y = b;
+start: 	/* compare the names */
+start: 	(void)x;
+start: 	(void)y;
+start: 	return 0;
+start: }
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2) {
+start: 		fprintf(stderr, "usage: dirsort DIR\n");
+start: 		return 2;
+start: 	}
+start: 	DIR *d = opendir(argv[1]);
+start: 	if (d == NULL) {
+start: 		fprintf(stderr, "dirsort: cannot open %s\n", argv[1]);
+start: 		return 1;
+start: 	}
+start: 	entry *list = NULL;
+start: 	size_t n = 0;
+start: 	/* collect every entry (strdup the name, set the mark), closedir */
+start: 	closedir(d);
+start: 	qsort(list, n, sizeof *list, by_name);
+start: 	/* print name + mark, then free every name and the list */
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <dirent.h>
 prog: #include <errno.h>
@@ -254,6 +341,50 @@ spec: A directory that cannot be opened prints `dirsize: cannot open NAME`
 spec: to standard error and exits 1. Any other number of arguments prints
 spec: `usage: dirsize DIR` and exits 2.
 file: dirsize.c
+need: - needs #define _POSIX_C_SOURCE 200809L first; <dirent.h>,
+need:   <sys/stat.h>, <string.h>, <stdlib.h>, <errno.h>
+need: - opendir NULL on failure; readdir NULL = end OR error
+need:   (errno = 0 before, != 0 after = error); skip . and ..
+need: - strdup each name, grow with realloc, qsort with a strcmp
+need:   comparator, then print: the dir order is not stable
+need: - lstat(path, &st): S_ISREG, S_ISDIR, S_ISLNK on st.st_mode
+need: - st.st_size is an off_t: cast to long long, print with %lld
+need: - path = snprintf "%s/%s", checked for truncation
+need: - free every name and the list
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <dirent.h>
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: #include <sys/stat.h>
+start: 
+start: typedef struct {
+start: 	char *name;
+start: 	char kind;
+start: 	long long size;
+start: } entry;
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2) {
+start: 		fprintf(stderr, "usage: dirsize DIR\n");
+start: 		return 2;
+start: 	}
+start: 	DIR *d = opendir(argv[1]);
+start: 	if (d == NULL) {
+start: 		fprintf(stderr, "dirsize: cannot open %s\n", argv[1]);
+start: 		return 1;
+start: 	}
+start: 	entry *list = NULL;
+start: 	size_t n = 0;
+start: 	/* collect entries with kind and size, closedir, sort by name */
+start: 	closedir(d);
+start: 	/* print each line, then total */
+start: 	free(list);
+start: 	(void)n;
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <dirent.h>
 prog: #include <errno.h>
@@ -390,6 +521,49 @@ spec: `treewalk: cannot open DIR` to standard error and exit 1, with
 spec: nothing at all on standard output. A bad argument count or a bad N
 spec: prints `usage: treewalk DIR [MAXDEPTH]` and exits 2.
 file: treewalk.c
+need: - needs #define _POSIX_C_SOURCE 200809L first; <dirent.h>,
+need:   <sys/stat.h>, <string.h>, <stdlib.h>, <errno.h>
+need: - walk(dir): list one dir, then call walk on each subdirectory
+need: - collect and closedir BEFORE you recurse: one open dir at a time
+need: - opendir NULL on failure; readdir NULL = end OR error
+need:   (errno = 0 before, != 0 after = error); skip . and ..
+need: - lstat, not stat: never follow a symlink (loops forever)
+need:   S_ISDIR(st.st_mode) is the test
+need: - sort each dir: strdup names, qsort with a strcmp comparator
+need: - indent: printf("%*s", n, "") prints n spaces
+need: - child path: dir + "/" + name via snprintf; check truncation
+need: - strtol(s, &end, 10): bad if end == s or *end != '\0';
+need:   set errno = 0 first
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <dirent.h>
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: #include <sys/stat.h>
+start: 
+start: typedef struct {
+start: 	char *name;
+start: 	bool isdir;
+start: } entry;
+start: 
+start: typedef struct {
+start: 	size_t dirs;
+start: 	size_t files;
+start: } totals;
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2 && argc != 3) {
+start: 		fprintf(stderr, "usage: treewalk DIR [MAXDEPTH]\n");
+start: 		return 2;
+start: 	}
+start: 	totals t = {0, 0};
+start: 	/* check N, check DIR is a directory, print DIR, walk it */
+start: 	printf("dirs=%zu files=%zu\n", t.dirs, t.files);
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <dirent.h>
 prog: #include <errno.h>

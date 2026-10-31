@@ -78,6 +78,28 @@ spec: numbers` to standard error. A bad line (blank included) prints
 spec: `bstsort: line L: bad number`. Both print nothing to standard
 spec: output, free the tree, and exit 1. Empty input prints nothing.
 file: bstsort.c
+need: - struct tnode { long val; struct tnode *left, *right; };
+need: - recursion needs a stop: if (t == NULL) return;
+need: - insert through a link: struct tnode **link; &(*link)->left is
+need:   the left link; *link == NULL is where a node goes
+need: - free children BEFORE the node: free(t) loses its links
+need: - *n = (struct tnode){ .val = v }; links start NULL
+need: - strtol(line, &end, 10): end == line, *end is '\n' or '\0'
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: #define MAXN 5000
+start: 
+start: struct tnode {
+start: 		long val;
+start: 		struct tnode *left, *right;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -182,6 +204,28 @@ spec: At most 1000 numbers (`bstshape: too many numbers`); a bad line
 spec: prints `bstshape: line L: bad number`; both go to standard error,
 spec: print nothing to standard output and exit 1. Free the tree.
 file: bstshape.c
+need: - same tnode and recursive insert through struct tnode **link
+need: - sideways: right subtree first, then the node, then the left
+need: - printf("%*s%ld\n", depth * 4, "", v): * takes the width from an
+need:   argument, so "" is padded to depth * 4 spaces
+need: - recursive count and height: an empty tree is 0; height is 1 plus
+need:   the taller child (a ?: picks the larger)
+need: - size_t prints with %zu; free children before the node
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: #define MAXN 1000
+start: 
+start: struct tnode {
+start: 		long val;
+start: 		struct tnode *left, *right;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -302,6 +346,34 @@ spec: prints `bstwalk: line L: bad number`; both go to standard error,
 spec: print nothing to standard output and exit 1. Running out of memory
 spec: prints `bstwalk: out of memory` and exits 1.
 file: bstwalk.c
+need: - loop insert: struct tnode **pp = root; step pp = &(*pp)->left
+need:   or ->right until *pp is NULL
+need: - stack: struct { const struct tnode **v; size_t n, cap; }; pop is
+need:   s->v[--s->n]; last pushed comes off first
+need: - grow: tmp = realloc(s->v, cap * sizeof *tmp); test tmp for NULL
+need:   before you store it back; start cap at 16, then double
+need: - free without recursion: pop a node, push children, free it
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: #define MAXN 10000
+start: 
+start: struct tnode {
+start: 		long val;
+start: 		struct tnode *left, *right;
+start: };
+start: 
+start: /* a stack of node pointers that grows by doubling */
+start: struct stack {
+start: 		const struct tnode **v;
+start: 		size_t n, cap;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -477,6 +549,28 @@ spec: At most 3000 numbers (`treecost: too many numbers`); a bad line
 spec: prints `treecost: line L: bad number`; both go to standard error,
 spec: print nothing to standard output and exit 1.
 file: treecost.c
+need: - loop insert: struct tnode **pp = &root; while (*pp != NULL) step
+need:   pp = &(*pp)->left or ->right; *pp = n places the new node
+need: - *n = (struct tnode){ .val = x };  malloc(sizeof *n), check NULL
+need: - count each look at a node, and each level you descend
+need: - ideal height: levels hold 1, 3, 7, 15 ... nodes
+need: - size_t prints with %zu
+need: - strtol(line, &end, 10): end == line, *end must be '\n' or '\0'
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: #define MAXN 3000
+start: 
+start: struct tnode {
+start: 		long val;
+start: 		struct tnode *left, *right;
+start: };
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>

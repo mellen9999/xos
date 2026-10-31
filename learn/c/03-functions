@@ -82,6 +82,20 @@ spec: Write a `static uint64_t factorial(unsigned n)` that calls itself, with
 spec: a prototype above `main`. Print the factorials of 0 to 10, one per line,
 spec: like `5! = 120` (print `n` with `%u`). `0!` is 1.
 file: fact.c
+need: - static uint64_t factorial(unsigned n) { ... return ...; }
+need: - prototype: that first line plus ; above main, so main can call
+need: - recursion: the function calls itself; the base case does not
+need: - n! = n * (n - 1)!   0! is 1
+need: - uint64_t: <stdint.h>, printed with "%" PRIu64 (<inttypes.h>)
+start: #include <inttypes.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	/* write factorial, then print 0! to 10! like "5! = 120" */
+start: 	return 0;
+start: }
 prog: #include <inttypes.h>
 prog: #include <stdint.h>
 prog: #include <stdio.h>
@@ -112,6 +126,23 @@ spec: 0 and 1 are not prime. Print every prime below 30 on one line,
 spec: separated by single spaces, with no trailing space and a newline at the
 spec: end: `2 3 5 7 11 13 17 19 23 29`. Print each with `%u`.
 file: primes.c
+need: - static bool is_prime(unsigned n) -- bool needs <stdbool.h>
+need: - return true; / return false;   !is_prime(n) reads "not prime"
+need: - n % d == 0 means d divides n evenly
+need: - continue skips to the next turn of the loop
+need: - separator goes BEFORE each item except the first (a flag);
+need:   putchar(' ') prints one char; %u prints an unsigned
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	for (unsigned n = 0; n < 30; n++) {
+start: 		/* only primes; space between, none at the end */
+start: 		printf("%u\n", n);
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
 prog: 
@@ -160,6 +191,18 @@ spec:
 spec: Print each result with `%u`. Divide before you multiply in lcm, so
 spec: the product cannot overflow.
 file: gcd.c
+need: - static unsigned gcd(unsigned a, unsigned b) { ... }
+need: - recursion: gcd(b, a % b) calls itself; stop when b == 0
+need: - lcm = a * b / gcd; divide first so it cannot overflow
+need: - define each function above main (or give a prototype)
+need: - printf("gcd(48, 18) = %u\n", gcd(48, 18));   %u = unsigned
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	/* write gcd and lcm above main, then print the five lines */
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: static unsigned gcd(unsigned a, unsigned b)

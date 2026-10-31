@@ -83,6 +83,29 @@ spec: A total that would overflow a `long`: print `addup: sum overflows` to
 spec: stderr, exit 1. Check before you add -- overflowing a `long` is
 spec: undefined behaviour.
 file: addup.c
+need: - int main(int argc, char **argv): argv[1] is the first argument
+need:   argc counts them plus the program name
+need: - errno = 0; long n = strtol(s, &end, 10);  char *end;
+need: - bad number: end == s, or *end != '\0', or errno == ERANGE
+need: - overflow check BEFORE adding: n > 0 && sum > LONG_MAX - n
+need:   (and the n < 0 mirror with LONG_MIN)
+need: - exit 0 ok, 1 failed, 2 usage; complaints: fprintf(stderr, ...)
+need: - long prints with %ld
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	long sum = 0;
+start: 
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	/* usage check, then every argument: argv[1] .. argv[argc - 1] */
+start: 	printf("%ld\n", sum);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <limits.h>
 prog: #include <stdio.h>
@@ -136,6 +159,26 @@ spec: Empty input gives `lines 0` and `chars 0`. A last line with no trailing
 spec: newline still counts its bytes but adds no line. Bytes of any value
 spec: must count, including 0xFF.
 file: tally.c
+need: - getchar() gives the next byte, or EOF at the end
+need: - keep it in an int, never a char: int c;
+need: - while ((c = getchar()) != EOF) { ... }
+need: - c == '\n' tests for a newline byte
+need: - unsigned long prints with %lu; x++ adds 1
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	unsigned long lines = 0;
+start: 	unsigned long chars = 0;
+start: 	int c;
+start: 
+start: 	while ((c = getchar()) != EOF) {
+start: 		/* count the byte; count the line if it is a newline */
+start: 	}
+start: 	printf("lines %lu\n", lines);
+start: 	printf("chars %lu\n", chars);
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)
@@ -177,6 +220,30 @@ spec: No numbers at all: print `figures: no input` to stderr, exit 2. If the
 spec: sum would overflow a `long`, print `figures: sum overflows` to stderr and
 spec: exit 1.
 file: figures.c
+need: - fgets(buf, sizeof buf, stdin) reads a line (keeps its \n);
+need:   it gives NULL at the end:  while (fgets(...)) { ... }
+need: - errno = 0; n = strtol(buf, &end, 10);  ok only if end != buf
+need:   and *end is '\n' or '\0', and errno is not ERANGE
+need: - bad line: fprintf(stderr, ...), return 1, nothing on stdout
+need: - min/max: seed from the FIRST number, not from 0
+need: - overflow check before adding: n > 0 && sum > LONG_MAX - n
+need: - long prints with %ld; no numbers at all: exit 2
+start: #include <errno.h>
+start: #include <limits.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(void)
+start: {
+start: 	char buf[64];
+start: 	long count = 0;
+start: 
+start: 	while (fgets(buf, sizeof buf, stdin)) {
+start: 		/* parse buf; add to sum, update min and max, count++ */
+start: 	}
+start: 	printf("count %ld\n", count);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <limits.h>
 prog: #include <stdio.h>

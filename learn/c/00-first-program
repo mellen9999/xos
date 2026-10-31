@@ -39,6 +39,16 @@ intro: is all you need today.
 q: hello.c -- the first program
 spec: Print `hello, world` followed by a newline, and exit with status 0.
 file: hello.c
+need: - #include <stdio.h> first: printf lives there
+need: - int main(void) { ... return 0; }   0 means it worked
+need: - printf("text\n");  \n is the newline; ; ends each statement
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	/* print the text here */
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)
@@ -56,6 +66,17 @@ spec: then exit with status 3.
 spec:
 spec: `fprintf(stderr, ...)` is printf aimed at standard error.
 file: fail.c
+need: - fprintf(stderr, "text\n");  prints to standard error
+need: - printf alone goes to stdout; stderr is the other channel
+need: - the exit status is what main returns: return 3; exits with 3
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	fprintf(stderr, "something went wrong\n");
+start: 	/* exit with the right status */
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)

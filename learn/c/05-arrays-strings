@@ -82,6 +82,29 @@ spec: typed 7. A number outside 1..7, or anything that is not a whole
 spec: number, prints `dayname: want 1-7` to standard error and exits 1.
 spec: Any other argument count prints nothing and exits 2.
 file: dayname.c
+need: - an array of strings: const char *days[] = {"mon", "tue"};
+need: - its count: sizeof days / sizeof days[0]   (a size_t: %zu)
+need: - days[0] is the first, so number k lives at days[k - 1]
+need: - check k against 1 and the count BEFORE you index
+need: - strtol(arg, &end, 10) bad if end == arg or *end != '\0'
+need: - message to stderr, return 1; wrong argc: return 2
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	static const char *const days[] = {
+start: 		"mon", "tue", "wed", "thu", "fri", "sat", "sun",
+start: 	};
+start: 
+start: 	if (argc != 2)
+start: 		return 2;
+start: 	(void)argv;
+start: 	/* parse argv[1], check 1..count, print days[k - 1] */
+start: 	printf("%s\n", days[0]);
+start: 	return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -123,6 +146,26 @@ spec:
 spec: Lines are at most 80 characters, not counting the newline, so the
 spec: buffer is 82 bytes: 80, the newline, and the NUL.
 file: revline.c
+need: - fgets(line, sizeof line, stdin) reads a line, \n included;
+need:   NULL at the end of input
+need: - strlen(line) (<string.h>) counts chars before the NUL
+need: - line[len - 1] is the last char; '\n' is the newline char
+need: - count down with size_t: for (size_t i = len; i > 0; i--)
+need:   and use line[i - 1]  (i >= 0 is always true when unsigned)
+need: - putchar(c) prints one char
+start: #include <stdio.h>
+start: #include <string.h>
+start: 
+start: int main(void)
+start: {
+start: 	char line[82];
+start: 
+start: 	while (fgets(line, sizeof line, stdin) != NULL) {
+start: 		/* drop the newline from the length, print backwards */
+start: 		putchar('\n');
+start: 	}
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <string.h>
 prog: 
@@ -154,6 +197,25 @@ spec: upper is A-Z, lower is a-z, digit is 0-9, space is a blank (' '), a
 spec: tab (`'\t'`) or a newline, other is every remaining byte. Every byte
 spec: counts in exactly one class. Empty input gives all zeros.
 file: cclass.c
+need: - while ((c = getchar()) != EOF) with int c
+need: - chars are numbers: c >= 'a' && c <= 'z' tests a range;
+need:   c == ' ' tests one char ('\t' tab, '\n' newline)
+need: - an array of counters: unsigned long count[5] = {0}; count[i]++
+need: - if / else if / else: each byte lands in exactly one class
+need: - unsigned long prints with %lu
+start: #include <stdio.h>
+start: 
+start: int main(void)
+start: {
+start: 	unsigned long count[5] = {0};
+start: 	int c;
+start: 
+start: 	while ((c = getchar()) != EOF) {
+start: 		/* put c in one class: count[0] upper, [1] lower, ... */
+start: 	}
+start: 	printf("upper %lu\n", count[0]);
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(void)
@@ -204,6 +266,28 @@ spec: nothing to standard output, `joinargs: too long` to standard error,
 spec: and exit 1. No arguments at all: print `usage: joinargs SEP [WORD...]`
 spec: to standard error and exit 2.
 file: joinargs.c
+need: - snprintf(buf + len, sizeof buf - len, "%s%s", sep, word);
+need:   buf + len = the spot len bytes in; never reuse buf as a source
+need: - it returns the length it WANTED: cut short if n < 0 or
+need:   (size_t)n >= the room you gave it
+need: - start with buf[0] = '\0'; then len += (size_t)n each time
+need: - argv[1] is the separator, words are argv[2]..; none before
+need:   the first word
+need: - too long: stderr message, return 1; no args: usage, return 2
+start: #include <stdio.h>
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 	char buf[32];
+start: 	size_t len = 0;
+start: 
+start: 	buf[len] = '\0';
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	/* usage check, then append each word with snprintf */
+start: 	printf("%s\n", buf);
+start: 	return 0;
+start: }
 prog: #include <stdio.h>
 prog: 
 prog: int main(int argc, char *argv[])

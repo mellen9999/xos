@@ -82,6 +82,45 @@ spec: number in range) print `usage: sigcount NAME N` to standard error
 spec: and exit 2. If `sigaction` fails print `sigcount: sigaction failed`
 spec: to standard error and exit 1.
 file: sigcount.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <signal.h>, <string.h>
+need: - counter: static volatile sig_atomic_t n;  a handler may only
+need:   set such a flag (no printf, malloc, exit)
+need: - void h(int sig) { (void)sig; ... }
+need: - struct sigaction sa; memset(&sa, 0, sizeof sa);
+need:   sa.sa_handler = h; sigemptyset(&sa.sa_mask);
+need:   sigaction(SIGINT, &sa, NULL) is 0 on success, -1 on error
+need: - never signal(): it differs between systems
+need: - raise(sig) sends the signal to yourself; the handler has run
+need:   by the time it returns
+need: - strcmp(a, b) == 0 matches a name; strtol: bad if end == s or
+need:   *end != '\0' (errno = 0 first)
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <signal.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: static volatile sig_atomic_t count;
+start: 
+start: static void on_signal(int sig)
+start: {
+start: 	(void)sig;
+start: 	/* only touch the counter */
+start: }
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 3) {
+start: 		fprintf(stderr, "usage: sigcount NAME N\n");
+start: 		return 2;
+start: 	}
+start: 	/* map NAME to a signal, check N, sigaction, raise N times */
+start: 	(void)argv;
+start: 	(void)on_signal;
+start: 	printf("caught %d\n", (int)count);
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <signal.h>
@@ -163,6 +202,43 @@ spec: Anything else prints `usage: sigcoalesce N` to standard error and
 spec: exits 2. If the setup calls fail print the line
 spec: `sigcoalesce: signal setup failed` to standard error and exit 1.
 file: sigcoalesce.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <signal.h>, <string.h>
+need: - handler: only a static volatile sig_atomic_t flag; install
+need:   with struct sigaction (memset 0, sa_handler, sigemptyset)
+need: - sigset_t s; sigemptyset(&s); sigaddset(&s, SIGUSR1);
+need: - sigprocmask(SIG_BLOCK, &s, &old) blocks (0 = ok); a blocked
+need:   signal waits as pending, and several count as one
+need: - sigpending(&p); sigismember(&p, SIGUSR1) is 1 if waiting
+need: - sigprocmask(SIG_SETMASK, &old, NULL) restores: a pending
+need:   signal runs its handler right then
+need: - raise(sig) sends it to yourself
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <signal.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: static volatile sig_atomic_t count;
+start: 
+start: static void on_usr1(int sig)
+start: {
+start: 	(void)sig;
+start: 	/* only touch the counter */
+start: }
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2) {
+start: 		fprintf(stderr, "usage: sigcoalesce N\n");
+start: 		return 2;
+start: 	}
+start: 	/* check N, install the handler, block, raise N times */
+start: 	(void)argv;
+start: 	(void)on_usr1;
+start: 	printf("unblocked: caught=%d\n", (int)count);
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <signal.h>
@@ -245,6 +321,54 @@ spec: error and exits 2. Failures print `killkid: pipe failed`,
 spec: `killkid: fork failed`, `killkid: child failed` (no ready byte
 spec: arrived) or `killkid: wait failed`, and exit 1.
 file: killkid.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <signal.h>, <string.h>,
+need:   <unistd.h>, <sys/wait.h>
+need: - a handler only sets a static volatile sig_atomic_t flag
+need: - set an action: struct sigaction sa; memset(&sa, 0, sizeof sa);
+need:   sa.sa_handler = h (or SIG_IGN); sigemptyset(&sa.sa_mask);
+need:   sigaction(SIGTERM, &sa, NULL)
+need: - block FIRST, then check the flag, sleep with the old mask:
+need:       sigprocmask(SIG_BLOCK, &set, &old);
+need:       while (!flag) sigsuspend(&old);
+need: - kill(pid, SIGTERM) sends; SIGKILL cannot be caught
+need: - never sleep to order things: the child writes a byte down READY,
+need:   the parent reads it; HOLD has no writer, so read on it blocks
+need: - parent closes the pipe ends it does not use; waitpid +
+need:   WIFEXITED / WEXITSTATUS, WIFSIGNALED / WTERMSIG
+need: - a child that does not exec leaves with _exit(n)
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <signal.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: static volatile sig_atomic_t got_term;
+start: 
+start: static void on_term(int sig)
+start: {
+start: 	(void)sig;
+start: 	got_term = 1;
+start: }
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2 || (strcmp(argv[1], "default") != 0 && strcmp(argv[1], "handled") != 0 &&
+start: 			  strcmp(argv[1], "ignored") != 0)) {
+start: 		fprintf(stderr, "usage: killkid MODE\n");
+start: 		return 2;
+start: 	}
+start: 	int ready[2], hold[2];
+start: 	if (pipe(ready) != 0 || pipe(hold) != 0) {
+start: 		fprintf(stderr, "killkid: pipe failed\n");
+start: 		return 1;
+start: 	}
+start: 	/* fork; child sets up its MODE, writes a byte, waits */
+start: 	/* parent reads the byte, kills, waits, prints exit N / signal S */
+start: 	(void)on_term;
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <signal.h>
@@ -368,6 +492,43 @@ spec: error and exits 2. If `sigaction` or `pipe` fails print
 spec: `sigpipe: sigaction failed` or `sigpipe: pipe failed` to standard
 spec: error and exit 1.
 file: sigpipe.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <signal.h>, <string.h>,
+need:   <unistd.h>, <errno.h>
+need: - writing to a pipe nobody reads raises SIGPIPE (kills you by
+need:   default); with it ignored or handled, write returns -1 and
+need:   errno is EPIPE
+need: - struct sigaction sa; memset(&sa, 0, sizeof sa);
+need:   sa.sa_handler = SIG_IGN (or your handler);
+need:   sigemptyset(&sa.sa_mask); sigaction(SIGPIPE, &sa, NULL)
+need: - a handler only sets a static volatile sig_atomic_t flag
+need: - pipe(fd) is 0 on success; close(fd[0]) drops the only reader
+need: - ssize_t w = write(fd[1], "x", 1): -1 on error, check errno
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <signal.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: #include <unistd.h>
+start: 
+start: static volatile sig_atomic_t seen;
+start: 
+start: static void on_pipe(int sig)
+start: {
+start: 	(void)sig;
+start: 	seen = 1;
+start: }
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 2 || (strcmp(argv[1], "ignore") != 0 && strcmp(argv[1], "handle") != 0)) {
+start: 		fprintf(stderr, "usage: sigpipe MODE\n");
+start: 		return 2;
+start: 	}
+start: 	/* sigaction for SIGPIPE, pipe, close the read end, write */
+start: 	(void)on_pipe;
+start: 	printf("handler ran: %s\n", seen ? "yes" : "no");
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <signal.h>

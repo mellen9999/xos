@@ -72,6 +72,55 @@ spec: the character or number starts. The exit status is 1 if any line
 spec: had an error, otherwise 0. Token lines and `error:` lines go to
 spec: standard output.
 file: calctok.c
+need: - needs #define _POSIX_C_SOURCE 200809L first (for getline)
+need: - ssize_t len = getline(&line, &cap, stdin): -1 at end; grows
+need:   line itself; char *line = NULL; size_t cap = 0; strip the
+need:   newline; free(line) once at the end
+need: - walk a pointer p along the line; column = (p - s) + 1
+need: - isdigit((unsigned char)*p) from <ctype.h>; strchr(ops, c)
+need:   finds c in a string of the operator characters
+need: - build a number digit by digit: v = v * 10 + digit, but check
+need:   it cannot overflow BEFORE multiplying:
+need:   v > (INT64_MAX - digit) / 10 means too large
+need: - keep each token as a struct: kind, column, value, op char
+need: - the T_END token's column is one past the last byte
+need: - print an int64_t with %lld after a (long long) cast
+need: - ferror(stdin) after the loop tells a read error from the end
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <ctype.h>
+start: #include <stdbool.h>
+start: #include <stdint.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: enum kind { T_NUM, T_OP, T_OPEN, T_CLOSE, T_END };
+start: 
+start: typedef struct {
+start: 	enum kind kind;
+start: 	int col;
+start: 	int64_t value;
+start: 	char op;
+start: } tok;
+start: 
+start: int main(void)
+start: {
+start: 	char *line = NULL;
+start: 	size_t cap = 0;
+start: 	ssize_t len;
+start: 	int status = 0;
+start: 	while ((len = getline(&line, &cap, stdin)) != -1) {
+start: 		if (len > 0 && line[len - 1] == '\n')
+start: 			line[--len] = '\0';
+start: 		/* split line into tok entries; print col kind value */
+start: 	}
+start: 	free(line);
+start: 	if (ferror(stdin)) {
+start: 		fprintf(stderr, "calctok: read error\n");
+start: 		status = 1;
+start: 	}
+start: 	return status;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>
 prog: #include <stdbool.h>
@@ -240,6 +289,21 @@ spec:   once, where each open parenthesis and each unary minus is a level.
 spec:
 spec: The exit status is 1 if any line had an error, otherwise 0.
 file: calcexp.c
+need: - start from your calctok: same tokens, same lexical errors
+need: - one function per level, each calls the next-tighter one:
+need:       expr    = term    { (+ or -)     term    }
+need:       term    = unary   { (* or / or %) unary  }
+need:       unary   = - unary | primary
+need:       primary = number | ( expr )
+need: - the braces are a loop: keep the running value, fold in each
+need:   new operand; this makes 10 - 3 - 2 come out (10 - 3) - 2
+need: - evaluate while you parse; the first problem met is reported
+need: - check overflow BEFORE the arithmetic (signed overflow is UB):
+need:   add: b > 0 && a > INT64_MAX - b, b < 0 && a < INT64_MIN - b
+need:   mul: divide the limit by one operand; INT64_MIN / -1 overflows
+need: - INT64_MIN cannot be negated; x % -1 is 0
+need: - count nesting (each ( and each unary minus); limit 100
+need: - C division truncates toward zero; % has the left sign
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>
 prog: #include <stdbool.h>
@@ -640,6 +704,17 @@ spec:   evaluated, so a mistake on the right is reported first.
 spec: Leftover tokens still give `unexpected input`, so `x = y = 3` fails
 spec: at the second `=`.
 file: calcvar.c
+need: - start from your calcexp: add a NAME token and an = token
+need: - name: letter or _, then letters, digits, _ ; at most 31 chars
+need:   isalpha, isalnum from <ctype.h>, cast (unsigned char)
+need: - keep a name as a pointer + length into the line, no copy
+need: - compare names with the length too: memcmp(a, b, len)
+need: - table of 8 variables: { char name[32]; int64_t value; } plus a
+need:   count; find a name, or add it if new
+need: - line is an assignment if token 1 is a name and token 2 is =
+need: - evaluate the right side FIRST, then store; a failed line
+need:   changes nothing
+need: - an undefined name is an error at the name's column
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>
 prog: #include <stdbool.h>
@@ -1224,6 +1299,17 @@ spec: reported where the code on the line stops: the column of the `#`,
 spec: or one past the last byte of the line (blanks count). So `print # c`
 spec: reports col 7 and `  print 1 +` col 12.
 file: calcrun.c
+need: - start from your calcvar: count input lines from 1
+need: - # ends the line: stop the token loop at '#' (or the end)
+need: - the end token's column is where the code stops: the # or one
+need:   past the last byte
+need: - statement: NAME = EXPR (print nothing) or print EXPR (show it);
+need:   "print" is a keyword, a name token you compare with memcmp
+need: - anything else: not a statement; print = ...: print is reserved
+need: - an empty line is skipped but still counts in the line number
+need: - the FIRST error ends the run: print error: line L, col C: msg,
+need:   stop reading, exit 1
+need: - leftover tokens after the expression: unexpected input
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <ctype.h>
 prog: #include <stdbool.h>

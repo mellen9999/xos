@@ -70,6 +70,36 @@ spec: `pipemsg: pipe failed` or `pipemsg: fork failed` to standard error
 spec: and exit 1. A child that did not exit 0 prints `pipemsg: child failed`
 spec: to standard error and the parent exits 1.
 file: pipemsg.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>, <sys/wait.h>
+need: - int fd[2]; pipe(fd) is 0 on success: fd[0] reads, fd[1] writes
+need: - fork gives the child a copy of both ends; each side closes
+need:   the end it does not use
+need: - read returns 0 (end) only when EVERY write end is closed, in
+need:   every process: forget one close and the parent hangs
+need: - read and write move fewer bytes than asked: loop; EINTR = retry
+need: - write: p += w; left -= w until nothing is left
+need: - a child that does not exec leaves with _exit(n)
+need: - waitpid + WIFEXITED / WEXITSTATUS to check the child
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <string.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc > 2) {
+start: 		fprintf(stderr, "usage: pipemsg [TEXT]\n");
+start: 		return 2;
+start: 	}
+start: 	const char *text = argc == 2 ? argv[1] : "";
+start: 	int fd[2];
+start: 	/* pipe, fork; child writes text; parent reads and counts */
+start: 	(void)text;
+start: 	(void)fd;
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <stdio.h>
@@ -155,6 +185,35 @@ spec: `feedtr: fork failed` or `feedtr: fdopen failed` to standard error
 spec: and exit 1. If `tr` did not exit normally print
 spec: `feedtr: tr did not exit` to standard error and exit 1.
 file: feedtr.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>, <sys/wait.h>
+need: - pipe(fd): fd[0] reads, fd[1] writes; fork copies both
+need: - dup2(old, new): descriptor new now points where old does;
+need:   STDIN_FILENO is 0
+need: - child: dup2, then close BOTH pipe ends, then exec
+need: - execlp(file, arg0, arg1, ..., (char *)NULL): PATH lookup, the
+need:   list ends in a pointer-cast NULL; returns only on failure
+need: - fdopen(fd, "w") wraps a descriptor in a FILE *; NULL on failure
+need: - finish with fclose(f), not close: it flushes, then closes
+need: - parent closes the read end; tr sees end of file only when
+need:   every write end is closed
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <stdio.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	int fd[2];
+start: 	if (pipe(fd) != 0) {
+start: 		fprintf(stderr, "feedtr: pipe failed\n");
+start: 		return 1;
+start: 	}
+start: 	/* fork; child: dup2 the read end onto stdin, exec tr a-z A-Z */
+start: 	/* parent: write the arguments, close, wait, print tr exited N */
+start: 	(void)argc;
+start: 	(void)argv;
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <stdio.h>
 prog: #include <sys/wait.h>
@@ -221,6 +280,36 @@ spec: standard error and exits 2. If `pipe` fails print
 spec: `twostage: pipe failed` and exit 1; if a `fork` fails, still wait for
 spec: the child that did start, print `twostage: fork failed` and exit 1.
 file: twostage.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>, <sys/wait.h>
+need: - one pipe, two forks; left child: dup2(fd[1], STDOUT_FILENO),
+need:   right child: dup2(fd[0], STDIN_FILENO)
+need: - every process closes every pipe end it does not use,
+need:   including the parent's copies of BOTH
+need: - execlp("sh", "sh", "-c", cmd, (char *)NULL) runs a shell line;
+need:   returns only on failure, then _exit(127)
+need: - waitpid both; WIFEXITED then WEXITSTATUS, else WTERMSIG
+need: - a fork failure still waits for the child that did start
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <stdio.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc != 3) {
+start: 		fprintf(stderr, "usage: twostage LEFT RIGHT\n");
+start: 		return 2;
+start: 	}
+start: 	int fd[2];
+start: 	if (pipe(fd) != 0) {
+start: 		fprintf(stderr, "twostage: pipe failed\n");
+start: 		return 1;
+start: 	}
+start: 	/* fork the left child, then the right; close every spare end */
+start: 	/* wait for both, print left A right B */
+start: 	(void)argv;
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <stdio.h>
 prog: #include <sys/wait.h>
@@ -296,6 +385,39 @@ spec: and exits 2. Failures of `pipe`, `fork`, `realloc` or `waitpid`
 spec: print `capture: pipe failed`, `capture: fork failed`,
 spec: `capture: out of memory` or `capture: wait failed` and exit 1.
 file: capture.c
+need: - needs #define _POSIX_C_SOURCE 200809L, <unistd.h>, <sys/wait.h>
+need: - pipe(fd); child: dup2(fd[1], STDOUT_FILENO), close both ends,
+need:   execvp(argv[1], argv + 1); failure: message, _exit(127)
+need: - parent closes fd[1] at once, else read never hits end of file
+need: - read(fd[0], buf + len, cap - len): 0 = end, -1 = error
+need:   (EINTR: retry); it gives fewer bytes than asked
+need: - unknown size: realloc to a bigger buffer (double it) before
+need:   each read; use a temp pointer, check for NULL, free at the end
+need: - waitpid; WIFEXITED / WEXITSTATUS, WIFSIGNALED / WTERMSIG
+need: - the buffer is not a string: use len, no terminator
+start: #define _POSIX_C_SOURCE 200809L
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <sys/wait.h>
+start: #include <unistd.h>
+start: 
+start: int main(int argc, char **argv)
+start: {
+start: 	if (argc < 2) {
+start: 		fprintf(stderr, "usage: capture CMD [ARG...]\n");
+start: 		return 2;
+start: 	}
+start: 	int fd[2];
+start: 	if (pipe(fd) != 0) {
+start: 		fprintf(stderr, "capture: pipe failed\n");
+start: 		return 1;
+start: 	}
+start: 	/* fork; child writes into the pipe; parent reads it all */
+start: 	/* print each line with "> " in front, then exit N / signal S */
+start: 	return 0;
+start: }
 prog: #define _POSIX_C_SOURCE 200809L
 prog: #include <errno.h>
 prog: #include <stdbool.h>

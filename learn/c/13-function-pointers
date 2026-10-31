@@ -71,6 +71,28 @@ spec: A wrong argument count prints `usage: sortby MODE` and a MODE not in
 spec: the table prints `sortby: unknown mode NAME`, both to standard error,
 spec: both exit 2. Empty input prints nothing and exits 0.
 file: sortby.c
+need: - typedef int (*cmpfn)(const void *, const void *);
+need: - qsort(base, n, size, cmp): cmp gets pointers TO elements
+need: - elements are char *, so *(const char *const *)p is the string
+need: - cmp returns <0, 0, >0 like strcmp; strtol(s, NULL, 10)
+need: - table: static const struct { const char *name; cmpfn f; } t[]
+need:   { { "alpha", by_alpha } };  loop sizeof t / sizeof *t, strcmp
+need: - 257th line: after 256 fgets, getchar() != EOF means more
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define MAXLINES 256
+start: #define MAXLEN 64
+start: 
+start: typedef int (*cmpfn)(const void *, const void *);
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
 prog: #include <string.h>
@@ -188,6 +210,31 @@ spec: `mapfilter: unknown map NAME` or `mapfilter: unknown keep NAME` (the
 spec: map is checked first); all exit 2 before any input is read.
 spec: Empty input prints nothing and exits 0. Negative odd numbers are odd.
 file: mapfilter.c
+need: - typedef long (*mapfn)(long);  call it: v[i] = fn(v[i]);
+need: - table: static const struct { const char *name; mapfn fn; }
+need:   = { { "same", same } };  loop sizeof maps / sizeof *maps, strcmp
+need: - an unused parameter: write (void)x; in the body. bool: stdbool.h
+need: - strtol(line, &end, 10): end == line is no digits; *end must be
+need:   '\n' or '\0'; errno = 0 first (errno.h)
+need: - count lines from 1 for the messages
+start: #include <errno.h>
+start: #include <stdbool.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define MAXN 1000
+start: #define LIMIT 30000
+start: 
+start: typedef long (*mapfn)(long);
+start: typedef bool (*keepfn)(long);
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdbool.h>
 prog: #include <stdio.h>
@@ -330,6 +377,34 @@ spec: first (that includes `bad number` and `out of range` for push), then
 spec: the stack depth, then the arithmetic. Spaces after a command with no
 spec: argument change nothing (`pop ` is `pop`). End of input exits 0.
 file: cmdtab.c
+need: - typedef enum err (*handler)(struct stack *s, const char *arg);
+need: - table { "push", h_push }, ...  loop sizeof t / sizeof *t,
+need:   strcmp the name, call t[i].fn(&st, arg)
+need: - messages: errtext[] = { [OK] = "ok", [E_ARG] = "bad argument" };
+need: - split: strchr(line, ' ') is NULL if none; *arg++ = '\0'
+need: - cut newline: line[strcspn(line, "\n")] = '\0' (string.h)
+need: - strtol(arg, &end, 10): end == arg, *end != '\0', errno (errno.h)
+start: #include <errno.h>
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define DEPTH 16
+start: #define LIMIT 1000000000L
+start: 
+start: enum err { OK, E_UNKNOWN, E_EMPTY, E_FULL, E_NUM, E_RANGE, E_ARG, E_DIV };
+start: 
+start: struct stack {
+start: 		long v[DEPTH];
+start: 		size_t n;
+start: };
+start: 
+start: typedef enum err (*handler)(struct stack *s, const char *arg);
+start: 
+start: int main(void)
+start: {
+start: 		return 0;
+start: }
 prog: #include <errno.h>
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
@@ -523,6 +598,34 @@ spec:
 spec: Do the reading in a function that takes a callback and a `void *`
 spec: context, and hand it a struct holding the words and the counts.
 file: ctxcount.c
+need: - typedef void (*line_fn)(const char *line, void *ctx);
+need: - the callback turns the context back: struct counts *c = ctx;
+need: - caller passes its struct: each_line(stdin, count_line, &c)
+need: - strstr(line, word): pointer to the match, NULL if none
+need: - fgets(buf, sizeof buf, f); buf[strcspn(buf, "\n")] = '\0'
+need: - calloc(n, sizeof *p) gives n zeroed items; check NULL; free it
+need: - argv + 1 is the argument list without the program name
+start: #include <stdio.h>
+start: #include <stdlib.h>
+start: #include <string.h>
+start: 
+start: #define MAXLINE 256
+start: 
+start: typedef void (*line_fn)(const char *line, void *ctx);
+start: 
+start: struct counts {
+start: 		size_t nwords;
+start: 		char **words;
+start: 		size_t *hits;   /* hits[i]: lines containing words[i] */
+start: 		size_t lines;
+start: };
+start: 
+start: int main(int argc, char *argv[])
+start: {
+start: 		(void)argc; /* delete these two once you use them */
+start: 		(void)argv;
+start: 		return 0;
+start: }
 prog: #include <stdio.h>
 prog: #include <stdlib.h>
 prog: #include <string.h>
